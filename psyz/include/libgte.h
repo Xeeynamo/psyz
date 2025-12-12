@@ -23,6 +23,10 @@ typedef struct {
     u_char cd;      // GPU code
 } CVECTOR;
 
+typedef struct {
+	short vx, vy;
+} DVECTOR;
+
 MATRIX* RotMatrix(SVECTOR* r, MATRIX* m);
 void SetGeomOffset(long ofx, long ofy);
 long RotTransPers(SVECTOR*, long*, long*, long*);
