@@ -78,4 +78,64 @@ s32 SsVabTransBodyPartly(u_char* addr, u_long bufsize, u_long vabid) {
     return 0;
 }
 
+
+short SsVabOpenHead(unsigned char*, short)
+{
+    NOT_IMPLEMENTED;
+    return 0;
+}
+
+short SsVabTransBody(unsigned char*, short)
+{
+    NOT_IMPLEMENTED;
+    return 0;
+}
 void SsVabClose(short vab_id) { NOT_IMPLEMENTED; }
+
+void  SsInit(void) { NOT_IMPLEMENTED; }
+
+void SsEnd(void) { NOT_IMPLEMENTED; }
+
+void  SsSetMarkCallback(short, short, SsMarkCallbackProc) { NOT_IMPLEMENTED; }
+
+short SsIsEos(short, short)
+{
+    NOT_IMPLEMENTED;
+    return 0;
+}
+
+short SsUtKeyOn(short, short, short, short, short, short, short)
+{
+    NOT_IMPLEMENTED;
+    return 0;
+}
+
+void  SsUtSetReverbDelay(short delay) { NOT_IMPLEMENTED; }
+
+void  SsUtReverbOff(void) { NOT_IMPLEMENTED; }
+
+short SsUtKeyOff(short, short, short, short, short)
+{
+    NOT_IMPLEMENTED;
+    return 0;
+}
+
+void  SsUtAllKeyOff(short) { NOT_IMPLEMENTED; }
+
+void  SsSepStop(short, short) { NOT_IMPLEMENTED; }
+
+short SsSepOpen(unsigned long*, short, short)
+{
+    NOT_IMPLEMENTED;
+    return 0;
+}
+
+void  SsSepClose(short) { NOT_IMPLEMENTED; }
+
+void  SsSepSetVol(short, short, short, short) { NOT_IMPLEMENTED; }
+
+void  SsSeqCalledTbyT(void) { NOT_IMPLEMENTED; }
+
+void  SsSepPlay(short, short, char, short) { NOT_IMPLEMENTED; }
+
+void  SsSeqSetCrescendo(short, short, long) { NOT_IMPLEMENTED; }

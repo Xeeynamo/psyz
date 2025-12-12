@@ -34,6 +34,8 @@
 #define SS_SERIAL_A 0
 #define SS_SERIAL_B 1
 
+#define SSPLAY_PLAY 1
+
 // Closes the SEQ data holding the seq_acces_num that is no longer necessary.
 extern void SsSeqClose(short seq_access_num);
 
@@ -175,6 +177,32 @@ void SsUtSetReverbDepth(
     short rdepth  // Right channel depth. Value between 0 and 127
 );
 
-void SsUtSetReverbDelay(short delay);
+void  SsInit(void);
+void SsEnd(void);
+typedef void (*SsMarkCallbackProc)(short, short, short);
+void  SsSetMarkCallback(short, short, SsMarkCallbackProc);
+short SsIsEos(short, short);
+
+short SsVabOpenHead(unsigned char*, short);
+short SsVabTransBody(unsigned char*, short);
+void  SsVabClose(short);          
+
+short SsUtKeyOn(short, short, short, short, short, short, short);
+void  SsUtSetReverbDelay(short delay);
+void  SsUtReverbOff(void);
+short SsUtKeyOff(short, short, short, short, short);
+void  SsUtAllKeyOff(short);
+
+void  SsSepStop(short, short);
+short SsSepOpen(unsigned long*, short, short);
+void  SsSepClose(short);
+void  SsSepSetVol(short, short, short, short);
+void  SsSeqCalledTbyT(void);           
+void  SsSepPlay(short, short, char, short);
+
+void  SsSeqPlay(s16, s8, s16);    
+void  SsSeqSetVol(s16 arg0, s32 arg1, s32 arg2);  
+void  SsSeqSetCrescendo(short, short, long); 
+
 
 #endif
