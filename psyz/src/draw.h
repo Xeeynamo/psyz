@@ -69,6 +69,7 @@ void Draw_SetTextureWindow(unsigned int mask_x, unsigned int mask_y,
 void Draw_SetAreaStart(int x, int y);
 void Draw_SetAreaEnd(int x, int y);
 void Draw_SetOffset(int x, int y);
+void Draw_SetMask(int bit0, int bit1);
 void Draw_ClearImage(RECT* rect, u_char r, u_char g, u_char b);
 void Draw_LoadImage(RECT* rect, u_long* p);
 void Draw_StoreImage(RECT* rect, u_long* p);

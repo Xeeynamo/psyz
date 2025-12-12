@@ -95,8 +95,8 @@ static int GPU_Exeque() {
         case 0xE5:
             Draw_SetOffset((int)op & 0x7FF, (int)(op >> 11) & 0x7FF);
             break;
-        case 0xE6: // mask settings
-            WARNF("unsupported command %s", "mask settings");
+        case 0xE6:
+            Draw_SetMask(!!(op & 1), !!(op & 2));
             break;
         default:
             if (code >= 0x20 && code < 0x80) {

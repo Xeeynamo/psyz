@@ -279,7 +279,7 @@ TEST_F(SDLGL_Test, swap_buffer) {
     }
 
     for (int fbidx = 0; fbidx < 2; fbidx++) {
-        cdb = &db[fbidx&1];
+        cdb = &db[fbidx & 1];
         cdb->draw.isbg = 1;
         cdb->draw.tpage = tpage;
         setRGB0(&cdb->draw, 60, 120, 120);
@@ -301,4 +301,44 @@ TEST_F(SDLGL_Test, swap_buffer) {
         VSync(0);
         AssertFrame((fbidx & 1) ? "swap_buffer_fb2" : "swap_buffer_fb1");
     }
+}
+
+TEST_F(SDLGL_Test, drawenv_clear_vram) {
+    u_short tpage, clut;
+    if (LoadTim(img_4bpp, &tpage, &clut)) {
+        return;
+    }
+
+    DRAWENV drawEnv = {};
+    drawEnv.clip.x = 964;
+    drawEnv.clip.y = 16;
+    drawEnv.clip.w = 8;
+    drawEnv.clip.h = 32;
+    drawEnv.ofs[0] = drawEnv.clip.x;
+    drawEnv.ofs[1] = drawEnv.clip.y;
+    drawEnv.r0 = 255;
+    drawEnv.g0 = drawEnv.b0 = 0;
+    drawEnv.isbg = 1;
+    PutDrawEnv(&drawEnv);
+
+    cdb->draw.tpage = tpage;
+    PutDrawEnv(&cdb->draw);
+
+    SetPolyFT4(&cdb->ft4[0]);
+    setXYWH(&cdb->ft4[0], 16, 16, 64, 64);
+    setRGB0(&cdb->ft4[0], 128, 128, 128);
+    setUVWH(&cdb->ft4[0], 0, 0, 64, 64);
+    setSemiTrans(&cdb->ft4[0], 0);
+    cdb->ft4[0].tpage = tpage;
+    cdb->ft4[0].clut = clut;
+
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &db[0].ft4[0]);
+
+    ClearImage(&cdb->draw.clip, 60, 120, 120);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+    AssertFrame("drawenv_clear_vram", 0.998);
 }

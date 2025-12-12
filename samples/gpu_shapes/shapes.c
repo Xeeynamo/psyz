@@ -266,7 +266,7 @@ int main(void) {
         } else if (pad & PADLright) {
             shadeOff = 1;
         }
-        if (pad & PADLdown) {
+        if (pad & PADLup) {
             semiTransp = 0;
         } else if (pad & PADLdown) {
             semiTransp = 1;

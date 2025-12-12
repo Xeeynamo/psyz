@@ -12,6 +12,7 @@ typedef struct DB {
     DISPENV disp;
     OT_TYPE ot[OTSIZE];
     POLY_FT4 ft4[4];
+    SPRT sprt[4];
 } DB;
 DB db[2];
 DB* cdb;
@@ -44,16 +45,31 @@ void RunTest() {
         return;
     }
 
-    SetPolyFT4(&cdb->ft4[0]);
-    setXYWH(&cdb->ft4[0], 16, 16, 64, 64);
-    setRGB0(&cdb->ft4[0], 255, 128, 128);
-    setUVWH(&cdb->ft4[0], 0, 0, 64, 64);
-    setSemiTrans(&cdb->ft4[0], 0);
-    cdb->ft4[0].tpage = tpage;
-    cdb->ft4[0].clut = clut;
+    DRAWENV drawEnv = {0};
+    drawEnv.clip.x = 964;
+    drawEnv.clip.y = 16;
+    drawEnv.clip.w = 8;
+    drawEnv.clip.h = 32;
+    drawEnv.ofs[0] = drawEnv.clip.x;
+    drawEnv.ofs[1] = drawEnv.clip.y;
+    drawEnv.r0 = 255;
+    drawEnv.g0 = drawEnv.b0 = 0;
+    drawEnv.isbg = 1;
+    PutDrawEnv(&drawEnv);
+
+    cdb->draw.tpage = tpage;
+    PutDrawEnv(&cdb->draw);
+
+    SetSprt(&cdb->sprt[0]);
+    SetSemiTrans(&cdb->sprt[0], 0);
+    SetShadeTex(&cdb->sprt[0], 1);
+    setXY0(&cdb->sprt[0], 16, 16);
+    setWH(&cdb->sprt[0], 64, 64);
+    setUV0(&cdb->sprt[0], 0, 0);
+    cdb->sprt[0].clut = clut;
+    AddPrim(cdb->ot, &cdb->sprt[0]);
 
     ClearImage(&cdb->draw.clip, 60, 120, 120);
-    AddPrim(cdb->ot, &db[0].ft4[0]);
     DrawOTag(cdb->ot);
     DrawSync(0);
     VSync(0);

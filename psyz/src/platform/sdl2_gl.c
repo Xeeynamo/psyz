@@ -507,7 +507,6 @@ static void UpdateScissor() {
     if (width <= 0 || height <= 0) {
         WARNF("scissor out of range: {%d, %d, %d, %d}", scissor_start.x,
               scissor_start.y, scissor_end.x, scissor_end.y);
-        return;
     }
     int absx = scissor_start.x - draw_offset.x;
     int absy = scissor_start.y - draw_offset.y;
@@ -995,6 +994,7 @@ void Draw_SetOffset(int x, int y) {
     draw_offset.y = y;
     NOT_IMPLEMENTED;
 }
+void Draw_SetMask(int bit0, int bit1) { NOT_IMPLEMENTED; }
 void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
     int fbidx = GuessFrameBuffer(rect->x, rect->y);
     if (fbidx >= 0) {
@@ -1029,10 +1029,11 @@ void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
     vram += fixedRect.x + fixedRect.y * VRAM_W;
     for (int i = 0; i < fixedRect.h; i++) {
         for (int j = 0; j < fixedRect.w; j++) {
-            vram[j] = (r >> 3 << 5) | (g >> 3 << 10) | (b >> 3 << 15);
+            vram[j] = (r >> 3) | (g >> 3 << 5) | (b >> 3 << 10);
         }
         vram += VRAM_W;
     }
+    is_vram_texture_invalid = true;
 }
 void Draw_LoadImage(PS1_RECT* rect, u_long* p) {
     u16* mem = (u16*)p;
