@@ -25,6 +25,7 @@ static char* progname = "graphics/balls/balls.cpe";
 #include <libetc.h>
 #include <libgte.h>
 #include <libgpu.h>
+#include <stdlib.h>
 
 /*
  * Kaji Printf: �������v�����g���邽�߂̒�`

@@ -261,14 +261,14 @@ int main(void) {
 
     while (1) {
         u_long pad = PadRead(0);
-        if (pad & PAD_LEFT) {
+        if (pad & PADLleft) {
             shadeOff = 0;
-        } else if (pad & PAD_RIGHT) {
+        } else if (pad & PADLright) {
             shadeOff = 1;
         }
-        if (pad & PAD_UP) {
+        if (pad & PADLdown) {
             semiTransp = 0;
-        } else if (pad & PAD_DOWN) {
+        } else if (pad & PADLdown) {
             semiTransp = 1;
         }
 

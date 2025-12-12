@@ -105,11 +105,11 @@ int main(void) {
     cdb = &db[0];
     while (1) {
         u_long pad = PadRead(0);
-        if (pad & PAD_LEFT && pal_type > 0) {
+        if (pad & PADLleft && pal_type > 0) {
             pal_type--;
             invalidate_pal = 1;
         }
-        if (pad & PAD_RIGHT && pal_type < 3) {
+        if (pad & PADLright && pal_type < 3) {
             pal_type++;
             invalidate_pal = 1;
         }
