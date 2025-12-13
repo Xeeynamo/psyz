@@ -342,3 +342,35 @@ TEST_F(SDLGL_Test, drawenv_clear_vram) {
     PutDispEnv(&cdb->disp);
     AssertFrame("drawenv_clear_vram", 0.998);
 }
+
+// N.B. this test fails on pcsx-redux, I tested output accuracy with Duckstation
+TEST_F(SDLGL_Test, moveimage) {
+    u_short tpage, clut;
+    if (LoadTim(img_4bpp, &tpage, &clut)) {
+        return;
+    }
+
+    RECT rect = {960, 0, 16, 64};
+    MoveImage(&rect, 962, 8);
+    rect.x = 962;
+    rect.y = 8;
+    MoveImage(&rect, 960, 0);
+
+    SetPolyFT4(&cdb->ft4[0]);
+    setXYWH(&cdb->ft4[0], 16, 16, 64, 64);
+    setRGB0(&cdb->ft4[0], 128, 128, 128);
+    setUVWH(&cdb->ft4[0], 0, 0, 64, 64);
+    setSemiTrans(&cdb->ft4[0], 0);
+    cdb->ft4[0].tpage = tpage;
+    cdb->ft4[0].clut = clut;
+
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &db[0].ft4[0]);
+
+    ClearImage(&cdb->draw.clip, 60, 120, 120);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+    AssertFrame("moveimage", 0.9979);
+}

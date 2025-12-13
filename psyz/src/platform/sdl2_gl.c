@@ -1058,6 +1058,30 @@ void Draw_StoreImage(PS1_RECT* rect, u_long* p) {
         vram += VRAM_W;
     }
 }
+void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
+    u16* src = g_RawVram;
+    u16* dst = g_RawVram;
+    if (rect->x == x && rect->y == y) {
+        return;
+    }
+    if (rect->y < y) {
+        src += rect->x + (rect->y + rect->h - 1) * VRAM_W;
+        dst += x + (y + rect->h - 1) * VRAM_W;
+        for (int i = 0; i < rect->h; i++) {
+            memmove(dst, src, rect->w * sizeof(u16));
+            src -= VRAM_W;
+            dst -= VRAM_W;
+        }
+    } else {
+        src += rect->x + rect->y * VRAM_W;
+        dst += x + y * VRAM_W;
+        for (int i = 0; i < rect->h; i++) {
+            memmove(dst, src, rect->w * sizeof(u16));
+            src += VRAM_W;
+            dst += VRAM_W;
+        }
+    }
+}
 void Draw_ResetBuffer(void) {
     n_vertices = 0;
     n_indices = 0;

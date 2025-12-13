@@ -286,9 +286,19 @@ int MoveImage(RECT* rect, int x, int y) {
     if (!rect->w || !rect->h) {
         return -1;
     }
-    move_image[2] = *(int*)&rect->x;
-    move_image[3] = y << 0x10 | (u16)x;
-    move_image[4] = *(int*)&rect->w;
+#if __psyz
+#define MOVE_IMAGE_DATA_INDEX 3
+    u_long move_image[6] = {0, 0, 0, 0, 0, 0};
+    setlen(move_image, 4);
+    setcode(move_image, 0x80);
+    termPrim(move_image);
+#else
+#define MOVE_IMAGE_DATA_INDEX 2
+#endif
+    move_image[MOVE_IMAGE_DATA_INDEX + 0] = *(int*)&rect->x;
+    move_image[MOVE_IMAGE_DATA_INDEX + 1] = y << 0x10 | (u16)x;
+    move_image[MOVE_IMAGE_DATA_INDEX + 2] = *(int*)&rect->w;
+#undef MOVE_IMAGE_DATA_INDEX
     return D_800B8920->addque2((int (*)(u_long, u_long))D_800B8920->cwc,
                                (u_long)move_image, sizeof(move_image), 0);
 }

@@ -73,6 +73,7 @@ void Draw_SetMask(int bit0, int bit1);
 void Draw_ClearImage(RECT* rect, u_char r, u_char g, u_char b);
 void Draw_LoadImage(RECT* rect, u_long* p);
 void Draw_StoreImage(RECT* rect, u_long* p);
+void Draw_MoveImage(RECT* rect, unsigned int x, unsigned int y);
 void Draw_PutDispEnv(DISPENV* disp);
 void Draw_ResetBuffer(void);
 void Draw_FlushBuffer(void);

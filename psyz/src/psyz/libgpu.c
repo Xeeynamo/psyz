@@ -46,6 +46,7 @@ static int queue_len = 0;
 static u_long queue_buf[0x4000];
 static int GPU_Exeque() {
     RECT rect;
+    unsigned int x, y;
     Draw_ResetBuffer();
     for (int i = 0; i < queue_len; i++) {
         u_long op = queue_buf[i];
@@ -69,7 +70,13 @@ static int GPU_Exeque() {
             i += 2;
             break;
         case 0x80: // move image
-            WARNF("unsupported command %s", "move image");
+            rect.x = (short)(queue_buf[i + 1] & 0xFFFF);
+            rect.y = (short)((queue_buf[i + 1] >> 16) & 0xFFFF);
+            rect.w = (short)(queue_buf[i + 3] & 0xFFFF);
+            rect.h = (short)((queue_buf[i + 3] >> 16) & 0xFFFF);
+            x = (short)(queue_buf[i + 2] & 0xFFFF);
+            y = (short)((queue_buf[i + 2] >> 16) & 0xFFFF);
+            Draw_MoveImage(&rect, x, y);
             break;
         case 0xA0: // write image
             WARNF("unsupported command %s", "write image");
