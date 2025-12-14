@@ -1318,7 +1318,7 @@ segments:
       - [0xBD0A8, data, libgte/mtx_006]
       - [0xBD3B8, data, libgte/phn]
       - [0xBD598, data, libgte/ppm]
-      - [0xBD5B8, data, libgte/ratan]
+      - [0xBD5B8, .data, libgte/ratan]
       - [0xBDDC0, data, libgte/rmpq_t]
       - [0xBDDE0, data, libgte/rmpr_fc]
       - [0xBDE00, data, libgte/rmpr_fct]

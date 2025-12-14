@@ -10,11 +10,6 @@ void SetGeomOffset(long ofx, long ofy) { NOT_IMPLEMENTED; }
 
 void SetGeomScreen(long h) { NOT_IMPLEMENTED; }
 
-long ratan2(long y, long x) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
 long SquareRoot0(long a) {
     NOT_IMPLEMENTED;
     return 0;
