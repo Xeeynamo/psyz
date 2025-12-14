@@ -13,6 +13,8 @@ set(SDL_SHARED OFF CACHE BOOL "" FORCE)
 set(SDL_STATIC ON CACHE BOOL "" FORCE)
 set(SDL_TEST OFF CACHE BOOL "" FORCE)
 
+option(GTE_USE_HW_SQRT "Use hardware-accelerated sqrt (C math library)" OFF)
+
 set(PSYZ_SOURCES
     src/platform/log.c
     src/platform/common.c
@@ -41,6 +43,15 @@ set(PSYZ_SOURCES
     src/psyz/libsn.c
     src/psyz/libpress.c
 )
+
+# Choose sqrt implementation
+if(GTE_USE_HW_SQRT)
+    list(APPEND PSYZ_SOURCES src/psyz/libgte_hw_sqrt.c)
+    message(STATUS "Using hardware-accelerated sqrt (C math library)")
+else()
+    list(APPEND PSYZ_SOURCES src/psyz/libgte_sw_sqrt.c)
+    message(STATUS "Using software sqrt (lookup table)")
+endif()
 set(PSYZ_LIBS)
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     list(APPEND PSYZ_SOURCES src/platform/plat_win.c)

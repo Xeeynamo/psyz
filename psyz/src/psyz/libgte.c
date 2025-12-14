@@ -33,79 +33,11 @@ unsigned int gte_leadingzerocount(unsigned int lzcs) {
 
 long MTC2_MFC2(long a) { return gte_leadingzerocount(a); }
 
-extern short SQRT[192];
+long SquareRoot0_impl(long a);
+long SquareRoot0(long a) { return SquareRoot0_impl(a); }
 
-long SquareRoot0(long a) {
-    unsigned int lzc;
-    long shift;
-    long result_shift;
-    long table_shift;
-    long normalized;
-
-    if (a == 0) {
-        return 0;
-    }
-    if (a < 0) {
-        WARNF("SquareRoot0(%d) negative value", a);
-    }
-
-    lzc = gte_leadingzerocount(a);
-    if (lzc == 0x20) {
-        return 0;
-    }
-
-    shift = lzc & ~1; // Make even
-    table_shift = shift - 0x18;
-    if (table_shift >= 0) {
-        normalized = a << table_shift;
-    } else {
-        normalized = a >> (0x18 - shift);
-    }
-
-    normalized -= 0x40;
-    if (normalized < 0 || normalized >= LEN(SQRT)) {
-        WARNF("SquareRoot0(%d) out of bounds", a);
-        normalized %= 192;
-    }
-    result_shift = (0x1F - shift) >> 1;
-    return (long)(SQRT[normalized] << result_shift) >> 12;
-}
-
-long SquareRoot12(long a) {
-    unsigned int lzc;
-    long shift;
-    long result_shift;
-    long table_shift;
-    long normalized;
-
-    if (a == 0) {
-        return 0;
-    }
-    if (a < 0) {
-        WARNF("SquareRoot12(%d) negative value", a);
-    }
-
-    lzc = gte_leadingzerocount(a);
-    if (lzc == 0x20) {
-        return 0;
-    }
-
-    shift = lzc & ~1; // Make even
-    table_shift = shift - 0x18;
-    if (table_shift >= 0) {
-        normalized = a << table_shift;
-    } else {
-        normalized = a >> (0x18 - shift);
-    }
-
-    normalized -= 0x40;
-    if (normalized < 0 || normalized >= LEN(SQRT)) {
-        WARNF("SquareRoot12(%d) out of bounds", a);
-        normalized %= 192;
-    }
-    result_shift = (0x1F - shift) >> 1;
-    return (long)(SQRT[normalized] << result_shift) >> 6;
-}
+long SquareRoot12_impl(long a);
+long SquareRoot12(long a) { return SquareRoot12_impl(a); }
 
 MATRIX* RotMatrix(SVECTOR* r, MATRIX* m) {
 #ifdef PLATFORM_64BIT
