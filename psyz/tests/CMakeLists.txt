@@ -15,6 +15,7 @@ enable_testing()
 add_executable(psyz_tests
     test_main.cpp
     test_libapi.cpp
+    test_libgte.cpp
     test_sdlgl.cpp
 )
 add_subdirectory(../ build)
