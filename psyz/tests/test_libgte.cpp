@@ -46,3 +46,19 @@ TEST_F(gte_Test, trans_matrix) {
     EXPECT_EQ(TransMatrix(&m, &t), &m);
     EqMatrix(&m, &exp);
 }
+
+TEST_F(gte_Test, rot_matrix) {
+    MATRIX m={
+        1, 2, 3, //
+        4, 5, 6, //
+        7, 8, 9, //
+        10, 11, 12};
+    MATRIX exp={
+        +0x0FFD, -0x0071, +0x006B, //
+        +0x0073, +0x0FFC, -0x0065, //
+        -0x0069, +0x0067, +0x0FFE, //
+        0, 0, 0};
+    SVECTOR sv={16, 17, 18};
+    EXPECT_EQ(RotMatrix(&sv, &m), &m);
+    EqMatrix(&m, &exp);
+}
