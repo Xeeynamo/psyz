@@ -62,3 +62,41 @@ TEST_F(gte_Test, rot_matrix) {
     EXPECT_EQ(RotMatrix(&sv, &m), &m);
     EqMatrix(&m, &exp);
 }
+
+extern "C" long MTC2_MFC2(long a) ;
+TEST_F(gte_Test, mtc2_mfc2) {
+    EXPECT_EQ(MTC2_MFC2(0), 0x20);
+    EXPECT_EQ(MTC2_MFC2(1), 0x1F);
+    EXPECT_EQ(MTC2_MFC2(2), 0x1E);
+    EXPECT_EQ(MTC2_MFC2(4), 0x1D);
+    EXPECT_EQ(MTC2_MFC2(8), 0x1C);
+    EXPECT_EQ(MTC2_MFC2(9), 0x1C);
+    EXPECT_EQ(MTC2_MFC2(0x10000), 15);
+    EXPECT_EQ(MTC2_MFC2(0x10000000), 3);
+    EXPECT_EQ(MTC2_MFC2(0x80000000), 1);
+    EXPECT_EQ(MTC2_MFC2(0xF0000000), 4);
+    EXPECT_EQ(MTC2_MFC2(-9), 0x1C);
+    EXPECT_EQ(MTC2_MFC2(-8), 0x1D);
+}
+
+TEST_F(gte_Test, square_root_0) {
+    EXPECT_EQ(SquareRoot0(0), 0);
+    EXPECT_EQ(SquareRoot0(1), 1);
+    EXPECT_EQ(SquareRoot0(2), 1);
+    EXPECT_EQ(SquareRoot0(4), 2);
+    EXPECT_EQ(SquareRoot0(8), 2);
+    EXPECT_EQ(SquareRoot0(9), 3);
+    EXPECT_EQ(SquareRoot0(0x10000), 0x100);
+    EXPECT_EQ(SquareRoot0(0x10000000), 0x4000);
+}
+
+TEST_F(gte_Test, square_root_12) {
+    EXPECT_EQ(SquareRoot12(0), 0);
+    EXPECT_EQ(SquareRoot12(1), 0x40);
+    EXPECT_EQ(SquareRoot12(2), 0x5A);
+    EXPECT_EQ(SquareRoot12(4), 0x80);
+    EXPECT_EQ(SquareRoot12(8), 0xB5);
+    EXPECT_EQ(SquareRoot12(9), 0xC0);
+    EXPECT_EQ(SquareRoot12(0x10000), 0x4000);
+    EXPECT_EQ(SquareRoot12(0x10000000), 0x100000);
+}
