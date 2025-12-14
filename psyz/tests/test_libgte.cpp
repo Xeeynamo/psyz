@@ -13,6 +13,18 @@ class gte_Test : public testing::Test {
     }
     void TearDown() override {
     }
+    static void EqMatrix(MATRIX* m1, MATRIX* m2) {
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                EXPECT_EQ(m1->m[i][j], m2->m[i][j])
+                    << "Matrix coefficient mismatch at m[" << i << "][" << j << "]";
+            }
+        }
+        for (int i = 0; i < 3; i++) {
+            EXPECT_EQ(m1->t[i], m2->t[i])
+                << "Translation vector mismatch at t[" << i << "]";
+        }
+    }
 };
 
 TEST_F(gte_Test, rsin) {
@@ -25,4 +37,12 @@ TEST_F(gte_Test, rsin) {
     EXPECT_EQ(rsin(0x0400), 0x1000);
     EXPECT_EQ(rsin(0x0800), 0x0000);
     EXPECT_EQ(rsin(0x1000), 0x0000);
+}
+
+TEST_F(gte_Test, trans_matrix) {
+    MATRIX m={0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    MATRIX exp={0, 1, 2, 3, 4, 5, 6, 7, 8, 16, 17, 18};
+    VECTOR t={16, 17, 18};
+    EXPECT_EQ(TransMatrix(&m, &t), &m);
+    EqMatrix(&m, &exp);
 }

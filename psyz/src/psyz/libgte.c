@@ -26,8 +26,10 @@ MATRIX* RotMatrix(SVECTOR* r, MATRIX* m) {
 }
 
 MATRIX* TransMatrix(MATRIX* m, VECTOR* v) {
-    NOT_IMPLEMENTED;
-    return 0;
+    m->t[0] = v->vx;
+    m->t[1] = v->vy;
+    m->t[2] = v->vz;
+    return m;
 }
 
 void SetRotMatrix(MATRIX* m) { NOT_IMPLEMENTED; }
