@@ -1330,7 +1330,7 @@ segments:
       - [0xBDEC0, data, libgte/rmpr_gt]
       - [0xBDEE0, data, libgte/rmpr_t]
       - [0xBDF00, .data, libgte/sincos]
-      - [0xBE708, data, libgte/sqrtbl]
+      - [0xBE708, .data, libgte/sqrtbl]
       - [0xBE888, data, libgun/gun]
       - [0xBE8E8, data, libgun/newgun]
       - [0xBE8F8, data, libmath/ferr]

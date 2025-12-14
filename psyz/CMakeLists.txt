@@ -28,6 +28,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libgpu/prim.c
     ../decomp/src/libgpu/tmd.c
     ../decomp/src/libgte/sincos.c
+    ../decomp/src/libgte/sqrtbl.c
     ../decomp/src/libgte/geo_00.c
     ../decomp/src/libgte/geo_01.c
     ../decomp/src/libgte/ratan.c
