@@ -581,9 +581,12 @@ void SetDrawEnv2(DR_ENV* dr_env, DRAWENV* env) {
             h = 0;
         }
         rect.h = h;
-        // if (rect.x & 0x3F || rect.w & 0x3F) {
+#if __psyz
+        // HACK: temporarily disabled due to graphics glitches
         if (0) {
-            // HACK: temporarily disabled due to graphics glitches
+#else
+        if (rect.x & 0x3F || rect.w & 0x3F) {
+#endif
             rect.x -= env->ofs[0];
             rect.y -= env->ofs[1];
             PUSH_CODE = 0x60000000 | (env->b0 << 16) | (env->g0 << 8) | env->r0;
