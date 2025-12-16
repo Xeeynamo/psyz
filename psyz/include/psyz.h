@@ -56,7 +56,7 @@ long psyz_ioctl(long fd, long com, long arg);
 #define VRAM_STRIDE 2048
 
 #define NOP
-#define CLAMP(x, min, max) x < min ? min : (x > max ? max : x)
+#define CLAMP(x, min, max) (x) < (min) ? (min) : ((x) > (max) ? (max) : (x))
 
 
 struct PsyzDiskRead {

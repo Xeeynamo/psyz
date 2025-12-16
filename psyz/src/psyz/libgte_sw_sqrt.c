@@ -4,8 +4,26 @@
 
 extern short SQRT[192];
 
-// Forward declaration of helper function from libgte.c
-unsigned int gte_leadingzerocount(unsigned int lzcs);
+// https://github.com/OpenDriver2/PsyCross/blob/093501/src/gte/PsyX_GTE.cpp#L51
+// modified fast version to handle negative values, borrowed from PsyX GTE impl
+static unsigned int gte_leadingzerocount(unsigned int lzcs) {
+    if (!lzcs)
+        return 32;
+    if (lzcs & 0x80000000)
+        lzcs = ~lzcs;
+    unsigned int lzcr = lzcs;
+    static char debruijn32[32] = {
+        0, 31, 9, 30, 3, 8,  13, 29, 2,  5,  7,  21, 12, 24, 28, 19,
+        1, 10, 4, 14, 6, 22, 25, 20, 11, 15, 23, 26, 16, 27, 17, 18};
+
+    lzcr |= lzcr >> 1;
+    lzcr |= lzcr >> 2;
+    lzcr |= lzcr >> 4;
+    lzcr |= lzcr >> 8;
+    lzcr |= lzcr >> 16;
+    lzcr++;
+    return debruijn32[lzcr * 0x076be629 >> 27];
+}
 
 long SquareRoot0_impl(long a) {
     unsigned int lzc;
