@@ -1,32 +1,39 @@
-BUILD_DIR := build
-TEST_DIR := tests/build
-TEST_DIR_SW := tests/build_sw
-TEST_DIR_HW := tests/build_hw
+CMAKE_GEN ?= Ninja
+CMAKE_BUILD_TYPE ?= Release
 
-.PHONY: build clean format test
+.PHONY: all clean format test test-wine help
 
-build: $(BUILD_DIR)/libpsyz.a
+all: build/native/libpsyz.a
 
-$(BUILD_DIR)/libpsyz.a: CMakeLists.txt
-	cmake -GNinja -B $(BUILD_DIR)
-	cmake --build $(BUILD_DIR)
+# native build
+build/native/libpsyz.a: CMakeLists.txt $(shell find src include -type f)
+	cmake -G$(CMAKE_GEN) -DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE) -B build/native
+	cmake --build build/native
 
-clean:
-	rm -rf $(BUILD_DIR)
-	rm -rf $(TEST_DIR)
-	rm -rf $(TEST_DIR_SW)
-	rm -rf $(TEST_DIR_HW)
-
-format:
-	find src psxgen tests -type f -name '*.c' -exec clang-format -i {} +
+# cross-compilation build
+build/%/libpsyz.a: CMakeLists.txt cmake/%.cmake $(shell find src include -type f)
+	cmake -G$(CMAKE_GEN) -DCMAKE_TOOLCHAIN_FILE=cmake/$*.cmake -DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE) -B build/$*
+	cmake --build build/$*
 
 test:
-	@mkdir -p $(TEST_DIR_SW)
-	cmake -DGTE_USE_HW_SQRT=OFF -DCMAKE_BUILD_TYPE=Debug -GNinja -S tests/ -B $(TEST_DIR_SW)
-	cmake --build $(TEST_DIR_SW)
-	cd $(TEST_DIR_SW) && SDL_VIDEODRIVER=offscreen ./psyz_tests
+	@mkdir -p tests/build/native-sw
+	cmake -G$(CMAKE_GEN) -DGTE_USE_HW_SQRT=OFF -DCMAKE_BUILD_TYPE=Debug -S tests/ -B tests/build/native-sw
+	cmake --build tests/build/native-sw
+	cd tests/build && SDL_VIDEODRIVER=offscreen ./native-sw/psyz_tests
 
-	@mkdir -p $(TEST_DIR_HW)
-	cmake -DGTE_USE_HW_SQRT=ON -DCMAKE_BUILD_TYPE=Debug -GNinja -S tests/ -B $(TEST_DIR_HW)
-	cmake --build $(TEST_DIR_HW)
-	cd $(TEST_DIR_HW) && SDL_VIDEODRIVER=offscreen ./psyz_tests --gtest_filter='gte_Test.*'
+	@mkdir -p tests/build/native-hw
+	cmake -G$(CMAKE_GEN) -DGTE_USE_HW_SQRT=ON -DCMAKE_BUILD_TYPE=Debug -S tests/ -B tests/build/native-hw
+	cmake --build tests/build/native-hw
+	cd tests/build && SDL_VIDEODRIVER=offscreen ./native-hw/psyz_tests --gtest_filter='gte_Test.*'
+
+test-wine:
+	@mkdir -p tests/build/wine
+	cmake -G$(CMAKE_GEN) -DCMAKE_TOOLCHAIN_FILE=../cmake/windows-x86_64.cmake -DCMAKE_BUILD_TYPE=Debug -S tests/ -B tests/build/wine
+	cmake --build tests/build/wine
+	cd tests/build && WINEPATH="/usr/x86_64-w64-mingw32/bin;build/sdl" WINEDEBUG=-all SDL_VIDEODRIVER=offscreen wine ./wine/psyz_tests.exe
+
+clean:
+	rm -rf build tests/build
+
+format:
+	find src psxgen tests -type f \( -name '*.c' -o -name '*.cpp' -o -name '*.h' \) -exec clang-format -i {} +
