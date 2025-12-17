@@ -238,16 +238,16 @@ static int psyz_cwb() {
     return 0;
 }
 static int psyz_exeque() { return GPU_Exeque(); }
-static int psyz_getctl(int) {
+static int psyz_getctl(int _) {
     NOT_IMPLEMENTED;
     return 0;
 }
 static void psyz_otc(OT_TYPE* ot, s32 n) { NOT_IMPLEMENTED; }
-static int psyz_param(int) {
+static int psyz_param(int _) {
     NOT_IMPLEMENTED;
     return 0;
 }
-static int psyz_reset(int) { return GPU_V0; }
+static int psyz_reset(int _) { return GPU_V0; }
 static u_long psyz_status(void) {
     NOT_IMPLEMENTED;
     return 0;
