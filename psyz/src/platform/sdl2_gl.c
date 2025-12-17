@@ -141,9 +141,14 @@ enum TexKind {
     Num_Tex,
 };
 
+const int glVer_required_major = 3;
+const int glVer_required_minor = 3;
+
 static u16 g_RawVram[VRAM_W * VRAM_H]; // RGBA5551 VRAM image
 static SDL_Window* window = NULL;
 static SDL_GLContext glContext = NULL;
+static int glVer_major = 0;
+static int glVer_minor = 0;
 static GLuint fb[2] = {0, 0};
 static GLuint fbtex[2] = {0, 0};
 static PS1_RECT fbrect[2] = {{0}, {0}};
@@ -235,13 +240,13 @@ bool InitPlatform() {
     is_platform_initialized = true;
 
     atexit(QuitPlatformAtExit);
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         ERRORF("SDL_Init: %s", SDL_GetError());
         return false;
     }
 
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, glVer_required_major);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, glVer_required_minor);
     SDL_GL_SetAttribute(
         SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 0);
@@ -268,7 +273,20 @@ bool InitPlatform() {
     }
 #endif
 
-    INFOF("opengl %s initialized", glGetString(GL_VERSION));
+    const char* glStrVersion = glGetString(GL_VERSION);
+#ifdef _MSC_VER
+    sscanf_s(glStrVersion, "%d.%d", &glVer_major, &glVer_minor);
+#else
+    sscanf(glStrVersion, "%d.%d", &glVer_major, &glVer_minor);
+#endif
+    if (glVer_major < glVer_required_major ||
+        glVer_minor < glVer_required_minor) {
+        ERRORF("opengl %d.%d not supported (%d.%d or above is required)", glVer_major,
+               glVer_minor, glVer_required_major, glVer_required_minor);
+        return false;
+    }
+
+    INFOF("opengl %d.%d initialized", glVer_major, glVer_minor);
     glLineWidth(SCREEN_SCALE);
     shader_program = Init_SetupShader();
     if (!shader_program) {
