@@ -5,6 +5,13 @@ extern "C" {
 #include "libapi.h"
 }
 
+#ifdef _WIN32
+#include <direct.h>
+#define mkdir(path, mode) _mkdir(path)
+#else
+#include <sys/stat.h>
+#endif
+
 class bu_Test : public testing::Test {
     static void make_file(const char* path, int len, int val, int inc) {
         FILE* f = fopen(path, "wb");

@@ -93,8 +93,16 @@ struct DIRENTRY {
     /* 0x24 */ char system[4];
 }; // size = 0x28
 
+#ifdef _WIN32
+// Avoid conflict with Windows API on Windows builds
+void PS1_EnterCriticalSection(void);
+void PS1_ExitCriticalSection(void);
+#define EnterCriticalSection PS1_EnterCriticalSection
+#define ExitCriticalSection PS1_ExitCriticalSection
+#else
 void EnterCriticalSection(void);
 void ExitCriticalSection(void);
+#endif
 
 void InitCARD(long val);
 long StartCARD(void);
