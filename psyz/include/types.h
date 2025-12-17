@@ -20,7 +20,11 @@ typedef unsigned int size_t;
 typedef unsigned char u_char;
 typedef unsigned short u_short;
 typedef unsigned short ushort;
+#if defined(_WIN64) && defined(_MSC_VER)
+typedef unsigned long long u_long;
+#else
 typedef unsigned long u_long;
+#endif
 
 #endif
 
