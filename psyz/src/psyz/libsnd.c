@@ -78,12 +78,12 @@ s32 SsVabTransBodyPartly(u_char* addr, u_long bufsize, u_long vabid) {
     return 0;
 }
 
-short SsVabOpenHead(unsigned char*, short) {
+short SsVabOpenHead(unsigned char* addr, short vabid) {
     NOT_IMPLEMENTED;
     return 0;
 }
 
-short SsVabTransBody(unsigned char*, short) {
+short SsVabTransBody(unsigned char* addr, short vabid) {
     NOT_IMPLEMENTED;
     return 0;
 }
@@ -93,14 +93,15 @@ void SsInit(void) { NOT_IMPLEMENTED; }
 
 void SsEnd(void) { NOT_IMPLEMENTED; }
 
-void SsSetMarkCallback(short, short, SsMarkCallbackProc) { NOT_IMPLEMENTED; }
+void SsSetMarkCallback(short access_num, short seq_num, SsMarkCallbackProc proc) { NOT_IMPLEMENTED; }
 
-short SsIsEos(short, short) {
+short SsIsEos(short access_num, short seq_num) {
     NOT_IMPLEMENTED;
     return 0;
 }
 
-short SsUtKeyOn(short, short, short, short, short, short, short) {
+short SsUtKeyOn(
+    short vabid, short prog, short tone, short note, short fine, short voll, short volr) {
     NOT_IMPLEMENTED;
     return 0;
 }
@@ -109,26 +110,26 @@ void SsUtSetReverbDelay(short delay) { NOT_IMPLEMENTED; }
 
 void SsUtReverbOff(void) { NOT_IMPLEMENTED; }
 
-short SsUtKeyOff(short, short, short, short, short) {
+short SsUtKeyOff(short voice, short vabid, short prog, short tone, short note) {
     NOT_IMPLEMENTED;
     return 0;
 }
 
-void SsUtAllKeyOff(short) { NOT_IMPLEMENTED; }
+void SsUtAllKeyOff(short mode) { NOT_IMPLEMENTED; }
 
-void SsSepStop(short, short) { NOT_IMPLEMENTED; }
+void SsSepStop(short sep_access_num, short seq_num) { NOT_IMPLEMENTED; }
 
-short SsSepOpen(unsigned long*, short, short) {
+short SsSepOpen(unsigned long* addr, short vab_id, short seq_num) {
     NOT_IMPLEMENTED;
     return 0;
 }
 
-void SsSepClose(short) { NOT_IMPLEMENTED; }
+void SsSepClose(short sep_access_num) { NOT_IMPLEMENTED; }
 
-void SsSepSetVol(short, short, short, short) { NOT_IMPLEMENTED; }
+void SsSepSetVol(short sep_access_num, short seq_num, short voll, short volr) { NOT_IMPLEMENTED; }
 
 void SsSeqCalledTbyT(void) { NOT_IMPLEMENTED; }
 
-void SsSepPlay(short, short, char, short) { NOT_IMPLEMENTED; }
+void SsSepPlay(short sep_access_num, short seq_num, char play_modoe, short l_count) { NOT_IMPLEMENTED; }
 
-void SsSeqSetCrescendo(short, short, long) { NOT_IMPLEMENTED; }
+void SsSeqSetCrescendo(short sep_access_num, short vol, long v_time) { NOT_IMPLEMENTED; }

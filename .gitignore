@@ -12,3 +12,6 @@ cmake-build-*/
 
 psyq2elf/psyq2elf
 psyq2elf/psyqdump
+
+# auto-generated Visual Studio CMake projects
+out/
