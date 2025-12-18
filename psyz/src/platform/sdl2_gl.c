@@ -281,8 +281,9 @@ bool InitPlatform() {
 #endif
     if (glVer_major < glVer_required_major ||
         glVer_minor < glVer_required_minor) {
-        ERRORF("opengl %d.%d not supported (%d.%d or above is required)", glVer_major,
-               glVer_minor, glVer_required_major, glVer_required_minor);
+        ERRORF("opengl %d.%d not supported (%d.%d or above is required)",
+               glVer_major, glVer_minor, glVer_required_major,
+               glVer_required_minor);
         return false;
     }
 
@@ -337,7 +338,7 @@ bool InitPlatform() {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1024, 512, 0, GL_RGBA,
                  GL_UNSIGNED_SHORT_1_5_5_5_REV, NULL);
 
-    elapsed_from_beginning = SDL_GetTicks();
+    elapsed_from_beginning = (Uint32)SDL_GetTicks();
     last_vsync = elapsed_from_beginning;
     cur_tpage = 0;
     is_platform_init_successful = true;
@@ -422,7 +423,7 @@ void ResetPlatform(void) {
 int PlatformVSync(int mode) {
     Uint32 cur;
     unsigned short ret;
-    cur = SDL_GetTicks();
+    cur = (Uint32)SDL_GetTicks();
     if (mode >= 0) {
         ret = (unsigned short)(cur - last_vsync);
     } else {
@@ -498,10 +499,11 @@ u_long MyPadRead(int id) {
     u_long pressed = 0;
 
     if (id == 0) {
-        const int to_read = LEN(keyb_p1) < numkeys ? LEN(keyb_p1) : numkeys;
+        const int to_read =
+            LEN(keyb_p1) < (size_t)numkeys ? (int)LEN(keyb_p1) : numkeys;
         for (int i = 0; i < to_read; i++) {
             if (keyb[keyb_p1[i]]) {
-                pressed |= 1 << i;
+                pressed |= 1UL << i;
             }
         }
     }
@@ -840,9 +842,9 @@ int Draw_PushPrim(u_long* packets, int max_len) {
     Draw_EnsureBufferWillNotOverflow(4, 6);
     v = vertex_cur;
     if (isShadeTex) {
-        v->r = *packets >> 0;
-        v->g = *packets >> 8;
-        v->b = *packets >> 16;
+        v->r = (unsigned char)(*packets >> 0);
+        v->g = (unsigned char)(*packets >> 8);
+        v->b = (unsigned char)(*packets >> 16);
     } else {
         v->r = v->g = v->b = 0x80;
     }
@@ -1130,8 +1132,8 @@ void Draw_LoadImage(PS1_RECT* rect, u_long* p) {
         // Blit scaled from temp FBO to actual framebuffer
         glBindFramebuffer(GL_READ_FRAMEBUFFER, temp_fb);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb[fbidx]);
-        glBlitFramebuffer(0, 0, cur_wnd_width, cur_wnd_height,
-                          0, 0, fb_w, fb_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        glBlitFramebuffer(0, 0, cur_wnd_width, cur_wnd_height, 0, 0, fb_w, fb_h,
+                          GL_COLOR_BUFFER_BIT, GL_NEAREST);
         glBindFramebuffer(GL_FRAMEBUFFER, fb[fb_index]);
     }
 }

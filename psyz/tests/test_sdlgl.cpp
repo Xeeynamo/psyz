@@ -319,7 +319,7 @@ TEST_F(SDLGL_Test, drawenv_clear_vram) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("drawenv_clear_vram", 0.998);
+    AssertFrame("drawenv_clear_vram", 0.998f);
 }
 
 // N.B. this test fails on pcsx-redux, I tested output accuracy with Duckstation
@@ -351,7 +351,7 @@ TEST_F(SDLGL_Test, moveimage) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("moveimage", 0.9979);
+    AssertFrame("moveimage", 0.9979f);
 }
 
 TEST_F(SDLGL_Test, blit) {
@@ -361,5 +361,5 @@ TEST_F(SDLGL_Test, blit) {
     ReadTIM(&tim);
     LoadImage(&rect, tim.paddr);
     VSync(0);
-    AssertFrame("blit", 0.9979);
+    AssertFrame("blit", 0.9979f);
 }
