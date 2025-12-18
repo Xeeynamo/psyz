@@ -1,14 +1,12 @@
-
 #include <gtest/gtest.h>
 #include <GLES2/gl2.h>
-#include <SDL3/SDL_opengl.h>
 extern "C" {
 #include "common.h"
 #include "kernel.h"
 #include "libetc.h"
 #include "libgpu.h"
 void Psyz_SetWindowScale(int scale);
-void Psyz_GetWindowSize(int* width, int* height);
+unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h);
 }
 
 #include "res/4bpp.h"
@@ -77,27 +75,6 @@ class SDLGL_Test : public testing::Test {
     }
     void TearDown() override { ResetGraph(0); }
 
-    static unsigned char* AllocAndCaptureFrame(int* w, int* h) {
-        const int channels = 3;
-        Psyz_GetWindowSize(w, h);
-        auto* pixels = static_cast<unsigned char*>(malloc(*w * *h * channels));
-        glReadPixels(0, 0, *w, *h, GL_RGB, GL_UNSIGNED_BYTE, pixels);
-        GLenum err = glGetError();
-        if (err != GL_NO_ERROR) {
-            free(pixels);
-            return nullptr;
-        }
-        int stride = *w * channels;
-        std::vector<unsigned char> row(stride);
-        for (int y = 0; y < *h / 2; ++y) {
-            unsigned char* top = pixels + y * stride;
-            unsigned char* bottom = pixels + (*h - 1 - y) * stride;
-            memcpy(row.data(), top, stride);
-            memcpy(top, bottom, stride);
-            memcpy(bottom, row.data(), stride);
-        }
-        return pixels;
-    }
     static void WriteToFile(const char* filename, void* data, size_t len) {
         FILE* f = fopen(filename, "wb");
         ASSERT_TRUE(f != nullptr);
@@ -111,7 +88,7 @@ class SDLGL_Test : public testing::Test {
         unsigned char* exp_d = stbi_load(filename, &exp_w, &exp_h, &ch, 3);
         ch = 3;
         ASSERT_NE(exp_d, nullptr);
-        unsigned char* act_d = AllocAndCaptureFrame(&act_w, &act_h);
+        unsigned char* act_d = Psyz_AllocAndCaptureFrame(&act_w, &act_h);
         ASSERT_NE(act_d, nullptr);
         ASSERT_EQ(exp_w, act_w);
         ASSERT_EQ(exp_h, act_h);
