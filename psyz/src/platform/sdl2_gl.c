@@ -494,6 +494,36 @@ void Psyz_SetWindowScale(int scale) { set_wnd_scale = scale; }
 void Psyz_GetWindowSize(int* width, int* height) {
     SDL_GetWindowSize(window, width, height);
 }
+unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h) {
+    const int channels = 3;
+    Psyz_GetWindowSize(w, h);
+    unsigned char* pixels = malloc((*w) * (*h) * channels);
+    if (!pixels) {
+        return NULL;
+    }
+    glReadPixels(0, 0, *w, *h, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        free(pixels);
+        return NULL;
+    }
+    int stride = (*w) * channels;
+    unsigned char* row_buffer = (unsigned char*)malloc(stride);
+    if (!row_buffer) {
+        free(pixels);
+        return NULL;
+    }
+    for (int y = 0; y < (*h) / 2; ++y) {
+        unsigned char* top = pixels + (y * stride);
+        unsigned char* bottom = pixels + ((*h - 1 - y) * stride);
+        memcpy(row_buffer, top, stride);
+        memcpy(top, bottom, stride);
+        memcpy(bottom, row_buffer, stride);
+    }
+    free(row_buffer);
+    return pixels;
+}
+
 static void UpdateScissor() {
     if (!window || !InitPlatform()) {
         return;
