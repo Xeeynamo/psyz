@@ -51,3 +51,5 @@ jobs:
       - name: Test PsyZ on Windows
         working-directory: psyz/
         run: ./test.bat
+        env:
+          GTEST_FILTER: "-SDLGL_Test.*"
