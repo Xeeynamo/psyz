@@ -40,3 +40,14 @@ jobs:
       - name: Test PsyZ
         working-directory: psyz/
         run: make test
+
+  build-and-test-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Test PsyZ on Windows
+        working-directory: psyz/
+        run: ./test.bat
