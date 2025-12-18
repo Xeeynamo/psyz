@@ -43,13 +43,20 @@ jobs:
 
   build-and-test-windows:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        compiler:
+          - name: MSVC
+            script: test.bat
+          - name: ClangCl
+            script: test-clang.bat
     steps:
       - name: Clone repo
         uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Test PsyZ on Windows
+      - name: Test PsyZ on Windows (${{ matrix.compiler.name }})
         working-directory: psyz/
-        run: ./test.bat
+        run: ./${{ matrix.compiler.script }}
         env:
           GTEST_FILTER: "-SDLGL_Test.*"

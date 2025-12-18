@@ -206,7 +206,7 @@ long my_format(char* fs) {
     return 0;
 }
 
-int my_open(const char* devname, int flag) {
+int my_open(const char* devname, int flag, ...) {
     // Map PS1 flags to Windows flags
     int oflag = flag & (_O_WRONLY | _O_RDWR | _O_CREAT);
     char path[0x100];
@@ -236,16 +236,16 @@ int my_open(const char* devname, int flag) {
 
 int my_close(int fd) { return _close(fd); }
 
-long my_lseek(long fd, long offset, long flag) {
-    return _lseek((int)fd, offset, (int)flag);
+long my_lseek(int fd, long offset, int flag) {
+    return _lseek(fd, offset, flag);
 }
 
-long my_read(long fd, void* buf, long n) {
-    return _read((int)fd, buf, (unsigned int)n);
+int my_read(int fd, void* buf, unsigned int n) {
+    return _read(fd, buf, n);
 }
 
-long my_write(long fd, void* buf, long n) {
-    return _write((int)fd, buf, (unsigned int)n);
+int my_write(int fd, const void* buf, unsigned int n) {
+    return _write(fd, buf, n);
 }
 
 long my_ioctl(long fd, long com, long arg) {
