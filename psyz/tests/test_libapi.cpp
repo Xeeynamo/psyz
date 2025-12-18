@@ -8,6 +8,7 @@ extern "C" {
 #ifdef _WIN32
 #include <direct.h>
 #define mkdir(path, mode) _mkdir(path)
+#define rmdir(path) _rmdir(path)
 #else
 #include <sys/stat.h>
 #endif
@@ -26,6 +27,7 @@ class bu_Test : public testing::Test {
         assert(fclose(f) == 0);
         free(d);
     }
+
   protected:
     bu_Test() {}
     ~bu_Test() override = default;
@@ -76,7 +78,7 @@ TEST_F(bu_Test, for_first_file) {
 TEST_F(bu_Test, for_multiple_files) {
     struct DIRENTRY d[2];
     struct DIRENTRY* pd;
-    pd = nextfile(firstfile((char*)"bu00:", d)+1);
+    pd = nextfile(firstfile((char*)"bu00:", d) + 1);
     EXPECT_EQ(pd, &d[1]);
     EXPECT_STREQ(pd->name, "BASLUS-00000PSYZ01");
     EXPECT_EQ(pd->attr, 80);
@@ -86,7 +88,7 @@ TEST_F(bu_Test, for_multiple_files) {
 TEST_F(bu_Test, for_end_of_file_list) {
     struct DIRENTRY d[3];
     struct DIRENTRY* pd;
-    pd = nextfile(nextfile(firstfile((char*)"bu00:", d)+1)+2);
+    pd = nextfile(nextfile(firstfile((char*)"bu00:", d) + 1) + 2);
     EXPECT_EQ(pd, nullptr);
 }
 

@@ -7,22 +7,22 @@
 #include <sys/stat.h>
 #include <direct.h>
 #include <stdlib.h>
+#include <share.h>
 
 static void _adjust_path(char* dst, const char* src, int maxlen) {
     size_t len = strnlen(src, maxlen);
     if (len >= 5 && src[0] == 'b' && src[1] == 'u' && src[4] == ':') {
         // adjust memory card path
-        strncpy(dst, src, maxlen);
+        strncpy_s(dst, maxlen, src, _TRUNCATE);
         dst[4] = '\0';
-        _mkdir(dst); 
+        _mkdir(dst);
         dst[4] = '\\';
         if (dst[5] == '\0' || dst[5] == '*') { // handles 'bu00:*'
             dst[5] = '\0';
         }
         return;
     } else {
-        strncpy(dst, src, maxlen);
-        dst[maxlen - 1] = '\0';
+        strncpy_s(dst, maxlen, src, _TRUNCATE);
     }
 }
 
@@ -44,8 +44,7 @@ static char* path_join(char* left, const char* right, int maxlen) {
         left[left_len - 1] = '\0';
         left_len--;
     }
-    strncpy(left + left_len, right, maxlen - left_len - 1);
-    left[maxlen - 1] = '\0';
+    strncpy_s(left + left_len, maxlen - left_len, right, _TRUNCATE);
     return left;
 }
 
@@ -78,20 +77,20 @@ static void close_filesearch_handle() {
 static int open_filesearch_handle(const char* basePath) {
     close_filesearch_handle();
 
-    strncpy(singleton_dir.base_dir, basePath, sizeof(singleton_dir.base_dir) - 1);
-    singleton_dir.base_dir[sizeof(singleton_dir.base_dir) - 1] = '\0';
+    strncpy_s(singleton_dir.base_dir, sizeof(singleton_dir.base_dir), basePath,
+              _TRUNCATE);
 
     // Build search pattern
     char search_pattern[1024];
-    strncpy(search_pattern, basePath, sizeof(search_pattern) - 3);
-    search_pattern[sizeof(search_pattern) - 3] = '\0';
+    strncpy_s(search_pattern, sizeof(search_pattern), basePath,
+              sizeof(search_pattern) - 3);
 
     // Ensure path ends with backslash
     size_t len = strlen(search_pattern);
     if (len > 0 && search_pattern[len - 1] != '\\') {
-        strcat(search_pattern, "\\");
+        strcat_s(search_pattern, sizeof(search_pattern), "\\");
     }
-    strcat(search_pattern, "*");
+    strcat_s(search_pattern, sizeof(search_pattern), "*");
 
     struct _finddata_t file_info;
     intptr_t handle = _findfirst(search_pattern, &file_info);
@@ -129,22 +128,22 @@ static int open_filesearch_handle(const char* basePath) {
     }
 
     // ensure directory entries are stored alphabetically
-    qsort(singleton_dir.filenames, singleton_dir.file_count,
-          sizeof(char*), compare_strings);
+    qsort(singleton_dir.filenames, singleton_dir.file_count, sizeof(char*),
+          compare_strings);
 
     singleton_dir.current_index = 0;
     return 1;
 }
 
-static void populate_entry(const char* baseDir, struct DIRENTRY* dst,
-                          const char* filename) {
+static void populate_entry(
+    const char* baseDir, struct DIRENTRY* dst, const char* filename) {
     char buf[512];
     struct _stat fileStat = {0};
 
-    strncpy(buf, baseDir, sizeof(buf));
+    strncpy_s(buf, sizeof(buf), baseDir, _TRUNCATE);
     if (!path_join(buf, filename, sizeof(buf))) {
-        ERRORF("failed to join '%s' and '%s': strings are too large",
-               baseDir, filename);
+        ERRORF("failed to join '%s' and '%s': strings are too large", baseDir,
+               filename);
         return;
     }
 
@@ -154,11 +153,10 @@ static void populate_entry(const char* baseDir, struct DIRENTRY* dst,
     }
 
     // ensure max 20 characters per name entry
-    if (strlen(filename) >= sizeof(dst->name) - 1) {
+    if (strlen(filename) >= sizeof(dst->name)) {
         WARNF("'%s' will be truncated", filename);
     }
-    strncpy(dst->name, filename, sizeof(dst->name) - 1);
-    dst->name[sizeof(dst->name) - 1] = '\0';
+    strncpy_s(dst->name, sizeof(dst->name), filename, _TRUNCATE);
     dst->attr = 0x10 | 0x40; // Same as Unix version
     dst->size = (long)fileStat.st_size;
     dst->next = NULL;
@@ -215,7 +213,10 @@ int my_open(const char* devname, int flag) {
     _adjust_path(path, devname, sizeof(path));
 
     if (oflag & _O_CREAT) {
-        return _creat(path, _S_IREAD | _S_IWRITE);
+        int fd;
+        errno_t err = _sopen_s(
+            &fd, path, _O_CREAT | _O_WRONLY, _SH_DENYNO, _S_IREAD | _S_IWRITE);
+        return (err == 0) ? fd : -1;
     } else {
         struct _stat st;
         if (_stat(path, &st) != 0) {
@@ -223,16 +224,17 @@ int my_open(const char* devname, int flag) {
             return -1;
         }
         if (!(st.st_mode & _S_IFREG)) {
-            WARNF("path '%s' mapped from '%s' is not a regular file", path, devname);
+            WARNF("path '%s' mapped from '%s' is not a regular file", path,
+                  devname);
             return -1;
         }
-        return _open(path, oflag);
+        int fd;
+        errno_t err = _sopen_s(&fd, path, oflag, _SH_DENYNO, 0);
+        return (err == 0) ? fd : -1;
     }
 }
 
-int my_close(int fd) {
-    return _close(fd);
-}
+int my_close(int fd) { return _close(fd); }
 
 long my_lseek(long fd, long offset, long flag) {
     return _lseek((int)fd, offset, (int)flag);
