@@ -568,9 +568,11 @@ static void UpdateScissor() {
     glScissor(sx, flipped_y, sw, sh);
 }
 static void ApplyDisplayPendingChanges() {
+#if 0 // TODO enforce platform initialization ASAP
     if (!disp_on) {
         return;
     }
+#endif
     if (!window && !InitPlatform()) {
         return;
     }
@@ -666,6 +668,7 @@ void Draw_DisplayArea(unsigned int x, unsigned int y) {
     fbrect[fbidx].h = (short)cur_wnd_height;
     fb_index = fbidx;
     Draw_FlushBuffer();
+    ApplyDisplayPendingChanges();
     glBindFramebuffer(GL_FRAMEBUFFER, fb[fb_index]);
     UpdateScissor();
 }
