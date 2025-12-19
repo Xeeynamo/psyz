@@ -2,9 +2,20 @@
 
 PSY-Z SDK is a drop-in replacement for the PlayStation 1 Runtime Library called PSY-Q, allowing games designed for the PlayStation 1 to be compiled and run natively on modern platforms.
 
-PSY-Z is not an emulator or a static recompiler. It is a porting library written in C that replaces as many API calls as possible with counterparts on other platforms. Currently, it targets Linux and macOS, supporting both 32-bit and 64-bit architectures out of the box. The same applications and games will work on all platforms, including the PlayStation 1, with minimal changes.
+PSY-Z is not an emulator or a static recompiler. It is a porting library written in C that replaces as many API calls as possible with counterparts on other platforms. Currently, it targets multiple platforms, supporting both 32-bit and 64-bit architectures out of the box. The same applications and games will work on all platforms, including the PlayStation 1, with minimal changes.
 
 PSY-Z adheres to the PSY-Q library contracts, focusing on compatibility rather than accuracy. It does not aim to produce 1:1 output compared to real hardware and does not reproduce game bugs that rely on misuse of the PlayStation 1 hardware. The goal is to help port games and run them as native applications.
+
+## Supported platforms
+
+The platforms currently supported include:
+
+- **Linux** (x86_64)
+- **Windows** (x86, x64, ARM64) with support for MSVC, Clang, and MinGW
+
+Support for **macOS** is not currently available due to the lack of a Metal backend. Support for other platforms such as **Android** or **6th generation consoles** is planned once compatibility with the existing platforms is further extended.
+
+PSY-Z is designed to be extensible, and support for additional platforms may be added in the future.
 
 ## PSY-Q decomp
 
@@ -14,13 +25,11 @@ This decomp is a spin-off of [sotn-decomp psxsdk](https://github.com/Xeeynamo/so
 
 ## Integrate PSY-Z SDK
 
-To cross-compile your application between PSY-Q and PSY-Z, there is an important step to follow. The PSY-Q SDK uses something called _ordered table_, often abbreviated as `ot`. The type of this variable is `u_long*`. Due to how PSY-Q handles memory, the ordered table will not work on other platforms without modification. You need to replace `u_long*` with `OT_TYPE*` and include the header `psyz.h`, along with the modified `lib*.h` headers in your software.
+Porting a PlayStation 1 game or application to PSY-Z requires careful code modifications and build system integration to ensure compatibility across both the original PlayStation 1 hardware and modern platforms.
 
-If your software uses `u_long` to store 32-bit values you will need to change the type as `usigned int`, otherwise data will not be stored as expected on 64-bit builds. This is true for many samples from the PSX SDK.
+For a comprehensive guide, please refer to the **[Porting Guide](PORTING_GUIDE.md)**.
 
-In rare cases where certain applications or games recreate or reuse GPU primitives defined in `libgpu.h`, be sure to replace the struct field at the beginning of your custom structs from `u_long*` tag to `O_TAG`. You can refer to struct `POLY_F3` or similar for examples of how the original structures were adjusted.
-
-To include the necessary headers, add `-Ipsyz/include`to your GCC or Clang compiler flags. You can look into the `samples/` directory for examples on how to set up a project to target both PlayStation 1 hardware and PSY-Z on PC.
+You can also look into the `samples/` directory for complete examples on how to set up a project to target both PlayStation 1 hardware and PSY-Z on PC.
 
 ## Set-up the PSY-Z SDK
 
@@ -59,3 +68,9 @@ I also became increasingly fascinated by the PlayStation 1 hardware due to its s
 ## Contributing
 
 Contributions are welcome! If you find issues or want to add new features, please open an issue or submit a pull request. Ensure that any code you submit adheres to the project's coding standards and includes appropriate documentation.
+
+## Special Thanks
+
+Special thanks to [SoapyMan](https://github.com/SoapyMan) for the inspiration from their [PsyCross](https://github.com/OpenDriver2/PsyCross/) project.
+
+Thanks to [grumpycoders/pcsx-redux](https://github.com/grumpycoders/pcsx-redux/) for their ongoing support to the PS1 development community and help.
