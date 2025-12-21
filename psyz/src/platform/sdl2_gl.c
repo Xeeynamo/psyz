@@ -171,6 +171,33 @@ typedef struct {
     GLint x, y;
 } GLposi; // this is custom
 
+typedef enum {
+    INVALID,
+    DISP,
+    DRAW,
+} FB_ID;
+
+typedef struct {
+    GLuint fb;
+    GLuint tex;
+} FrameBuffer;
+
+typedef struct {
+    GLuint fb;
+    GLuint tex;
+    GLuint x, y;
+    GLuint w, h;
+    bool invalidate;
+} DispFrameBuffer;
+
+typedef struct {
+    GLuint fb;
+    GLuint tex;
+    GLint sx, sy;
+    GLint ex, ey;
+    GLint ox, oy;
+} DrawFrameBuffer;
+
 #define VRGBA(p) (*(unsigned int*)(&((p).r)))
 #define SET_TC(p, tpage, clut) (p)->t = (u16)tpage, (p)->c = (u16)clut;
 #define SET_TC_ALL(p, t, c)                                                    \
@@ -184,10 +211,8 @@ static SDL_Window* window = NULL;
 static SDL_GLContext glContext = NULL;
 static int glVer_major = 0;
 static int glVer_minor = 0;
-static GLuint fb[2] = {0, 0};
-static GLuint fbtex[2] = {0, 0};
-static PS1_RECT fbrect[2] = {{0}, {0}};
-static unsigned int fb_index = 0;
+static DrawFrameBuffer _draw;
+static DispFrameBuffer _disp;
 static GLuint shader_program = 0;
 static Uint32 elapsed_from_beginning = 0;
 static Uint32 last_vsync = 0;
@@ -198,7 +223,6 @@ static GLuint vram_texture;
 static bool is_vram_texture_invalid = false;
 static SDL_AudioStream* audio_stream = NULL;
 static SDL_AudioDeviceID audio_device_id = {0};
-static GLposi draw_offset = {0, 0};
 static GLposi scissor_start = {0, 0};
 static GLposi scissor_end = {0x10000, 0x10000};
 
@@ -262,17 +286,13 @@ static GLuint Init_SetupShader() {
 }
 
 static bool disp_on = false;
-static int set_wnd_width = 256;
-static int set_wnd_height = 240;
-static int set_wnd_scale = SCREEN_SCALE;
-static int cur_wnd_width = -1;
-static int cur_wnd_height = -1;
-static int cur_wnd_scale = -1;
-static int set_disp_horiz = 256;
-static int set_disp_vert = 240;
-static int cur_disp_horiz = -1;
-static int cur_disp_vert = -1;
-static int fb_w = 0, fb_h = 0;
+static int scale_set = SCREEN_SCALE;
+static int scale = SCREEN_SCALE;
+static int disp_horiz_set = 256;
+static int disp_vert_set = 240;
+static int disp_horiz = -1;
+static int disp_vert = -1;
+static int wnd_w = 0, wnd_h = 0;
 
 static void QuitPlatformAtExit(void);
 static bool is_window_visible = false;
@@ -296,9 +316,10 @@ bool InitPlatform() {
     SDL_GL_SetAttribute(
         SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 0);
-    cur_wnd_height = DISP_HEIGHT;
+    _disp.w = _disp.w ? _disp.w : DISP_WIDTH;
+    _disp.h = _disp.h ? _disp.h : DISP_HEIGHT;
     window = SDL_CreateWindow(
-        "PSY-Z", DISP_WIDTH * SCREEN_SCALE, DISP_HEIGHT * SCREEN_SCALE,
+        "PSY-Z", _disp.w * SCREEN_SCALE, _disp.h * SCREEN_SCALE,
         SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
     if (!window) {
         ERRORF("SDL_CreateWindow: %s", SDL_GetError());
@@ -378,14 +399,14 @@ static void UploadVramTexture() {
                     GL_UNSIGNED_SHORT_1_5_5_5_REV, g_RawVram);
 }
 
-static void PresentBufferToScreen(unsigned int index) {
+static void PresentBufferToScreen() {
     if (!window && !InitPlatform()) {
         return;
     }
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, fb[index]);
-    glBlitFramebuffer(
-        0, 0, fb_w, fb_h, 0, 0, fb_w, fb_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, _disp.fb);
+    glBlitFramebuffer(0, 0, wnd_w, wnd_h, 0, 0, wnd_w, wnd_h,
+                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
     SDL_GL_SwapWindow(window);
 }
 
@@ -419,11 +440,15 @@ void ResetPlatform(void) {
         glDeleteTextures(1, &vram_texture);
         vram_texture = 0;
     }
-    if (fb[0]) {
+    if (_disp.fb) {
+        GLuint fb[] = {_disp.fb, _draw.fb};
+        GLuint tex[] = {_disp.tex, _draw.tex};
         glDeleteFramebuffers(LEN(fb), fb);
-        glDeleteTextures(LEN(fbtex), fbtex);
-        memset(fb, 0, LEN(fb));
-        memset(fbtex, 0, LEN(fbtex));
+        glDeleteTextures(LEN(tex), tex);
+        _disp.fb = 0;
+        _draw.fb = 0;
+        _disp.tex = 0;
+        _draw.tex = 0;
     }
     QuitPlatform();
 }
@@ -536,7 +561,7 @@ int PlatformVSync(int mode) {
     }
     last_vsync = cur;
     if (mode == 0) {
-        PresentBufferToScreen(fb_index);
+        PresentBufferToScreen();
         WaitForNextFrame();
     }
     return ret;
@@ -616,13 +641,20 @@ u_long MyPadRead(int id) {
     return pressed;
 }
 
-void Psyz_SetWindowScale(int scale) { set_wnd_scale = scale; }
+void Psyz_SetWindowScale(int scale) {
+    if (scale <= 0) {
+        WARNF("invalid value %d", scale);
+        return;
+    }
+    scale_set = (unsigned int)scale;
+    _disp.invalidate = true;
+}
 void Psyz_GetWindowSize(int* width, int* height) {
     SDL_GetWindowSize(window, width, height);
 }
 unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h) {
     const int channels = 3;
-    if (fb[fb_index] == 0) {
+    if (_disp.fb == 0) {
         *w = *h = 0;
         ERRORF("FBO not initialized");
         return NULL;
@@ -635,7 +667,7 @@ unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h) {
 
     while (glGetError() != GL_NO_ERROR)
         ;
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, fb[fb_index]);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, _disp.fb);
     GLenum status = glCheckFramebufferStatus(GL_READ_FRAMEBUFFER);
     if (status != GL_FRAMEBUFFER_COMPLETE) {
         ERRORF("FBO not complete: 0x%X", status);
@@ -687,6 +719,7 @@ int Psyz_GetGpuStats(Psyz_GpuStats* stats) {
 }
 
 static void UpdateScissor() {
+    return;
     if (!window || !InitPlatform()) {
         return;
     }
@@ -695,19 +728,20 @@ static void UpdateScissor() {
     // TODO don't call Draw_FlushBuffer if equal scissor settings are repeated
     Draw_FlushBuffer();
 
-    int width = scissor_end.x - scissor_start.x + 1;
-    int height = scissor_end.y - scissor_start.y + 1;
+    const int width = scissor_end.x - scissor_start.x + 1;
+    const int height = scissor_end.y - scissor_start.y + 1;
     if (width <= 0 || height <= 0) {
         WARNF("scissor out of range: {%d, %d, %d, %d}", scissor_start.x,
               scissor_start.y, scissor_end.x, scissor_end.y);
     }
-    int absx = scissor_start.x - draw_offset.x;
-    int absy = scissor_start.y - draw_offset.y;
-    int sx = absx * cur_wnd_scale;
-    int sy = absy * cur_wnd_scale;
-    int sw = width * cur_wnd_scale;
-    int sh = height * cur_wnd_scale;
-    int flipped_y = fb_h - (sy + sh); // OpenGL scissor origin to bottom-left
+    const int x = scissor_start.x - _draw.ox;
+    const int y = scissor_start.y - _draw.oy;
+    const int sx = x * scale;
+    const int sy = y * scale;
+    const int sw = width * scale;
+    const int sh = height * scale;
+    const int flipped_y =
+        wnd_h - (sy + sh); // OpenGL scissor origin to bottom-left
     glEnable(GL_SCISSOR_TEST);
     glScissor(sx, flipped_y, sw, sh);
 }
@@ -720,25 +754,24 @@ static void ApplyDisplayPendingChanges() {
     if (!window && !InitPlatform()) {
         return;
     }
-    if (cur_wnd_width != set_wnd_width || cur_wnd_height != set_wnd_height ||
-        cur_wnd_scale != set_wnd_scale) {
-        cur_wnd_width = set_wnd_width;
-        cur_wnd_height = set_wnd_height;
-        cur_wnd_scale = set_wnd_scale;
-        fb_w = cur_wnd_width * cur_wnd_scale;
-        fb_h = cur_wnd_height * cur_wnd_scale;
-        SDL_SetWindowSize(window, fb_w, fb_h);
-        glViewport(0, 0, fb_w, fb_h);
-        glUniform2f(
-            uniform_resolution, (float)cur_wnd_width, (float)cur_wnd_height);
-        if (!fb[0]) {
+    if (_disp.invalidate) {
+        _disp.invalidate = false;
+        scale = scale_set;
+        wnd_w = (int)_disp.w * scale;
+        wnd_h = (int)_disp.h * scale;
+        SDL_SetWindowSize(window, wnd_w, wnd_h);
+        glViewport(0, 0, wnd_w, wnd_h);
+        glUniform2f(uniform_resolution, (float)_disp.w, (float)_disp.h);
+        if (!_disp.fb) {
+            GLuint fb[2];
+            GLuint fbtex[2];
             glGenTextures(LEN(fbtex), fbtex);
             glGenFramebuffers(LEN(fb), fb);
             for (int i = 0; i < LEN(fbtex); i++) {
                 glBindFramebuffer(GL_FRAMEBUFFER, fb[i]);
                 glBindTexture(GL_TEXTURE_2D, fbtex[i]);
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, fb_w, fb_h, 0, GL_RGBA,
-                             GL_UNSIGNED_BYTE, NULL);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, wnd_w, wnd_h, 0,
+                             GL_RGBA, GL_UNSIGNED_BYTE, NULL);
                 glTexParameteri(
                     GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
                 glTexParameteri(
@@ -750,14 +783,19 @@ static void ApplyDisplayPendingChanges() {
                     ERRORF("unable to create framebuffer");
                 }
             }
+            _disp.fb = fb[0];
+            _disp.tex = fbtex[0];
+            _draw.fb = fb[1];
+            _draw.tex = fbtex[1];
         } else {
-            for (int i = 0; i < LEN(fbtex); i++) {
-                glBindTexture(GL_TEXTURE_2D, fbtex[i]);
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, fb_w, fb_h, 0, GL_RGBA,
-                             GL_UNSIGNED_BYTE, NULL);
-            }
+            glBindTexture(GL_TEXTURE_2D, _disp.tex);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, wnd_w, wnd_h, 0, GL_RGBA,
+                         GL_UNSIGNED_BYTE, NULL);
+            glBindTexture(GL_TEXTURE_2D, _draw.tex);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, wnd_w, wnd_h, 0, GL_RGBA,
+                         GL_UNSIGNED_BYTE, NULL);
         }
-        glBindFramebuffer(GL_FRAMEBUFFER, fb[fb_index]);
+        glBindFramebuffer(GL_FRAMEBUFFER, _disp.fb);
     }
     if (!is_window_visible) {
         SDL_ShowWindow(window);
@@ -771,25 +809,22 @@ static void ApplyDisplayPendingChanges() {
         SDL_GL_SwapWindow(window);
 #endif
     }
-    if (cur_disp_horiz != set_disp_horiz || cur_disp_vert != set_disp_vert) {
-        cur_disp_horiz = set_disp_horiz;
-        cur_disp_vert = set_disp_vert;
+    if (disp_horiz != disp_horiz_set || disp_vert != disp_vert_set) {
+        disp_horiz = disp_horiz_set;
+        disp_vert = disp_vert_set;
         WARNF("setting screen aspect ratio not supported");
     }
 }
 
-static bool IsInRect(unsigned int x, unsigned int y, PS1_RECT* rect) {
-    return x >= rect->x && x < rect->x + rect->w && y >= rect->y &&
-           y < rect->y + rect->h;
+static bool OverlapsDisp(
+    unsigned int x, unsigned int y, unsigned int w, unsigned int h) {
+    return x < _disp.x + _disp.w && x + w > _disp.x && y < _disp.y + _disp.h &&
+           y + h > _disp.y;
 }
-static int GuessFrameBuffer(unsigned int x, unsigned int y) {
-    if (IsInRect(x, y, &fbrect[0])) {
-        return 0;
-    }
-    if (IsInRect(x, y, &fbrect[1])) {
-        return 1;
-    }
-    return -1;
+static bool OverlapsDraw(
+    unsigned int x, unsigned int y, unsigned int w, unsigned int h) {
+    return x <= _draw.ex && x + w > _draw.sx && y <= _draw.ey &&
+           y + h > _draw.sy;
 }
 
 void Draw_Reset() { NOT_IMPLEMENTED; }
@@ -798,7 +833,7 @@ void Draw_DisplayEnable(unsigned int on) {
     disp_on = on;
     if (!on) {
         // TODO unbind the frame buffer and display a black screen
-        glBindFramebuffer(GL_FRAMEBUFFER, fb[fb_index]);
+        glBindFramebuffer(GL_FRAMEBUFFER, _disp.fb);
         glClearColor(0, 0, 0, 1);
         glDisable(GL_SCISSOR_TEST);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -809,30 +844,51 @@ void Draw_DisplayEnable(unsigned int on) {
 }
 
 void Draw_DisplayArea(unsigned int x, unsigned int y) {
-    // TODO dirty hack where the frame buffer gets always flipped regardless
-    // of x and y being different. Maybe a future idea would be to have a
-    // fbidx_prev, so if the actual fbidx doesn't change between frames, we
-    // still force a SDL_GL_SwapWindow
-    int fbidx = y >= 240 || x >= 256;
-    fbrect[fbidx].x = (short)x;
-    fbrect[fbidx].y = (short)y;
-    fbrect[fbidx].w = (short)cur_wnd_width;
-    fbrect[fbidx].h = (short)cur_wnd_height;
-    fb_index = fbidx;
+    if (!window || !InitPlatform()) {
+        return;
+    }
+
+    _disp.x = x;
+    _disp.y = y;
+    if (_disp.x == _draw.sx || _disp.y == _draw.sy) {
+        // TODO there are two very different approaches to solve the problem
+        // of PutDispEnv and PutDrawEnv. These two could be called at any
+        // order, before or after a VSync.
+
+        // Approach number #1
+        // flipping DISP and DRAW is simulated by copying DRAW into DISP
+        // TODO copy DRAW frame buffer into DISP frame buffer, so it can be
+        // immediately displayed on screen.
+        // Drawback: the previous content in `disp` is lost. Some PS1 games
+        // might depent on it.
+
+        // Approach number #2
+        // Flip the two backbuffers.
+        // TODO:
+        // GLuint fb = _disp.fb;
+        // GLuint tex = _disp.tex;
+        // _disp.fb = _draw.fb;
+        // _disp.tex = _draw.tex;
+        // _draw.fb = fb;
+        // _draw.tex = tex;
+        // Drawback: more adjustments might be needed for this to work.
+    }
+    // GL_DRAW_FRAMEBUFFER ??
+    glBindFramebuffer(GL_FRAMEBUFFER, _disp.fb);
+
     Draw_FlushBuffer();
     ApplyDisplayPendingChanges();
-    glBindFramebuffer(GL_FRAMEBUFFER, fb[fb_index]);
-    UpdateScissor();
 }
 
 void Draw_DisplayHorizontalRange(unsigned int start, unsigned int end) {
-    set_disp_horiz = (int)(end - start) / 10;
-    ApplyDisplayPendingChanges();
+    disp_horiz_set = (int)(end - start) / 10;
+    _disp.w = disp_horiz_set < 16 ? 16 : disp_horiz_set;
+    _disp.invalidate = true;
 }
 
 void Draw_DisplayVerticalRange(unsigned int start, int unsigned end) {
-    set_disp_vert = (int)(end - start);
-    ApplyDisplayPendingChanges();
+    disp_vert_set = (int)(end - start);
+    _disp.h = disp_vert_set < 16 ? 16 : disp_vert_set;
 }
 
 void Draw_SetDisplayMode(DisplayMode* mode) {
@@ -842,24 +898,25 @@ void Draw_SetDisplayMode(DisplayMode* mode) {
         WARNF("reverse mode not supported");
     }
     if (mode->horizontal_resolution_368) {
-        set_wnd_width = 368;
+        _disp.w = 368;
     } else {
         switch (mode->horizontal_resolution) {
         case 0:
-            set_wnd_width = 256;
+            _disp.w = 256;
             break;
         case 1:
-            set_wnd_width = 320;
+            _disp.w = 320;
             break;
         case 2:
-            set_wnd_width = 512;
+            _disp.w = 512;
             break;
         case 3:
-            set_wnd_width = 640;
+            _disp.w = 640;
             break;
         }
     }
-    set_wnd_height = mode->vertical_resolution ? 480 : 240;
+    _disp.h = mode->vertical_resolution ? 480 : 240;
+    _disp.invalidate = true;
     ApplyDisplayPendingChanges();
 
     double new_target_fps = mode->pal ? VSYNC_PAL : VSYNC_NTSC;
@@ -1176,62 +1233,109 @@ void Draw_SetTextureWindow(unsigned int mask_x, unsigned int mask_y,
 }
 void Draw_SetAreaStart(int x, int y) {
     // implements SetDrawArea, SetDrawEnv
+    _draw.sx = x;
+    _draw.sy = y;
     scissor_start.x = x;
     scissor_start.y = y;
     UpdateScissor();
 }
 void Draw_SetAreaEnd(int x, int y) {
     // implements SetDrawArea, SetDrawEnv
+    _draw.ex = x;
+    _draw.ey = y;
     scissor_end.x = x;
     scissor_end.y = y;
     UpdateScissor();
 }
 void Draw_SetOffset(int x, int y) {
     // implements SetDrawEnv, SetDrawOffset
-    draw_offset.x = x;
-    draw_offset.y = y;
-    NOT_IMPLEMENTED;
+    _draw.ox = x;
+    _draw.oy = y;
+    UpdateScissor();
 }
 void Draw_SetMask(int bit0, int bit1) { NOT_IMPLEMENTED; }
 void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
-    int fbidx = GuessFrameBuffer(rect->x, rect->y);
-    if (fbidx >= 0) {
-        GLposi prev_start = scissor_start;
-        GLposi prev_end = scissor_end;
-        scissor_start.x = rect->x;
-        scissor_start.y = rect->y;
-        scissor_end.x = rect->x + rect->w - 1;
-        scissor_end.y = rect->y + rect->h - 1;
-        UpdateScissor();
+    if (OverlapsDisp(rect->x, rect->y, rect->w, rect->h)) {
+        const int x = (rect->x > _disp.x) ? rect->x : (int)_disp.x;
+        const int y = (rect->y > _disp.y) ? rect->y : (int)_disp.y;
+        const int w = (rect->x + rect->w < _disp.x + _disp.w)
+                          ? (rect->x + rect->w)
+                          : ((int)_disp.x + (int)_disp.w);
+        const int h = (rect->y + rect->h < _disp.y + _disp.h)
+                          ? (rect->y + rect->h)
+                          : ((int)_disp.y + (int)_disp.h);
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(x * scale, y * scale, w * scale, h * scale);
         glClearColor(
             (float)r / 255.f, (float)g / 255.f, (float)b / 255.f, 1.0f);
-        if (fbidx == fb_index) {
-            glClear(GL_COLOR_BUFFER_BIT);
-        } else {
-            glBindFramebuffer(GL_FRAMEBUFFER, fb[fbidx]);
-            glClear(GL_COLOR_BUFFER_BIT);
-            glBindFramebuffer(GL_FRAMEBUFFER, fb[fb_index]);
-        }
-        scissor_start = prev_start;
-        scissor_end = prev_end;
-        UpdateScissor();
+        glBindFramebuffer(GL_FRAMEBUFFER, _disp.fb);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glDisable(GL_SCISSOR_TEST);
+    }
+    if (OverlapsDraw(rect->x, rect->y, rect->w, rect->h)) {
+        const int x = (rect->x > _draw.sx) ? rect->x : _draw.sx;
+        const int y = (rect->y > _draw.sy) ? rect->y : _draw.sy;
+        const int w =
+            (rect->x + rect->w < _draw.ex) ? (rect->x + rect->w) : _draw.ex;
+        const int h =
+            (rect->y + rect->h < _draw.ey) ? (rect->y + rect->h) : _draw.ey;
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(x * scale, y * scale, w * scale, h * scale);
+        glClearColor(
+            (float)r / 255.f, (float)g / 255.f, (float)b / 255.f, 1.0f);
+        glBindFramebuffer(GL_FRAMEBUFFER, _disp.fb);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glDisable(GL_SCISSOR_TEST);
     }
 
     PS1_RECT fixedRect;
-    fixedRect.x = CLAMP(rect->x, 0, 1024);
-    fixedRect.y = CLAMP(rect->y, 0, 1024);
-    fixedRect.w = CLAMP(rect->w, 0, 1024);
-    fixedRect.h = CLAMP(rect->h, 0, 1024);
+    fixedRect.x = CLAMP(rect->x, 0, VRAM_W);
+    fixedRect.y = CLAMP(rect->y, 0, VRAM_H);
+    fixedRect.w = CLAMP(rect->w, 0, VRAM_W);
+    fixedRect.h = CLAMP(rect->h, 0, VRAM_H);
 
     u16* vram = g_RawVram;
+    const u16 color = (r >> 3) | (g >> 3 << 5) | (b >> 3 << 10);
     vram += fixedRect.x + fixedRect.y * VRAM_W;
     for (int i = 0; i < fixedRect.h; i++) {
         for (int j = 0; j < fixedRect.w; j++) {
-            vram[j] = (r >> 3) | (g >> 3 << 5) | (b >> 3 << 10);
+            vram[j] = color;
         }
         vram += VRAM_W;
     }
     is_vram_texture_invalid = true;
+}
+static void Blit(GLuint dst_fb, PS1_RECT* src, int x, int y, int w, int h) {
+    // Calculate intersection between source and destination
+    int x1 = (src->x > x) ? src->x : x;
+    int y1 = (src->y > y) ? src->y : y;
+    int x2 = ((src->x + src->w) < (x + w)) ? (src->x + src->w) : (x + w);
+    int y2 = ((src->y + src->h) < (y + h)) ? (src->y + src->h) : (y + h);
+
+    if (x1 >= x2 || y1 >= y2) {
+        return; // No overlap
+    }
+
+    // Upload only the required portion of VRAM to texture
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, vram_texture);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, src->y, VRAM_W, src->h, GL_RGBA,
+                    GL_UNSIGNED_SHORT_1_5_5_5_REV, g_RawVram + src->y * VRAM_W);
+
+    // Create temporary framebuffer for reading from VRAM texture
+    GLuint temp_fb;
+    glGenFramebuffers(1, &temp_fb);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, temp_fb);
+    glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                           GL_TEXTURE_2D, vram_texture, 0);
+
+    // Blit from VRAM texture to destination framebuffer
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dst_fb);
+    glBlitFramebuffer(x1, y1, x2, y2, (x1 - x) * scale, (h - (y1 - y)) * scale,
+                      (x2 - x) * scale, (h - (y2 - y)) * scale,
+                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+    glDeleteFramebuffers(1, &temp_fb);
 }
 void Draw_LoadImage(PS1_RECT* rect, u_long* p) {
     u16* mem = (u16*)p;
@@ -1246,39 +1350,14 @@ void Draw_LoadImage(PS1_RECT* rect, u_long* p) {
 
     // loading to a portion of the VRAM bound to the display means we're
     // effectively blitting straight to the screen, bypassing the GPU.
-    // Used in Rayman 1 to display the Ubisoft logo.
-    int fbidx = GuessFrameBuffer(rect->x, rect->y);
-    if (fbidx >= 0) {
-        static GLuint temp_tex = 0, temp_fb = 0;
-        if (!temp_tex) {
-            glGenTextures(1, &temp_tex);
-            glGenFramebuffers(1, &temp_fb);
-            glBindTexture(GL_TEXTURE_2D, temp_tex);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-            glBindFramebuffer(GL_READ_FRAMEBUFFER, temp_fb);
-            glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                                   GL_TEXTURE_2D, temp_tex, 0);
-        }
-
-        // Upload VRAM data to temp texture (Y-flipped for OpenGL)
-        PS1_RECT* fb_rect = &fbrect[fbidx];
-        glBindTexture(GL_TEXTURE_2D, temp_tex);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, cur_wnd_width, cur_wnd_height,
-                     0, GL_RGBA, GL_UNSIGNED_SHORT_1_5_5_5_REV, NULL);
-        for (int y = 0; y < cur_wnd_height; y++) {
-            u16* row_src = g_RawVram + fb_rect->x +
-                           (fb_rect->y + cur_wnd_height - 1 - y) * VRAM_W;
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, y, cur_wnd_width, 1, GL_RGBA,
-                            GL_UNSIGNED_SHORT_1_5_5_5_REV, row_src);
-        }
-
-        // Blit scaled from temp FBO to actual framebuffer
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, temp_fb);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb[fbidx]);
-        glBlitFramebuffer(0, 0, cur_wnd_width, cur_wnd_height, 0, 0, fb_w, fb_h,
-                          GL_COLOR_BUFFER_BIT, GL_NEAREST);
-        glBindFramebuffer(GL_FRAMEBUFFER, fb[fb_index]);
+    // Used in Rayman 1 to display the Ubisoft logo and menus.
+    if (OverlapsDisp(rect->x, rect->y, rect->w, rect->h)) {
+        Blit(_disp.fb, rect, (int)_disp.x, (int)_disp.y, (int)_disp.w,
+             (int)_disp.h);
+    }
+    if (OverlapsDraw(rect->x, rect->y, rect->w, rect->h)) {
+        Blit(_draw.fb, rect, _draw.sx, _draw.sy, _draw.ex - _draw.sx + 1,
+             _draw.ey - _draw.sy + 1);
     }
 }
 void Draw_StoreImage(PS1_RECT* rect, u_long* p) {

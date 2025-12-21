@@ -55,12 +55,15 @@ class SDLGL_Test : public testing::Test {
 
     void SetUp() override {
         Psyz_SetWindowScale(1);
+
+        // set buffers to immediate mode
         SetDefDrawEnv(&db[0].draw, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+        SetDefDispEnv(&db[0].disp, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
         SetDefDrawEnv(
             &db[1].draw, SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-        SetDefDispEnv(&db[0].disp, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
         SetDefDispEnv(
             &db[1].disp, SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
         SetVideoMode(MODE_NTSC);
         ResetGraph(0);
         PutDrawEnv(&db[0].draw);
@@ -83,28 +86,25 @@ class SDLGL_Test : public testing::Test {
     }
     static void AssertFrame(const char* png_path, float precision = 0.98f) {
         char filename[FILENAME_MAX];
+        char filenameAct[FILENAME_MAX];
         int exp_w, exp_h, act_w, act_h, ch;
         snprintf(filename, sizeof(filename), "../expected/%s.png", png_path);
         unsigned char* exp_d = stbi_load(filename, &exp_w, &exp_h, &ch, 3);
         ch = 3;
-        ASSERT_NE(exp_d, nullptr);
+        ASSERT_NE(exp_d, nullptr) << "for " << png_path;
         unsigned char* act_d = Psyz_AllocAndCaptureFrame(&act_w, &act_h);
-        ASSERT_NE(act_d, nullptr);
-        ASSERT_EQ(exp_w, act_w);
-        ASSERT_EQ(exp_h, act_h);
+        ASSERT_NE(act_d, nullptr) << "for " << png_path;
+        ASSERT_EQ(exp_w, act_w) << "for " << png_path;
+        ASSERT_EQ(exp_h, act_h) << "for " << png_path;
         auto eq = img_eq(exp_d, act_d, exp_w * exp_h * ch);
+        snprintf(filenameAct, sizeof(filenameAct), "../expected/%s.actual.png",
+                 png_path);
         if (eq < precision) {
-            snprintf(filename, sizeof(filename), "../expected/%s.actual.png",
-                     png_path);
-            stbi_write_png(filename, act_w, act_h, ch, act_d, act_w * ch);
-            snprintf(filename, sizeof(filename), "../expected/%s.expected.bin",
-                     png_path);
-            WriteToFile(filename, exp_d, act_w * act_h * ch);
-            snprintf(filename, sizeof(filename), "../expected/%s.actual.bin",
-                     png_path);
-            WriteToFile(filename, act_d, act_w * act_h * ch);
+            stbi_write_png(filenameAct, act_w, act_h, ch, act_d, act_w * ch);
+        } else {
+            remove(filenameAct);
         }
-        ASSERT_GE(eq, precision);
+        EXPECT_GE(eq, precision) << "for " << png_path;
         stbi_image_free(exp_d);
         free(act_d);
     }
@@ -362,4 +362,94 @@ TEST_F(SDLGL_Test, blit) {
     LoadImage(&rect, tim.paddr);
     VSync(0);
     AssertFrame("blit", 0.9979f);
+}
+
+TEST_F(SDLGL_Test, draw_disp_env) {
+    // Set different buffers for draw and disp
+    SetDefDrawEnv(&db[0].draw, 0, 0, 256, 240);
+    SetDefDispEnv(&db[0].disp, 256, 0, 256, 240);
+    SetDefDrawEnv(&db[1].draw, 256, 0, 256, 240);
+    SetDefDispEnv(&db[1].disp, 0, 0, 256, 240);
+
+    // Ensure buffer 0 is clear
+    PutDrawEnv(&db[0].draw);
+    PutDispEnv(&db[0].disp);
+    ClearImage(&db[0].draw.clip, 0, 0, 0);
+    DrawSync(0);
+    VSync(0);
+
+    // Ensure buffer 1 is filled with color red
+    PutDrawEnv(&db[1].draw);
+    PutDispEnv(&db[1].disp);
+    ClearImage(&db[1].draw.clip, 0, 0xFF, 0);
+    DrawSync(0);
+    VSync(0);
+
+    // Back buffer filled with color red, front displays green
+    PutDrawEnv(&db[0].draw);
+    PutDispEnv(&db[0].disp);
+    ClearImage(&db[0].draw.clip, 0xFF, 0, 0);
+    DrawSync(0);
+    VSync(0);
+    AssertFrame("draw_disp_env_0");
+
+    // Back buffer now becomes front buffer, displays red
+    PutDispEnv(&db[1].disp);
+    DrawSync(0);
+    VSync(0);
+    AssertFrame("draw_disp_env_1");
+
+    // Front buffer is swapped again, display green
+    PutDispEnv(&db[0].disp);
+    DrawSync(0);
+    VSync(0);
+    AssertFrame("draw_disp_env_2");
+
+    // Now back buffer and front buffer are the same, display blue
+    PutDispEnv(&db[0].disp);
+    PutDrawEnv(&db[1].draw);
+    ClearImage(&db[1].draw.clip, 0, 0, 0xFF);
+    DrawSync(0);
+    VSync(0);
+    AssertFrame("draw_disp_env_3");
+}
+
+TEST_F(SDLGL_Test, swapbuffer2) {
+    FntLoad(640, 0);
+    FntOpen(16, 16, 288, 200, 0, 512);
+
+    SetDefDrawEnv(&db[0].draw, 0, 0, 256, 240);
+    SetDefDispEnv(&db[0].disp, 256, 0, 256, 240);
+    SetDefDrawEnv(&db[1].draw, 256, 0, 256, 240);
+    SetDefDispEnv(&db[1].disp, 0, 0, 256, 240);
+
+    db[0].draw.isbg = 1;
+    setRGB0(&db[0].draw, 0, 0, 64);
+    db[1].draw.isbg = 1;
+    setRGB0(&db[1].draw, 0, 64, 0);
+
+    ClearImage(&db[0].draw.clip, 0xFF, 0, 0);
+    ClearImage(&db[1].draw.clip, 0xFF, 0xFF, 0);
+
+    cdb = &db[0];
+    PutDrawEnv(&cdb->draw);
+    PutDispEnv(&cdb->disp);
+    AssertFrame("swapbuffer2_0");
+
+    FntPrint("HELLO WORLD!");
+    DrawSync(0);
+    VSync(0);
+    FntFlush(-1);
+    cdb = (cdb == db) ? db + 1 : db;
+    PutDispEnv(&cdb->disp);
+    AssertFrame("swapbuffer2_1");
+
+    PutDrawEnv(&cdb->draw);
+    FntPrint("HELLO WORLD 2!");
+    DrawSync(0);
+    VSync(0);
+    FntFlush(-1);
+    cdb = (cdb == db) ? db + 1 : db;
+    PutDispEnv(&cdb->disp);
+    AssertFrame("swapbuffer2_2");
 }
