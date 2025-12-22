@@ -41,6 +41,7 @@ typedef struct {
 /*
  * CD-ROM Primitive Commands
  */
+#define CdlSync 0x00
 #define CdlNop 0x01
 #define CdlSetloc 0x02
 #define CdlPlay 0x03
@@ -127,6 +128,7 @@ int CdInit(void);
 int CdStatus(void);
 int CdMode(void);
 int CdLastCom(void);
+CdlLOC* CdLastPos(void);
 int CdReset(int mode);
 void CdFlush(void);
 int CdSetDebug(int level);

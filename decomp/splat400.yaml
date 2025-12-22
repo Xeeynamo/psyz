@@ -1277,7 +1277,7 @@ segments:
       - [0xB56C0, data, libcd/cdread]
       - [0xB5700, data, libcd/cdrom]
       - [0xB5710, data, libcd/iso9660]
-      - [0xB5718, data, libcd/sys]
+      - [0xB5718, .data, libcd/sys]
       - [0xB5798, data, libcomb/comb]
       - [0xB5828, data, libds/dsfile]
       - [0xB5830, data, libds/dsplay]

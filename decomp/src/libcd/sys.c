@@ -1,50 +1,153 @@
 #include <common.h>
 #include <libcd.h>
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdStatus);
+extern CdlCB CD_cbsync;
+extern CdlCB CD_cbready;
+extern u_char CD_status;
+extern u_char CD_mode;
+extern u_char CD_com;
+extern CdlLOC CD_pos;
+extern char* CD_comstr[];
+extern char* CD_intstr[];
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdMode);
+static int D_800B5718[] = {
+    0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0,
+};
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdLastCom);
+int CdStatus(void) { return CD_status; }
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdLastPos);
+int CdMode(void) { return CD_mode; }
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdReset);
+int CdLastCom(void) { return CD_com; }
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdFlush);
+CdlLOC* CdLastPos(void) { return &CD_pos; }
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdSetDebug);
+int CdReset(int mode) {
+    if (mode == CdlModeAP) {
+        CD_initintr();
+        return 1;
+    }
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdComstr);
+    if (CD_init()) {
+        return 0;
+    }
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdIntstr);
+    if (mode == CdlModeDA && CD_initvol()) {
+        return 0;
+    }
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdSync);
+    return 1;
+}
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdReady);
+void CdFlush(void) { CD_flush(); }
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdSyncCallback);
+extern int CD_debug;
+int CdSetDebug(int level) {
+    int prev = CD_debug;
+    CD_debug = level;
+    return prev;
+}
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdReadyCallback);
+char* CdComstr(unsigned char com) {
+    if (com > 27) {
+        return "none";
+    }
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdControl);
+    return CD_comstr[com];
+}
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdControlF);
+char* CdIntstr(u8 intr) {
+    if (intr > 6) {
+        return "none";
+    }
+    return CD_intstr[intr];
+}
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdControlB);
+int CdSync(int mode, u_char* result) { return CD_sync(mode, result); }
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdMix);
+int CdReady(int mode, u_char* result) { return CD_ready(mode, result); }
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdGetSector);
+CdlCB CdSyncCallback(CdlCB func) {
+    CdlCB prev = CD_cbsync;
+    CD_cbsync = func;
+    return prev;
+}
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdGetSector2);
+CdlCB CdReadyCallback(CdlCB func) {
+    CdlCB prev = CD_cbready;
+    CD_cbready = func;
+    return prev;
+}
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdDataCallback);
+static inline cd_cw(u8 com, u8* param, u_char* result, s32 arg3) {
+    CdlCB old = CD_cbsync;
+    int count = 4;
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdDataSync);
+    while (count--) {
+        CD_cbsync = NULL;
+        if (com != CdlNop && (CD_status & CdlStatShellOpen)) {
+            CD_cw(CdlNop, NULL, NULL, 0);
+        }
+        if (param == NULL || D_800B5718[com] == 0 ||
+            !CD_cw(CdlSetloc, param, result, 0)) {
+            CD_cbsync = old;
+            if (!CD_cw(com, param, result, arg3)) {
+                return 0;
+            }
+        }
+    }
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdIntToPos);
+    CD_cbsync = old;
+    return -1;
+}
 
-INCLUDE_ASM("asm/nonmatchings/libcd/sys", CdPosToInt);
+int CdControl(u_char com, u_char* param, u_char* result) {
+    return cd_cw(com, param, result, 0) == 0;
+}
 
-INCLUDE_RODATA("asm/nonmatchings/libcd/sys", D_800B2858);
+int CdControlF(u_char com, u_char* param) {
+    return cd_cw(com, param, NULL, 1) == 0;
+}
+
+int CdControlB(u_char com, u_char* param, u_char* result) {
+    if (cd_cw(com, param, result, 0)) {
+        return 0;
+    }
+    return CD_sync(CdlSync, result) == CdlComplete;
+}
+
+int CdMix(CdlATV* vol) {
+    CD_vol(vol);
+    return 1;
+}
+
+int CdGetSector(void* madr, int size) { return CD_getsector(madr, size) == 0; }
+
+int CdGetSector2(void) { return CD_getsector2() == 0; }
+
+long CdDataCallback(void (*func)()) { return DMACallback(3, func); }
+
+void CdDataSync(int mode) { CD_datasync(mode); }
+
+CdlLOC* CdIntToPos(int i, CdlLOC* p) {
+    inline int ENCODE_BCD(n) { return ((n / 10) << 4) + (n % 10); }
+
+    i += 150;
+    p->sector = ENCODE_BCD(i % 75);
+    p->second = ENCODE_BCD(i / 75 % 60);
+    p->minute = ENCODE_BCD(i / 75 / 60);
+    return p;
+}
+
+int CdPosToInt(CdlLOC* p) {
+#define DECODE_BCD(x) (((x) >> 4) * 10 + ((x) & 0xF))
+    u8 sector = p->sector;
+    u8 second = p->second;
+    u8 minute = p->minute;
+
+    return (DECODE_BCD(minute) * 60 + DECODE_BCD(second)) * 75 +
+           DECODE_BCD(sector) - 150;
+}
+
+NOP;
