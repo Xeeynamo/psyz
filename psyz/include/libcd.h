@@ -51,6 +51,7 @@ typedef struct {
 #define CdlStandby 0x07
 #define CdlStop 0x08
 #define CdlPause 0x09
+#define CdlReset 0x0a
 #define CdlMute 0x0b
 #define CdlDemute 0x0c
 #define CdlSetfilter 0x0d
@@ -152,7 +153,7 @@ int CdMix(CdlATV* vol // Pointer to attenuator volume
 );
 
 int CdGetSector(void* madr, int size);
-void(*CdDataCallback(void (*func)()));
+CdlCB CdDataCallback(CdlCB func);
 CdlLOC* CdIntToPos(int i, CdlLOC* p);
 int CdPosToInt(CdlLOC* p);
 CdlFILE* CdSearchFile(CdlFILE* fp, char* name);

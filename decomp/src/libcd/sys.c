@@ -10,6 +10,19 @@ extern CdlLOC CD_pos;
 extern char* CD_comstr[];
 extern char* CD_intstr[];
 
+int CD_init(void);
+void CD_initintr(void);
+void CD_flush(void);
+int CD_initvol(void);
+int CD_sync(int mode, u_char* result);
+int CD_ready(int mode, u_char* result);
+int CD_cw(u8 com, u8* param, u_char* result, s32 arg3);
+int CD_vol(CdlATV* vol);
+int CD_getsector(void* madr, int size);
+int CD_getsector2(void);
+void CD_datasync(int mode);
+CdlCB DMACallback(int mode, CdlCB func);
+
 static int D_800B5718[] = {
     0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0,
@@ -80,7 +93,7 @@ CdlCB CdReadyCallback(CdlCB func) {
     return prev;
 }
 
-static inline cd_cw(u8 com, u8* param, u_char* result, s32 arg3) {
+static inline int cd_cw(u8 com, u8* param, u_char* result, s32 arg3) {
     CdlCB old = CD_cbsync;
     int count = 4;
 
@@ -126,13 +139,12 @@ int CdGetSector(void* madr, int size) { return CD_getsector(madr, size) == 0; }
 
 int CdGetSector2(void) { return CD_getsector2() == 0; }
 
-long CdDataCallback(void (*func)()) { return DMACallback(3, func); }
+CdlCB CdDataCallback(CdlCB func) { return DMACallback(3, func); }
 
 void CdDataSync(int mode) { CD_datasync(mode); }
 
+static inline int ENCODE_BCD(int n) { return ((n / 10) << 4) + (n % 10); }
 CdlLOC* CdIntToPos(int i, CdlLOC* p) {
-    inline int ENCODE_BCD(n) { return ((n / 10) << 4) + (n % 10); }
-
     i += 150;
     p->sector = ENCODE_BCD(i % 75);
     p->second = ENCODE_BCD(i / 75 % 60);

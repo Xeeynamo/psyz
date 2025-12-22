@@ -1258,7 +1258,7 @@ segments:
       - [0xB50C8, data, libc2/sprintf]
       - [0xB50D8, data, libc2/strtok]
       - [0xB50E0, data, libcard/init]
-      - [0xB50E8, data, libcd/bios]
+      - [0xB50E8, .data, libcd/bios]
       - [0xB5400, data, libcd/c_002]
       - [0xB5410, data, libcd/c_003]
       - [0xB5420, data, libcd/c_004]
