@@ -1,15 +1,85 @@
 #include <psyz.h>
 #include <libcd.h>
 #include <log.h>
-
 #include <inttypes.h>
 #include <stdio.h>
 
 #define SECTOR_SIZE 2352
 
-int CdInit(void) {
+char* CD_comstr[] = {
+    "CdlSync",    "CdlNop",
+    "CdlSetloc",  "CdlPlay",
+    "CdlForward", "CdlBackward",
+    "CdlReadN",   "CdlStandby",
+    "CdlStop",    "CdlPause",
+    "CdlReset",   "CdlMute",
+    "CdlDemute",  "CdlSetfilter",
+    "CdlSetmode", "CdlGetparam",
+    "CdlGetlocL", "CdlGetlocP",
+    "?",          "CdlGetTN",
+    "CdlGetTD",   "CdlSeekL",
+    "CdlSeekP",   "?",
+    "?",          "?",
+    "?",          "CdlReadS",
+    "?",          "?",
+    "?",          "?",
+};
+char* CD_intstr[] = {
+    "NoIntr",  "DataReady", "Complete", "Acknowledge",
+    "DataEnd", "DiskError", "?",        "?",
+};
+
+CdlCB CD_cbsync = NULL;
+CdlCB CD_cbready = NULL;
+int CD_cbread = 0;
+int CD_debug = 0;
+int CD_status = 0;
+int CD_status1 = 0;
+int CD_nopen = 0;
+CdlLOC CD_pos = {2, 0, 0, 0};
+u_char CD_mode = 0;
+u_char CD_com = 0;
+static short __padding = 0;
+int DS_active = 0;
+
+int CD_init(void) {
+    NOT_IMPLEMENTED;
+    return 1;
+}
+void CD_initintr(void) { NOT_IMPLEMENTED; }
+void CD_flush(void) { NOT_IMPLEMENTED; }
+int CD_initvol(void) {
     NOT_IMPLEMENTED;
     return 0;
+}
+int CD_sync(int mode, u_char* result) {
+    NOT_IMPLEMENTED;
+    return CdlComplete;
+}
+int CD_ready(int mode, u_char* result) {
+    NOT_IMPLEMENTED;
+    return CdlComplete;
+}
+int CD_cw(u8 com, u8* param, u_char* result, s32 arg3) {
+    CD_sync(0, 0);
+    switch (com) {
+    default:
+        if (com >= LEN(CD_comstr)) {
+            ERRORF("com %X invalid", com);
+            return -1;
+        }
+        DEBUGF("com %s not implemented", CD_comstr[com]);
+    }
+    return 0;
+}
+int CD_vol(CdlATV* vol) { NOT_IMPLEMENTED; }
+int CD_getsector(void* madr, int size) { NOT_IMPLEMENTED; }
+int CD_getsector2(void) { NOT_IMPLEMENTED; }
+void CD_datasync(int mode) { NOT_IMPLEMENTED; }
+
+int CdInit(void) {
+    NOT_IMPLEMENTED;
+    return CD_init();
 }
 
 int CdReading() {
@@ -17,71 +87,7 @@ int CdReading() {
     return 0;
 }
 
-CdlCB CdReadyCallback(CdlCB func) {
-    NOT_IMPLEMENTED;
-    return func;
-}
-
-char* CdSyncModeToStr(int mode) {
-    switch (mode) {
-    case CdlNop:
-        return "CdlNop";
-    case CdlSetloc:
-        return "CdlSetloc";
-    case CdlPlay:
-        return "CdlPlay";
-    case CdlForward:
-        return "CdlForward";
-    case CdlBackward:
-        return "CdlBackward";
-    case CdlReadN:
-        return "CdlReadN";
-    case CdlSetfilter:
-        return "CdlSetfilter";
-    case CdlSetmode:
-        return "CdlSetmode";
-    case CdlGetTD:
-        return "CdlGetTD";
-    default:
-        break;
-    }
-
-    return "";
-}
-
-#define DECODE_BCD(x) (((x) >> 4) * 10 + ((x) & 0xF))
-
-int CdPosToInt(CdlLOC* p) {
-    return (75 * (60 * DECODE_BCD(p->minute) + DECODE_BCD(p->second))) +
-           DECODE_BCD(p->sector) - 150;
-}
-
-int CdControl(u_char com, u_char* param, u_char* result) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-int CdControlB(u_char com, u_char* param, u_char* result) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
-int CdSync(int mode, u_char* result) {
-    DEBUGF("mode %0d %s", mode, CdSyncModeToStr(mode));
-    NOT_IMPLEMENTED;
-    return CdlComplete;
-}
-
-int CdMix(CdlATV* vol) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
 void ExecCd() { NOT_IMPLEMENTED; }
-
-CdlCB CdSyncCallback(CdlCB func) {
-    NOT_IMPLEMENTED;
-    return NULL;
-}
 
 CdlFILE* CdSearchFile(CdlFILE* fp, char* name) {
     NOT_IMPLEMENTED;
@@ -101,16 +107,6 @@ int CdRead2(long mode) {
 int CdReadSync(int mode, u_char* result) {
     NOT_IMPLEMENTED;
     return 0;
-}
-
-void(*CdDataCallback(void (*func)())) {
-    NOT_IMPLEMENTED;
-    return func;
-}
-
-CdlLOC* CdIntToPos(int i, CdlLOC* p) {
-    NOT_IMPLEMENTED;
-    return NULL;
 }
 
 u_long StGetNext(u_long** addr, u_long** header) {
