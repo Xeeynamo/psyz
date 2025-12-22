@@ -58,3 +58,25 @@ long my_ioctl(long fd, long com, long arg);
 #endif
 
 #endif
+
+struct DiskRead {
+    // disk sector, can be used as a unique file identifier
+    unsigned int sector;
+
+    // byte count required to be read
+    unsigned int size;
+
+    // buffer to read the data into, max index is buffer[size-1]
+    void* buffer;
+};
+
+// returns byte read, -1 is not found, unsuccessful or not implemented
+typedef int (*DiskReadCB)(struct DiskRead* read);
+
+// Set path to CUE file, simulating a CD loaded
+// negative value means unsuccessful, zero means ok
+int Psyz_SetDiskPath(const char* diskPath);
+
+// Set callback when a disk read is triggered
+// if cb is NULL or returns a negative value, PSY-Z falls back to CD emulation
+void Psyz_SetDiskReadCB(DiskReadCB cb);
