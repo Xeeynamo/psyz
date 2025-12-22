@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <limits.h>
+#include "../audio.h"
 
 #define SECTOR_SIZE 2352
 #define MAX_TRACKS 99
@@ -67,23 +69,7 @@ int CD_nopen = 0;
 CdlLOC CD_pos = {2, 0, 0, 0};
 u_char CD_mode = 0;
 u_char CD_com = 0;
-static short __padding = 0;
 int DS_active = 0;
-
-// Convert MSF (minute:second:frame) to LBA sector number
-// CD-ROM sectors: 75 frames per second, 60 seconds per minute
-static int msf_to_sector(int minute, int second, int frame) {
-    return minute * 60 * 75 + second * 75 + frame;
-}
-
-// Parse MSF timestamp from string (format: MM:SS:FF)
-static int parse_msf(
-    const char* msf_str, int* minute, int* second, int* frame) {
-    if (sscanf(msf_str, "%d:%d:%d", minute, second, frame) != 3) {
-        return -1;
-    }
-    return 0;
-}
 
 // Trim whitespace from both ends of a string
 static char* str_trim(char* str) {
@@ -244,9 +230,10 @@ static int parse_cue_file(const char* cue_path) {
             int index_num;
             char msf_str[32];
             if (sscanf(line, "INDEX %d %31s", &index_num, msf_str) == 2) {
-                int minute, second, frame;
-                if (parse_msf(msf_str, &minute, &second, &frame) == 0) {
-                    int sector = msf_to_sector(minute, second, frame);
+                int minute = 0, second = 0, frame = 0;
+                if (sscanf(msf_str, "%d:%d:%d", &minute, &second, &frame) ==
+                    3) {
+                    int sector = minute * 60 * 75 + second * 75 + frame;
                     if (index_num == 1) { // INDEX 01 is the track data
                         TrackEntry* track = &g_tracks[current_track];
                         track->start_sector = sector;
@@ -283,27 +270,71 @@ int Psyz_SetDiskPath(const char* diskPath) {
     DEBUGF("Disk path set: %s", diskPath);
     return 0;
 }
+
 static DiskReadCB disk_read_cb = NULL;
 void Psyz_SetDiskCallback(DiskReadCB cb) { disk_read_cb = cb; }
 
 static void psyz_play() {
+    if (!(CD_mode & CdlModeDA)) {
+        WARNF("CdlModeDA not active, audio will not be played");
+        return;
+    }
     int sector = CdPosToInt(&CD_pos);
-    // TODO based on `pos`, open the right file that was previously read from
-    // CUE
-    // TODO file is always a 44100Hz 2ch audio redbook file, play it
-    NOT_IMPLEMENTED;
+    TrackEntry* track = NULL;
+    for (int i = 0; i < g_track_count; i++) {
+        if (!g_tracks[i].is_valid)
+            continue;
+
+        // Check if sector falls within this track
+        // For the last track, assume it extends to end of file
+        int next_abs_sector = INT_MAX;
+        if (i + 1 < g_track_count && g_tracks[i + 1].is_valid) {
+            next_abs_sector = g_tracks[i + 1].abs_sector;
+        }
+        if (sector >= g_tracks[i].abs_sector && sector < next_abs_sector) {
+            track = &g_tracks[i];
+            break;
+        }
+    }
+    if (!track) {
+        WARNF("no track found for sector %d", sector);
+        return;
+    }
+    FILE* file = fopen(track->file_path, "rb");
+    if (!file) {
+        ERRORF("failed to open audio file: %s", track->file_path);
+        return;
+    }
+
+    // sector is the absolute sector, track->abs_sector is where this track
+    // starts track->start_sector is the MSF offset within the file
+    int sector_offset = (sector - track->abs_sector) + track->start_sector;
+    long byte_offset = (long)sector_offset * SECTOR_SIZE;
+    if (fseek(file, byte_offset, SEEK_SET) != 0) {
+        ERRORF("failed to seek to sector %d in %s", sector, track->file_path);
+        fclose(file);
+        return;
+    }
+    DEBUGF("playing audio from %s at sector %d (offset %d)", track->file_path,
+           sector, sector_offset);
+    Audio_PlayCdAudio(file);
 }
 
-static void psyz_stop() { NOT_IMPLEMENTED; }
+static void psyz_stop() { Audio_Stop(); }
 
-static void psyz_pause() { NOT_IMPLEMENTED; }
+static void psyz_pause() { Audio_Pause(); }
 
-static void psyz_mute() { NOT_IMPLEMENTED; }
+static void psyz_mute() { Audio_Mute(); }
 
-static void psyz_demute() { NOT_IMPLEMENTED; }
+static void psyz_demute() { Audio_Demute(); }
 
+static void cdaudio_end_cb(void) {
+    if (CD_cbready) {
+        CD_cbready(CdlDataEnd, NULL);
+    }
+}
 int CD_init(void) {
-    NOT_IMPLEMENTED;
+    Audio_SetCdAudioEndCB(cdaudio_end_cb);
     return 1;
 }
 void CD_initintr(void) { NOT_IMPLEMENTED; }
@@ -351,7 +382,7 @@ int CD_cw(u8 com, u8* param, u_char* result, s32 arg3) {
             return -2;
         }
         if (*param & CdlModeDA) {
-            DEBUGF("%s does not support CdlModeDA", CD_comstr[com]);
+            Audio_Init();
         }
         if (*param & CdlModeAP) {
             DEBUGF("%s does not support CdlModeAP", CD_comstr[com]);
@@ -380,6 +411,7 @@ int CD_cw(u8 com, u8* param, u_char* result, s32 arg3) {
         if (*param & CdlModeStream) {
             DEBUGF("%s does not support CdlModeStream", CD_comstr[com]);
         }
+        CD_mode = *param;
         break;
     default:
         if (com >= LEN(CD_comstr)) {
