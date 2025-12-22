@@ -39,7 +39,9 @@ set(PSYZ_SOURCES
     src/psyz/libcd.c
     ../decomp/src/libcd/sys.c
     src/psyz/libcard.c
+    ../decomp/src/libspu/s_i.c
     src/psyz/libspu.c
+    ../decomp/src/libsnd/ssinit_c.c
     src/psyz/libsnd.c
     src/psyz/libsn.c
     src/psyz/libpress.c

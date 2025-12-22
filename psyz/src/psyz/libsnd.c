@@ -89,8 +89,6 @@ short SsVabTransBody(unsigned char* addr, short vabid) {
 }
 void SsVabClose(short vab_id) { NOT_IMPLEMENTED; }
 
-void SsInit(void) { NOT_IMPLEMENTED; }
-
 void SsEnd(void) { NOT_IMPLEMENTED; }
 
 void SsSetMarkCallback(short access_num, short seq_num, SsMarkCallbackProc proc) { NOT_IMPLEMENTED; }

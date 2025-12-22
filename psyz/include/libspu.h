@@ -72,6 +72,8 @@ typedef struct {
     long feedback;      // Feedback    (ECHO only)
 } SpuReverbAttr;
 
+void SpuInit(void);
+
 extern long SpuSetTransferMode(long mode);
 extern unsigned long SpuWrite(unsigned char* addr, unsigned long size);
 
