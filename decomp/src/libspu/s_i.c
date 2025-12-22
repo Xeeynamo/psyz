@@ -1,4 +1,5 @@
 #include <common.h>
 #include <libspu.h>
 
-INCLUDE_ASM("asm/nonmatchings/libspu/s_i", SpuInit);
+void _SpuInit(s32 arg0);
+void SpuInit(void) { _SpuInit(0); }
