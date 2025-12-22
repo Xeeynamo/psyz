@@ -1,4 +1,11 @@
 #include <common.h>
 #include <libsnd.h>
+#include <libspu.h>
+#include <libetc.h>
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/ssinit_c", SsInit);
+void _SsInit(void);
+void SsInit(void) {
+    ResetCallback();
+    SpuInit();
+    _SsInit();
+}
