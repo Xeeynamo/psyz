@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 extern "C" {
-#include "common.h"
-#include "kernel.h"
-#include "libapi.h"
+#include <common.h>
+#include <kernel.h>
+#include <libapi.h>
 }
 
 #ifdef _WIN32

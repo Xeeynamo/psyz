@@ -177,32 +177,31 @@ void SsUtSetReverbDepth(
     short rdepth  // Right channel depth. Value between 0 and 127
 );
 
-void  SsInit(void);
+void SsInit(void);
 void SsEnd(void);
 typedef void (*SsMarkCallbackProc)(short, short, short);
-void  SsSetMarkCallback(short, short, SsMarkCallbackProc);
+void SsSetMarkCallback(short, short, SsMarkCallbackProc);
 short SsIsEos(short, short);
 
 short SsVabOpenHead(unsigned char*, short);
 short SsVabTransBody(unsigned char*, short);
-void  SsVabClose(short);          
+void SsVabClose(short);
 
 short SsUtKeyOn(short, short, short, short, short, short, short);
-void  SsUtSetReverbDelay(short delay);
-void  SsUtReverbOff(void);
+void SsUtSetReverbDelay(short delay);
+void SsUtReverbOff(void);
 short SsUtKeyOff(short, short, short, short, short);
-void  SsUtAllKeyOff(short);
+void SsUtAllKeyOff(short);
 
-void  SsSepStop(short, short);
+void SsSepStop(short, short);
 short SsSepOpen(unsigned long*, short, short);
-void  SsSepClose(short);
-void  SsSepSetVol(short, short, short, short);
-void  SsSeqCalledTbyT(void);           
-void  SsSepPlay(short, short, char, short);
+void SsSepClose(short);
+void SsSepSetVol(short, short, short, short);
+void SsSeqCalledTbyT(void);
+void SsSepPlay(short, short, char, short);
 
-void  SsSeqPlay(s16, s8, s16);    
-void  SsSeqSetVol(s16 arg0, s32 arg1, s32 arg2);  
-void  SsSeqSetCrescendo(short, short, long); 
-
+void SsSeqPlay(s16, s8, s16);
+void SsSeqSetVol(s16 arg0, s32 arg1, s32 arg2);
+void SsSeqSetCrescendo(short, short, long);
 
 #endif
