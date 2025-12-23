@@ -42,6 +42,10 @@ struct Debug {
 #define gpu D_800B8920
 
 static int D_800B88D8[] = {0x15077350, 0x0040899C};
+static DR_ENV D_800E8640;
+static s32 __dummy[2];
+u_char ctlbuf[0x100];
+u_char _que[0x1800];
 
 void SetDrawEnv2(DR_ENV* dr_env, DRAWENV* env);
 #ifndef __psyz
@@ -124,8 +128,6 @@ int D_800B8A38 = 0;
 int D_800B8A3C = 0;
 int D_800B8A40 = 0;
 int D_800B8A44 = 0;
-extern u_char ctlbuf[0x100];
-extern u_char _que[0x1800];
 
 #ifdef __psyz
 #define GPU_PSX_PTR(x) ((u_long*)x)
@@ -698,7 +700,6 @@ int _otc(OT_TYPE* ot, int n) {
     return n;
 }
 
-extern DR_ENV D_800E8640;
 int _clr(RECT* rect, u32 color) {
     u_long ptr;
 
