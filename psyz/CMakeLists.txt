@@ -40,8 +40,24 @@ set(PSYZ_SOURCES
     ../decomp/src/libcd/sys.c
     src/psyz/libcard.c
     ../decomp/src/libspu/s_i.c
+    ../decomp/src/libspu/s_cb.c
+    ../decomp/src/libspu/s_crwa.c
+    ../decomp/src/libspu/s_dcb.c
+    ../decomp/src/libspu/s_gva.c
+    ../decomp/src/libspu/s_m_f.c
+    ../decomp/src/libspu/s_m_init.c
+    ../decomp/src/libspu/s_q.c
+    ../decomp/src/libspu/s_r.c
     src/psyz/libspu.c
     ../decomp/src/libsnd/ssinit_c.c
+    ../decomp/src/libsnd/sssattr.c
+    ../decomp/src/libsnd/sssv.c
+    ../decomp/src/libsnd/sstable.c
+    ../decomp/src/libsnd/sstick.c
+    ../decomp/src/libsnd/vs_mono.c
+    ../decomp/src/libsnd/ut_rev.c
+    ../decomp/src/libsnd/ut_ron.c
+    ../decomp/src/libsnd/ut_rdep.c
     src/psyz/libsnd.c
     src/psyz/libsn.c
     src/psyz/libpress.c

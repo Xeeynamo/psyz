@@ -44,7 +44,7 @@ typedef struct tagSpuMalloc {
 
 extern void (* volatile _spu_transferCallback)();
 
-void _SpuCallback(s32 arg0);
+void _SpuCallback(void (*cb)());
 extern void (* volatile _spu_IRQCallback)();
 
 s32 SpuSetAnyVoice(s32 on_off, u32 bits, s32 addr1, s32 addr2);
@@ -53,6 +53,8 @@ s32 _spu_t(s32, ...);
 
 u32 _spu_FsetRXXa(s32 arg0, u32 arg1);
 s32 _spu_write(u8*, u32);
+void _spu_Fr(u_char* addr, u_long size);
+void _spu_gcSPU(void);
 
 struct rev_param_entry {
     u32 flags;

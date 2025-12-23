@@ -2,7 +2,21 @@
 #include <libspu.h>
 #include <log.h>
 
-void SpuSetVoiceAttr(SpuVoiceAttr* arg) { DEBUGF("SpuSetVoiceAttr"); }
+void _SpuInit(void) { NOT_IMPLEMENTED; }
+
+void SpuSetVoiceAttr(SpuVoiceAttr* arg) { NOT_IMPLEMENTED; }
+
+void SpuSetCommonAttr(SpuCommonAttr* arg) { NOT_IMPLEMENTED; }
+
+long SpuSetReverb(long on_off) {
+    NOT_IMPLEMENTED;
+    return on_off;
+}
+
+long SpuSetReverbModeParam(SpuReverbAttr* attr) {
+    NOT_IMPLEMENTED;
+    return 0;
+}
 
 long SpuMallocWithStartAddr(unsigned long addr, long size) {
     NOT_IMPLEMENTED;
