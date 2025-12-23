@@ -79,7 +79,7 @@ long _card_sector_write(long chan, long block, unsigned char* buf) {
                 _bzero(var_v1_2, sizeof(sp10));
                 _new_card();
                 if (_card_read(chan, block, var_v1_2) != 1) {
-                    printf("card read error\n");
+                    ERRORF("card read error\n");
                 } else {
                     do {
                     } while (!(_card_status(chan >> 4) & 1));

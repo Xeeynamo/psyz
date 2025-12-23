@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
 #include <GLES2/gl2.h>
 extern "C" {
-#include "common.h"
-#include "kernel.h"
-#include "libetc.h"
-#include "libgpu.h"
+#include <common.h>
+#include <kernel.h>
+#include <libetc.h>
+#include <libgpu.h>
 void Psyz_SetWindowScale(int scale);
 unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h);
 }

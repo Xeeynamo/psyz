@@ -74,24 +74,93 @@
 #define TcbStUNUSED 0x1000
 #define TcbStACTIVE 0x4000
 
+/**
+ * @brief Event Control Block
+ *
+ * Stores information for each event.
+ */
 struct EvCB {
-    unsigned long desc;
-    long status;
-    long spec;
-    long mode;
-    long (*FHandler)();
-    long system[2];			/* reserved by system */
+    unsigned long desc; /**< Cause descriptor */
+    long status;        /**< Status */
+    long spec;          /**< Event type */
+    long mode;          /**< Mode */
+    long (*FHandler)(); /**< Pointer to a function type handler */
+    long system[2];     /**< Reserved by system */
 };
 
-typedef struct DIRENTRY_RESERVED * PDIRENTRY_RESERVED;
+/**
+ * @brief Task Control Block
+ *
+ * Stores a context (including contents of the registers) for thread management.
+ */
+#define NREGS 32
+struct TCB {
+    long status;              /**< Status */
+    long mode;                /**< Mode */
+    unsigned long reg[NREGS]; /**< Register saving area (specified by register
+                                 designation macro) */
+    long system[6];           /**< Reserved by system */
+};
+
+/**
+ * @brief Task Control Block Header
+ *
+ * Used for thread management. entry is a pointer to the currently executing
+ * TCB.
+ */
+struct TCBH {
+    struct TCB* entry; /**< Pointer to execution TCB */
+    long flag;         /**< System reserved */
+};
+
+/**
+ * @brief System Table Information
+ *
+ * Information about various system tables used by the kernel. The tables begin
+ * at address 0x00000100.
+ */
+struct ToT {
+    unsigned long* head; /**< Pointer to a system table start address */
+    long size;           /**< System table size (in bytes) */
+};
+
+/**
+ * @brief Execution file data structure
+ *
+ * Stores information for loading and executing a program. The data is stored in
+ * the first 2K bytes of the execution file (PS-X EXE format). By adding stack
+ * information and transfering it to Exec(), the program is activated.
+ */
+struct EXEC {
+    unsigned long pc0;    /**< Execution start address */
+    unsigned long gp0;    /**< gp register initial value */
+    unsigned long t_addr; /**< Starting address of initialized text section */
+    unsigned long t_size; /**< Size of text section */
+    unsigned long d_addr; /**< Starting address of initialized data section */
+    unsigned long d_size; /**< Size of initialized data section */
+    unsigned long b_addr; /**< Uninitialized data section start address */
+    unsigned long b_size; /**< Uninitialized data section size */
+    unsigned long s_addr; /**< Stack start address (specified by the user) */
+    unsigned long s_size; /**< Stack size (specified by the user) */
+    unsigned long sp;     /**< Register shunt variable */
+    unsigned long fp;     /**< Register shunt variable */
+    unsigned long gp;     /**< Register shunt variable */
+    unsigned long ret;    /**< Register shunt variable */
+    unsigned long base;   /**< Register shunt variable */
+};
+
+/**
+ * @brief Directory entries
+ *
+ * Stores information relating to files registered in the file system.
+ */
 struct DIRENTRY {
-    /* 0x00 */ char name[20];
-    /* 0x14 */ long attr;
-    /* 0x18 */ long size;
-    /* 0x1C */ struct DIRENTRY* next;
-    /* 0x20*/ long head;
-    /* 0x24 */ char system[4];
-}; // size = 0x28
+    char name[20];         /**< Filename */
+    long attr;             /**< Attributes (dependent on file system) */
+    long size;             /**< File size (in bytes) */
+    struct DIRENTRY* next; /**< Pointer to next file entry (for user) */
+    char system[8];        /**< Reserved by system */
+};
 
 #ifdef _WIN32
 // Avoid conflict with Windows API on Windows builds
@@ -103,20 +172,5 @@ void PS1_ExitCriticalSection(void);
 void EnterCriticalSection(void);
 void ExitCriticalSection(void);
 #endif
-
-void InitCARD(long val);
-long StartCARD(void);
-long StopCARD(void);
-void _bu_init(void);
-long _card_info(long chan);
-long _card_clear(long chan);
-long _card_load(long chan);
-long _card_auto(long val);
-void _new_card(void);
-long _card_status(long drv);
-long _card_wait(long drv);
-unsigned long _card_chan(void);
-long _card_write(long chan, long block, unsigned char *buf);
-long _card_read(long chan, long block, unsigned char *buf);
 
 #endif

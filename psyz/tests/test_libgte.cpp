@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 extern "C" {
-#include "common.h"
-#include "kernel.h"
-#include "libgte.h"
+#include <common.h>
+#include <kernel.h>
+#include <libgte.h>
 }
 
 class gte_Test : public testing::Test {

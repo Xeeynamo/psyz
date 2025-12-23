@@ -1,9 +1,9 @@
-#include "../audio.h"
 #include <psyz.h>
 #include <log.h>
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <string.h>
+#include "../audio.h"
 
 #define CD_SAMPLE_RATE 44100
 #define CD_CHANNELS 2
