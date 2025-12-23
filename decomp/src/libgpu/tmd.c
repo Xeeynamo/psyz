@@ -20,19 +20,12 @@ typedef struct {
 } TMD;
 #pragma pack(pop)
 
-#ifndef __psyz
-extern u_long* tim;
-extern int n_prim;
-extern u_long* t_prim;
-extern u_long* v_ofs;
-extern u_long* n_ofs;
-#else
-static u_long* tim = 0;
-static int n_prim = 0;
-static u_long* t_prim = 0;
-static u_long* v_ofs = 0;
-static u_long* n_ofs = 0;
-#endif
+static u_long* tim;
+static u_long* v_ofs;
+static u_long* n_ofs;
+static u_long* t_prim;
+static int n_prim;
+static int unused;
 
 u_long get_tim_addr(unsigned int* addr, TIM_IMAGE*);
 u_long get_tmd_addr(

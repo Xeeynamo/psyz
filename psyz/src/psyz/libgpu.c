@@ -3,13 +3,6 @@
 #include <log.h>
 #include "../draw.h"
 
-char str[0x400];
-SPRT_8 sprt[0x400];
-u16 tpage;
-u16 clut;
-u_char ctlbuf[0x100];
-u_char _que[0x1800];
-u32 D_800E8640[0x10];
 static u32 GPU_STATUS = 0;
 
 typedef enum {

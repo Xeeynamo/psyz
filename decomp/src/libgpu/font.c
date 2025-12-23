@@ -233,10 +233,11 @@ static u8 font_data[] = {
 };
 static s32 i_str = 0;
 static const char* D_800B7CBC[] = {"0123456789ABCDEF"};
-extern char str[0x400];    // static, bss
-extern SPRT_8 sprt[0x400]; // static, bss
-extern u16 tpage;          // static, bss
-extern u16 clut;           // static, bss
+static char str[0x400];
+static SPRT_8 sprt[0x400];
+static u16 tpage;
+static u16 _padding;
+static u16 clut;
 
 void SetDumpFnt(int id) {
     if (id >= 0 && id <= n_fonts_open) {
