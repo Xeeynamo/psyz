@@ -19,6 +19,7 @@ static char* progname = "etc/card/card.cpe";
 #include <libapi.h>
 #include <string.h>
 #include <stdio.h>
+#include <memory.h>
 #include "cardio.h"
 #include "hand1.h"
 #include "hand2.h"

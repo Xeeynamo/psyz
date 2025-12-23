@@ -1,6 +1,5 @@
 #include <common.h>
-#include <kernel.h>
-#include <libcard.h>
+#include <libapi.h>
 
 long _card_clear(long chan) {
     _new_card();

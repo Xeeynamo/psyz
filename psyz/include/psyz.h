@@ -59,7 +59,7 @@ long my_ioctl(long fd, long com, long arg);
 
 #endif
 
-struct DiskRead {
+struct PsyzDiskRead {
     // disk sector, can be used as a unique file identifier
     unsigned int sector;
 
@@ -71,7 +71,7 @@ struct DiskRead {
 };
 
 // returns byte read, -1 is not found, unsuccessful or not implemented
-typedef int (*DiskReadCB)(struct DiskRead* read);
+typedef int (*DiskReadCB)(struct PsyzDiskRead* read);
 
 // Set path to CUE file, simulating a CD loaded
 // negative value means unsuccessful, zero means ok
