@@ -377,7 +377,7 @@ short SsVabOpenHead(u_char* addr, short vabid);
  * @param sbaddr Start address in sound buffer for VabBody
  * @return VAB identification number, or -1 on failure
  */
-short SsVabOpenHeadSticky(u_char* addr, u_long vabid, u_long sbaddr);
+short SsVabOpenHeadSticky(u_char* addr, short vabid, u_long sbaddr);
 
 /**
  * @brief Transfer sound source data

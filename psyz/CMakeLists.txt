@@ -39,9 +39,39 @@ set(PSYZ_SOURCES
     src/psyz/libcd.c
     ../decomp/src/libcd/sys.c
     src/psyz/libcard.c
+    ../decomp/src/libspu/s_cb.c
+    ../decomp/src/libspu/s_crwa.c
+    ../decomp/src/libspu/s_dcb.c
+    ../decomp/src/libspu/s_gva.c
     ../decomp/src/libspu/s_i.c
+    ../decomp/src/libspu/s_ini.c
+    ../decomp/src/libspu/s_it.c
+    ../decomp/src/libspu/s_itc.c
+    ../decomp/src/libspu/s_m_f.c
+    ../decomp/src/libspu/s_m_init.c
+    ../decomp/src/libspu/s_q.c
+    ../decomp/src/libspu/s_r.c
+    ../decomp/src/libspu/s_rmp.c
+    ../decomp/src/libspu/s_sr.c
+    ../decomp/src/libspu/spu.c
+    ../decomp/src/libspu/sr_gaks.c
     src/psyz/libspu.c
+    ../decomp/src/libsnd/ssclose.c
+    ../decomp/src/libsnd/ssinit.c
     ../decomp/src/libsnd/ssinit_c.c
+    ../decomp/src/libsnd/ssplay.c
+    ../decomp/src/libsnd/ssquit.c
+    ../decomp/src/libsnd/sssattr.c
+    ../decomp/src/libsnd/sssv.c
+    ../decomp/src/libsnd/sstable.c
+    ../decomp/src/libsnd/sstick.c
+    ../decomp/src/libsnd/ut_rdel.c
+    ../decomp/src/libsnd/ut_rdep.c
+    ../decomp/src/libsnd/ut_rev.c
+    ../decomp/src/libsnd/ut_roff.c
+    ../decomp/src/libsnd/ut_ron.c
+    ../decomp/src/libsnd/vs_mono.c
+    ../decomp/src/libsnd/vs_vh.c
     src/psyz/libsnd.c
     src/psyz/libsn.c
     src/psyz/libpress.c

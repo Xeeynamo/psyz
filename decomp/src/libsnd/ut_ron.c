@@ -1,4 +1,5 @@
 #include <common.h>
 #include <libsnd.h>
+#include <libspu.h>
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/ut_ron", SsUtReverbOn);
+void SsUtReverbOn(void) { SpuSetReverb(1); }

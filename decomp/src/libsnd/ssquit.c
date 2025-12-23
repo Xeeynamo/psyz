@@ -1,4 +1,6 @@
 #include <common.h>
 #include <libsnd.h>
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/ssquit", SsQuit);
+void SpuQuit(void);
+
+void SsQuit(void) { SpuQuit(); }

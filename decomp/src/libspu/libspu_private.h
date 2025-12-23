@@ -7,53 +7,6 @@
 
 #define NUM_SPU_CHANNELS 24
 
-void* InterruptCallback(int, void (*)());
-void _SpuInit(s32);
-void _spu_FiDMA();
-
-extern s32 D_80033098;
-extern s32 _spu_EVdma;
-extern s32 _spu_isCalled;
-extern s32 _spu_inTransfer;
-extern s32 _spu_keystat;
-extern s32 _spu_transMode;
-extern u16 _spu_tsa;
-extern s32 _spu_rev_flag;
-extern s32 _spu_rev_reserve_wa;
-extern s32 _spu_rev_offsetaddr;
-extern s32 _spu_rev_startaddr[];
-extern s32 _spu_trans_mode;
-extern s32 _spu_AllocBlockNum;
-extern s32 _spu_AllocLastNum;
-extern s32 _spu_RQmask;
-extern s32 _spu_RQvoice;
-extern s32 _spu_env;
-
-extern s32 D_80033550;
-extern s32 D_8003355C;
-extern s32 D_80033560;
-extern s8* D_80033564;
-extern s32 _spu_mem_mode_plus;
-extern s32 _spu_mem_mode_unitM;
-extern u16 _spu_voice_centerNote[];
-
-typedef struct tagSpuMalloc {
-    u32 addr;
-    u32 size;
-} SPU_MALLOC;
-
-extern void (* volatile _spu_transferCallback)();
-
-void _SpuCallback(s32 arg0);
-extern void (* volatile _spu_IRQCallback)();
-
-s32 SpuSetAnyVoice(s32 on_off, u32 bits, s32 addr1, s32 addr2);
-
-s32 _spu_t(s32, ...);
-
-u32 _spu_FsetRXXa(s32 arg0, u32 arg1);
-s32 _spu_write(u8*, u32);
-
 struct rev_param_entry {
     u32 flags;
     u16 dAPF1;
@@ -99,7 +52,10 @@ struct SpuRevAttr {
     s32 unk24;
 };
 
-extern struct SpuRevAttr _spu_rev_attr;
+typedef struct tagSpuMalloc {
+    u32 addr;
+    u32 size;
+} SPU_MALLOC;
 
 typedef struct tagSpuVoiceRegister {
     SpuVolume volume; // 0-2
@@ -173,13 +129,46 @@ union SpuUnion {
     volatile u16 raw[0x100];
 };
 
+extern s32 D_80033098;
+extern s32 D_80033550;
+extern s32 D_8003355C;
+extern s32 D_80033560;
+extern s8* D_80033564;
+extern s32 _spu_AllocBlockNum;
+extern s32 _spu_AllocLastNum;
+extern s32 _spu_EVdma;
+extern s32 _spu_RQmask;
+extern s32 _spu_RQvoice;
 extern union SpuUnion* _spu_RXX;
-
-s32 _SpuIsInAllocateArea_(u32);
-
-#define SPU_TRANSFER_BY_DMA 0
-#define SPU_TRANSFER_BY_IO 1
-
+extern s32 _spu_env;
+extern s32 _spu_inTransfer;
+extern s32 _spu_isCalled;
+extern s32 _spu_keystat;
+extern s32 _spu_mem_mode_plus;
+extern s32 _spu_mem_mode_unitM;
 extern SPU_MALLOC* _spu_memList;
+extern s32 _spu_rev_flag;
+extern s32 _spu_rev_offsetaddr;
+extern s32 _spu_rev_reserve_wa;
+extern s32 _spu_rev_startaddr[];
+extern struct SpuRevAttr _spu_rev_attr;
+extern s32 _spu_transMode;
+extern s32 _spu_trans_mode;
+extern u16 _spu_tsa;
+extern u16 _spu_voice_centerNote[];
+extern void (* volatile _spu_IRQCallback)();
+extern void (* volatile _spu_transferCallback)();
+
+void* InterruptCallback(int, void (*)());
+s32 SpuSetAnyVoice(s32 on_off, u32 bits, s32 addr1, s32 addr2);
+void _SpuCallback(void (*cb)());
+void _SpuInit(s32);
+s32 _SpuIsInAllocateArea_(u32);
+void _spu_FiDMA();
+void _spu_Fr(u_char* addr, u_long size);
+u32 _spu_FsetRXXa(s32 arg0, u32 arg1);
+void _spu_gcSPU(void);
+s32 _spu_t(s32, ...);
+s32 _spu_write(u8*, u32);
 
 #endif

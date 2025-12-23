@@ -52,5 +52,3 @@ void v_wait(int v, int timeout) {
         }
     }
 }
-
-NOP;
