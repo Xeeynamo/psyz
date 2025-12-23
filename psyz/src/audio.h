@@ -1,8 +1,6 @@
 #ifndef PSYZ_AUDIO_H
 #define PSYZ_AUDIO_H
 
-#include <stdio.h>
-
 int Audio_Init(void);
 void Audio_Shutdown(void);
 void Audio_SetCdAudioEndCB(void (*callback)(void));

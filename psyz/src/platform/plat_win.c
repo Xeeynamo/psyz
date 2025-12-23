@@ -160,7 +160,6 @@ static void populate_entry(
     dst->attr = 0x10 | 0x40; // Same as Unix version
     dst->size = (long)fileStat.st_size;
     dst->next = NULL;
-    dst->head = 0;
     dst->system[0] = 0;
 }
 
