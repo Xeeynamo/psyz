@@ -36,6 +36,78 @@
 
 #define SSPLAY_PLAY 1
 
+typedef struct {
+    void (*noteon)();
+    void (*programchange)();
+    void (*pitchbend)();
+    void (*metaevent)();
+    void (*control[13])();
+    void (*ccentry[20])();
+} _SsFCALL;
+
+/*
+ * Vag & Vab Structure
+ */
+typedef struct VabHdr { /* VAB Bank Headdings */
+
+    long form;                /* always 'VABp' */
+    long ver;                 /* VAB file version number */
+    long id;                  /* VAB id */
+    unsigned long fsize;      /* VAB file size */
+    unsigned short reserved0; /* system reserved */
+    unsigned short ps;        /* # of the programs in this bank */
+    unsigned short ts;        /* # of the tones in this bank */
+    unsigned short vs;        /* # of the vags in this bank */
+    unsigned char mvol;       /* master volume for this bank */
+    unsigned char pan;        /* master panning for this bank */
+    unsigned char attr1;      /* bank attributes1 */
+    unsigned char attr2;      /* bank attributes2 */
+    unsigned long reserved1;  /* system reserved */
+
+} VabHdr; /* 32 byte */
+
+typedef struct ProgAtr { /* Program Headdings */
+
+    unsigned char tones;     /* # of tones */
+    unsigned char mvol;      /* program volume */
+    unsigned char prior;     /* program priority */
+    unsigned char mode;      /* program mode */
+    unsigned char mpan;      /* program pan */
+    char reserved0;          /* system reserved */
+    short attr;              /* program attribute */
+    unsigned long reserved1; /* system reserved */
+    unsigned long reserved2; /* system reserved */
+
+} ProgAtr; /* 16 byte */
+
+typedef struct VagAtr { /* VAG Tone Headdings */
+
+    unsigned char prior;     /* tone priority */
+    unsigned char mode;      /* play mode */
+    unsigned char vol;       /* tone volume*/
+    unsigned char pan;       /* tone panning */
+    unsigned char center;    /* center note */
+    unsigned char shift;     /* center note fine tune */
+    unsigned char min;       /* minimam note limit */
+    unsigned char max;       /* maximam note limit */
+    unsigned char vibW;      /* vibrate depth */
+    unsigned char vibT;      /* vibrate duration */
+    unsigned char porW;      /* portamento depth */
+    unsigned char porT;      /* portamento duration */
+    unsigned char pbmin;     /* under pitch bend max */
+    unsigned char pbmax;     /* upper pitch bend max */
+    unsigned char reserved1; /* system reserved */
+    unsigned char reserved2; /* system reserved */
+    unsigned short adsr1;    /* adsr1 */
+    unsigned short adsr2;    /* adsr2 */
+    short prog;              /* parent program*/
+    short vag;               /* vag reference */
+    short reserved[4];       /* system reserved */
+
+} VagAtr; /* 32 byte */
+
+extern _SsFCALL SsFCALL;
+
 // Closes the SEQ data holding the seq_acces_num that is no longer necessary.
 extern void SsSeqClose(short seq_access_num);
 
@@ -52,7 +124,7 @@ extern void SsSetSerialAttr(char s_num, char attr, char mode);
  * Sets the CD volume value in voll and volr.
  * The volume value can be set from 0 to 127.
  */
-extern void SsSetSerialVol(short s_num, short voll, short volr);
+extern void SsSetSerialVol(char s_num, short voll, short volr);
 
 /**
  * Clears the area occupied by the reverb work
@@ -144,12 +216,7 @@ void SsSetMono(void);
 void SsSetStereo(void);
 
 // Open a VAB header and specify transfer address in sound buffer.
-s32 /*short*/ SsVabOpenHeadSticky(
-    u_char* addr, // Start address of VAB header (.VH) in main memory
-    u_long vabid, // Desired VAB ID or -1
-    u_long sbaddr // Start address in sound buffer where VabBody is to be
-                  // transferred
-);
+short SsVabOpenHeadSticky(u_char* addr, short vabid, u_long sbaddr);
 
 // Starts transferring a VAB body in main memory, whose VAB header was opened
 // with SsVabOpenHead(), to the sound buffer.
@@ -165,7 +232,7 @@ s32 /*short*/ SsVabTransCompleted(
 );
 
 // Set reverb type
-void SsUtSetReverbType(short type);
+short SsUtSetReverbType(short type);
 
 // Turns on global Reverb at the type and depth set by SsUtSetReverbType() and
 // SsUtSetReverbDepth().
@@ -198,9 +265,10 @@ short SsSepOpen(unsigned long*, short, short);
 void SsSepClose(short);
 void SsSepSetVol(short, short, short, short);
 void SsSeqCalledTbyT(void);
-void SsSepPlay(short, short, char, short);
+void SsSepPlay(
+    short sep_access_num, short seq_num, char play_mode, short l_count);
 
-void SsSeqPlay(s16, s8, s16);
+void SsSeqPlay(short seq_access_num, char play_mode, short l_count);
 void SsSeqSetVol(s16 arg0, s32 arg1, s32 arg2);
 void SsSeqSetCrescendo(short, short, long);
 

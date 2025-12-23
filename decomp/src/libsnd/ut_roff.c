@@ -1,4 +1,6 @@
 #include <common.h>
 #include <libsnd.h>
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/ut_roff", SsUtReverbOff);
+s32 SpuSetReverb(s32);
+
+void SsUtReverbOff(void) { SpuSetReverb(0); }

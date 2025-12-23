@@ -1,4 +1,5 @@
 #include <common.h>
 #include <libspu.h>
+#include <libetc.h>
 
-INCLUDE_ASM("asm/nonmatchings/libspu/s_dcb", _SpuDataCallback);
+void _SpuDataCallback(void (*arg0)()) { DMACallback(4, arg0); }
