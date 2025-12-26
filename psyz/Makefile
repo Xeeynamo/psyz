@@ -15,16 +15,26 @@ build/%/libpsyz.a: CMakeLists.txt cmake/%.cmake $(shell find src include -type f
 	cmake -G$(CMAKE_GEN) -DCMAKE_TOOLCHAIN_FILE=cmake/$*.cmake -DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE) -B build/$*
 	cmake --build build/$*
 
+UNAME_S := $(shell uname)
+
 test:
 	@mkdir -p tests/build/native-sw
 	cmake -G$(CMAKE_GEN) -DGTE_USE_HW_SQRT=OFF -DCMAKE_BUILD_TYPE=Debug -S tests/ -B tests/build/native-sw
 	cmake --build tests/build/native-sw
+ifeq ($(UNAME_S),Linux)
 	cd tests/build && SDL_VIDEODRIVER=offscreen ./native-sw/psyz_tests
+else
+	cd tests/build && ./native-sw/psyz_tests
+endif
 
 	@mkdir -p tests/build/native-hw
 	cmake -G$(CMAKE_GEN) -DGTE_USE_HW_SQRT=ON -DCMAKE_BUILD_TYPE=Debug -S tests/ -B tests/build/native-hw
 	cmake --build tests/build/native-hw
+ifeq ($(UNAME_S),Linux)
 	cd tests/build && SDL_VIDEODRIVER=offscreen ./native-hw/psyz_tests --gtest_filter='gte_Test.*'
+else
+	cd tests/build && ./native-hw/psyz_tests --gtest_filter='gte_Test.*'
+endif
 
 test-wine:
 	@mkdir -p tests/build/wine
