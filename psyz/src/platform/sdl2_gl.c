@@ -6,7 +6,7 @@
 #include <stddef.h>
 
 #include <SDL3/SDL.h>
-#if defined(_MSC_VER) || defined(__MINGW32__)
+#if defined(_MSC_VER) || defined(__MINGW32__) || defined(__APPLE__)
 #include "glad/glad.h"
 
 #else
@@ -266,7 +266,7 @@ bool InitPlatform() {
     }
     SDL_GL_MakeCurrent(window, glContext);
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
     if (!gladLoadGL()) {
         ERRORF("gladLoadGL failed");
         return false;
@@ -280,7 +280,7 @@ bool InitPlatform() {
     sscanf(glStrVersion, "%d.%d", &glVer_major, &glVer_minor);
 #endif
     if (glVer_major < glVer_required_major ||
-        glVer_minor < glVer_required_minor) {
+        (glVer_major == glVer_required_major && glVer_minor < glVer_required_minor)) {
         ERRORF("opengl %d.%d not supported (%d.%d or above is required)",
                glVer_major, glVer_minor, glVer_required_major,
                glVer_required_minor);
@@ -516,14 +516,30 @@ void Psyz_GetWindowSize(int* width, int* height) {
 }
 unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h) {
     const int channels = 3;
+    if (fb[fb_index] == 0) {
+        *w = *h = 0;
+        ERRORF("FBO not initialized");
+        return NULL;
+    }
     Psyz_GetWindowSize(w, h);
     unsigned char* pixels = malloc((*w) * (*h) * channels);
     if (!pixels) {
         return NULL;
     }
+
+    while (glGetError() != GL_NO_ERROR);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fb[fb_index]);
+    GLenum status = glCheckFramebufferStatus(GL_READ_FRAMEBUFFER);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        ERRORF("FBO not complete: 0x%X", status);
+        free(pixels);
+        return NULL;
+    }
+
     glReadPixels(0, 0, *w, *h, GL_RGB, GL_UNSIGNED_BYTE, pixels);
     GLenum err = glGetError();
     if (err != GL_NO_ERROR) {
+        ERRORF("glReadPixels failed: 0x%X (w=%d, h=%d)", err, *w, *h);
         free(pixels);
         return NULL;
     }
@@ -620,6 +636,14 @@ static void ApplyDisplayPendingChanges() {
     if (!is_window_visible) {
         SDL_ShowWindow(window);
         is_window_visible = true;
+#ifdef __APPLE__
+        // pump events to ensure window is fully shown
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            // Process any pending events
+        }
+        SDL_GL_SwapWindow(window);
+#endif
     }
     if (cur_disp_horiz != set_disp_horiz || cur_disp_vert != set_disp_vert) {
         cur_disp_horiz = set_disp_horiz;

@@ -60,3 +60,16 @@ jobs:
         run: ./${{ matrix.compiler.script }}
         env:
           GTEST_FILTER: "-SDLGL_Test.*"
+
+  build-and-test-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Install requirements
+        run: brew install cmake ninja sdl2
+      - name: Clone repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Test PsyZ
+        working-directory: psyz/
+        run: make test
