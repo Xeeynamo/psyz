@@ -793,20 +793,9 @@ static void Draw_EnsureBufferWillNotOverflow(int vertices, int indices) {
     }
 }
 static void Draw_EnqueueBuffer(int vertices, int indices) {
-    bool bufferFull = n_vertices + vertices > MAX_VERTEX_COUNT ||
-                      n_indices + indices > MAX_INDEX_COUNT;
-    if (n_vertices > 0 && bufferFull) {
-        // to flush, we need to save the new coming buffer and flush the rest
-        Vertex* lastV = vertex_cur;
-        unsigned short* lastI = index_cur;
-        unsigned short lastVertexCount = n_vertices;
-        Draw_FlushBuffer();
-        memmove(vertex_cur, lastV, vertices * sizeof(*vertex_cur));
-        memmove(index_cur, lastI, indices * sizeof(*index_cur));
-        for (int i = 0; i < indices; i++) {
-            index_buf[i] -= lastVertexCount;
-        }
-    }
+    assert(n_vertices + vertices <= MAX_VERTEX_COUNT);
+    assert(n_indices + indices <= MAX_INDEX_COUNT);
+
     vertex_cur += vertices;
     index_cur += indices;
     n_vertices += vertices;
