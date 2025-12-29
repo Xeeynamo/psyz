@@ -247,7 +247,7 @@ bool InitPlatform() {
     is_platform_initialized = true;
 
     atexit(QuitPlatformAtExit);
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
         ERRORF("SDL_Init: %s", SDL_GetError());
         return false;
     }
