@@ -280,7 +280,7 @@ bool InitPlatform() {
     }
 #endif
 
-    const char* glStrVersion = glGetString(GL_VERSION);
+    const char* glStrVersion = (const char*)glGetString(GL_VERSION);
 #ifdef _MSC_VER
     sscanf_s(glStrVersion, "%d.%d", &glVer_major, &glVer_minor);
 #else
