@@ -15,6 +15,13 @@
 
 #endif
 
+#ifdef _MSC_VER
+#define ALIGNAS(n) __declspec(align(n))
+#else
+#include <stdalign.h>
+#define ALIGNAS(n) alignas(n)
+#endif
+
 // HACK to avoid conflicting with RECT from windef.h
 // It renames the libgpu RECT into PS1_RECT, ensuring the windef struct RECT
 // does not conflict. The hack is applied to all platform for consistency.
@@ -144,7 +151,7 @@ enum TexKind {
 const int glVer_required_major = 3;
 const int glVer_required_minor = 3;
 
-static u16 g_RawVram[VRAM_W * VRAM_H]; // RGBA5551 VRAM image
+static ALIGNAS(16) u16 g_RawVram[VRAM_W * VRAM_H]; // RGBA5551 VRAM image
 static SDL_Window* window = NULL;
 static SDL_GLContext glContext = NULL;
 static int glVer_major = 0;
