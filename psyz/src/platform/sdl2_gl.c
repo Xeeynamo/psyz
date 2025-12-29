@@ -516,14 +516,30 @@ void Psyz_GetWindowSize(int* width, int* height) {
 }
 unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h) {
     const int channels = 3;
+    if (fb[fb_index] == 0) {
+        *w = *h = 0;
+        ERRORF("FBO not initialized");
+        return NULL;
+    }
     Psyz_GetWindowSize(w, h);
     unsigned char* pixels = malloc((*w) * (*h) * channels);
     if (!pixels) {
         return NULL;
     }
+
+    while (glGetError() != GL_NO_ERROR);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fb[fb_index]);
+    GLenum status = glCheckFramebufferStatus(GL_READ_FRAMEBUFFER);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        ERRORF("FBO not complete: 0x%X", status);
+        free(pixels);
+        return NULL;
+    }
+
     glReadPixels(0, 0, *w, *h, GL_RGB, GL_UNSIGNED_BYTE, pixels);
     GLenum err = glGetError();
     if (err != GL_NO_ERROR) {
+        ERRORF("glReadPixels failed: 0x%X (w=%d, h=%d)", err, *w, *h);
         free(pixels);
         return NULL;
     }
