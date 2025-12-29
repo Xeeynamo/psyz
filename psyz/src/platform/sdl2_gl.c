@@ -370,7 +370,6 @@ static void UploadTextures() {
     glTexSubImage2D(
         GL_TEXTURE_2D, 0, 0, 0, 2048, 512, GL_RED, GL_UNSIGNED_BYTE, g_RawVram);
 
-    g_RawVram[1] = 0xFFFF;
     glActiveTexture(GL_TEXTURE0 + Tex_16bpp);
     glBindTexture(GL_TEXTURE_2D, vram_textures[Tex_16bpp]);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 1024, 512, GL_RGBA,
