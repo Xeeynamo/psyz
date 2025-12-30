@@ -122,16 +122,32 @@ typedef enum {
 } Psyz_VsyncMode;
 
 typedef struct {
+    // Frame timing stats (from vsync system)
     double last_frame_time_us;       // duration of last frame
     double target_frame_time_us;     // target frame time
     unsigned long long total_frames; // total frames rendered
     int using_driver_vsync;          // 1 for VSync, 0 for limiter
+    // Buffer stats (from GPU buffer system)
+    int vertex_buffer_capacity;      // Current allocated vertex capacity
+    int vertex_buffer_queued;        // Currently queued vertices waiting for flush
+    int vertex_buffer_peak;          // Peak vertices used since initialization
+    int vertex_buffer_growth_count;  // Number of times buffer grew
+    int flush_per_frame;             // lower value means higher performance
 } Psyz_GpuStats;
 
 // Set VSync mode (default: AUTO)
 // Returns: 0 on success, -1 if invalid mode
 int Psyz_SetVsyncMode(Psyz_VsyncMode mode);
 
-// Get frame timing statistics
-// Returns: 0 on success, -1 if stats is NULL or platform not initialized
+// Configure GPU knobs to tweak performance
+// min_vertices: Initial allocation size (must be >= 4, multiple of 4)
+// max_vertices: Maximum allowed size (must be <= 65536, >= min_vertices)
+// Returns: 0 on success, -1 on invalid parameters
+// Note: Does not shrink existing buffers, only affects future allocations
+// Must be called as early as possible
+int Psyz_SetGpuLimits(int min_vertices, int max_vertices);
+
+// Query GPU statistics for profiling
+// stats: Pointer to Psyz_GpuStats struct to fill (must not be NULL)
+// Returns: 0 on success, -1 if system not initialized or stats is NULL
 int Psyz_GetGpuStats(Psyz_GpuStats* stats);
