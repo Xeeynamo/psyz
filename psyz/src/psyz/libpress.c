@@ -4,9 +4,9 @@
 
 void DecDCTReset(long mode) { NOT_IMPLEMENTED; }
 
-void DecDCTin(u_long* buf, long mode) { NOT_IMPLEMENTED; }
+void DecDCTin(unsigned long* buf, long mode) { NOT_IMPLEMENTED; }
 
-void DecDCTout(u_long* buf, long size) { NOT_IMPLEMENTED; }
+void DecDCTout(unsigned long* buf, long size) { NOT_IMPLEMENTED; }
 
 void (*DecDCTinCallback(void (*func)()))(void) {
     NOT_IMPLEMENTED;

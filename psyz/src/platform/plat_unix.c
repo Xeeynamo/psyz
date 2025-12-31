@@ -223,7 +223,7 @@ long my_erase(char* path) {
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
-int my_open(const char* devname, int flag) {
+int psyz_open(const char* devname, int flag) {
     // only map the known flags and discard the rest
     int oflag = (int)flag & (O_WRONLY | O_RDWR | O_NONBLOCK | O_CREAT);
     char path[0x100];
@@ -249,14 +249,14 @@ int my_open(const char* devname, int flag) {
         return open(path, oflag);
     }
 }
-int my_close(int fd) { return (long)close((int)fd); }
-long my_lseek(long fd, long offset, long flag) {
+int psyz_close(int fd) { return (long)close((int)fd); }
+long psyz_lseek(long fd, long offset, long flag) {
     return lseek((int)fd, (off_t)offset, (int)flag);
 }
-long my_read(long fd, void* buf, long n) {
+long psyz_read(long fd, void* buf, long n) {
     return (long)read((int)fd, buf, (size_t)n);
 }
-long my_write(long fd, void* buf, long n) {
+long psyz_write(long fd, void* buf, long n) {
     return (long)write((int)fd, buf, (size_t)n);
 }
-long my_ioctl(long fd, long com, long arg) { return ioctl((int)fd, com, arg); }
+long psyz_ioctl(long fd, long com, long arg) { return ioctl((int)fd, com, arg); }
