@@ -4,6 +4,9 @@
 #include "libgpu.h"
 #include "../draw.h"
 
+#undef _get_errno // Windows: avoid conflicts
+#undef undelete // macOS: avoid conflicts
+
 int MyVSync(int mode);
 int VSync(int mode) { return MyVSync(mode); }
 
@@ -200,5 +203,15 @@ struct DIRENTRY* nextfile(struct DIRENTRY* outEntry) {
 long my_erase(char* path);
 long erase(char* path) { return my_erase(path); }
 
+long psyz_undelete(char* name) {
+    NOT_IMPLEMENTED;
+    return 0;
+}
+
 long my_format(char* fs);
 long format(char* fs) { return my_format(fs); }
+
+int psyz_get_errno(void) {
+    NOT_IMPLEMENTED;
+    return 0;
+}

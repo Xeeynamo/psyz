@@ -19,20 +19,29 @@
 #define PLATFORM_64BIT
 #endif
 
-#define open my_open
-#define close my_close
-#define lseek my_lseek
-#define read my_read
-#define write my_write
-#define ioctl my_ioctl
+#define open psyz_open
+#define close psyz_close
+#define lseek psyz_lseek
+#define read psyz_read
+#define write psyz_write
+#define ioctl psyz_ioctl
+#define undelete psyz_undelete
+#define _get_errno psyz_get_errno
 
-#ifndef _WIN32
-int my_open(const char* devname, int flag);
-int my_close(int fd);
-long my_lseek(long fd, long offset, long flag);
-long my_read(long fd, void* buf, long n);
-long my_write(long fd, void* buf, long n);
-long my_ioctl(long fd, long com, long arg);
+#ifdef _WIN32
+int psyz_open(const char* devname, int flag, ...);
+int psyz_close(int fd);
+long psyz_lseek(int fd, long offset, int flag);
+int psyz_read(int fd, void* buf, unsigned int n);
+int psyz_write(int fd, const void* buf, unsigned int n);
+long psyz_ioctl(long fd, long com, long arg);
+#else
+int psyz_open(const char* devname, int flag);
+int psyz_close(int fd);
+long psyz_lseek(long fd, long offset, long flag);
+long psyz_read(long fd, void* buf, long n);
+long psyz_write(long fd, void* buf, long n);
+long psyz_ioctl(long fd, long com, long arg);
 #endif
 
 #ifdef _MSC_VER
