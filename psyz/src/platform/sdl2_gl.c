@@ -1,6 +1,7 @@
 #include "psyz.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -21,6 +22,9 @@
 #include <stdalign.h>
 #define ALIGNAS(n) alignas(n)
 #endif
+
+#define VSYNC_NTSC 59.94
+#define VSYNC_PAL 50.0
 
 // HACK to avoid conflicting with RECT from windef.h
 // It renames the libgpu RECT into PS1_RECT, ensuring the windef struct RECT
@@ -176,6 +180,19 @@ static GLposi draw_offset = {0, 0};
 static GLposi scissor_start = {0, 0};
 static GLposi scissor_end = {0x10000, 0x10000};
 
+static double target_frame_rate = VSYNC_NTSC;
+static double target_frame_time_us = 1000000.0 / VSYNC_NTSC;
+static Uint64 perf_frequency = 0;
+static Uint64 last_frame_time = 0;
+static double drift_compensation = 0.0;
+static Psyz_VsyncMode vsync_mode = PSYZ_VSYNC_AUTO;
+static bool use_driver_vsync = false;
+static Psyz_GpuStats gpu_stats = {0};
+
+static double GetElapsedMicroseconds(Uint64 start, Uint64 end);
+static void UpdateTargetFramerate(double fps);
+static void WaitForNextFrame(void);
+
 static GLuint Init_CompileShader(const char* source, GLenum kind) {
     GLuint shader = glCreateShader(kind);
     glShaderSource(shader, 1, &source, NULL);
@@ -287,7 +304,8 @@ bool InitPlatform() {
     sscanf(glStrVersion, "%d.%d", &glVer_major, &glVer_minor);
 #endif
     if (glVer_major < glVer_required_major ||
-        (glVer_major == glVer_required_major && glVer_minor < glVer_required_minor)) {
+        (glVer_major == glVer_required_major &&
+         glVer_minor < glVer_required_minor)) {
         ERRORF("opengl %d.%d not supported (%d.%d or above is required)",
                glVer_major, glVer_minor, glVer_required_major,
                glVer_required_minor);
@@ -348,6 +366,11 @@ bool InitPlatform() {
     elapsed_from_beginning = (Uint32)SDL_GetTicks();
     last_vsync = elapsed_from_beginning;
     cur_tpage = 0;
+
+    perf_frequency = SDL_GetPerformanceFrequency();
+    last_frame_time = SDL_GetPerformanceCounter();
+    UpdateTargetFramerate(VSYNC_NTSC);
+
     is_platform_init_successful = true;
     return true;
 }
@@ -426,6 +449,104 @@ void ResetPlatform(void) {
     QuitPlatform();
 }
 
+static double GetElapsedMicroseconds(Uint64 start, Uint64 end) {
+    return ((double)(end - start) * 1000000.0) / (double)perf_frequency;
+}
+
+static void ConfigureVSync(double target_fps) {
+    if (vsync_mode == PSYZ_VSYNC_ON) {
+        SDL_GL_SetSwapInterval(1);
+        use_driver_vsync = true;
+        INFOF("vsync forced ON (driver VSync)");
+        return;
+    }
+    if (vsync_mode == PSYZ_VSYNC_OFF) {
+        SDL_GL_SetSwapInterval(0);
+        use_driver_vsync = false;
+        INFOF("vsync forced OFF (frame limiter)");
+        return;
+    }
+
+    SDL_DisplayID display_id = SDL_GetPrimaryDisplay();
+    const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(display_id);
+    double detected_framerate = 60.0;
+    if (mode && mode->refresh_rate > 0.0f) {
+        detected_framerate = mode->refresh_rate;
+    }
+
+    const double target_time = 1.0 / target_fps;
+    const double tolerance_us = target_time * 0.05;
+    bool can_use_driver_vsync =
+        fabs((1.0 / detected_framerate) - target_time) < tolerance_us;
+
+    if (can_use_driver_vsync) {
+        SDL_GL_SetSwapInterval(1);
+        use_driver_vsync = true;
+        INFOF("detected %.2f Hz monitor, use driver VSync", detected_framerate);
+    } else {
+        SDL_GL_SetSwapInterval(0);
+        use_driver_vsync = false;
+        INFOF("detected %.2f Hz monitor but targeting %.2f, use frame limiter",
+              detected_framerate, target_fps);
+    }
+}
+
+static void UpdateTargetFramerate(double fps) {
+    target_frame_rate = fps;
+    target_frame_time_us = 1000000.0 / fps;
+    drift_compensation = 0.0;
+    last_frame_time = SDL_GetPerformanceCounter();
+    ConfigureVSync(target_frame_rate);
+}
+
+static void WaitForNextFrame(void) {
+    Uint64 current_time = SDL_GetPerformanceCounter();
+    double elapsed_us = GetElapsedMicroseconds(last_frame_time, current_time);
+
+    if (!use_driver_vsync) {
+        double time_to_wait_us =
+            target_frame_time_us - elapsed_us + drift_compensation;
+
+        // only wait if we're ahead of schedule (not running slow)
+        if (time_to_wait_us > 100.0) { // more than 0.1ms to wait
+            // High-precision mode: sleep + busy-wait
+            if (time_to_wait_us > 1000.0) {
+                Uint64 sleep_us = (Uint64)(time_to_wait_us - 1000.0);
+                SDL_DelayNS(sleep_us * 1000);
+            }
+
+            // busy-wait for precision
+            double target_elapsed = target_frame_time_us + drift_compensation;
+            while (GetElapsedMicroseconds(
+                       last_frame_time, SDL_GetPerformanceCounter()) <
+                   target_elapsed) {
+            }
+        }
+
+        // measure actual frame time and compensate drift
+        Uint64 frame_end_time = SDL_GetPerformanceCounter();
+        double actual_frame_time =
+            GetElapsedMicroseconds(last_frame_time, frame_end_time);
+        double frame_error = actual_frame_time - target_frame_time_us;
+
+        // apply gentle correction (10% per frame)
+        drift_compensation -= frame_error * 0.1;
+        if (drift_compensation > 5000.0)
+            drift_compensation = 5000.0;
+        if (drift_compensation < -5000.0)
+            drift_compensation = -5000.0;
+    }
+
+    Uint64 frame_end_time = SDL_GetPerformanceCounter();
+    gpu_stats.last_frame_time_us =
+        GetElapsedMicroseconds(last_frame_time, frame_end_time);
+    gpu_stats.target_frame_time_us = target_frame_time_us;
+    gpu_stats.total_frames++;
+    gpu_stats.using_driver_vsync = use_driver_vsync;
+
+    last_frame_time = frame_end_time;
+}
+
 int PlatformVSync(int mode) {
     Uint32 cur;
     unsigned short ret;
@@ -438,6 +559,7 @@ int PlatformVSync(int mode) {
     last_vsync = cur;
     if (mode == 0) {
         PresentBufferToScreen(fb_index);
+        WaitForNextFrame();
     }
     return ret;
 }
@@ -533,7 +655,8 @@ unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h) {
         return NULL;
     }
 
-    while (glGetError() != GL_NO_ERROR);
+    while (glGetError() != GL_NO_ERROR)
+        ;
     glBindFramebuffer(GL_READ_FRAMEBUFFER, fb[fb_index]);
     GLenum status = glCheckFramebufferStatus(GL_READ_FRAMEBUFFER);
     if (status != GL_FRAMEBUFFER_COMPLETE) {
@@ -564,6 +687,25 @@ unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h) {
     }
     free(row_buffer);
     return pixels;
+}
+
+int Psyz_SetVsyncMode(Psyz_VsyncMode mode) {
+    if (mode < 0 || mode > 2) {
+        return -1;
+    }
+    vsync_mode = mode;
+    if (window && is_platform_init_successful) {
+        ConfigureVSync(target_frame_rate);
+    }
+    return 0;
+}
+
+int Psyz_GetGpuStats(Psyz_GpuStats* stats) {
+    if (!stats || !is_platform_init_successful) {
+        return -1;
+    }
+    *stats = gpu_stats;
+    return 0;
 }
 
 static void UpdateScissor() {
@@ -741,6 +883,11 @@ void Draw_SetDisplayMode(DisplayMode* mode) {
     }
     set_wnd_height = mode->vertical_resolution ? 480 : 240;
     ApplyDisplayPendingChanges();
+
+    double new_target_fps = mode->pal ? VSYNC_PAL : VSYNC_NTSC;
+    if (new_target_fps != target_frame_rate) {
+        UpdateTargetFramerate(new_target_fps);
+    }
 }
 
 int Draw_ExequeSync() {
