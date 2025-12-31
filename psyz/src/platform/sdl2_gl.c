@@ -25,6 +25,11 @@
 
 #define VSYNC_NTSC 59.94
 #define VSYNC_PAL 50.0
+#define DISP_WIDTH 256
+#define DISP_HEIGHT 240
+#define SCREEN_SCALE 2
+#define VRAM_W 1024
+#define VRAM_H 512
 
 // HACK to avoid conflicting with RECT from windef.h
 // It renames the libgpu RECT into PS1_RECT, ensuring the windef struct RECT
@@ -178,21 +183,12 @@ typedef enum {
 } FB_ID;
 
 typedef struct {
-    GLuint fb;
-    GLuint tex;
-} FrameBuffer;
-
-typedef struct {
-    GLuint fb;
-    GLuint tex;
     GLuint x, y;
     GLuint w, h;
     bool invalidate;
 } DispFrameBuffer;
 
 typedef struct {
-    GLuint fb;
-    GLuint tex;
     GLint sx, sy;
     GLint ex, ey;
     GLint ox, oy;
@@ -211,6 +207,10 @@ static SDL_Window* window = NULL;
 static SDL_GLContext glContext = NULL;
 static int glVer_major = 0;
 static int glVer_minor = 0;
+static GLuint fb[2] = {0, 0};
+static GLuint fbtex[2] = {0, 0};
+static int fb_disp_idx = 0;
+static int fb_draw_idx = 0;
 static DrawFrameBuffer _draw;
 static DispFrameBuffer _disp;
 static GLuint shader_program = 0;
@@ -293,6 +293,7 @@ static int disp_vert_set = 240;
 static int disp_horiz = -1;
 static int disp_vert = -1;
 static int wnd_w = 0, wnd_h = 0;
+static int fb_tex_w = 0, fb_tex_h = 0;
 
 static void QuitPlatformAtExit(void);
 static bool is_window_visible = false;
@@ -404,7 +405,7 @@ static void PresentBufferToScreen() {
         return;
     }
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, _disp.fb);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fb[fb_disp_idx]);
     glBlitFramebuffer(0, 0, wnd_w, wnd_h, 0, 0, wnd_w, wnd_h,
                       GL_COLOR_BUFFER_BIT, GL_NEAREST);
     SDL_GL_SwapWindow(window);
@@ -440,16 +441,17 @@ void ResetPlatform(void) {
         glDeleteTextures(1, &vram_texture);
         vram_texture = 0;
     }
-    if (_disp.fb) {
-        GLuint fb[] = {_disp.fb, _draw.fb};
-        GLuint tex[] = {_disp.tex, _draw.tex};
+    if (fb[0]) {
         glDeleteFramebuffers(LEN(fb), fb);
-        glDeleteTextures(LEN(tex), tex);
-        _disp.fb = 0;
-        _draw.fb = 0;
-        _disp.tex = 0;
-        _draw.tex = 0;
+        glDeleteTextures(LEN(fbtex), fbtex);
+        memset(fb, 0, sizeof(fb));
+        memset(fbtex, 0, sizeof(fbtex));
+        _disp.invalidate = true; // Ensure fb[] gets recreated
+        fb_tex_w = 0;
+        fb_tex_h = 0;
     }
+    fb_disp_idx = 0;
+    fb_draw_idx = 0;
     QuitPlatform();
 }
 
@@ -654,7 +656,8 @@ void Psyz_GetWindowSize(int* width, int* height) {
 }
 unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h) {
     const int channels = 3;
-    if (_disp.fb == 0) {
+    DrawSync(0); // TODO remove hack
+    if (fb[fb_disp_idx] == 0) {
         *w = *h = 0;
         ERRORF("FBO not initialized");
         return NULL;
@@ -667,7 +670,8 @@ unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h) {
 
     while (glGetError() != GL_NO_ERROR)
         ;
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, _disp.fb);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fb[fb_disp_idx]);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
     GLenum status = glCheckFramebufferStatus(GL_READ_FRAMEBUFFER);
     if (status != GL_FRAMEBUFFER_COMPLETE) {
         ERRORF("FBO not complete: 0x%X", status);
@@ -762,9 +766,7 @@ static void ApplyDisplayPendingChanges() {
         SDL_SetWindowSize(window, wnd_w, wnd_h);
         glViewport(0, 0, wnd_w, wnd_h);
         glUniform2f(uniform_resolution, (float)_disp.w, (float)_disp.h);
-        if (!_disp.fb) {
-            GLuint fb[2];
-            GLuint fbtex[2];
+        if (!fb[0]) {
             glGenTextures(LEN(fbtex), fbtex);
             glGenFramebuffers(LEN(fb), fb);
             for (int i = 0; i < LEN(fbtex); i++) {
@@ -783,19 +785,19 @@ static void ApplyDisplayPendingChanges() {
                     ERRORF("unable to create framebuffer");
                 }
             }
-            _disp.fb = fb[0];
-            _disp.tex = fbtex[0];
-            _draw.fb = fb[1];
-            _draw.tex = fbtex[1];
-        } else {
-            glBindTexture(GL_TEXTURE_2D, _disp.tex);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, wnd_w, wnd_h, 0, GL_RGBA,
-                         GL_UNSIGNED_BYTE, NULL);
-            glBindTexture(GL_TEXTURE_2D, _draw.tex);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, wnd_w, wnd_h, 0, GL_RGBA,
-                         GL_UNSIGNED_BYTE, NULL);
+            fb_tex_w = wnd_w;
+            fb_tex_h = wnd_h;
+        } else if (fb_tex_w != wnd_w || fb_tex_h != wnd_h) {
+            // Only resize FBO if dimensions actually changed
+            for (int i = 0; i < LEN(fbtex); i++) {
+                glBindTexture(GL_TEXTURE_2D, fbtex[i]);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, wnd_w, wnd_h, 0,
+                             GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+            }
+            fb_tex_w = wnd_w;
+            fb_tex_h = wnd_h;
         }
-        glBindFramebuffer(GL_FRAMEBUFFER, _disp.fb);
+        glBindFramebuffer(GL_FRAMEBUFFER, fb[fb_draw_idx]);
     }
     if (!is_window_visible) {
         SDL_ShowWindow(window);
@@ -833,7 +835,7 @@ void Draw_DisplayEnable(unsigned int on) {
     disp_on = on;
     if (!on) {
         // TODO unbind the frame buffer and display a black screen
-        glBindFramebuffer(GL_FRAMEBUFFER, _disp.fb);
+        glBindFramebuffer(GL_FRAMEBUFFER, fb[fb_disp_idx]);
         glClearColor(0, 0, 0, 1);
         glDisable(GL_SCISSOR_TEST);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -850,34 +852,13 @@ void Draw_DisplayArea(unsigned int x, unsigned int y) {
 
     _disp.x = x;
     _disp.y = y;
-    if (_disp.x == _draw.sx || _disp.y == _draw.sy) {
-        // TODO there are two very different approaches to solve the problem
-        // of PutDispEnv and PutDrawEnv. These two could be called at any
-        // order, before or after a VSync.
 
-        // Approach number #1
-        // flipping DISP and DRAW is simulated by copying DRAW into DISP
-        // TODO copy DRAW frame buffer into DISP frame buffer, so it can be
-        // immediately displayed on screen.
-        // Drawback: the previous content in `disp` is lost. Some PS1 games
-        // might depent on it.
-
-        // Approach number #2
-        // Flip the two backbuffers.
-        // TODO:
-        // GLuint fb = _disp.fb;
-        // GLuint tex = _disp.tex;
-        // _disp.fb = _draw.fb;
-        // _disp.tex = _draw.tex;
-        // _draw.fb = fb;
-        // _draw.tex = tex;
-        // Drawback: more adjustments might be needed for this to work.
-    }
-    // GL_DRAW_FRAMEBUFFER ??
-    glBindFramebuffer(GL_FRAMEBUFFER, _disp.fb);
+    // Use heuristic to determine which VRAM region to display
+    fb_disp_idx = (y >= 240 || x >= 256) ? 1 : 0;
 
     Draw_FlushBuffer();
     ApplyDisplayPendingChanges();
+    glBindFramebuffer(GL_FRAMEBUFFER, fb[fb_draw_idx]);
 }
 
 void Draw_DisplayHorizontalRange(unsigned int start, unsigned int end) {
@@ -1237,6 +1218,14 @@ void Draw_SetAreaStart(int x, int y) {
     _draw.sy = y;
     scissor_start.x = x;
     scissor_start.y = y;
+
+    // Use heuristic to determine which VRAM region to draw to
+    fb_draw_idx = (y >= 240 || x >= 256) ? 1 : 0;
+
+    // Bind the appropriate framebuffer for drawing
+    if (fb[fb_draw_idx]) {
+        glBindFramebuffer(GL_FRAMEBUFFER, fb[fb_draw_idx]);
+    }
     UpdateScissor();
 }
 void Draw_SetAreaEnd(int x, int y) {
@@ -1255,37 +1244,75 @@ void Draw_SetOffset(int x, int y) {
 }
 void Draw_SetMask(int bit0, int bit1) { NOT_IMPLEMENTED; }
 void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
-    if (OverlapsDisp(rect->x, rect->y, rect->w, rect->h)) {
-        const int x = (rect->x > _disp.x) ? rect->x : (int)_disp.x;
-        const int y = (rect->y > _disp.y) ? rect->y : (int)_disp.y;
-        const int w = (rect->x + rect->w < _disp.x + _disp.w)
-                          ? (rect->x + rect->w)
-                          : ((int)_disp.x + (int)_disp.w);
-        const int h = (rect->y + rect->h < _disp.y + _disp.h)
-                          ? (rect->y + rect->h)
-                          : ((int)_disp.y + (int)_disp.h);
-        glEnable(GL_SCISSOR_TEST);
-        glScissor(x * scale, y * scale, w * scale, h * scale);
-        glClearColor(
-            (float)r / 255.f, (float)g / 255.f, (float)b / 255.f, 1.0f);
-        glBindFramebuffer(GL_FRAMEBUFFER, _disp.fb);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glDisable(GL_SCISSOR_TEST);
+    if (!window || !InitPlatform()) {
+        return;
     }
-    if (OverlapsDraw(rect->x, rect->y, rect->w, rect->h)) {
-        const int x = (rect->x > _draw.sx) ? rect->x : _draw.sx;
-        const int y = (rect->y > _draw.sy) ? rect->y : _draw.sy;
-        const int w =
-            (rect->x + rect->w < _draw.ex) ? (rect->x + rect->w) : _draw.ex;
-        const int h =
-            (rect->y + rect->h < _draw.ey) ? (rect->y + rect->h) : _draw.ey;
-        glEnable(GL_SCISSOR_TEST);
-        glScissor(x * scale, y * scale, w * scale, h * scale);
-        glClearColor(
-            (float)r / 255.f, (float)g / 255.f, (float)b / 255.f, 1.0f);
-        glBindFramebuffer(GL_FRAMEBUFFER, _disp.fb);
+    ApplyDisplayPendingChanges();
+
+    // Determine which VRAM regions the rect overlaps
+    // Region 0: (0,0) to (255,239), Region 1: (256,0) onwards or (0,240)
+    // onwards
+    const bool overlaps_region0 = rect->x < 256 && rect->y < 240;
+    const bool overlaps_region1 =
+        (rect->x + rect->w > 256) || (rect->y + rect->h > 240);
+
+    // Check if this is a full-screen clear (very large rect)
+    const bool is_full_clear = rect->w >= 256 && rect->h >= 240;
+
+    glClearColor((float)r / 255.f, (float)g / 255.f, (float)b / 255.f, 1.0f);
+
+    if (overlaps_region0 && fb[0]) {
+        glBindFramebuffer(GL_FRAMEBUFFER, fb[0]);
+        if (is_full_clear) {
+            glDisable(GL_SCISSOR_TEST);
+        } else {
+            // Calculate scissor rect in framebuffer-local coordinates
+            const int x1 = rect->x < 0 ? 0 : rect->x;
+            const int y1 = rect->y < 0 ? 0 : rect->y;
+            const int x2 =
+                (rect->x + rect->w > 256) ? 256 : (rect->x + rect->w);
+            const int y2 =
+                (rect->y + rect->h > 240) ? 240 : (rect->y + rect->h);
+            const int w = x2 - x1;
+            const int h = y2 - y1;
+            const int flipped_y =
+                (int)_disp.h * scale - (y1 * scale) - (h * scale);
+            glEnable(GL_SCISSOR_TEST);
+            glScissor(x1 * scale, flipped_y, w * scale, h * scale);
+        }
         glClear(GL_COLOR_BUFFER_BIT);
-        glDisable(GL_SCISSOR_TEST);
+    }
+    if (overlaps_region1 && fb[1]) {
+        glBindFramebuffer(GL_FRAMEBUFFER, fb[1]);
+        glDrawBuffer(GL_COLOR_ATTACHMENT0);
+        if (is_full_clear) {
+            glDisable(GL_SCISSOR_TEST);
+        } else {
+            // For region 1, coordinates are relative to region origin
+            const int region_x = (rect->y >= 240) ? 0 : 256;
+            const int region_y = (rect->y >= 240) ? 240 : 0;
+            const int x1 = (rect->x > region_x) ? (rect->x - region_x) : 0;
+            const int y1 = (rect->y > region_y) ? (rect->y - region_y) : 0;
+            const int x2 = (rect->x + rect->w - region_x > 256)
+                               ? 256
+                               : (rect->x + rect->w - region_x);
+            const int y2 = (rect->y + rect->h - region_y > 240)
+                               ? 240
+                               : (rect->y + rect->h - region_y);
+            const int w = x2 - x1;
+            const int h = y2 - y1;
+            const int flipped_y =
+                (int)_disp.h * scale - (y1 * scale) - (h * scale);
+            glEnable(GL_SCISSOR_TEST);
+            glScissor(x1 * scale, flipped_y, w * scale, h * scale);
+        }
+        glClear(GL_COLOR_BUFFER_BIT);
+    }
+    glDisable(GL_SCISSOR_TEST);
+
+    // Restore binding to current draw framebuffer
+    if (fb[fb_draw_idx]) {
+        glBindFramebuffer(GL_FRAMEBUFFER, fb[fb_draw_idx]);
     }
 
     PS1_RECT fixedRect;
@@ -1352,11 +1379,11 @@ void Draw_LoadImage(PS1_RECT* rect, u_long* p) {
     // effectively blitting straight to the screen, bypassing the GPU.
     // Used in Rayman 1 to display the Ubisoft logo and menus.
     if (OverlapsDisp(rect->x, rect->y, rect->w, rect->h)) {
-        Blit(_disp.fb, rect, (int)_disp.x, (int)_disp.y, (int)_disp.w,
+        Blit(fb[fb_disp_idx], rect, (int)_disp.x, (int)_disp.y, (int)_disp.w,
              (int)_disp.h);
     }
     if (OverlapsDraw(rect->x, rect->y, rect->w, rect->h)) {
-        Blit(_draw.fb, rect, _draw.sx, _draw.sy, _draw.ex - _draw.sx + 1,
+        Blit(fb[fb_draw_idx], rect, _draw.sx, _draw.sy, _draw.ex - _draw.sx + 1,
              _draw.ey - _draw.sy + 1);
     }
 }

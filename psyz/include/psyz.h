@@ -48,13 +48,6 @@ long psyz_ioctl(long fd, long com, long arg);
 #define __builtin_memcpy memcpy
 #endif
 
-#define DISP_WIDTH 256
-#define DISP_HEIGHT 256
-#define SCREEN_SCALE 2
-#define VRAM_W 1024
-#define VRAM_H 512
-#define VRAM_STRIDE 2048
-
 #define NOP
 #define CLAMP(x, min, max) x < min ? min : (x > max ? max : x)
 
