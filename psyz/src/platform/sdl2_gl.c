@@ -73,10 +73,7 @@ static const char gl33_fragment_shader[] = {
     "out vec4 FragColor;\n"
     "flat in uint clut;\n"
     "flat in uint tpage;\n"
-    "uniform sampler2D tex4;\n"
-    "uniform sampler2D tex8;\n"
-    "uniform sampler2D tex16;\n"
-    "uniform sampler2D textureSampler;\n"
+    "uniform sampler2D texVram;\n"
     "\n"
     "vec2 getPsxClutXY(uint clut) {\n"
     "    return vec2(\n"
@@ -84,22 +81,48 @@ static const char gl33_fragment_shader[] = {
     "        float(clut / 64u) / 512.0f);\n"
     "}\n"
     "\n"
+    // Reconstruct 16-bit value from RGB5551 texture sample
+    "uint rgb5551ToU16(vec4 c) {\n"
+    "    uint r = uint(c.r * 31.0 + 0.5);\n"
+    "    uint g = uint(c.g * 31.0 + 0.5);\n"
+    "    uint b = uint(c.b * 31.0 + 0.5);\n"
+    "    uint a = uint(c.a + 0.5);\n"
+    "    return r | (g << 5u) | (b << 10u) | (a << 15u);\n"
+    "}\n"
+    "\n"
     "void main() {\n"
     "    vec4 texColor;\n"
-    "    if (tpage == 0xFFFFu) {\n"
+    "    if (tpage == 0xFFFFu) {\n" // untextured tile or polygon
     "        texColor = vec4(1, 1, 1, 2);\n"
-    "    } else if ((tpage & 0x180u) >= 0x100u) {\n" // 16-bit
-    "        texColor = texture(tex16, texCoord);\n"
+    "    } else if ((tpage & 0x180u) >= 0x100u) {\n" // 16-bit bitmap
+    "        texColor = texture(texVram, texCoord);\n"
     "    } else {\n"
-    "        float colIdx;\n"
-    "        if (tpage >= 0x80u) {\n" // 8-bit
-    "            colIdx = texture(tex8, texCoord).r;\n"
-    "        } else {\n" // 4-bit
-    "            colIdx = texture(tex4, texCoord).r;\n"
+    "        uint colorIdx;\n"
+    "        if ((tpage & 0x80u) != 0u) {\n"  // 8-bit indexed
+    // texCoord is in 0..1 for 2048x512 effective space, convert to 1024x512
+    "            vec2 vramCoord = texCoord * vec2(2048.0, 512.0);\n"
+    "            int pixelX = int(floor(vramCoord.x));\n"
+    "            uint subPixel = uint(pixelX) & 1u;\n"  // 0 or 1
+    "            ivec2 texelPos = ivec2(pixelX / 2, int(vramCoord.y));\n"
+    "            vec4 texel = texelFetch(texVram, texelPos, 0);\n"
+    "            uint word16 = rgb5551ToU16(texel);\n"
+    // Extract 8-bit index: low byte at subPixel 0, high byte at subPixel 1
+    "            colorIdx = (word16 >> (subPixel * 8u)) & 0xFFu;\n"
+    "        } else {\n"  // 4-bit indexed
+    // texCoord is in 0..1 for 4096x512 effective space, convert to 1024x512
+    "            vec2 vramCoord = texCoord * vec2(4096.0, 512.0);\n"
+    "            int pixelX = int(floor(vramCoord.x));\n"
+    "            uint subPixel = uint(pixelX) & 3u;\n"  // 0, 1, 2, or 3
+    "            ivec2 texelPos = ivec2(pixelX / 4, int(vramCoord.y));\n"
+    "            vec4 texel = texelFetch(texVram, texelPos, 0);\n"
+    "            uint word16 = rgb5551ToU16(texel);\n"
+    // Extract 4-bit index
+    "            colorIdx = (word16 >> (subPixel * 4u)) & 0xFu;\n"
     "        }\n"
-    "        float colorIdx = floor(colIdx * 256.0) / 1024.0f;\n"
-    "        vec2 colorCoord = getPsxClutXY(clut) + vec2(colorIdx, 0);\n"
-    "        texColor = texture(tex16, colorCoord);\n"
+    // Look up color from CLUT using texelFetch for exact pixel access
+    "        ivec2 clutBase = ivec2((clut % 64u) * 16u, clut / 64u);\n"
+    "        vec4 texColor4 = texelFetch(texVram, clutBase + ivec2(colorIdx, 0), 0);\n"
+    "        texColor = texColor4;\n"
     "    }\n"
     // check for full transparency
     "    bool colorDiscard = texColor == vec4(0, 0, 0, 0);"
@@ -145,13 +168,6 @@ typedef struct {
 #define SET_TC_ALL(p, t, c)                                                    \
     SET_TC(p, t, c) SET_TC(&p[1], t, c) SET_TC(&p[2], t, c) SET_TC(&p[3], t, c)
 
-enum TexKind {
-    Tex_4bpp,
-    Tex_8bpp,
-    Tex_16bpp,
-    Num_Tex,
-};
-
 const int glVer_required_major = 3;
 const int glVer_required_minor = 3;
 
@@ -169,10 +185,8 @@ static Uint32 elapsed_from_beginning = 0;
 static Uint32 last_vsync = 0;
 static u_short cur_tpage = 0;
 static GLint uniform_resolution = 0;
-static GLint uniform_tex_4bpp = 0;
-static GLint uniform_tex_8bpp = 0;
-static GLint uniform_tex_16bpp = 0;
-static GLuint vram_textures[Num_Tex];
+static GLint uniform_tex_vram = 0;
+static GLuint vram_texture;
 static bool is_vram_texture_invalid = false;
 static SDL_AudioStream* audio_stream = NULL;
 static SDL_AudioDeviceID audio_device_id = {0};
@@ -321,39 +335,13 @@ bool InitPlatform() {
     }
     glUseProgram(shader_program);
     uniform_resolution = glGetUniformLocation(shader_program, "resolution");
-    uniform_tex_4bpp = glGetUniformLocation(shader_program, "tex4");
-    uniform_tex_8bpp = glGetUniformLocation(shader_program, "tex8");
-    uniform_tex_16bpp = glGetUniformLocation(shader_program, "tex16");
+    uniform_tex_vram = glGetUniformLocation(shader_program, "texVram");
 
-    glUniform1i(uniform_tex_4bpp, Tex_4bpp);
-    glUniform1i(uniform_tex_8bpp, Tex_8bpp);
-    glUniform1i(uniform_tex_16bpp, Tex_16bpp);
-    glGenTextures(LEN(vram_textures), vram_textures);
+    glUniform1i(uniform_tex_vram, 0);
+    glGenTextures(1, &vram_texture);
 
-    glActiveTexture(GL_TEXTURE0 + Tex_4bpp);
-    glBindTexture(GL_TEXTURE_2D, vram_textures[Tex_4bpp]);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_BLEND);
-    glTexImage2D(
-        GL_TEXTURE_2D, 0, GL_R8, 4096, 512, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
-
-    glActiveTexture(GL_TEXTURE0 + Tex_8bpp);
-    glBindTexture(GL_TEXTURE_2D, vram_textures[Tex_8bpp]);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_BLEND);
-    glTexImage2D(
-        GL_TEXTURE_2D, 0, GL_R8, 2048, 512, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
-
-    glActiveTexture(GL_TEXTURE0 + Tex_16bpp);
-    glBindTexture(GL_TEXTURE_2D, vram_textures[Tex_16bpp]);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, vram_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -375,26 +363,9 @@ bool InitPlatform() {
     return true;
 }
 
-static u8 tex_data_buf[4096 * 512];
-static void UploadTextures() {
-    u8* srcData = (u8*)g_RawVram;
-    for (int i = 0; i < LEN(tex_data_buf) / 2; i++) {
-        tex_data_buf[i * 2 + 0] = srcData[i] & 0xF;
-        tex_data_buf[i * 2 + 1] = srcData[i] >> 4;
-    }
-
-    glActiveTexture(GL_TEXTURE0 + Tex_4bpp);
-    glBindTexture(GL_TEXTURE_2D, vram_textures[Tex_4bpp]);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 4096, 512, GL_RED, GL_UNSIGNED_BYTE,
-                    tex_data_buf);
-
-    glActiveTexture(GL_TEXTURE0 + Tex_8bpp);
-    glBindTexture(GL_TEXTURE_2D, vram_textures[Tex_8bpp]);
-    glTexSubImage2D(
-        GL_TEXTURE_2D, 0, 0, 0, 2048, 512, GL_RED, GL_UNSIGNED_BYTE, g_RawVram);
-
-    glActiveTexture(GL_TEXTURE0 + Tex_16bpp);
-    glBindTexture(GL_TEXTURE_2D, vram_textures[Tex_16bpp]);
+static void UploadVramTexture() {
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, vram_texture);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 1024, 512, GL_RGBA,
                     GL_UNSIGNED_SHORT_1_5_5_5_REV, g_RawVram);
 }
@@ -436,9 +407,9 @@ void ResetPlatform(void) {
     if (shader_program) {
         glDeleteProgram(shader_program);
     }
-    if (vram_textures[0]) {
-        glDeleteTextures(LEN(vram_textures), vram_textures);
-        memset(vram_textures, 0, LEN(vram_textures));
+    if (vram_texture) {
+        glDeleteTextures(1, &vram_texture);
+        vram_texture = 0;
     }
     if (fb[0]) {
         glDeleteFramebuffers(LEN(fb), fb);
@@ -1376,7 +1347,7 @@ void Draw_FlushBuffer(void) {
         Draw_InitBuffer();
     }
     if (is_vram_texture_invalid) {
-        UploadTextures();
+        UploadVramTexture();
         is_vram_texture_invalid = false;
     }
     glUseProgram(shader_program);
