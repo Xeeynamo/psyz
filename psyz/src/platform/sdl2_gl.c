@@ -44,6 +44,13 @@ static const char gl33_vertex_shader[] = {
     "out vec2 texCoord;\n"
     "flat out uint tpage;\n"
     "flat out uint clut;\n"
+    // Pre-computed pixel shader parameters
+    "flat out uint textureMode;\n"  // 0=untextured, 1=16-bit, 2=indexed
+    "flat out float vramScaleX;\n"  // X scale for indexed modes
+    "flat out uint subPixelMask;\n" // Sub-pixel mask (8-bit:1, 4-bit:3)
+    "flat out uint texelShift;\n"   // Right shift for texel X
+    "flat out uint indexShift;\n"   // Shift for index extraction
+    "flat out uint indexMask;\n"    // Mask for color index
     "\n"
     "void main() {\n"
     "    float x = (pos.x / (resolution.x / 2.0)) - 1.0;\n"
@@ -55,10 +62,28 @@ static const char gl33_vertex_shader[] = {
     "    clut = uint(tex.z);\n"
     "    tpage = uint(tex.w);\n"
     "    texCoord = vec2(tex.x / 4096.0, tex.y / 512.0);\n"
-    "    if ((tpage & 0x100u) != 0u) {\n"
-    "        texCoord.x *= 4;"
-    "    } else if ((tpage & 0x80u) != 0u) {\n"
-    "        texCoord.x *= 2;"
+    // Determine texture mode and pre-compute parameters
+    "    if (tpage == 0xFFFFu) {\n"
+    "        textureMode = 0u;\n" // untextured
+    "    } else if ((tpage & 0x180u) >= 0x100u) {\n"
+    "        textureMode = 1u;\n" // 16-bit direct
+    "        texCoord.x *= 4;\n"
+    "    } else {\n"
+    "        textureMode = 2u;\n"            // indexed
+    "        if ((tpage & 0x80u) != 0u) {\n" // 8-bit indexed
+    "            texCoord.x *= 2;\n"
+    "            vramScaleX = 2048.0;\n"
+    "            subPixelMask = 1u;\n"
+    "            texelShift = 1u;\n"
+    "            indexShift = 8u;\n"
+    "            indexMask = 0xFFu;\n"
+    "        } else {\n" // 4-bit indexed
+    "            vramScaleX = 4096.0;\n"
+    "            subPixelMask = 3u;\n"
+    "            texelShift = 2u;\n"
+    "            indexShift = 4u;\n"
+    "            indexMask = 0xFu;\n"
+    "        }\n"
     "    }\n"
     "    vec2 page = vec2(\n"
     "        float((tpage % 32u) % 16u) / 16.0,\n"
@@ -73,15 +98,14 @@ static const char gl33_fragment_shader[] = {
     "out vec4 FragColor;\n"
     "flat in uint clut;\n"
     "flat in uint tpage;\n"
+    "flat in uint textureMode;\n"
+    "flat in float vramScaleX;\n"
+    "flat in uint subPixelMask;\n"
+    "flat in uint texelShift;\n"
+    "flat in uint indexShift;\n"
+    "flat in uint indexMask;\n"
     "uniform sampler2D texVram;\n"
     "\n"
-    "vec2 getPsxClutXY(uint clut) {\n"
-    "    return vec2(\n"
-    "        float((clut % 64u) * 16u) / 1024.0f,\n"
-    "        float(clut / 64u) / 512.0f);\n"
-    "}\n"
-    "\n"
-    // Reconstruct 16-bit value from RGB5551 texture sample
     "uint rgb5551ToU16(vec4 c) {\n"
     "    uint r = uint(c.r * 31.0 + 0.5);\n"
     "    uint g = uint(c.g * 31.0 + 0.5);\n"
@@ -92,37 +116,21 @@ static const char gl33_fragment_shader[] = {
     "\n"
     "void main() {\n"
     "    vec4 texColor;\n"
-    "    if (tpage == 0xFFFFu) {\n" // untextured tile or polygon
+    "    if (textureMode == 0u) {\n" // untextured
     "        texColor = vec4(1, 1, 1, 2);\n"
-    "    } else if ((tpage & 0x180u) >= 0x100u) {\n" // 16-bit bitmap
+    "    } else if (textureMode == 1u) {\n" // 16-bit bitmap
     "        texColor = texture(texVram, texCoord);\n"
-    "    } else {\n"
-    "        uint colorIdx;\n"
-    "        if ((tpage & 0x80u) != 0u) {\n"  // 8-bit indexed
-    // texCoord is in 0..1 for 2048x512 effective space, convert to 1024x512
-    "            vec2 vramCoord = texCoord * vec2(2048.0, 512.0);\n"
-    "            int pixelX = int(floor(vramCoord.x));\n"
-    "            uint subPixel = uint(pixelX) & 1u;\n"  // 0 or 1
-    "            ivec2 texelPos = ivec2(pixelX / 2, int(vramCoord.y));\n"
-    "            vec4 texel = texelFetch(texVram, texelPos, 0);\n"
-    "            uint word16 = rgb5551ToU16(texel);\n"
-    // Extract 8-bit index: low byte at subPixel 0, high byte at subPixel 1
-    "            colorIdx = (word16 >> (subPixel * 8u)) & 0xFFu;\n"
-    "        } else {\n"  // 4-bit indexed
-    // texCoord is in 0..1 for 4096x512 effective space, convert to 1024x512
-    "            vec2 vramCoord = texCoord * vec2(4096.0, 512.0);\n"
-    "            int pixelX = int(floor(vramCoord.x));\n"
-    "            uint subPixel = uint(pixelX) & 3u;\n"  // 0, 1, 2, or 3
-    "            ivec2 texelPos = ivec2(pixelX / 4, int(vramCoord.y));\n"
-    "            vec4 texel = texelFetch(texVram, texelPos, 0);\n"
-    "            uint word16 = rgb5551ToU16(texel);\n"
-    // Extract 4-bit index
-    "            colorIdx = (word16 >> (subPixel * 4u)) & 0xFu;\n"
-    "        }\n"
-    // Look up color from CLUT using texelFetch for exact pixel access
+    "    } else {\n" // indexed
+    "        vec2 vramCoord = texCoord * vec2(vramScaleX, 512.0);\n"
+    "        int pixelX = int(floor(vramCoord.x));\n"
+    "        uint subPixel = uint(pixelX) & subPixelMask;\n"
+    "        ivec2 texelPos = ivec2(pixelX >> texelShift, int(vramCoord.y));\n"
+    "        vec4 texel = texelFetch(texVram, texelPos, 0);\n"
+    "        uint word16 = rgb5551ToU16(texel);\n"
+    "        uint colorIdx = (word16 >> (subPixel * indexShift)) & indexMask;\n"
     "        ivec2 clutBase = ivec2((clut % 64u) * 16u, clut / 64u);\n"
-    "        vec4 texColor4 = texelFetch(texVram, clutBase + ivec2(colorIdx, 0), 0);\n"
-    "        texColor = texColor4;\n"
+    "        texColor = texelFetch(texVram, clutBase + ivec2(colorIdx, 0), "
+    "0);\n"
     "    }\n"
     // check for full transparency
     "    bool colorDiscard = texColor == vec4(0, 0, 0, 0);"
@@ -509,8 +517,7 @@ static void WaitForNextFrame(void) {
     }
 
     Uint64 frame_end_time = SDL_GetPerformanceCounter();
-    gpu_stats.last_frame_time_us =
-        GetElapsedMicroseconds(last_frame_time, frame_end_time);
+    gpu_stats.last_frame_time_us = elapsed_us;
     gpu_stats.target_frame_time_us = target_frame_time_us;
     gpu_stats.total_frames++;
     gpu_stats.using_driver_vsync = use_driver_vsync;
