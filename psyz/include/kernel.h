@@ -104,19 +104,4 @@ void EnterCriticalSection(void);
 void ExitCriticalSection(void);
 #endif
 
-void InitCARD(long val);
-long StartCARD(void);
-long StopCARD(void);
-void _bu_init(void);
-long _card_info(long chan);
-long _card_clear(long chan);
-long _card_load(long chan);
-long _card_auto(long val);
-void _new_card(void);
-long _card_status(long drv);
-long _card_wait(long drv);
-unsigned long _card_chan(void);
-long _card_write(long chan, long block, unsigned char *buf);
-long _card_read(long chan, long block, unsigned char *buf);
-
 #endif

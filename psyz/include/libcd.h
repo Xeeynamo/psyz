@@ -1,5 +1,22 @@
 #ifndef LIBCD_H
 #define LIBCD_H
+
+/**
+ * @file libcd.h
+ * @brief CD-ROM Library
+ *
+ * This library provides low-level control of the PlayStation CD-ROM drive,
+ * including disc reading, audio playback, and file system access.
+ *
+ * Key features:
+ * - CD-ROM primitive commands (play, read, seek, pause)
+ * - CD-DA and CD-XA audio playback
+ * - File system access with CdSearchFile()
+ * - Asynchronous command execution
+ * - Callback support for completion and ready events
+ * - Audio volume control (CD-DA and CD-XA)
+ */
+
 #include <types.h>
 
 /* Location */
@@ -118,6 +135,18 @@ typedef struct {
     u_long size;   /* file size */
     char name[16]; /* file name (body) */
 } CdlFILE;
+
+/**
+ * @brief CD-ROM file and channel filter
+ *
+ * Used with CdlSetfilter command to filter sectors by file number and/or
+ * channel number during CD-XA streaming.
+ */
+typedef struct {
+    u_char file; /**< File number (0-31, 0xff = no filter) */
+    u_char chan; /**< Channel number (0-31, 0xff = no filter) */
+    u_short pad; /**< Padding */
+} CdlFILTER;
 
 typedef void (*CdlCB)(u_char, u_char*);
 
