@@ -215,6 +215,37 @@ static double GetElapsedMicroseconds(Uint64 start, Uint64 end);
 static void UpdateTargetFramerate(double fps);
 static void WaitForNextFrame(void);
 
+#define VERT2IDX(v) ((v) / 4 * 6)
+
+typedef struct {
+    // configurable limits
+    int min_vertices;
+    int max_vertices;
+
+    // current buffer state
+    int capacity_vertices;
+    int capacity_indices;
+
+    // profiling
+    int peak_indices;
+
+    // heap-allocated buffers
+    Vertex* vertex_buf;
+    unsigned short* index_buf;
+
+    // GL buffer sizes
+    size_t gl_vbo_size;
+    size_t gl_ebo_size;
+} BufferConfig;
+
+static BufferConfig buffer_work = {0};
+static unsigned int VAO = -1, VBO = -1, EBO = -1;
+static Vertex* vertex_cur;
+static unsigned short* index_cur;
+static unsigned short n_vertices;
+static int n_indices;
+static GLenum flush_mode = GL_TRIANGLES;
+
 static GLuint Init_CompileShader(const char* source, GLenum kind) {
     GLuint shader = glCreateShader(kind);
     glShaderSource(shader, 1, &source, NULL);
@@ -425,6 +456,17 @@ void ResetPlatform(void) {
         memset(fb, 0, LEN(fb));
         memset(fbtex, 0, LEN(fbtex));
     }
+    if (buffer_work.vertex_buf) {
+        free(buffer_work.vertex_buf);
+        buffer_work.vertex_buf = NULL;
+    }
+    if (buffer_work.index_buf) {
+        free(buffer_work.index_buf);
+        buffer_work.index_buf = NULL;
+    }
+    memset(&buffer_work, 0, sizeof(buffer_work));
+    vertex_cur = NULL;
+    index_cur = NULL;
     QuitPlatform();
 }
 
@@ -528,6 +570,8 @@ static void WaitForNextFrame(void) {
 int PlatformVSync(int mode) {
     Uint32 cur;
     unsigned short ret;
+
+    gpu_stats.flush_per_frame = 0;
     cur = (Uint32)SDL_GetTicks();
     if (mode >= 0) {
         ret = (unsigned short)(cur - last_vsync);
@@ -675,14 +719,6 @@ int Psyz_SetVsyncMode(Psyz_VsyncMode mode) {
     if (window && is_platform_init_successful) {
         ConfigureVSync(target_frame_rate);
     }
-    return 0;
-}
-
-int Psyz_GetGpuStats(Psyz_GpuStats* stats) {
-    if (!stats || !is_platform_init_successful) {
-        return -1;
-    }
-    *stats = gpu_stats;
     return 0;
 }
 
@@ -873,31 +909,52 @@ int Draw_ExequeSync() {
     return 0;
 }
 
-#define MAX_VERTEX_COUNT 4096
-#define MAX_INDEX_COUNT (MAX_VERTEX_COUNT / 4 * 6)
-
-static unsigned int VAO = -1, VBO = -1, EBO = -1;
-static Vertex vertex_buf[MAX_VERTEX_COUNT];
-static unsigned short index_buf[MAX_INDEX_COUNT];
-static Vertex* vertex_cur;
-static unsigned short* index_cur;
-static unsigned short n_vertices;
-static int n_indices;
-static GLenum flush_mode = GL_TRIANGLES;
+static bool InitBufferWork() {
+    if (buffer_work.vertex_buf) {
+        return true;
+    }
+    if (!buffer_work.min_vertices) {
+        // defaults if no configuration is provided
+        buffer_work.min_vertices = 1024;
+        buffer_work.max_vertices = 65536;
+    }
+    buffer_work.capacity_vertices = buffer_work.min_vertices;
+    buffer_work.capacity_indices = VERT2IDX(buffer_work.min_vertices);
+    buffer_work.vertex_buf =
+        malloc(buffer_work.capacity_vertices * sizeof(Vertex));
+    buffer_work.index_buf =
+        malloc(buffer_work.capacity_indices * sizeof(unsigned short));
+    if (!buffer_work.vertex_buf || !buffer_work.index_buf) {
+        ERRORF("failed to allocate GPU buffers");
+        return false;
+    }
+    gpu_stats.vertex_buffer_capacity = buffer_work.capacity_vertices;
+    vertex_cur = buffer_work.vertex_buf;
+    index_cur = buffer_work.index_buf;
+    return true;
+}
 
 static void Draw_InitBuffer() {
+    if (!InitBufferWork()) {
+        return;
+    }
+
     glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
 
+    // create GL buffers at max size to avoid reallocation
     glGenBuffers(1, &VBO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    buffer_work.gl_vbo_size = buffer_work.max_vertices * sizeof(Vertex);
     glBufferData(
-        GL_ARRAY_BUFFER, sizeof(vertex_buf), vertex_buf, GL_DYNAMIC_DRAW);
+        GL_ARRAY_BUFFER, buffer_work.gl_vbo_size, NULL, GL_DYNAMIC_DRAW);
 
     glGenBuffers(1, &EBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(
-        GL_ELEMENT_ARRAY_BUFFER, sizeof(index_buf), index_buf, GL_DYNAMIC_DRAW);
+    buffer_work.gl_ebo_size =
+        VERT2IDX(buffer_work.max_vertices) * sizeof(unsigned short);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, buffer_work.gl_ebo_size, NULL,
+                 GL_DYNAMIC_DRAW);
 
     glVertexAttribPointer(
         0, 2, GL_SHORT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, x));
@@ -910,21 +967,83 @@ static void Draw_InitBuffer() {
     glEnableVertexAttribArray(1);
     glBindVertexArray(0);
 }
+
+static bool GrowBufferIfNeeded(int required_vertices, int required_indices) {
+    int needed_vertices = n_vertices + required_vertices;
+    int needed_indices = n_indices + required_indices;
+    if (needed_vertices <= buffer_work.capacity_vertices &&
+        needed_indices <= buffer_work.capacity_indices) {
+        return true;
+    }
+    if (needed_vertices > buffer_work.max_vertices) {
+        ERRORF("vertex buffer size %d insufficient", buffer_work.max_vertices);
+        return false;
+    }
+
+    int new_capacity = buffer_work.capacity_vertices;
+    while (new_capacity < needed_vertices &&
+           new_capacity < buffer_work.max_vertices) {
+        new_capacity *= 2;
+        if (new_capacity > buffer_work.max_vertices) {
+            new_capacity = buffer_work.max_vertices;
+        }
+    }
+    Vertex* new_vertex_buf =
+        realloc(buffer_work.vertex_buf, new_capacity * sizeof(Vertex));
+    unsigned short* new_index_buf = realloc(
+        buffer_work.index_buf, VERT2IDX(new_capacity) * sizeof(unsigned short));
+    if (!new_vertex_buf || !new_index_buf) {
+        ERRORF("failed to grow GPU buffers to %d vertices", new_capacity);
+        free(new_vertex_buf);
+        free(new_index_buf);
+        return false;
+    }
+
+    ptrdiff_t vertex_offset = vertex_cur - buffer_work.vertex_buf;
+    ptrdiff_t index_offset = index_cur - buffer_work.index_buf;
+    buffer_work.vertex_buf = new_vertex_buf;
+    buffer_work.index_buf = new_index_buf;
+    buffer_work.capacity_vertices = new_capacity;
+    buffer_work.capacity_indices = VERT2IDX(new_capacity);
+    gpu_stats.vertex_buffer_capacity = new_capacity;
+    gpu_stats.vertex_buffer_growth_count++;
+
+    vertex_cur = buffer_work.vertex_buf + vertex_offset;
+    index_cur = buffer_work.index_buf + index_offset;
+
+    DEBUGF("GPU buffer grown to %d vertices", new_capacity);
+    return true;
+}
+
 static void Draw_EnsureBufferWillNotOverflow(int vertices, int indices) {
-    bool bufferFull = n_vertices + vertices > MAX_VERTEX_COUNT ||
-                      n_indices + indices > MAX_INDEX_COUNT;
-    if (bufferFull) {
-        Draw_FlushBuffer();
+    if (!InitBufferWork()) {
+        return;
+    }
+    if (!GrowBufferIfNeeded(vertices, indices)) {
+        if (n_vertices > 0) {
+            Draw_FlushBuffer();
+            if (!GrowBufferIfNeeded(vertices, indices)) {
+                ERRORF("cannot allocate space for %d vertices even after flush",
+                       vertices);
+            }
+        }
     }
 }
 static void Draw_EnqueueBuffer(int vertices, int indices) {
-    assert(n_vertices + vertices <= MAX_VERTEX_COUNT);
-    assert(n_indices + indices <= MAX_INDEX_COUNT);
+    assert(n_vertices + vertices <= buffer_work.capacity_vertices);
+    assert(n_indices + indices <= buffer_work.capacity_indices);
 
     vertex_cur += vertices;
     index_cur += indices;
     n_vertices += vertices;
     n_indices += indices;
+
+    if (n_vertices > gpu_stats.vertex_buffer_peak) {
+        gpu_stats.vertex_buffer_peak = n_vertices;
+    }
+    if (n_indices > buffer_work.peak_indices) {
+        buffer_work.peak_indices = n_indices;
+    }
 }
 
 #define SEMITRANSP 0x02
@@ -996,6 +1115,10 @@ int Draw_PushPrim(u_long* packets, int max_len) {
     packets++;
     len--;
     if (isPoly) {
+        if (flush_mode == GL_LINES && n_vertices > 0) {
+            Draw_FlushBuffer();
+        }
+        flush_mode = GL_TRIANGLES;
         if (code & TRIANGLE) {
             int wr, nVertices, nIndices;
             wr = writePacket(v++, code, len, packets, &clut);
@@ -1050,7 +1173,10 @@ int Draw_PushPrim(u_long* packets, int max_len) {
             padding = false;
             nPoints++; // don't ask, have faith
         }
-        Draw_FlushBuffer();
+        if (flush_mode != GL_LINES && n_vertices > 0) {
+            Draw_FlushBuffer();
+        }
+        flush_mode = GL_LINES;
         for (int i = 0; len > 0 && i < nPoints; i++) {
             vertex_cur[i].x = ((s16*)packets)[0];
             vertex_cur[i].y = ((s16*)packets)[1];
@@ -1080,10 +1206,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
             index_cur[i * 2] = n_vertices + i;
             index_cur[i * 2 + 1] = n_vertices + i + 1;
         }
-        flush_mode = GL_LINES;
         Draw_EnqueueBuffer(nPoints, (nPoints - 1) * 2);
-        Draw_FlushBuffer();
-        flush_mode = GL_TRIANGLES;
     } else if (isTile) {
         int x, y, w, h, tu, tv;
         x = ((s16*)packets)[0];
@@ -1343,8 +1466,9 @@ void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
 void Draw_ResetBuffer(void) {
     n_vertices = 0;
     n_indices = 0;
-    vertex_cur = vertex_buf;
-    index_cur = index_buf;
+    vertex_cur = buffer_work.vertex_buf;
+    index_cur = buffer_work.index_buf;
+    flush_mode = GL_TRIANGLES;
 }
 void Draw_FlushBuffer(void) {
     if (n_vertices == 0) {
@@ -1357,15 +1481,66 @@ void Draw_FlushBuffer(void) {
         UploadVramTexture();
         is_vram_texture_invalid = false;
     }
+
     glUseProgram(shader_program);
     glBindVertexArray(VAO);
+
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferSubData(
-        GL_ARRAY_BUFFER, 0, sizeof(Vertex) * n_vertices, vertex_buf);
+    glBufferData(
+        GL_ARRAY_BUFFER, buffer_work.gl_vbo_size, NULL, GL_DYNAMIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * n_vertices,
+                    buffer_work.vertex_buf);
+
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferSubData(
-        GL_ELEMENT_ARRAY_BUFFER, 0, sizeof(*index_buf) * n_indices, index_buf);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, buffer_work.gl_ebo_size, NULL,
+                 GL_DYNAMIC_DRAW);
+    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0,
+                    sizeof(unsigned short) * n_indices, buffer_work.index_buf);
+
     glBindVertexArray(VAO);
     glDrawElements(flush_mode, n_indices, GL_UNSIGNED_SHORT, 0);
+
+    gpu_stats.flush_per_frame++;
     Draw_ResetBuffer();
+}
+
+int Psyz_SetGpuLimits(int min_vertices, int max_vertices) {
+    if (min_vertices < 4 || max_vertices > 65536 ||
+        max_vertices < min_vertices) {
+        ERRORF("invalid buffer limits: min=%d, max=%d", min_vertices,
+               max_vertices);
+        return -1;
+    }
+
+    // align to quads
+    min_vertices = (min_vertices + 3) & ~3;
+    max_vertices = (max_vertices + 3) & ~3;
+
+    // if buffers already allocated, ensure we don't shrink below current usage
+    if (buffer_work.vertex_buf) {
+        if (min_vertices < n_vertices) {
+            WARNF("cannot set min_vertices %d below current usage %d",
+                  min_vertices, n_vertices);
+            min_vertices = (n_vertices + 3) & ~3; // align up
+        }
+        if (max_vertices < buffer_work.capacity_vertices) {
+            WARNF("cannot shrink max_vertices below current capacity %d",
+                  buffer_work.capacity_vertices);
+        }
+    }
+
+    buffer_work.min_vertices = min_vertices;
+    buffer_work.max_vertices = max_vertices;
+    DEBUGF("buffer limits set: min=%d, max=%d vertices", min_vertices,
+           max_vertices);
+    return 0;
+}
+
+int Psyz_GetGpuStats(Psyz_GpuStats* stats) {
+    if (!stats || !is_platform_init_successful) {
+        return -1;
+    }
+    gpu_stats.vertex_buffer_queued = n_vertices;
+    *stats = gpu_stats;
+    return 0;
 }
