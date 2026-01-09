@@ -3,6 +3,8 @@
 
 typedef unsigned char u_char;
 
+#ifndef __psyz
+
 /**
  * @brief Compare memory blocks
  *
@@ -36,7 +38,6 @@ void bcopy(u_char* src, u_char* dest, int n);
  */
 void bzero(u_char* p, int n);
 
-#ifndef __psyz
 /**
  * @brief Search a memory block for a character
  *
