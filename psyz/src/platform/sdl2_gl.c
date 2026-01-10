@@ -200,6 +200,7 @@ static SDL_AudioDeviceID audio_device_id = {0};
 static GLposi draw_offset = {0, 0};
 static GLposi draw_area_start = {0, 0};
 static GLposi draw_area_end = {0x10000, 0x10000};
+static bool debug_show_vram = false;
 
 static double target_frame_rate = VSYNC_NTSC;
 static double target_frame_time_us = 1000000.0 / VSYNC_NTSC;
@@ -399,6 +400,12 @@ static void PresentBufferToScreen(void) {
     int src_y = display_area.y;
     int src_w = display_size.x;
     int src_h = display_size.y;
+    if (debug_show_vram) {
+        src_x = 0;
+        src_y = 0;
+        src_w = VRAM_W;
+        src_h = VRAM_H;
+    }
     glBlitFramebuffer(src_x, src_y + src_h, src_x + src_w, src_y, 0, 0, fb_w,
                       fb_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     SDL_GL_SwapWindow(window);
@@ -589,6 +596,10 @@ static void PollEvents(void) {
             if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
                 exit(0);
             }
+            if (event.key.scancode == SDL_SCANCODE_F6) {
+                debug_show_vram ^= 1;
+            }
+            break;
             break;
         }
     }
