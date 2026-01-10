@@ -4,11 +4,14 @@ CC			:= ./bin/cc1-psx-272
 CPP			:= mipsel-linux-gnu-cpp
 LD			:= mipsel-linux-gnu-ld
 OBJCOPY		:= mipsel-linux-gnu-objcopy
+MASPSX		:= python3 tools/maspsx/maspsx.py --expand-div --aspsx-version=2.56
+
 ASFLAGS		:= -Iinclude -march=r3000 -mtune=r3000 -no-pad-sections -O1 -G0
-CPPFLAGS	:= -Iinclude -Iinclude/og -Wno-builtin-declaration-mismatch
-CPPFLAGS	+= -Dmips -D__OPTIMIZE__ -D__mips__ -Dpsx -D__psx__ -D__psx -D_PSYQ -D__EXTENSIONS__ -D_MIPSEL -D_LANGUAGE_C -DLANGUAGE_C
-CFLAGS		:= -G0 -w -O2 -g -fno-builtin -funsigned-char -fpeephole -ffunction-cse -fpcc-struct-return -fcommon -fverbose-asm -msoft-float -g
-MASPSX      := python3 tools/maspsx/maspsx.py --expand-div --aspsx-version=2.56
+CPPFLAGS	:= -Iinclude -Iinclude/og -Wno-builtin-declaration-mismatch \
+	-Dmips -D__OPTIMIZE__ -D__mips__ -Dpsx -D__psx__ -D__psx -D_PSYQ \
+	-D__EXTENSIONS__ -D_MIPSEL -D_LANGUAGE_C -DLANGUAGE_C
+CFLAGS		:= -G0 -w -O2 -g -fno-builtin -funsigned-char -fpeephole \
+	-ffunction-cse -fpcc-struct-return -fcommon -fverbose-asm -msoft-float
 
 LIBS_350    := libapi libc libcd libcard libcomb libetc libgpu libgs libgte
 LIBS_350    += libgun libmath libpress libsnd libspu libtap
@@ -38,13 +41,8 @@ dependencies: tools/maspsx/maspsx.py bin/cc1-psx-272
 
 .PHONY: clean
 clean:
-	git clean -xfd obj/
-	git clean -xfd build/
-	git clean -xfd asm/
-	git clean -xfd assets/
-	rm *.elf* || true
-	rm *.map || true
-	rm undefined_*_auto*.txt || true
+	git clean -xfd obj/ build/ asm/ assets/
+	rm -f *.elf* *.map undefined_*_auto*.txt
 
 .PHONY: format
 format:
@@ -52,19 +50,21 @@ format:
 
 .PHONY: expected
 expected: build/psyq$(PSYQ_VER).elf
-	rm -rf expected/ || true
-	mkdir -p expected
+	rm -rf expected/
 	cp -r build expected/
 
-build/psyq$(PSYQ_VER).elf: build/psyq$(PSYQ_VER).ld $(OBJS) $(ASM_OBJS) $(ASSETS_OBJS)
-	$(LD) -o $@.intermediate -Map=build/psyq$(PSYQ_VER).map \
+build/psyq$(PSYQ_VER).elf: build/psyq$(PSYQ_VER).ld $(OBJS) $(ASSETS_OBJS)
+	@$(MAKE) --no-print-directory build/psyq$(PSYQ_VER).elf.link
+
+build/psyq$(PSYQ_VER).elf.link: $(ASM_OBJS)
+	$(LD) -o build/psyq$(PSYQ_VER).elf.intermediate -Map=build/psyq$(PSYQ_VER).map \
 		-T symbols.$(PSYQ_VER).bss.txt \
-		-T undefined_funcs_auto.$(PSYQ_VER).txt undefined_syms_auto.$(PSYQ_VER).txt -T $< \
+		-T undefined_funcs_auto.$(PSYQ_VER).txt undefined_syms_auto.$(PSYQ_VER).txt -T build/psyq$(PSYQ_VER).ld \
 		$(OBJS) $(ASM_OBJS)
-	$(OBJCOPY) -O binary $@.intermediate $@
-	rm $@.intermediate
+	$(OBJCOPY) -O binary build/psyq$(PSYQ_VER).elf.intermediate build/psyq$(PSYQ_VER).elf
+	rm -f build/psyq$(PSYQ_VER).elf.intermediate
 	sha256sum -c psyq$(PSYQ_VER).elf.sha256
-build/src/%.c.o: src/%.c
+build/src/%.c.o: src/%.c build/psyq$(PSYQ_VER).ld
 	mkdir -p $(dir $@)
 	$(CPP) $(CPPFLAGS) -lang-c $< | $(CC) $(CFLAGS) -quiet | $(MASPSX) | $(AS) $(ASFLAGS) -o $@
 build/asm/%.s.o: asm/%.s
@@ -72,11 +72,8 @@ build/asm/%.s.o: asm/%.s
 	$(AS) $(ASFLAGS) -o $@ $<
 
 build/psyq$(PSYQ_VER).ld: splat$(PSYQ_VER).yaml psyq$(PSYQ_VER).elf.sha256 symbols.$(PSYQ_VER).txt
-	rm $@ || true
-	rm -rf asm/
-	rm -rf build/asm
-	rm -rf build/src
-	splat split $<
+	rm -rf $@ asm/ build/asm build/src
+	.venv/bin/splat split $<
 psyq$(PSYQ_VER).elf.sha256: psyq$(PSYQ_VER).elf
 	mkdir -p build/
 	mv $< build/
@@ -106,8 +103,7 @@ bin/cc1-psx-272:
 	wget -O bin/gcc-2.7.2-psx.tar.gz https://github.com/decompals/old-gcc/releases/download/0.13/gcc-2.7.2-psx.tar.gz
 	sha256sum -c bin/gcc-2.7.2-psx.tar.gz.sha256
 	cd bin && tar -xf gcc-2.7.2-psx.tar.gz
-	rm bin/gcc-2.7.2-psx.tar.gz
-	rm bin/cc1plus bin/cpp bin/g++ bin/gcc
+	rm -f bin/gcc-2.7.2-psx.tar.gz bin/cc1plus bin/cpp bin/g++ bin/gcc
 	mv bin/cc1 $@
 tools/maspsx/maspsx.py:
 	git submodule update tools/maspsx
