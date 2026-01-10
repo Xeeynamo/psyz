@@ -177,24 +177,21 @@ static int psyz_addque(
 
 // psyz_clr is very similar to _clr from libgpu/sys.c
 static DR_ENV clear_cmd;
-static int psyz_clr(RECT* pRect, u32 color) {
+static int psyz_clr(RECT* rect, u32 color) {
     const u32 wh = get_vram_wh();
     const unsigned short w = wh & 0xFFFF;
     const unsigned short h = wh >> 16;
-    RECT rect = *pRect;
-    rect.w = CLAMP(pRect->w, 0, w - 1);
-    rect.h = CLAMP(pRect->h, 0, h - 1);
+    rect->w = CLAMP(rect->w, 0, w - 1);
+    rect->h = CLAMP(rect->h, 0, h - 1);
 
-    setlen(&clear_cmd, 8);
+    setlen(&clear_cmd, 5);
+    clear_cmd.code[0] = 0xE6000000; // mask bit setting
+    clear_cmd.code[1] =
+        0xE1000000 | GPU_STATUS & 0x7FF | (color >> 0x1F) << 10;
+    clear_cmd.code[2] = (color & 0xFFFFFF) | 0x02000000;
+    clear_cmd.code[3] = (u_long)*(u32*)&rect->x;
+    clear_cmd.code[4] = (u_long)*(u32*)&rect->w;
     termPrim(&clear_cmd);
-    clear_cmd.code[0] = 0xE3000000; // set drawing area top left
-    clear_cmd.code[1] = 0xE4FFFFFF; // set drawing area bottom right
-    clear_cmd.code[2] = 0xE5000000; // set drawing offset
-    clear_cmd.code[3] = 0xE6000000;
-    clear_cmd.code[4] = 0xE1000000 | GPU_STATUS & 0x7FF | (color >> 0x1F) << 10;
-    clear_cmd.code[5] = (color & 0xFFFFFF) | 0x02000000;
-    clear_cmd.code[6] = *(u_long*)&rect.x;
-    clear_cmd.code[7] = *(u_long*)&rect.w;
     GPU_Enqueue((u_long)&clear_cmd, 0);
     return 0;
 }

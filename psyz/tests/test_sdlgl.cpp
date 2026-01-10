@@ -49,6 +49,7 @@ class SDLGL_Test : public testing::Test {
         POLY_FT4 ft4[4];
         POLY_GT4 gt4[4];
         SPRT sprt[4];
+        TILE tile[4];
     } DB;
     DB db[2];
     DB* cdb;
@@ -411,3 +412,25 @@ TEST_F(SDLGL_Test, draw_disp_env) {
     AssertFrame("draw_disp_env_3");
 }
 
+TEST_F(SDLGL_Test, clear_screen_draw_offset_bugfix) {
+    SetTile(&cdb->tile[0]);
+    setRGB0(&cdb->tile[0], 255, 0, 0);
+    setXY0(&cdb->tile[0], 0, 0);
+    setWH(&cdb->tile[0], 128, 128);
+
+    DRAWENV draw = cdb->draw;
+    draw.ofs[0] = 128;
+    draw.ofs[1] = 128;
+    PutDrawEnv(&draw);
+    PutDispEnv(&cdb->disp);
+
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &db[0].tile[0]);
+
+    ClearImage(&cdb->draw.clip, 60, 120, 120);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+
+    AssertFrame("clear_screen_draw_offset_bugfix");
+}
