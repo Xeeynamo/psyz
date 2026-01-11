@@ -26,5 +26,3 @@ int sin_1(int a) {
         }
     }
 }
-
-NOP;

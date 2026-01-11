@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 extern "C" {
-#include <common.h>
+#include <psyz.h>
 #include <kernel.h>
 #include <libapi.h>
 }

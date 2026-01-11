@@ -1,8 +1,26 @@
 #include <psyz.h>
 #include <libspu.h>
 #include <log.h>
+#include "../../decomp/src/libspu/libspu_private.h"
 
-void SpuSetVoiceAttr(SpuVoiceAttr* arg) { DEBUGF("SpuSetVoiceAttr"); }
+static SPU_RXX spu_RXX;
+union SpuUnion* _spu_RXX = (union SpuUnion*)&spu_RXX;
+
+void _SpuInit(s32 arg0) { NOT_IMPLEMENTED; }
+
+s32 _spu_t(s32 arg0, ...) {
+    NOT_IMPLEMENTED;
+    return 0;
+}
+
+void SpuSetVoiceAttr(SpuVoiceAttr* arg) { NOT_IMPLEMENTED; }
+
+void SpuSetCommonAttr(SpuCommonAttr* arg) { NOT_IMPLEMENTED; }
+
+long SpuSetReverbModeParam(SpuReverbAttr* attr) {
+    NOT_IMPLEMENTED;
+    return 0;
+}
 
 long SpuMallocWithStartAddr(u_long addr, long size) {
     NOT_IMPLEMENTED;
@@ -19,11 +37,4 @@ long SpuSetTransferMode(long mode) {
     return 0;
 }
 
-long SpuClearReverbWorkArea(long rev_mode) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
-void SpuSetKey(long on_off, u_long voice_bit) {
-    DEBUGF("on_off %d voice_bit %08X", on_off, voice_bit);
-}
+void SpuSetKey(long on_off, u_long voice_bit) { NOT_IMPLEMENTED; }

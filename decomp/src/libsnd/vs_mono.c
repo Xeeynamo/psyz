@@ -1,6 +1,5 @@
-#include <common.h>
-#include <libsnd.h>
+#include "libsnd_private.h"
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/vs_mono", SsSetMono);
+void SsSetMono(void) { _svm_stereo_mono = 1; }
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/vs_mono", SsSetStereo);
+void SsSetStereo(void) { _svm_stereo_mono = 0; }

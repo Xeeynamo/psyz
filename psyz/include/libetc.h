@@ -1,5 +1,6 @@
 #ifndef LIBETC_H
 #define LIBETC_H
+#include <psyz.h>
 
 /**
  * @file libetc.h
@@ -17,8 +18,6 @@
  * - BIOS call access
  * - System information retrieval
  */
-
-#include <types.h>
 
 extern int PadIdentifier;
 /*

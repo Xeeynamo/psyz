@@ -1,5 +1,6 @@
 #ifndef LIBGPU_H
 #define LIBGPU_H
+#include <psyz.h>
 
 /**
  * @file libgpu.h
@@ -17,8 +18,6 @@
  * - Ordering table (OT) management
  * - Double buffering support
  */
-
-#include <types.h>
 
 #ifdef __psyz
 extern int (*GPU_printf)(const char* fmt, ...);
