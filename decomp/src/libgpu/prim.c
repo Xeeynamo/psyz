@@ -109,5 +109,3 @@ void DumpDispEnv(DISPENV* env) {
     GPU_printf("isinter %d\n", env->isinter);
     GPU_printf("isrgb24 %d\n", env->isrgb24);
 }
-
-NOP;

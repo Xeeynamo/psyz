@@ -1,4 +1,33 @@
-#include <common.h>
-#include <libsnd.h>
+#include "libsnd_private.h"
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/sstable", SsSetTableSize);
+void SsSetTableSize(char* table, short s_max, short t_max) {
+    s32 i, j;
+    struct SeqStruct* pTypedTable;
+
+    _snd_seq_s_max = s_max;
+    _snd_seq_t_max = t_max;
+    pTypedTable = (struct SeqStruct*)table;
+    for (i = 0; i < s_max; i++) {
+        _ss_score[i] = &pTypedTable[i * t_max];
+    }
+    for (i = 0; i < _snd_seq_s_max; i++) {
+        for (j = 0; j < _snd_seq_t_max; j++) {
+            _ss_score[i][j].unk98 = 0;
+            _ss_score[i][j].unk22 = 0xFF;
+            _ss_score[i][j].unk23 = 0;
+            _ss_score[i][j].unk48 = 0;
+            _ss_score[i][j].unk4A = 0;
+            _ss_score[i][j].unk9C = 0;
+            _ss_score[i][j].unkA0 = 0;
+            _ss_score[i][j].unk4C = 0;
+            _ss_score[i][j].unkAC = 0;
+            _ss_score[i][j].unkA8 = 0;
+            _ss_score[i][j].unkA4 = 0;
+            _ss_score[i][j].unk4E = 0;
+            _ss_score[i][j].unk58 = 0x7F;
+            _ss_score[i][j].unk5A = 0x7F;
+            _ss_score[i][j].unk5C = 0x7F;
+            _ss_score[i][j].unk5E = 0x7F;
+        }
+    }
+}

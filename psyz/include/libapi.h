@@ -1,6 +1,7 @@
 #ifndef LIBAPI_H
 #define LIBAPI_H
 
+#include <psyz.h>
 #include "kernel.h"
 
 /* Open modes */

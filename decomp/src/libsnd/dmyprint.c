@@ -1,7 +1,8 @@
 #include <common.h>
 #include <libsnd.h>
 
-void dmy_nothing1(void) {}
+void dmy_nothing1(
+    short arg0, short arg1, unsigned char arg2, unsigned char arg3) {}
 
 INCLUDE_ASM("asm/nonmatchings/libsnd/dmyprint", dmy_SsNoteOn);
 

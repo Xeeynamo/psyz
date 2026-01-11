@@ -969,5 +969,3 @@ static void memset(u_char* ptr, int value, int num) {
 // exclusive to PSY-Z, useful to obtain info.w and info.h
 u32 get_vram_wh(void) { return *(u32*)&info.w; }
 #endif
-
-NOP;

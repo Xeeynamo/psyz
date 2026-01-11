@@ -1,4 +1,3 @@
-#include <common.h>
-#include <libspu.h>
+#include "libspu_private.h"
 
-INCLUDE_ASM("asm/nonmatchings/libspu/s_cb", _SpuCallback);
+void _SpuCallback(void (*cb)()) { InterruptCallback(9, cb); }

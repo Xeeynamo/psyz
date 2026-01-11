@@ -33,7 +33,7 @@ segments:
     vram:  0x80000100
     bss_size: 0x4020C
     align: 256
-    subalign: 4
+    subalign: 8
     subsegments:
       - [0x100, c, libapi/a07]
       - [0x110, c, libapi/a08]
@@ -1348,10 +1348,11 @@ segments:
       - [0xD09E8, data, libsnd/vm_f]
       - [0xD09F0, data, libsnd/vm_n2p]
       - [0xD0B78, data, libsnd/vs_vtbp]
-      - [0xD0B80, data, libspu/s_ini]
+      - [0xD0B80, .data, libspu/s_ini]
       - [0xD0FF8, data, libspu/s_m]
       - [0xD1008, data, libspu/spu]
-      - [0xD1068, data, libspu/s_rmp]
+      - [0xD1020, .data, libspu/spu]
+      - [0xD1068, .data, libspu/s_rmp]
       - [0xD1360, data, libspu/st]
       - [0xD1388, data, libspu/t_c]
       - [0xD13B8, data, libspu/version]
@@ -1420,7 +1421,7 @@ segments:
       - [0xEA7C0, bss, libgte/ppmft]
       - [0x10FFC0, bss, libmcrd/libmcrd]
       - [0x110070, bss, libmcrd/userfunc]
-      - [0x1100C0, bss, libsnd/ssinit]
+      - [0x1100C0, .bss, libsnd/ssinit]
       - [0x1109E8, bss, libsnd/vm_f]
       - [0x1110C0, bss, libsnd/vm_g]
       - [0x111270, bss, libsnd/vm_init]

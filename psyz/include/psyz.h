@@ -1,7 +1,7 @@
 #ifndef PSYZ_H
 #define PSYZ_H
 
-#include <types.h>
+#include <common.h>
 #include <log.h>
 #ifdef __psyz // exclude when targeting the PSX
 #include <stdio.h>
@@ -58,15 +58,6 @@ long psyz_ioctl(long fd, long com, long arg);
 #define NOP
 #define CLAMP(x, min, max) x < min ? min : (x > max ? max : x)
 
-#ifndef LEN
-#define LEN(x) ((s32)(sizeof(x) / sizeof(*(x))))
-#endif
-
-#ifndef LENU
-#define LENU(x) ((u32)(sizeof(x) / sizeof(*(x))))
-#endif
-
-#endif
 
 struct PsyzDiskRead {
     // disk sector, can be used as a unique file identifier
@@ -135,3 +126,5 @@ int Psyz_SetVsyncMode(Psyz_VsyncMode mode);
 // Get frame timing statistics
 // Returns: 0 on success, -1 if stats is NULL or platform not initialized
 int Psyz_GetGpuStats(Psyz_GpuStats* stats);
+
+#endif

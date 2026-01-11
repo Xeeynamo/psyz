@@ -161,5 +161,3 @@ int CdPosToInt(CdlLOC* p) {
     return (DECODE_BCD(minute) * 60 + DECODE_BCD(second)) * 75 +
            DECODE_BCD(sector) - 150;
 }
-
-NOP;
