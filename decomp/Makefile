@@ -51,28 +51,32 @@ format:
 .PHONY: expected
 expected: build/psyq$(PSYQ_VER).elf
 	rm -rf expected/
+	mkdir -p expected/build
 	cp -r build expected/
 
 build/psyq$(PSYQ_VER).elf: build/psyq$(PSYQ_VER).ld $(OBJS) $(ASSETS_OBJS)
 	@$(MAKE) --no-print-directory build/psyq$(PSYQ_VER).elf.link
 
 build/psyq$(PSYQ_VER).elf.link: $(ASM_OBJS)
-	$(LD) -o build/psyq$(PSYQ_VER).elf.intermediate -Map=build/psyq$(PSYQ_VER).map \
+	@echo Link build/psyq$(PSYQ_VER).elf
+	@$(LD) -o build/psyq$(PSYQ_VER).elf.intermediate -Map=build/psyq$(PSYQ_VER).map \
 		-T symbols.$(PSYQ_VER).bss.txt \
 		-T undefined_funcs_auto.$(PSYQ_VER).txt undefined_syms_auto.$(PSYQ_VER).txt -T build/psyq$(PSYQ_VER).ld \
 		$(OBJS) $(ASM_OBJS)
-	$(OBJCOPY) -O binary build/psyq$(PSYQ_VER).elf.intermediate build/psyq$(PSYQ_VER).elf
-	rm -f build/psyq$(PSYQ_VER).elf.intermediate
-	sha256sum -c psyq$(PSYQ_VER).elf.sha256
+	@$(OBJCOPY) -O binary build/psyq$(PSYQ_VER).elf.intermediate build/psyq$(PSYQ_VER).elf
+	@rm -f build/psyq$(PSYQ_VER).elf.intermediate
+	@sha256sum -c psyq$(PSYQ_VER).elf.sha256
 build/src/%.c.o: src/%.c build/psyq$(PSYQ_VER).ld
-	mkdir -p $(dir $@)
-	$(CPP) $(CPPFLAGS) -lang-c $< | $(CC) $(CFLAGS) -quiet | $(MASPSX) | $(AS) $(ASFLAGS) -o $@
+	@echo Compile $<
+	@mkdir -p $(dir $@)
+	@$(CPP) $(CPPFLAGS) -lang-c $< | $(CC) $(CFLAGS) -quiet | $(MASPSX) | $(AS) $(ASFLAGS) -o $@
 build/asm/%.s.o: asm/%.s
-	mkdir -p $(dir $@)
-	$(AS) $(ASFLAGS) -o $@ $<
+	@echo Assemble $<
+	@mkdir -p $(dir $@)
+	@$(AS) $(ASFLAGS) -o $@ $<
 
 build/psyq$(PSYQ_VER).ld: splat$(PSYQ_VER).yaml psyq$(PSYQ_VER).elf.sha256 symbols.$(PSYQ_VER).txt
-	rm -rf $@ asm/ build/asm build/src
+	@rm -rf $@ asm/ build/asm build/src
 	.venv/bin/splat split $<
 psyq$(PSYQ_VER).elf.sha256: psyq$(PSYQ_VER).elf
 	mkdir -p build/
@@ -84,7 +88,7 @@ psyq$(PSYQ_VER).elf: $(patsubst %,obj/$(PSYQ_VER)/%, $(LIBS))
 	./psyq-gen.sh $(PSYQ_VER)
 	sha256sum -c psyq$(PSYQ_VER).map.sha256
 obj/$(PSYQ_VER)/lib%: sdk/psyq$(PSYQ_VER) bin/psyqdump
-	mkdir -p $@ && \
+	@mkdir -p $@ && \
 		bin/psyqdump $</LIB/LIB$(shell echo $* | tr '[:lower:]' '[:upper:]').LIB $@ || \
 		rm -r $@
 	@for file in $@/*.OBJ; do \
@@ -92,7 +96,7 @@ obj/$(PSYQ_VER)/lib%: sdk/psyq$(PSYQ_VER) bin/psyqdump
 		bin/psyq-obj-parser "$$file" -o "$$output" > /dev/null; \
 	done
 include/og/libgpu.h: sdk/psyq$(PSYQ_VER) bin/psyq2elf
-	mkdir -p include/og
+	@mkdir -p include/og
 	cd bin/psyq2elf && ./psyqinc.sh ../../$</INCLUDE ../../include/og
 bin/psyqdump: bin/psyq2elf
 	cd bin/psyq2elf && make
