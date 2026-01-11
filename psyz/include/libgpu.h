@@ -1,5 +1,23 @@
 #ifndef LIBGPU_H
 #define LIBGPU_H
+
+/**
+ * @file libgpu.h
+ * @brief GPU (Graphics Processing Unit) Library
+ *
+ * This library provides low-level control of the PlayStation GPU for 2D
+ * graphics rendering, display management, and primitive drawing.
+ *
+ * Key features:
+ * - Drawing primitive setup macros (polygons, lines, sprites)
+ * - Texture page and CLUT management
+ * - Display environment configuration (resolution, interlace, RGB/NTSC)
+ * - Drawing environment setup (drawing area, offset, dither)
+ * - VRAM transfer functions (load/store images)
+ * - Ordering table (OT) management
+ * - Double buffering support
+ */
+
 #include <types.h>
 
 #ifdef __psyz
@@ -149,6 +167,17 @@ typedef struct {
     /* 0x4 */ short w; /* width */
     /* 0x6 */ short h; /* height */
 } RECT;                /* size = 0x8 */
+
+/**
+ * @brief Rectangular area (32-bit coordinates)
+ *
+ * Used by library functions to specify a rectangular area of the frame buffer
+ * with 32-bit integer coordinates.
+ */
+typedef struct {
+    int x, y; /**< Top left coordinates of the rectangular area */
+    int w, h; /**< Width and height of the rectangular area */
+} RECT32;
 
 #ifdef __psyz
 #define O_TAG                                                                  \
@@ -481,6 +510,11 @@ typedef struct {
     u_long code[2];
 } DR_OFFSET; /* Drawing Offset */
 
+typedef struct {
+    O_TAG;
+    u_long code[2];
+} DR_STP; /* STP bit update */
+
 typedef struct { /* MoveImage */
     O_TAG;
     u_long code[5];
@@ -542,110 +576,888 @@ typedef struct {
     u_long* paddr; /* texture image address on main memory */
 } TIM_IMAGE;
 
-/*
+/**
+ * @brief Load texture pattern to frame buffer
+ *
  * Loads a texture pattern from the memory area starting at the address pix into
  * the frame buffer area starting at the address (x, y), and calculates the
  * texture page ID for the loaded texture pattern. The texture pattern size w
  * represents the number of pixels, not the actual size of the transfer area in
  * the frame buffer.
+ *
+ * @param pix Pointer to texture pattern start address
+ * @param tp Bit depth (0 = 4-bit; 1 = 8-bit; 2 = 16-bit)
+ * @param abr Semitransparency rate
+ * @param x Destination frame buffer X address
+ * @param y Destination frame buffer Y address
+ * @param w Texture pattern width
+ * @param h Texture pattern height
+ * @return Texture page ID
  */
 extern u_short LoadTPage(
-    u_long* pix,  // Pointer to texture pattern start address
-    int tp,       // Bit depth (0 = 4-bit; 1 = 8-bit; 2 = 16-bit)
-    int abr,      // Semitransparency rate
-    int x, int y, // Destination frame buffer address
-    int w, int h  // Texture pattern size
-);
+    u_long* pix, int tp, int abr, int x, int y, int w, int h);
 
+/**
+ * @brief Load CLUT to frame buffer
+ *
+ * @param clut Pointer to CLUT data
+ * @param x Horizontal frame buffer address
+ * @param y Vertical frame buffer address
+ * @return CLUT ID
+ */
 extern u_short LoadClut(u_long* clut, int x, int y);
+
+/**
+ * @brief Load CLUT to frame buffer (alternative)
+ *
+ * @param clut Pointer to CLUT data
+ * @param x Horizontal frame buffer address
+ * @param y Vertical frame buffer address
+ * @return CLUT ID
+ */
 extern u_short LoadClut2(u_long* clut, int x, int y);
 
 /**
- * Calculates and returns the texture CLUT ID.
- * The CLUT address is limited to multiples of 16 in the x direction
+ * @brief Calculate and return texture CLUT ID
+ *
+ * The CLUT address is limited to multiples of 16 in the x direction.
+ *
+ * @param x Horizontal frame buffer address of CLUT
+ * @param y Vertical frame buffer address of CLUT
+ * @return CLUT ID
  */
-u_short GetClut(int x, // Horizontal frame buffer address of CLUT
-                int y  // Vertical frame buffer address of CLUT
-);
+u_short GetClut(int x, int y);
 
+/**
+ * @brief Calculate and return texture page ID
+ *
+ * @param tp Texture mode (0=4bit, 1=8bit, 2=16bit)
+ * @param abr Semi-transparency rate (0=0.5, 1=1.0, 2=1.0, 3=0.25)
+ * @param x Texture page X position in frame buffer
+ * @param y Texture page Y position in frame buffer
+ * @return Texture page ID
+ */
 u_short GetTPage(int tp, int abr, int x, int y);
+
+/**
+ * @brief Get next primitive in list
+ *
+ * @param p Pointer to current primitive
+ * @return Pointer to next primitive
+ */
 extern void* NextPrim(void* p);
+
+/**
+ * @brief Register a primitive to the OT
+ *
+ * Registers a primitive beginning with the address *p to the OT entry *ot in
+ * OT table. A primitive may be added to a primitive list only once in the same
+ * frame.
+ *
+ * @param ot OT entry
+ * @param p Start address of primitive to be registered
+ */
 extern void AddPrim(void* ot, void* p);
+
+/**
+ * @brief Collectively register primitives to the OT
+ *
+ * Registers primitives beginning with p0 and ending with p1 to the *ot entry
+ * in the OT.
+ *
+ * @param ot OT entry
+ * @param p0 Start address of primitive list
+ * @param p1 End address of primitive list
+ */
 extern void AddPrims(void* ot, void* p0, void* p1);
+
+/**
+ * @brief Concatenate primitives
+ *
+ * @param p0 First primitive
+ * @param p1 Second primitive
+ */
 extern void CatPrim(void* p0, void* p1);
+
+/**
+ * @brief Draw ordering table
+ *
+ * @param p Pointer to ordering table
+ */
 extern void DrawOTag(OT_TYPE* p);
+
+/**
+ * @brief Draw ordering table with I/O
+ *
+ * @param p Pointer to ordering table
+ */
 extern void DrawOTagIO(OT_TYPE* p);
+
+/**
+ * @brief Draw ordering table with environment
+ *
+ * @param p Pointer to ordering table
+ * @param env Drawing environment
+ */
 extern void DrawOTagEnv(OT_TYPE* p, DRAWENV* env);
+
+/**
+ * @brief Draw primitive
+ *
+ * @param p Pointer to primitive
+ */
 extern void DrawPrim(void* p);
+
+/**
+ * @brief Dump CLUT information
+ *
+ * @param clut CLUT ID
+ */
 extern void DumpClut(u_short clut);
+
+/**
+ * @brief Dump display environment
+ *
+ * @param env Display environment
+ */
 extern void DumpDispEnv(DISPENV* env);
+
+/**
+ * @brief Dump drawing environment
+ *
+ * @param env Drawing environment
+ */
 extern void DumpDrawEnv(DRAWENV* env);
+
+/**
+ * @brief Dump ordering table
+ *
+ * @param p Pointer to ordering table
+ */
 extern void DumpOTag(OT_TYPE* p);
+
+/**
+ * @brief Dump texture page information
+ *
+ * @param tpage Texture page ID
+ */
 extern void DumpTPage(u_short tpage);
+
+/**
+ * @brief Load font pattern
+ *
+ * @param tx X position in frame buffer
+ * @param ty Y position in frame buffer
+ */
 extern void FntLoad(int tx, int ty);
+
+/**
+ * @brief Set display mask
+ *
+ * @param mask 0: display off, 1: display on
+ */
 extern void SetDispMask(int mask);
+
+/**
+ * @brief Set drawing area primitive
+ *
+ * @param p Drawing area primitive
+ * @param r Rectangle area
+ */
 extern void SetDrawArea(DR_AREA* p, RECT* r);
+
+/**
+ * @brief Set drawing environment primitive
+ *
+ * @param dr_env Drawing environment primitive
+ * @param env Drawing environment
+ */
 extern void SetDrawEnv(DR_ENV* dr_env, DRAWENV* env);
+
+/**
+ * @brief Set load image primitive
+ *
+ * @param p Load image primitive
+ * @param rect Rectangle area
+ */
 extern void SetDrawLoad(DR_LOAD* p, RECT* rect);
+
+/**
+ * @brief Set drawing mode primitive
+ *
+ * @param p Drawing mode primitive
+ * @param dfe Drawing to display area flag
+ * @param dtd Dithering flag
+ * @param tpage Texture page
+ * @param tw Texture window
+ */
 extern void SetDrawMode(DR_MODE* p, int dfe, int dtd, int tpage, RECT* tw);
+
+/**
+ * @brief Set texture page primitive
+ *
+ * @param p Texture page primitive
+ * @param dfe Drawing to display area flag
+ * @param dtd Dithering flag
+ * @param tpage Texture page ID
+ */
 extern void SetDrawTPage(DR_TPAGE* p, int dfe, int dtd, int tpage);
+
+/**
+ * @brief Set move image primitive
+ *
+ * @param p Move image primitive
+ * @param rect Source rectangle
+ * @param x Destination X coordinate
+ * @param y Destination Y coordinate
+ */
 extern void SetDrawMove(DR_MOVE* p, RECT* rect, int x, int y);
+
+/**
+ * @brief Set drawing offset primitive
+ *
+ * @param p Drawing offset primitive
+ * @param ofs Offset values [X, Y]
+ */
 extern void SetDrawOffset(DR_OFFSET* p, u_short* ofs);
+
+/**
+ * @brief Set debug font stream ID
+ *
+ * @param id Stream ID
+ */
 extern void SetDumpFnt(int id);
+
+/**
+ * @brief Initialize flat-shaded line primitive (2 vertices)
+ *
+ * @param p Line primitive
+ */
 extern void SetLineF2(LINE_F2* p);
+
+/**
+ * @brief Initialize flat-shaded line primitive (3 vertices)
+ *
+ * @param p Line primitive
+ */
 extern void SetLineF3(LINE_F3* p);
+
+/**
+ * @brief Initialize flat-shaded line primitive (4 vertices)
+ *
+ * @param p Line primitive
+ */
 extern void SetLineF4(LINE_F4* p);
+
+/**
+ * @brief Initialize Gouraud-shaded line primitive (2 vertices)
+ *
+ * @param p Line primitive
+ */
 extern void SetLineG2(LINE_G2* p);
+
+/**
+ * @brief Initialize Gouraud-shaded line primitive (3 vertices)
+ *
+ * @param p Line primitive
+ */
 extern void SetLineG3(LINE_G3* p);
+
+/**
+ * @brief Initialize Gouraud-shaded line primitive (4 vertices)
+ *
+ * @param p Line primitive
+ */
 extern void SetLineG4(LINE_G4* p);
+
+/**
+ * @brief Initialize flat-shaded triangle primitive
+ *
+ * @param p Polygon primitive
+ */
 extern void SetPolyF3(POLY_F3* p);
+
+/**
+ * @brief Initialize flat-shaded quadrangle primitive
+ *
+ * @param p Polygon primitive
+ */
 extern void SetPolyF4(POLY_F4* p);
+
+/**
+ * @brief Initialize flat-shaded, texture-mapped triangle primitive
+ *
+ * @param p Polygon primitive
+ */
 extern void SetPolyFT3(POLY_FT3* p);
+
+/**
+ * @brief Initialize flat-shaded, texture-mapped quadrangle primitive
+ *
+ * @param p Polygon primitive
+ */
 extern void SetPolyFT4(POLY_FT4* p);
+
+/**
+ * @brief Initialize Gouraud-shaded triangle primitive
+ *
+ * @param p Polygon primitive
+ */
 extern void SetPolyG3(POLY_G3* p);
+
+/**
+ * @brief Initialize Gouraud-shaded quadrangle primitive
+ *
+ * @param p Polygon primitive
+ */
 extern void SetPolyG4(POLY_G4* p);
+
+/**
+ * @brief Initialize Gouraud-shaded, texture-mapped triangle primitive
+ *
+ * @param p Polygon primitive
+ */
 extern void SetPolyGT3(POLY_GT3* p);
+
+/**
+ * @brief Initialize Gouraud-shaded, texture-mapped quadrangle primitive
+ *
+ * @param p Polygon primitive
+ */
 extern void SetPolyGT4(POLY_GT4* p);
+
+/**
+ * @brief Set semi-transparency attribute
+ *
+ * @param p Primitive
+ * @param abe Semi-transparency flag (0: off, 1: on)
+ */
 extern void SetSemiTrans(void* p, int abe);
+
+/**
+ * @brief Set texture shading attribute
+ *
+ * @param p Primitive
+ * @param tge Texture shading flag (0: texture off, 1: texture and shade on)
+ */
 extern void SetShadeTex(void* p, int tge);
+
+/**
+ * @brief Initialize sprite primitive
+ *
+ * @param p Sprite primitive
+ */
 extern void SetSprt(SPRT* p);
+
+/**
+ * @brief Initialize 16x16 sprite primitive
+ *
+ * @param p Sprite primitive
+ */
 extern void SetSprt16(SPRT_16* p);
+
+/**
+ * @brief Initialize 8x8 sprite primitive
+ *
+ * @param p Sprite primitive
+ */
 extern void SetSprt8(SPRT_8* p);
+
+/**
+ * @brief Set texture window primitive
+ *
+ * @param p Texture window primitive
+ * @param tw Texture window rectangle
+ */
 extern void SetTexWindow(DR_TWIN* p, RECT* tw);
+
+/**
+ * @brief Initialize tile primitive
+ *
+ * @param p Tile primitive
+ */
 extern void SetTile(TILE* p);
+
+/**
+ * @brief Initialize 1x1 tile primitive
+ *
+ * @param p Tile primitive
+ */
 extern void SetTile1(TILE_1* p);
+
+/**
+ * @brief Initialize 16x16 tile primitive
+ *
+ * @param p Tile primitive
+ */
 extern void SetTile16(TILE_16* p);
+
+/**
+ * @brief Initialize 8x8 tile primitive
+ *
+ * @param p Tile primitive
+ */
 extern void SetTile8(TILE_8* p);
+
+/**
+ * @brief Terminate primitive list
+ *
+ * @param p Primitive
+ */
 extern void TermPrim(void* p);
+
+/**
+ * @brief Reset graphics system
+ *
+ * @param mode Reset mode (0: complete reset, 1: cancels only reset of drawing
+ * engine, 3: reset without video mode change)
+ * @return Previous video mode
+ */
 extern int ResetGraph(int mode);
+
+/**
+ * @brief Set graphics debug level
+ *
+ * @param level Debug level
+ * @return Previous debug level
+ */
 int SetGraphDebug(int level);
+
+/**
+ * @brief Set graphics reverse mode
+ *
+ * @param mode Reverse mode
+ * @return Previous mode
+ */
 extern int SetGraphReverse(int mode);
+
+/**
+ * @brief Set graphics queue mode
+ *
+ * @param mode Queue mode
+ * @return Previous mode
+ */
 extern int SetGraphQueue(int mode);
+
+/**
+ * @brief Set drawing completion callback
+ *
+ * @param func Callback function
+ * @return Previous callback function
+ */
 extern u_long DrawSyncCallback(void (*func)());
-extern void FntLoad(int tx, int ty);
+
+/**
+ * @brief Print formatted text to debug font stream
+ *
+ * @param fmt Format string
+ * @return Number of characters printed
+ */
 int FntPrint(const char* fmt, ...);
-extern void SetDispMask(int mask);
-extern void SetDrawMode(DR_MODE* p, int dfe, int dtd, int tpage, RECT* tw);
-extern void SetDumpFnt(int id);
+
+/**
+ * @brief Check primitive validity
+ *
+ * @param s Debug message string
+ * @param p Primitive
+ * @return 1 if valid, 0 if invalid
+ */
 extern int CheckPrim(char* s, OT_TYPE* p);
+
+/**
+ * @brief Clear frame buffer rectangle
+ *
+ * @param rect Rectangle area
+ * @param r Red component
+ * @param g Green component
+ * @param b Blue component
+ * @return 1 on success
+ */
 extern int ClearImage(RECT* rect, u_char r, u_char g, u_char b);
+
+/**
+ * @brief Wait for drawing to finish
+ *
+ * @param mode 0: wait for completion, 1: return immediately
+ * @return 0 if drawing complete, positive if drawing in progress
+ */
 extern int DrawSync(int mode);
+
+/**
+ * @brief Open debug font stream
+ *
+ * @param x X position
+ * @param y Y position
+ * @param w Width
+ * @param h Height
+ * @param isbg Background clear flag
+ * @param n Maximum characters
+ * @return Stream ID, or -1 on error
+ */
 extern int FntOpen(int x, int y, int w, int h, int isbg, int n);
+
+/**
+ * @brief Get graphics debug level
+ *
+ * @return Current debug level
+ */
 extern int GetGraphDebug(void);
+
+/**
+ * @brief Flush debug font stream
+ *
+ * @param id Stream ID
+ * @return Pointer to primitive, or NULL if buffer empty
+ */
 extern u_long* FntFlush(int id);
+
+/**
+ * @brief Open kanji font stream
+ *
+ * @param x X position
+ * @param y Y position
+ * @param w Width
+ * @param h Height
+ * @param dx Character width
+ * @param dy Character height
+ * @param cx Columns
+ * @param cy Rows
+ * @param isbg Background clear flag
+ * @param n Maximum characters
+ * @return Stream ID, or -1 on error
+ */
 extern int KanjiFntOpen(int x, int y, int w, int h, int dx, int dy, int cx,
                         int cy, int isbg, int n);
+
+/**
+ * @brief Load image from memory to frame buffer
+ *
+ * @param rect Destination rectangle in frame buffer
+ * @param p Pointer to image data
+ * @return 1 on success
+ */
 extern int LoadImage(RECT* rect, u_long* p);
+
+/**
+ * @brief Merge primitive lists
+ *
+ * @param p0 First primitive list
+ * @param p1 Second primitive list
+ * @return 1 on success
+ */
 extern int MargePrim(void* p0, void* p1);
+
+/**
+ * @brief Store image from frame buffer to memory
+ *
+ * @param rect Source rectangle in frame buffer
+ * @param p Pointer to destination buffer
+ * @return 1 on success
+ */
 extern int StoreImage(RECT* rect, u_long* p);
+
+/**
+ * @brief Move image within frame buffer
+ *
+ * @param rect Source rectangle
+ * @param x Destination X coordinate
+ * @param y Destination Y coordinate
+ * @return 1 on success
+ */
 extern int MoveImage(RECT* rect, int x, int y);
+
+/**
+ * @brief Open TIM image file
+ *
+ * @param addr Pointer to TIM data
+ * @return 0 on success, -1 on error
+ */
 extern int OpenTIM(u_long* addr);
+
+/**
+ * @brief Clear ordering table
+ *
+ * @param ot Pointer to ordering table
+ * @param n Number of entries
+ * @return Pointer to ordering table
+ */
 extern OT_TYPE* ClearOTag(OT_TYPE* ot, int n);
+
+/**
+ * @brief Clear ordering table in reverse
+ *
+ * @param ot Pointer to ordering table
+ * @param n Number of entries
+ * @return Pointer to ordering table
+ */
 extern OT_TYPE* ClearOTagR(OT_TYPE* ot, int n);
+
+/**
+ * @brief Set drawing environment
+ *
+ * @param env Drawing environment
+ * @return Pointer to drawing environment
+ */
 extern DRAWENV* PutDrawEnv(DRAWENV* env);
+
+/**
+ * @brief Set display environment
+ *
+ * @param env Display environment
+ * @return Pointer to display environment
+ */
 extern DISPENV* PutDispEnv(DISPENV* env);
+
+/**
+ * @brief Set default display environment
+ *
+ * @param env Display environment
+ * @param x X position
+ * @param y Y position
+ * @param w Width
+ * @param h Height
+ * @return Pointer to display environment
+ */
 extern DISPENV* SetDefDispEnv(DISPENV* env, int x, int y, int w, int h);
+
+/**
+ * @brief Set default drawing environment
+ *
+ * @param env Drawing environment
+ * @param x X position
+ * @param y Y position
+ * @param w Width
+ * @param h Height
+ * @return Pointer to drawing environment
+ */
 extern DRAWENV* SetDefDrawEnv(DRAWENV* env, int x, int y, int w, int h);
+
+/**
+ * @brief Read TIM image
+ *
+ * @param timimg TIM image structure
+ * @return Pointer to TIM image structure
+ */
 extern TIM_IMAGE* ReadTIM(TIM_IMAGE* timimg);
+
+/**
+ * @brief Interrupt drawing
+ *
+ * Interrupts drawing after the current polygon is drawn. The return value is
+ * the next drawing entry; to resume drawing, pass this value to DrawOTag().
+ *
+ * @return Next polygon drawing entry (0xffffffff during DMA transfer)
+ */
+extern u_long* BreakDraw(void);
+
+/**
+ * @brief Continue drawing interrupted OT
+ *
+ * Continue to draw the OT interrupted by BreakDraw(). Immediately executes the
+ * OT supplied by inst_ot without entering it in the libgpu queue.
+ *
+ * @param inst_ot OT to execute immediately
+ * @param cont_ot OT to draw after inst_ot completes
+ */
+extern void ContinueDraw(u_long* inst_ot, u_long* cont_ot);
+
+/**
+ * @brief Draw ordering table without queueing
+ *
+ * Immediately executes an OT without queueing. When drawing is suspended with
+ * BreakDraw() after DrawOTag2() is called, confirm completion of data transfer
+ * using IsIdleGPU() before restarting with ContinueDraw().
+ *
+ * @param p Pointer to ordering table
+ */
+extern void DrawOTag2(u_long* p);
+
+/**
+ * @brief Check if drawing suspended by BreakDraw() was completed
+ *
+ * When drawing is suspended by BreakDraw(), the GPU doesn't stop until drawing
+ * of the current primitive is completed. This function checks whether the
+ * drawing suspended by BreakDraw() has completed.
+ *
+ * @param maxcount Number of times to check for idle before returning
+ * @return 0 if GPU is idle, 1 if still busy
+ */
+extern int IsIdleGPU(int maxcount);
+
+/**
+ * @brief Get display environment
+ *
+ * @param env Display environment to receive current settings
+ * @return Pointer to display environment
+ */
+extern DISPENV* GetDispEnv(DISPENV* env);
+
+/**
+ * @brief Get drawing environment
+ *
+ * @param env Drawing environment to receive current settings
+ * @return Pointer to drawing environment
+ */
+extern DRAWENV* GetDrawEnv(DRAWENV* env);
+
+/**
+ * @brief Get drawing environment (alternative)
+ *
+ * @param env Drawing environment to receive current settings
+ * @return Pointer to drawing environment
+ */
+extern DRAWENV* GetDrawEnv2(DRAWENV* env);
+
+/**
+ * @brief Get current drawing area
+ *
+ * @param area Rectangle to receive current drawing area
+ * @return Pointer to rectangle
+ */
+extern RECT* GetDrawArea(RECT* area);
+
+/**
+ * @brief Get current drawing mode
+ *
+ * @param dfe Pointer to receive drawing to display area flag
+ * @param dtd Pointer to receive dithering flag
+ * @param tpage Pointer to receive texture page
+ * @param tw Pointer to receive texture window
+ */
+extern void GetDrawMode(int* dfe, int* dtd, int* tpage, RECT* tw);
+
+/**
+ * @brief Get current drawing offset
+ *
+ * @param ofs Array to receive offset values [X, Y]
+ */
+extern void GetDrawOffset(u_short* ofs);
+
+/**
+ * @brief Get texture window settings
+ *
+ * @param tw Rectangle to receive texture window settings
+ * @return Pointer to rectangle
+ */
+extern RECT* GetTexWindow(RECT* tw);
+
+/**
+ * @brief Get ordering table draw enable flag
+ *
+ * @return ODE flag value
+ */
+extern int GetODE(void);
+
+/**
+ * @brief Get TIM image size
+ *
+ * @param addr Pointer to TIM data
+ * @return Size of TIM image in bytes
+ */
+extern int GetTimSize(u_long* addr);
+
+/**
+ * @brief Clear frame buffer rectangle (alternative)
+ *
+ * @param rect Rectangle area
+ * @param r Red component
+ * @param g Green component
+ * @param b Blue component
+ * @return 1 on success
+ */
+extern int ClearImage2(RECT* rect, u_char r, u_char g, u_char b);
+
+/**
+ * @brief Load image from memory to frame buffer (non-blocking)
+ *
+ * Non-blocking version of LoadImage(). Use IsIdleGPU() to check completion.
+ *
+ * @param rect Destination rectangle in frame buffer
+ * @param p Pointer to image data
+ * @return 1 on success
+ */
+extern int LoadImage2(RECT* rect, u_long* p);
+
+/**
+ * @brief Store image from frame buffer to memory (non-blocking)
+ *
+ * Non-blocking version of StoreImage(). Use IsIdleGPU() to check completion.
+ *
+ * @param rect Source rectangle in frame buffer
+ * @param p Pointer to destination buffer
+ * @return 1 on success
+ */
+extern int StoreImage2(RECT* rect, u_long* p);
+
+/**
+ * @brief Move image within frame buffer (non-blocking)
+ *
+ * Non-blocking version of MoveImage(). Use IsIdleGPU() to check completion.
+ *
+ * @param rect Source rectangle
+ * @param x Destination X coordinate
+ * @param y Destination Y coordinate
+ * @return 1 on success
+ */
+extern int MoveImage2(RECT* rect, int x, int y);
+
+/**
+ * @brief Set STP bit primitive
+ *
+ * @param p STP primitive
+ * @param stp STP bit value
+ */
+extern void SetDrawStp(DR_STP* p, int stp);
+
+/**
+ * @brief Close kanji font stream
+ *
+ * @param id Stream ID
+ */
+extern void KanjiFntClose(int id);
+
+/**
+ * @brief Flush kanji font stream
+ *
+ * @param id Stream ID
+ * @return Pointer to primitive, or NULL if buffer empty
+ */
+extern u_long* KanjiFntFlush(int id);
+
+/**
+ * @brief Print formatted kanji text to font stream
+ *
+ * @param id Stream ID
+ * @param fmt Format string
+ * @return Number of characters printed
+ */
+extern int KanjiFntPrint(int id, const char* fmt, ...);
+
+/**
+ * @brief Convert KROM font to TIM format
+ *
+ * @param sjis Shift-JIS character code
+ * @param tim Pointer to TIM image structure
+ * @return Pointer to TIM image structure
+ */
+extern TIM_IMAGE* Krom2Tim(u_short sjis, TIM_IMAGE* tim);
+
+/**
+ * @brief Open TMD file
+ *
+ * @param addr Pointer to TMD data
+ * @param obj_no Object number
+ * @return The number of polygons comprising the object as a positive integer;
+ * on failure, returns 0.
+ */
+extern long OpenTMD(u_long* addr, long obj_no);
+
+/**
+ * @brief Read TMD file
+ *
+ * @param addr Pointer to TMD data
+ * @return tmdprim if successful; 0 on failure.
+ */
+extern int ReadTMD(u_long* addr);
 
 #endif

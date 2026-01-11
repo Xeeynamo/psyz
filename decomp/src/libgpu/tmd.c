@@ -45,7 +45,7 @@ TIM_IMAGE* ReadTIM(TIM_IMAGE* timimg) {
     return timimg;
 }
 
-int OpenTMD(u_long* tmd, int obj_no) {
+long OpenTMD(u_long* tmd, long obj_no) {
     u_long len = get_tmd_addr((TMD*)tmd, obj_no, &t_prim, &v_ofs, &n_ofs);
     n_prim = len;
     return len;

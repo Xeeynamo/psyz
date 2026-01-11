@@ -2,18 +2,18 @@
 #include <libpress.h>
 #include <log.h>
 
-void DecDCTReset(long mode) { NOT_IMPLEMENTED; }
+void DecDCTReset(int mode) { NOT_IMPLEMENTED; }
 
 void DecDCTin(unsigned long* buf, long mode) { NOT_IMPLEMENTED; }
 
 void DecDCTout(unsigned long* buf, long size) { NOT_IMPLEMENTED; }
 
-void (*DecDCTinCallback(void (*func)()))(void) {
+DecDCCb DecDCTinCallback(DecDCCb func) {
     NOT_IMPLEMENTED;
     return NULL;
 }
 
-void (*DecDCToutCallback(void (*func)()))(void) {
+DecDCCb DecDCToutCallback(DecDCCb func) {
     NOT_IMPLEMENTED;
     return NULL;
 }

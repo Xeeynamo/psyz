@@ -53,6 +53,8 @@ long StopCARD(void);
  *
  * Initializes the Memory Card file system. This file system is not initialized
  * automatically, so it is necessary to call this function.
+ *
+ * This function must be called after InitCARD() and StartCARD().
  */
 void _bu_init(void);
 
@@ -60,10 +62,16 @@ void _bu_init(void);
  * @brief Get card status
  *
  * Tests the connection of the Memory Card specified in chan.
- * When calculating chan, "port number" is 0 for Port 1 and 1 for Port 2. "Card
- * number" is zero when a standard controller is connected, and may be in the
- * range 0-3 if a Multi Tap is connected. This function executes asynchronously,
- * so it returns immediately. Processing completion is communicated by an event.
+ *
+ * When calculating chan, "port number" is 0 for Port 1 and 1 for Port 2.
+ * "Card number" is zero when a standard controller is connected, and may be
+ * in the range 0-3 if a Multi Tap is connected.
+ *
+ * This function executes asynchronously, so it returns immediately. Processing
+ * completion is communicated by an event (SwCARD/EvSpIOE, SwCARD/EvSpTIMOUT,
+ * SwCARD/EvSpNEW, or SwCARD/EvSpERROR).
+ *
+ * Do not use _new_card() to suppress EvSpNEW.
  *
  * @param chan Port number x 16 + Card number
  * @return 1 if registration successful, otherwise 0
@@ -74,11 +82,15 @@ long _card_info(long chan);
  * @brief Clear unconfirmed flags
  *
  * Performs a dummy write to the system management area of the card and clears
- * the card's unconfirmed flags. When calculating chan, "port number" is 0 for
- * Port 1 and 1 for Port 2. "Card number" is zero when a standard controller is
- * connected, and may be in the range 0-3 if a Multi Tap is connected. This
- * function executes asynchronously, so it returns immediately. Processing
- * completion is communicated by an event.
+ * the card's unconfirmed flags.
+ *
+ * When calculating chan, "port number" is 0 for Port 1 and 1 for Port 2.
+ * "Card number" is zero when a standard controller is connected, and may be
+ * in the range 0-3 if a Multi Tap is connected.
+ *
+ * This function executes asynchronously, so it returns immediately. Processing
+ * completion is communicated by an event (HwCARD/EvSpIOE, HwCARD/EvSpTIMOUT,
+ * HwCARD/EvSpNEW, HwCARD/EvSpERROR, or HwCARD/EvSpUNKOWN).
  *
  * @param chan Port number x 16 + Card number
  * @return 1 if registration successful, otherwise 0
@@ -88,15 +100,21 @@ long _card_clear(long chan);
 /**
  * @brief Test logical format
  *
- * Reads file management information for the card specified by chan in the file
- * system in order to get asynchronous access using the I/O management service.
- * When calculating chan, "port number" is 0 for Port 1 and 1 for Port 2. "Card
- * number" is zero when a standard controller is connected, and may be in the
- * range 0-3 if a Multi Tap is connected. _card_load() must be called at least
- * once before you can use open() on a Memory Card file in O_NOWAIT mode. It
- * does not have to be called again unless a card is changed. This function
- * executes asynchronously, so it returns immediately. Processing completion is
- * communicated by an event.
+ * Reads file management information for the card specified by chan in the
+ * file system in order to get asynchronous access using the I/O management
+ * service.
+ *
+ * When calculating chan, "port number" is 0 for Port 1 and 1 for Port 2.
+ * "Card number" is zero when a standard controller is connected, and may be
+ * in the range 0-3 if a Multi Tap is connected.
+ *
+ * _card_load() must be called at least once before you can use open() on a
+ * Memory Card file in O_NOWAIT mode. It does not have to be called again
+ * unless a card is changed.
+ *
+ * This function executes asynchronously, so it returns immediately. Processing
+ * completion is communicated by an event (SwCARD/EvSpIOE, SwCARD/EvSpTIMOUT,
+ * SwCARD/EvSpNEW, or SwCARD/EvSpERROR).
  *
  * @param chan Port number x 16 + Card number
  * @return 1 if the read is successful, otherwise 0
@@ -118,30 +136,41 @@ long _card_auto(long val);
  * @brief Change settings of unconfirmed flag test
  *
  * Masks the generation of an EvSpNEW event immediately after _card_read() or
- * _card_write(). Terminates immediately even though it is a synchronous
- * function.
+ * _card_write().
+ *
+ * Terminates immediately even though it is a synchronous function.
  */
 void _new_card(void);
 
 /**
  * @brief Get Memory Card BIOS status
  *
- * Gets the Memory Card BIOS status of each slot, drv. Specify drv as 0 for Port
- * 1, 1 for Port 2. This is a synchronous function.
+ * Gets the Memory Card BIOS status of each slot, drv. Specify drv as 0 for
+ * Port 1, 1 for Port 2.
  *
- * @param drv Port number
- * @return If the Memory Card BIOS is in run state, it can return various state
- * values
+ * This is a synchronous function.
+ *
+ * If the Memory Card BIOS is in run state, it can return any of the following
+ * values:
+ * - 0x01: Idle processing
+ * - 0x02: READ processing
+ * - 0x04: WRITE processing
+ * - 0x08: Connection test processing registration
+ * - 0x11: No registered processing (just prior to EvSpTIMOUT generation)
+ * - 0x21: No registered processing (just prior to EvSpERROR generation)
+ *
+ * @param drv Port number (0: Port 1, 1: Port 2)
+ * @return Memory Card BIOS status value
  */
 long _card_status(long drv);
 
 /**
  * @brief Wait for Memory Card BIOS completion
  *
- * Wait until registration processing completes for the drv slot. Specify drv as
- * 0 for Port 1, 1 for Port 2.
+ * Wait until registration processing completes for the drv slot. Specify drv
+ * as 0 for Port 1, 1 for Port 2.
  *
- * @param drv Sets slot number
+ * @param drv Sets slot number (0: Port 1, 1: Port 2)
  * @return Always 1
  */
 long _card_wait(long drv);
@@ -159,12 +188,20 @@ unsigned long _card_chan(void);
  * @brief Write to one block of the Memory Card (for testing only)
  *
  * Writes 128 bytes of buffer data pointed to by buf to the target block number
- * (block) of the Memory Card of the specified channel (chan). When calculating
- * chan, "port number" is 0 for Port 1 and 1 for Port 2. "Card number" is zero
- * when a standard controller is connected, and may be in the range 0-3 if a
- * Multi Tap is connected. This function executes asynchronously, so it returns
- * immediately. Actual processing termination is communicated by an event. This
- * is a low-level function that should be used for testing only.
+ * (block) of the Memory Card of the specified channel (chan).
+ *
+ * When calculating chan, "port number" is 0 for Port 1 and 1 for Port 2.
+ * "Card number" is zero when a standard controller is connected, and may be
+ * in the range 0-3 if a Multi Tap is connected.
+ *
+ * This function executes asynchronously, so it returns immediately. Actual
+ * processing termination is communicated by an event (HwCARD/EvSpIOE,
+ * HwCARD/EvSpTIMOUT, HwCARD/EvSpNEW, HwCARD/EvSpERROR, or HwCARD/EvSpUNKOWN).
+ * Multiplex processing to the same card slot can't be performed.
+ *
+ * This is a low-level function that should be used for testing only. It
+ * bypasses the memory card file system; therefore, in a released product,
+ * use the C file-handling routines such as write().
  *
  * @param chan Port number x 16 + card number
  * @param block Target block number
@@ -177,13 +214,20 @@ long _card_write(long chan, long block, unsigned char* buf);
  * @brief Read one block from the Memory Card
  *
  * Reads 128 bytes of buffer data into buf from the target block number (block)
- * of the Memory Card of the specified channel (chan). When calculating chan,
- * "port number" is 0 for Port 1 and 1 for Port 2. "Card number" is zero when a
- * standard controller is connected, and may be in the range 0-3 if a Multi Tap
- * is connected. This function executes asynchronously so it returns immediately
- * after completion. Actual processing termination is communicated by an event.
- * This function exists within the low-level interface and is one of the special
- * functions used for testing.
+ * of the Memory Card of the specified channel (chan).
+ *
+ * When calculating chan, "port number" is 0 for Port 1 and 1 for Port 2.
+ * "Card number" is zero when a standard controller is connected, and may be
+ * in the range 0-3 if a Multi Tap is connected.
+ *
+ * This function executes asynchronously so it returns immediately after
+ * completion. Actual processing termination is communicated by an event
+ * (HwCARD/EvSpIOE, HwCARD/EvSpTIMOUT, HwCARD/EvSpNEW, HwCARD/EvSpERROR, or
+ * HwCARD/EvSpUNKOWN). Multiplex processing to the same card slot can't be
+ * performed.
+ *
+ * This function exists within the low-level interface and is one of the
+ * special functions used for testing.
  *
  * @param chan Port number x 16 + card number
  * @param block Target block number
@@ -195,11 +239,12 @@ long _card_read(long chan, long block, unsigned char* buf);
 /**
  * @brief Format the Memory Card
  *
- * Formats the Memory Card. When calculating chan, "port number" is 0 for Port 1
- * and 1 for Port 2. "Card number" is zero when a standard controller is
- * connected, and may be in the range 0-3 if a Multi Tap is connected. Does not
- * enter critical section. Synchronous functions are blocked for approximately
- * 144 Vsync.
+ * Formats the Memory Card. When calculating chan, "port number" is 0 for
+ * Port 1 and 1 for Port 2. "Card number" is zero when a standard controller
+ * is connected, and may be in the range 0-3 if a Multi Tap is connected.
+ *
+ * Does not enter critical section. Synchronous functions are blocked for
+ * approximately 144 Vsync.
  *
  * @param chan Port number x 16 + Card number
  * @return 1 if formatting is successful, otherwise 0

@@ -1,4 +1,4 @@
 #include <common.h>
-#include <libcard.h>
+#include <libapi.h>
 
 INCLUDE_ASM("asm/nonmatchings/libcard/a88", _card_chan);

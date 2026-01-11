@@ -3,81 +3,25 @@
 #include <types.h>
 
 /**
- * @brief Time-code based CD-ROM disc position
+ * @file libcd.h
+ * @brief CD-ROM Library
  *
- * Defines a time-code position on a CD-ROM, based on the time needed to reach
- * that position when playing the disc from the beginning at normal speed. The
- * track member is not used at present.
- */
-typedef struct {
-    u_char minute; /**< Minute */
-    u_char second; /**< Second */
-    u_char sector; /**< Sector */
-    u_char track;  /**< Track number */
-} CdlLOC;
-
-/**
- * @brief Audio attenuation structure
+ * This library provides low-level control of the PlayStation CD-ROM drive,
+ * including disc reading, audio playback, and file system access.
  *
- * Sets CD audio volume (consisting of CD-DA audio and CD-XA audio).
- * Val0 - val3 can range from 0 (minimum volume) to 128 (maximum volume).
- * For adjusting normal stereo volume, set the L channel volume in val0 and the
- * R channel volume in val2. Val1 and val3 should be set to 0.
+ * Key features:
+ * - CD-ROM primitive commands (play, read, seek, pause)
+ * - CD-DA and CD-XA audio playback
+ * - File system access with CdSearchFile()
+ * - Asynchronous command execution
+ * - Callback support for completion and ready events
+ * - Audio volume control (CD-DA and CD-XA)
  */
-typedef struct {
-    u_char val0; /**< CD (L) --> SPU (L) */
-    u_char val1; /**< CD (L) --> SPU (R) (CD left sound transferred to right) */
-    u_char val2; /**< CD (R) --> SPU (R) */
-    u_char val3; /**< CD (R) --> SPU (L) (CD right sound transferred to left) */
-} CdlATV;
-
-/**
- * @brief ADPCM channel
- *
- * Defines a multi-channel ADPCM play channel. Use CdlSetfilter command of
- * CdControl() to set.
- */
-typedef struct {
-    u_char file; /**< File ID */
-    u_char chan; /**< Channel ID */
-    u_short pad; /**< System reserved */
-} CdlFILTER;
-
-/**
- * @brief Sector header
- *
- * Movie sector header. If a header obtained with StGetNext() is written to this
- * structure, the data can be accessed through the structure members.
- */
-typedef struct {
-    u_short id;        /**< Reserved by system */
-    u_short type;      /**< Data type (always 0x0160) */
-    u_short secCount;  /**< Sector offset within 1 frame */
-    u_short nSectors;  /**< Number of sectors comprising one frame */
-    u_long frameCount; /**< Movie absolute frame number */
-    u_long frameSize;  /**< Movie data size (in long words) */
-    u_short width;     /**< Movie horizontal size */
-    u_short height;    /**< Movie vertical size */
-    u_long dummy1;     /**< Reserved by system */
-    u_long dummy2;     /**< Reserved by system */
-    CdlLOC loc;        /**< File location */
-} StHEADER;
-
-/**
- * @brief ISO-9660 file system file descriptor
- *
- * Position and size of ISO-9660 CD-ROM file.
- */
-typedef struct {
-    CdlLOC pos;    /**< File location */
-    u_long size;   /**< File size */
-    char name[16]; /**< File name (body) */
-} CdlFILE;
 
 /* Low Level File System for CdSearchFile() */
-#define CdlMAXFILE 64 /**< Max number of files in a directory */
-#define CdlMAXDIR 128 /**< Max number of total directories */
-#define CdlMAXLEVEL 8 /**< Max levels of directories */
+#define CdlMAXFILE 64 /* max number of files in a directory */
+#define CdlMAXDIR 128 /* max number of total directories */
+#define CdlMAXLEVEL 8 /* max levels of directories */
 
 /*
  * CD-ROM Primitive Commands
@@ -126,23 +70,85 @@ typedef struct {
 /*
  * Status Contents
  */
-#define CdlStatPlay 0x80      /**< Playing CD-DA */
-#define CdlStatSeek 0x40      /**< Seeking */
-#define CdlStatRead 0x20      /**< Reading data sectors */
-#define CdlStatShellOpen 0x10 /**< Once shell open */
-#define CdlStatSeekError 0x04 /**< Seek error detected */
-#define CdlStatStandby 0x02   /**< Spindle motor rotating */
-#define CdlStatError 0x01     /**< Command error detected */
+#define CdlStatPlay 0x80      /* playing CD-DA */
+#define CdlStatSeek 0x40      /* seeking */
+#define CdlStatRead 0x20      /* reading data sectors */
+#define CdlStatShellOpen 0x10 /* once shell open */
+#define CdlStatSeekError 0x04 /* seek error detected */
+#define CdlStatStandby 0x02   /* spindle motor rotating */
+#define CdlStatError 0x01     /* command error detected */
 
 /*
  * Interrupts
  */
-#define CdlNoIntr 0x00      /**< No interrupt */
-#define CdlDataReady 0x01   /**< Data Ready */
-#define CdlComplete 0x02    /**< Command Complete */
-#define CdlAcknowledge 0x03 /**< Acknowledge (reserved) */
-#define CdlDataEnd 0x04     /**< End of Data Detected */
-#define CdlDiskError 0x05   /**< Error Detected */
+#define CdlNoIntr 0x00      /* No interrupt */
+#define CdlDataReady 0x01   /* Data Ready */
+#define CdlComplete 0x02    /* Command Complete */
+#define CdlAcknowledge 0x03 /* Acknowledge (reserved) */
+#define CdlDataEnd 0x04     /* End of Data Detected */
+#define CdlDiskError 0x05   /* Error Detected */
+
+/**
+ * @brief Time-code based CD-ROM disc position
+ *
+ * Defines a time-code position on a CD-ROM, based on the time needed to reach
+ * that position when playing the disc from the beginning at normal speed. The
+ * track member is not used at present.
+ */
+typedef struct {
+    u_char minute;
+    u_char second;
+    u_char sector;
+    u_char track;
+} CdlLOC;
+
+/**
+ * @brief Audio attenuation structure
+ *
+ * Sets CD audio volume (consisting of CD-DA audio and CD-XA audio).
+ * Val0 - val3 can range from 0 (minimum volume) to 128 (maximum volume).
+ * For adjusting normal stereo volume, set the L channel volume in val0 and the
+ * R channel volume in val2. Val1 and val3 should be set to 0.
+ */
+typedef struct {
+    u_char val0; /* volume for CD(L) -> SPU (L) */
+    u_char val1; /* volume for CD(L) -> SPU (R) */
+    u_char val2; /* volume for CD(R) -> SPU (L) */
+    u_char val3; /* volume for CD(R) -> SPU (R) */
+} CdlATV;
+
+/**
+ * @brief CD-ROM file and channel filter
+ *
+ * Used with CdlSetfilter command to filter sectors by file number and/or
+ * channel number during CD-XA streaming.
+ */
+typedef struct {
+    u_char file; /**< File number (0-31, 0xff = no filter) */
+    u_char chan; /**< Channel number (0-31, 0xff = no filter) */
+    u_short pad; /**< Padding */
+} CdlFILTER;
+
+typedef struct {
+    u_short id;
+    u_short type;
+    u_short secCount;
+    u_short nSectors;
+    u_long frameCount;
+    u_long frameSize;
+
+    u_short width;
+    u_short height;
+    u_long dummy1;
+    u_long dummy2;
+    CdlLOC loc;
+} StHEADER;
+
+typedef struct {
+    CdlLOC pos;    /* file location */
+    u_long size;   /* file size */
+    char name[16]; /* file name (body) */
+} CdlFILE;
 
 /**
  * @brief CD-ROM callback function type
