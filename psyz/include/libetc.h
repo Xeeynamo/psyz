@@ -1,7 +1,6 @@
 #ifndef LIBETC_H
 #define LIBETC_H
-
-#include <types.h>
+#include <psyz.h>
 
 extern int PadIdentifier;
 

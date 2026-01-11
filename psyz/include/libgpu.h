@@ -1,6 +1,6 @@
 #ifndef LIBGPU_H
 #define LIBGPU_H
-#include <types.h>
+#include <psyz.h>
 
 #ifdef __psyz
 extern int (*GPU_printf)(const char* fmt, ...);
