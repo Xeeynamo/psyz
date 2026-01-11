@@ -37,4 +37,4 @@ long SpuSetTransferMode(long mode) {
     return 0;
 }
 
-void SpuSetKey(long on_off, unsigned long voice_bit) { NOT_IMPLEMENTED; }
+void SpuSetKey(long on_off, u_long voice_bit) { NOT_IMPLEMENTED; }

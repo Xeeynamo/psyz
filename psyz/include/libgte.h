@@ -1,5 +1,6 @@
 #ifndef LIBGTE_H
 #define LIBGTE_H
+#include <psyz.h>
 
 /**
  * @file libgte.h

@@ -1,5 +1,4 @@
-#include "psyz.h"
-
+#include <psyz.h>
 #include <assert.h>
 #include <math.h>
 #include <stdbool.h>

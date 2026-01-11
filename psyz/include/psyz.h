@@ -59,8 +59,6 @@ long psyz_ioctl(long fd, long com, long arg);
 #define CLAMP(x, min, max) x < min ? min : (x > max ? max : x)
 
 
-#endif
-
 struct PsyzDiskRead {
     // disk sector, can be used as a unique file identifier
     unsigned int sector;
@@ -128,3 +126,5 @@ int Psyz_SetVsyncMode(Psyz_VsyncMode mode);
 // Get frame timing statistics
 // Returns: 0 on success, -1 if stats is NULL or platform not initialized
 int Psyz_GetGpuStats(Psyz_GpuStats* stats);
+
+#endif
