@@ -4,7 +4,7 @@
 
 void SpuSetVoiceAttr(SpuVoiceAttr* arg) { DEBUGF("SpuSetVoiceAttr"); }
 
-long SpuMallocWithStartAddr(unsigned long addr, long size) {
+long SpuMallocWithStartAddr(u_long addr, long size) {
     NOT_IMPLEMENTED;
     return -1;
 }
@@ -24,6 +24,6 @@ long SpuClearReverbWorkArea(long rev_mode) {
     return 0;
 }
 
-void SpuSetKey(long on_off, unsigned long voice_bit) {
+void SpuSetKey(long on_off, u_long voice_bit) {
     DEBUGF("on_off %d voice_bit %08X", on_off, voice_bit);
 }

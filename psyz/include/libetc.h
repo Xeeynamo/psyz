@@ -1,11 +1,29 @@
 #ifndef LIBETC_H
 #define LIBETC_H
 
+/**
+ * @file libetc.h
+ * @brief Utility Library
+ *
+ * This library provides various utility functions for system control,
+ * video mode management, controller input, and debugging support.
+ *
+ * Key features:
+ * - VSync and timing control
+ * - Video mode switching (NTSC/PAL)
+ * - Controller/PAD input reading
+ * - Callback management (VSync, DMA, Reset, Stop)
+ * - Debug font and print functions
+ * - BIOS call access
+ * - System information retrieval
+ */
+
 #include <types.h>
 
 extern int PadIdentifier;
-
-/* PAD I/O (SIO Pad) button definitions */
+/*
+ * PAD I/O (SIO Pad)
+ */
 #define PADLup (1 << 12)    /**< D-Pad Up */
 #define PADLdown (1 << 14)  /**< D-Pad Down */
 #define PADLleft (1 << 15)  /**< D-Pad Left */
@@ -55,368 +73,486 @@ struct Callbacks {
 extern u16 D_8002C2BA;
 extern struct Callbacks* D_8002D340;
 
-/* V-Sync functions */
+/*
+ * VSync and timing functions
+ */
 
 /**
- * @brief Wait for vertical sync
+ * @brief Synchronize with vertical blank.
  *
- * @param mode Wait mode
- * @return Number of V-syncs
+ * Waits for vertical blank synchronization based on the mode parameter.
+ *
+ * @param mode Synchronization mode:
+ *             - 0: Wait for next vertical blank
+ *             - Negative: Return immediately (non-blocking)
+ *             - Positive: Wait for specified number of vertical blanks
+ * @return Number of vertical blanks since last call
  */
 int VSync(int mode);
 
 /**
- * @brief Set V-sync callback
+ * @brief Register a VSync callback function.
  *
- * @param f Callback function
- * @return Previous callback
+ * Registers a callback function to be executed at vertical blank interrupt.
+ * This is equivalent to VSyncCallbacks(0, f).
+ *
+ * @param f Pointer to callback function (NULL to unregister)
+ * @return Previous callback function pointer
  */
 int VSyncCallback(void (*f)());
 
 /**
- * @brief Set V-sync callbacks
+ * @brief Register VSync callback for specific channel.
  *
- * @param ch Channel
- * @param f Callback function
- * @return Status
+ * Registers a callback function to be executed at vertical blank interrupt
+ * on a specific channel. Multiple channels allow multiple callbacks.
+ *
+ * @param ch Channel number (0-3)
+ * @param f Pointer to callback function (NULL to unregister)
+ * @return Previous callback function pointer for the channel
  */
 int VSyncCallbacks(int ch, void (*f)());
 
-/* DMA and system callbacks */
+/*
+ * Callback management
+ */
 
 /**
- * @brief Set DMA callback
+ * @brief Register DMA callback function.
  *
- * @param dma DMA channel
- * @param func Callback function
- * @return Previous callback
+ * Registers a callback function for DMA channel interrupts.
+ *
+ * @param dma DMA channel number
+ * @param func Pointer to callback function (NULL to unregister)
+ * @return Previous callback function pointer
  */
 void* DMACallback(int dma, void (*func)());
 
 /**
- * @brief Reset callback
+ * @brief Initialize all callbacks.
  *
- * @return Status
+ * Initializes all system callbacks, setting all callback functions to
+ * unregistered and setting up the interrupt context stack. Must be called
+ * after program boot before any other processing.
+ *
+ * The environment remains valid until StopCallback() is called.
+ * Subsequent calls to ResetCallback() are ignored.
  */
 int ResetCallback(void);
 
 /**
- * @brief Stop callback
+ * @brief Stop all callbacks.
  *
- * @return Status
+ * Stops all system callbacks. Should be called before terminating programs
+ * to disable all interrupts.
  */
 int StopCallback(void);
 
 /**
- * @brief Restart callback
+ * @brief Restart a halted callback.
  *
- * @return Status
+ * Restores the halted callback to the status immediately prior to when it
+ * was halted. Unlike ResetCallback(), this does not initialize callback
+ * functions or the callback stack. ResetCallback() must be executed before
+ * calling RestartCallback().
+ *
+ * @return Used by system only
  */
 int RestartCallback(void);
 
 /**
- * @brief Check callback status
+ * @brief Determine callback execution context.
  *
- * Checks the callback status.
+ * Determines whether the program is currently executing in callback context
+ * or normal context.
  *
- * @return Callback status flags
+ * @return 0: normal context; 1: callback context
  */
 u16 CheckCallback(void);
 
-/* Video mode functions */
+/*
+ * Video mode functions
+ */
 
 /**
- * @brief Get current video mode
+ * @brief Get present video signaling system.
  *
- * Returns the current video mode (NTSC or PAL).
+ * Returns the video signaling system set by SetVideoMode(). If SetVideoMode()
+ * wasn't called, returns MODE_NTSC regardless of the actual machine type.
  *
- * @return MODE_NTSC or MODE_PAL
+ * @return Video signaling system mode (MODE_NTSC or MODE_PAL)
  */
 long GetVideoMode(void);
 
 /**
- * @brief Set video mode
+ * @brief Declare current video signaling system.
  *
- * Sets the video mode to NTSC or PAL.
+ * Declares the video signaling system to the libraries. Related libraries
+ * will conform to the declared video signaling system environment.
+ * Should be called before all library functions.
  *
- * @param mode MODE_NTSC or MODE_PAL
- * @return Previous video mode
+ * @param mode Video signaling system mode (MODE_NTSC or MODE_PAL)
+ * @return Previously-set video signaling system mode
  */
 long SetVideoMode(long mode);
 
-/* Controller/PAD functions */
+/*
+ * PAD/Controller functions - Basic (for prototyping only)
+ */
 
 /**
- * @brief Initialize controller
+ * @brief Initialize a controller (for prototyping only).
  *
- * Initializes the controller subsystem.
+ * Initializes the controller. Since this function supports only the 16-button
+ * controller, it should be used for prototyping purposes only.
  *
- * @param mode Initialization mode
+ * @param mode Always pass 0
  */
 void PadInit(int mode);
 
 /**
- * @brief Initialize controller (direct mode)
+ * @brief Read data from the controller (for prototyping only).
  *
- * Initializes the controller in direct mode.
+ * Reads data from the controller. This function is for prototyping purposes
+ * only.
  *
- * @param buf1 Buffer for port 1
- * @param buf2 Buffer for port 2
- * @return Status
- */
-long PadInitDirect(u_char* buf1, u_char* buf2);
-
-/**
- * @brief Initialize Multi Tap
- *
- * Initializes the Multi Tap adapter.
- *
- * @param buf1 Buffer for port 1
- * @param buf2 Buffer for port 2
- * @return Status
- */
-long PadInitMtap(u_char* buf1, u_char* buf2);
-
-/**
- * @brief Initialize gun controller
- *
- * Initializes the gun controller.
- *
- * @param buf Buffer for gun data
- * @param size Buffer size
- * @return Status
- */
-long PadInitGun(u_char* buf, int size);
-
-/**
- * @brief Read controller state
- *
- * Reads the current state of the controller.
- *
- * @param id Controller ID
- * @return Button state flags
+ * @param id Controller ID (unused)
+ * @return Controller button status. High 2 bytes are pad 2, low 2 bytes are
+ * pad 1.
  */
 u_long PadRead(int id);
 
 /**
- * @brief Stop controller
+ * @brief Halt controller (for prototyping only).
  *
- * Stops the controller subsystem.
+ * Halts all currently connected controllers. Must be called when processing is
+ * complete to halt the controller driver. For prototyping purposes only.
  */
 void PadStop(void);
 
-/**
- * @brief Get controller state
- *
- * Gets the state of the specified controller.
- *
- * @param id Controller ID
- * @return Controller state
+/*
+ * PAD/Controller functions - Advanced (libpad)
  */
-long PadGetState(int id);
 
 /**
- * @brief Set controller actuation
+ * @brief Initialize controller environment (for direct connection).
  *
- * Sets the actuation (vibration) for DUAL SHOCK controllers.
+ * Initializes the control environment for a controller directly connected to
+ * the main PlayStation unit. Cannot be used with PadInitMtap(), InitPAD(),
+ * InitGUN(), InitTAP(), or PadInit().
  *
- * @param id Controller ID
- * @param align Alignment
- * @param num Number of actuators
- * @return Status
+ * @param pad1 Port 1 receive results buffer (34 bytes)
+ * @param pad2 Port 2 receive results buffer (34 bytes)
  */
-long PadSetAct(int id, u_char* align, int num);
+void PadInitDirect(u_char* pad1, u_char* pad2);
 
 /**
- * @brief Set controller actuation with alignment
+ * @brief Initialize controller environment (for Multi Taps).
  *
- * Sets the actuation for DUAL SHOCK controllers with alignment.
+ * Initializes the control environment for a controller. If a Multi Tap is
+ * connected, it is treated as a Multi Tap. Cannot be used with PadInitDirect(),
+ * InitPAD(), InitGUN(), InitTAP(), or PadInit().
  *
- * @param id Controller ID
- * @param align Alignment data
- * @return Status
+ * Note: A Multi Tap may not be recognized if a controller is not connected to
+ * port A. Always connect a controller to port A of the Multi Tap.
+ *
+ * @param pad1 Port 1 receive results buffer (34 bytes)
+ * @param pad2 Port 2 receive results buffer (34 bytes)
  */
-long PadSetActAlign(int id, u_char* align);
+void PadInitMtap(u_char* pad1, u_char* pad2);
 
 /**
- * @brief Set controller main mode
+ * @brief Initialize controller environment (for guns using interrupts).
  *
- * Sets the main operating mode for the controller.
+ * Sets up the horizontal/vertical position receive buffer for light guns.
+ * Retrieval is triggered by an interrupt from the gun. Must be called after
+ * PadInitDirect() or PadInitMtap().
  *
- * @param id Controller ID
- * @param offs Offset
- * @param lock Lock mode
- * @return Status
+ * @param buff Horizontal/vertical position receive buffer (size*4+2 bytes)
+ * @param size Maximum number of gun interrupts per 1Vsync (maximum 20)
  */
-long PadSetMainMode(int id, int offs, int lock);
+void PadInitGun(u_char* buff, int size);
 
 /**
- * @brief Get controller actuation info
+ * @brief Start reading from controller.
  *
- * Gets actuation information for DUAL SHOCK controllers.
- *
- * @param id Controller ID
- * @param info Info array
- * @param num Number of actuators
- * @return Number of actuators
- */
-long PadInfoAct(int id, int info[][2], int num);
-
-/**
- * @brief Get controller combination info
- *
- * Gets combination information for the controller.
- *
- * @param id Controller ID
- * @param list List array
- * @param num Number of combinations
- * @return Number of combinations
- */
-long PadInfoComb(int id, int list[], int num);
-
-/**
- * @brief Get controller mode info
- *
- * Gets mode information for the controller.
- *
- * @param id Controller ID
- * @param term Terminal mode
- * @param offs Offset
- * @return Mode information
- */
-long PadInfoMode(int id, int term, int offs);
-
-/**
- * @brief Enable controller communication
- *
- * Enables communication with controllers.
- *
- * @param flag Enable flag
- */
-void PadEnableCom(u_long flag);
-
-/**
- * @brief Enable gun controller
- *
- * Enables the gun controller.
- *
- * @param flag Enable flag
- */
-void PadEnableGun(u_char flag);
-
-/**
- * @brief Remove gun controller
- *
- * Removes the gun controller.
- */
-void PadRemoveGun(void);
-
-/**
- * @brief Start controller communication
- *
- * Starts controller communication.
+ * Initiates a controller read operation triggered by vertical retrace interval
+ * interrupt.
  */
 void PadStartCom(void);
 
 /**
- * @brief Stop controller communication
+ * @brief Stop controller read.
  *
- * Stops controller communication.
+ * Stops a controller read operation. Stops handling all vertical interval
+ * interrupts related to controller services.
  */
 void PadStopCom(void);
 
 /**
- * @brief Check V-sync
+ * @brief Enable/disable communication with the controller.
  *
- * Checks if controller operations are synchronized with V-sync.
+ * Communication normally occurs once per frame (1/60th second). This function
+ * temporarily disables communication to provide greater processing time. Only
+ * works between PadStartCom() and PadStopCom().
  *
- * @return V-sync status
+ * If communication is suspended for 3+ seconds, the controller is reset.
+ *
+ * @param mode Bit 0: enable/disable port 0, Bit 1: enable/disable port 1.
+ *             1 = enabled; 0 = disabled
+ * @return Previous enable/disable state before the function was called
  */
-long PadChkVsync(void);
-
-/* Multi Tap functions */
+unsigned PadEnableCom(unsigned mode);
 
 /**
- * @brief Initialize Multi Tap
+ * @brief Check communication with controller.
  *
- * Initializes the Multi Tap adapter.
+ * Determines whether communication with the controller has occurred in a frame.
+ * Should be called once per frame during Vsync.
  *
- * @param buf1 Buffer for port 1
- * @param len1 Length of buffer 1
- * @param buf2 Buffer for port 2
- * @param len2 Length of buffer 2
- * @return Status
+ * @return 1: Communication took place (regardless of success/failure)
+ *         0: Communication did not take place (or function called twice or more
+ * in a frame)
  */
-long InitTAP(u_char* buf1, u_long len1, u_char* buf2, u_long len2);
+int PadChkVsync(void);
 
 /**
- * @brief Start Multi Tap
+ * @brief Get controller connection state.
  *
- * Starts the Multi Tap.
+ * Checks controller connection status, determines when button-press information
+ * is valid, and determines when actuator information is valid.
+ *
+ * @param port Port number to check (0x00-0x03 for port 1, 0x10-0x13 for port 2)
+ *             - Direct connection: 0x00, 0x10
+ *             - Multi Tap A-D: 0x00-0x03, 0x10-0x13
+ * @return Connection state:
+ *         - 0 (PadStateDiscon): Controller disconnected
+ *         - 1 (PadStateFindPad): Find controller connection (checking)
+ *         - 2 (PadStateFindCTP1): Controller without vibration connected
+ *         - 4 (PadStateReqInfo): Actuator information being retrieved
+ *         - 5 (PadStateExecCmd): Library communicating with controller
+ *         - 6 (PadStateStable): Controller with vibration ready, info complete
+ */
+int PadGetState(int port);
+
+/**
+ * @brief Get actuator information.
+ *
+ * Obtains actuator function number, sub-function number, parameter data size,
+ * and current drain. Returns 0 for controllers without vibration support.
+ *
+ * @param port Port number of controller (0x00-0x03 for port 1, 0x10-0x13 for
+ * port 2)
+ * @param actno Actuator number (0 to total-1), or -1 to get total number of
+ * actuators
+ * @param term Information to check:
+ *             - 1 (InfoActFunc): Function number
+ *             - 2 (InfoActSub): Sub-function number
+ *             - 3 (InfoActSize): Parameter data length
+ *             - 4 (InfoActCurr): Maximum current drain
+ * @return Requested information, or 0 if invalid
+ */
+int PadInfoAct(int port, int actno, int term);
+
+/**
+ * @brief Get information on actuator combinations.
+ *
+ * Checks combinations of actuators that can be used simultaneously based on
+ * physical arrangement restrictions.
+ *
+ * @param port Port number of controller (0x00-0x03 for port 1, 0x10-0x13 for
+ * port 2)
+ * @param listno List number (0 to total-1), or -1 to get total number of lists
+ * @param offs Offset within list (0 to total-1), or -1 to get total actuators
+ * in list
+ * @return Requested information, or 0 if invalid
+ */
+int PadInfoComb(int port, int listno, int offs);
+
+/**
+ * @brief Get information about controller mode.
+ *
+ * Checks currently active controller mode ID, distinguishes DUAL SHOCK from
+ * other controllers, and checks supported controller mode IDs.
+ *
+ * @param port Port number of controller (0x00-0x03 for port 1, 0x10-0x13 for
+ * port 2)
+ * @param term Item to check:
+ *             - 1 (InfoModeCurID): Currently active controller mode ID
+ *             - 2 (InfoModeCurExID): Active mode ID on vibration controller
+ *             - 3 (InfoModeCurExOffs): Offset in mode ID table
+ *             - 4 (InfoModeIdTable): Mode ID at offset specified by offs
+ * @param offs Offset in controller mode ID table (ignored unless term=4)
+ * @return Requested information, or 0 if invalid
+ */
+int PadInfoMode(int port, int term, int offs);
+
+/**
+ * @brief Set transmit buffer.
+ *
+ * Registers the transmit data buffer in the library. When actuator operation
+ * changes and buffer contents change, the library reads the buffer every Vsync
+ * and automatically transmits to the controller.
+ *
+ * @param port Target port number (0x00-0x03 for port 1, 0x10-0x13 for port 2)
+ * @param data Transmit data buffer
+ * @param len Length of transmit data buffer (in bytes)
+ */
+void PadSetAct(int port, u_char* data, int len);
+
+/**
+ * @brief Set actuator parameter details.
+ *
+ * Indicates to the controller the position in the transmit buffer where
+ * actuator parameters are located by writing actuator numbers in appropriate
+ * positions. Request is rejected if library is communicating with controller.
+ *
+ * @param port Port number of controller (0x00-0x03 for port 1, 0x10-0x13 for
+ * port 2)
+ * @param data Actuator parameter transmission details (6 bytes)
+ * @return 1 if request accepted, 0 if rejected
+ */
+int PadSetActAlign(int port, char* data);
+
+/**
+ * @brief Switch/lock the controller mode selector.
+ *
+ * Selects the controller mode and switches between locked and unlocked settings
+ * for the controller mode selection button. Request is rejected if library is
+ * communicating with controller.
+ *
+ * @param port Port number (0x00-0x03 for port 1, 0x10-0x13 for port 2)
+ * @param offs Controller mode ID table offset containing the mode to switch to
+ * @param lock Bit 1: 0=keep current state, 1=change state
+ *             Bit 0: 0=unlock selector, 1=lock selector (only if bit 1 is 1)
+ * @return 1 if request accepted, 0 if rejected
+ */
+int PadSetMainMode(int port, int offs, int lock);
+
+/**
+ * @brief Enable/disable gun interrupts.
+ *
+ * Enables gun interrupts when corresponding mask bit is set to 1.
+ * Default is disabled for all ports. Retrieval of position information begins
+ * when a gun is connected.
+ *
+ * @param mask Enable gun interrupts for specific ports (bit D0-D7 for ports
+ *             0x00-0x03, 0x10-0x13)
+ */
+void PadEnableGun(u_char mask);
+
+/**
+ * @brief Stop retrieval of horizontal/vertical gun position.
+ *
+ * Stops the retrieval of horizontal/vertical gun position information.
+ */
+void PadRemoveGun(void);
+
+/*
+ * TAP/Multi Tap functions (libtap)
+ */
+
+/**
+ * @brief Initialize controller (Multi Tap).
+ *
+ * Registers a receive data buffer for the controller. See Library Overview
+ * documentation for receive buffer data format.
+ *
+ * @param bufA Pointer to receive data buffer
+ * @param lenA Receive data buffer length (unit: byte)
+ * @param bufB Pointer to receive data buffer
+ * @param lenB Receive data buffer length (unit: byte)
+ */
+void InitTAP(char* bufA, long lenA, char* bufB, long lenB);
+
+/**
+ * @brief Start controller reading.
+ *
+ * Starts controller reading at Vsync interrupt.
  */
 void StartTAP(void);
 
 /**
- * @brief Stop Multi Tap
+ * @brief Halt controller reading.
  *
- * Stops the Multi Tap.
+ * Halts controller reading. Does not prohibit interrupts.
  */
 void StopTAP(void);
 
 /**
- * @brief Enable Multi Tap
+ * @brief Enable communication with controller.
  *
- * Enables the Multi Tap.
+ * Enables communication with a controller which was disabled with DisableTAP().
  */
 void EnableTAP(void);
 
 /**
- * @brief Disable Multi Tap
+ * @brief Disable communication with controller.
  *
- * Disables the Multi Tap.
+ * Temporarily disables communication with the controller using a flag
+ * operation. Used when controller status is not needed and timing is longer
+ * than 1/60 sec.
  */
 void DisableTAP(void);
 
-/* Gun controller functions */
-
-/**
- * @brief Initialize gun controller
- *
- * Initializes the gun controller.
- *
- * @param buf Buffer for gun data
- * @param len Buffer length
- * @return Status
+/*
+ * GUN/Light Gun functions (libgun)
  */
-long InitGUN(u_char* buf, int len);
 
 /**
- * @brief Start gun controller
+ * @brief Initialize gun.
  *
- * Starts the gun controller.
+ * Defines the buffers used to receive data from the light gun and other
+ * controllers. Cannot be used at the same time as InitPAD() or InitTAP().
+ *
+ * As of library v4.0, DMA operations and interrupts are blocked within the
+ * gun interrupt handler to improve accuracy.
+ *
+ * @param bufA Controller receive data buffer for port 0
+ * @param lenA Length in bytes of bufA
+ * @param bufB Controller receive data buffer for port 1
+ * @param lenB Length in bytes of bufB
+ * @param buf0 Pointer to horizontal/vertical position receive buffer
+ * @param buf1 Pointer to horizontal/vertical position receive buffer
+ *             (necessary buffer size is len*4+2 bytes)
+ * @param len Number of gun interrupts allowed between vertical blank periods
+ *            (20 maximum)
  */
-void StartGUN(void);
+void InitGUN(char* bufA, long lenA, char* bufB, long lenB, char* buf0,
+             char* buf1, long len);
 
 /**
- * @brief Stop gun controller
+ * @brief Start controller reading.
  *
- * Stops the gun controller.
+ * Starts controller reading at Vsync interrupt.
+ *
+ * @return 1 if successful; 0 on failure
+ */
+long StartGUN(void);
+
+/**
+ * @brief Halt controller reading.
+ *
+ * Halts the controller reading. Does not prohibit interrupts.
  */
 void StopGUN(void);
 
 /**
- * @brief Select gun controller
+ * @brief Select gun.
  *
- * Selects the gun controller port.
+ * Sets the interrupt mask for the gun. It is not possible to disable
+ * interrupts for two masks at the same time.
  *
- * @param port Port number
+ * @param ch Gun channel (0 or 1)
+ * @param mask Interrupt mask setting (0: interrupts prohibited, 1: interrupts
+ * permitted)
  */
-void SelectGUN(int port);
+void SelectGUN(int ch, u_char mask);
 
 /**
- * @brief Remove gun controller
+ * @brief Remove gun driver.
  *
- * Removes the gun controller.
+ * Removes the gun driver registered in InitGUN().
  */
 void RemoveGUN(void);
 
