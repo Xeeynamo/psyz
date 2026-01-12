@@ -17,6 +17,7 @@
 #include <direct.h>
 #include <stdlib.h>
 #include <share.h>
+#include <romio.h>
 
 static void _adjust_path(char* dst, const char* src, int maxlen) {
     size_t len = strnlen(src, maxlen);
@@ -215,16 +216,59 @@ long my_format(char* fs) {
 }
 
 int psyz_open(const char* devname, int flag, ...) {
-    // Map PS1 flags to Windows flags
-    int oflag = flag & (_O_WRONLY | _O_RDWR | _O_CREAT);
+    int oflag = _O_RDONLY;
+    if ((flag & (FREAD | FWRITE)) == (FREAD | FWRITE)) {
+        oflag = _O_RDWR;
+    } else if (flag & FREAD) {
+        oflag = _O_RDONLY;
+    } else if (flag & FWRITE) {
+        oflag = _O_WRONLY;
+    }
+    if (flag & FNBLOCK) {
+        DEBUGF("FNBLOCK ignored for %s", devname);
+    }
+    if (flag & FRLOCK) {
+        DEBUGF("FRLOCK ignored for %s", devname);
+    }
+    if (flag & FWLOCK) {
+        DEBUGF("FWLOCK ignored for %s", devname);
+    }
+    if (flag & FAPPEND) {
+        oflag |= _O_APPEND;
+    }
+    if (flag & FCREAT) {
+        oflag |= _O_CREAT;
+    }
+    if (flag & FTRUNC) {
+        oflag |= _O_TRUNC;
+    }
+    if (flag & FSCAN) {
+        DEBUGF("FSCAN ignored for %s", devname);
+    }
+    if (flag & FRCOM) {
+        DEBUGF("FRCOM ignored for %s", devname);
+    }
+    if (flag & FNBUF) {
+        DEBUGF("FNBUF ignored for %s", devname);
+    }
+    if (flag & FASYNC) {
+        DEBUGF("FASYNC ignored for %s", devname);
+    }
+    if (flag & 0x10000) {
+        DEBUGF("0x10000 ignored for %s", devname);
+    }
+
     char path[0x100];
     _adjust_path(path, devname, sizeof(path));
-
+    int fd = -1;
     if (oflag & _O_CREAT) {
-        int fd;
-        errno_t err = _sopen_s(
-            &fd, path, _O_CREAT | _O_WRONLY, _SH_DENYNO, _S_IREAD | _S_IWRITE);
-        return (err == 0) ? fd : -1;
+        // Use _sopen_s for creation with default sharing mode
+        errno_t err = _sopen_s(&fd, path, oflag | _O_BINARY, _SH_DENYNO,
+                               _S_IREAD | _S_IWRITE);
+        if (err != 0) {
+            return -1;
+        }
+        return fd;
     } else {
         struct _stat st;
         if (_stat(path, &st) != 0) {
@@ -232,13 +276,19 @@ int psyz_open(const char* devname, int flag, ...) {
             return -1;
         }
         if (!(st.st_mode & _S_IFREG)) {
-            WARNF("path '%s' mapped from '%s' is not a regular file", path,
-                  devname);
+            if (st.st_mode & _S_IFDIR) {
+                WARNF("path '%s' mapped from '%s' is a directory", path, devname);
+            } else {
+                WARNF("path '%s' mapped from '%s' is not a regular file", path,
+                      devname);
+            }
             return -1;
         }
-        int fd;
-        errno_t err = _sopen_s(&fd, path, oflag, _SH_DENYNO, 0);
-        return (err == 0) ? fd : -1;
+        errno_t err = _sopen_s(&fd, path, oflag | _O_BINARY, _SH_DENYNO, 0);
+        if (err != 0) {
+            return -1;
+        }
+        return fd;
     }
 }
 

@@ -14,6 +14,12 @@
 #define FNBUF 0x4000   /* no ring buf. and console interrupt */
 #define FASYNC 0x8000  /* asyncronous i/o */
 
+/* Open modes */
+/* NOTE: it is highly discouraged to use these headers as they clash with
+ * the standard definitions in fcntl.h. Use FREAD, FWRTIE and similar.
+ * Disable on PSY-Z to attempt triggering a build fail
+ */
+#ifndef __psyz
 #define O_RDONLY FREAD
 #define O_WRONLY FWRITE
 #define O_RDWR FREAD | FWRITE
@@ -21,6 +27,7 @@
 #define O_NOBUF FNBUF    /* no device buffer and console interrupt */
 #define O_NBLOCK FNBLOCK /* non blocking mode */
 #define O_NOWAIT FASYNC  /* asyncronous i/o */
+#endif
 
 #ifndef SEEK_SET
 #define SEEK_SET 0

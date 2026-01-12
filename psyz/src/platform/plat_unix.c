@@ -8,6 +8,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <kernel.h>
+#include <romio.h>
 
 static char* path_join(char* left, const char* right, int maxlen) {
     size_t left_len = strlen(left);
@@ -224,11 +225,52 @@ long my_erase(char* path) {
 #include <unistd.h>
 #include <sys/ioctl.h>
 int psyz_open(const char* devname, int flag) {
-    // only map the known flags and discard the rest
-    int oflag = (int)flag & (O_WRONLY | O_RDWR | O_NONBLOCK | O_CREAT);
+    int oflag = O_RDONLY;
+    if ((flag & (FREAD | FWRITE)) == (FREAD | FWRITE)) {
+        flag = O_RDWR;
+    } else if (flag & FREAD) {
+        flag |= O_RDONLY;
+    } else if (flag & FWRITE) {
+        flag |= O_WRONLY;
+    }
+    if (flag & FNBLOCK) {
+        DEBUGF("FNBLOCK ignored for %s", devname);
+    }
+    if (flag & FRLOCK) {
+        DEBUGF("FRLOCK ignored for %s", devname);
+    }
+    if (flag & FWLOCK) {
+        DEBUGF("FWLOCK ignored for %s", devname);
+    }
+    if (flag & FAPPEND) {
+        oflag |= O_APPEND;
+    }
+    if (flag & FCREAT) {
+        oflag |= O_CREAT;
+    }
+    if (flag & FTRUNC) {
+        oflag |= O_TRUNC;
+    }
+    if (flag & FSCAN) {
+        DEBUGF("FSCAN ignored for %s", devname);
+    }
+    if (flag & FRCOM) {
+        DEBUGF("FRCOM ignored for %s", devname);
+    }
+    if (flag & FNBUF) {
+        DEBUGF("FNBUF ignored for %s", devname);
+    }
+    if (flag & FASYNC) {
+        DEBUGF("FASYNC ignored for %s", devname);
+    }
+    if (flag & 0x10000) {
+        DEBUGF("0x10000 ignored for %s", devname);
+    }
+
     char path[0x100];
     adjust_path(path, devname, sizeof(path));
     if (oflag & O_CREAT) {
+        // implies FTRUNC
         return creat(path, 0644);
     } else {
         struct stat st;

@@ -1,8 +1,20 @@
 #include <psyz.h>
 #include <libapi.h>
-#include <libapi.h>
 #include <log.h>
 #include <sys/stat.h>
+
+// 1:valid, 0:invalid
+static inline int validate_chan(long chan) {
+    unsigned int cardNo = (unsigned int)(chan & 15);
+    unsigned int portNo = (unsigned int)(chan >> 4);
+    if (cardNo >= 4) { // validate multi-tap card support
+        return 0;
+    }
+    if (portNo >= 2) { // PS1 has only two memcard ports
+        return 0;
+    }
+    return 1;
+}
 
 void _bu_init(void) {
 #ifdef _MSC_VER
@@ -22,13 +34,35 @@ long _card_auto(long val) {
 }
 
 long _card_info(long chan) {
+    if (!validate_chan(chan)) {
+        // TODO: unset SwCARD/EvSpIOE
+        // TODO: unset SwCARD/EvSpTIMOUT
+        // TODO: unset SwCARD/EvSpNEW
+        // TODO: set SwCARD/EvSpERROR
+        return 0;
+    }
+    // TODO: set SwCARD/EvSpIOE
+    // TODO: unset SwCARD/EvSpTIMOUT
+    // TODO: unset SwCARD/EvSpNEW
+    // TODO: unset SwCARD/EvSpERROR
     NOT_IMPLEMENTED;
-    return 0;
+    return 1;
 }
 
 long _card_load(long chan) {
+    if (!validate_chan(chan)) {
+        // TODO: unset SwCARD/EvSpIOE
+        // TODO: unset SwCARD/EvSpTIMOUT
+        // TODO: unset SwCARD/EvSpNEW
+        // TODO: set SwCARD/EvSpERROR
+        return 0;
+    }
+    // TODO: set SwCARD/EvSpIOE
+    // TODO: unset SwCARD/EvSpTIMOUT
+    // TODO: unset SwCARD/EvSpNEW
+    // TODO: unset SwCARD/EvSpERROR
     NOT_IMPLEMENTED;
-    return 0;
+    return 1;
 }
 
 void _new_card(void) { NOT_IMPLEMENTED; }

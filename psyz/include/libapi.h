@@ -2,15 +2,8 @@
 #define LIBAPI_H
 
 #include <psyz.h>
-#include "kernel.h"
-
-/* Open modes */
-#define O_RDONLY 0x0001 /**< Read only */
-#define O_WRONLY 0x0002 /**< Write only */
-#define O_RDWR 0x0003   /**< Both read and write */
-#define O_CREAT 0x0200  /**< Create new file */
-#define O_NOBUF 0x0004  /**< Non-buffer mode */
-#define O_NOWAIT 0x8000 /**< Asynchronous mode */
+#include <kernel.h>
+#include <romio.h>
 
 /* lseek flags */
 #define SEEK_SET 0 /**< Seek from start of file */
