@@ -217,6 +217,10 @@ long my_format(char* fs) {
 
 int psyz_open(const char* devname, int flag, ...) {
     int oflag = _O_RDONLY;
+    if (flag & FCREAT) {
+        // fix: implies FWRITE, avoid creating 0kb unwritable files
+        flag |= FWRITE;
+    }
     if ((flag & (FREAD | FWRITE)) == (FREAD | FWRITE)) {
         oflag = _O_RDWR;
     } else if (flag & FREAD) {
