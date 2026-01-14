@@ -407,6 +407,7 @@ static void PresentBufferToScreen(void) {
     }
     glBlitFramebuffer(src_x, src_y + src_h, src_x + src_w, src_y, 0, 0, fb_w,
                       fb_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glFinish(); // fix: black screen on Windows+Nvidia
     SDL_GL_SwapWindow(window);
 
     glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
