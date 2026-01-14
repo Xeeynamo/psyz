@@ -270,7 +270,6 @@ int psyz_open(const char* devname, int flag) {
     char path[0x100];
     adjust_path(path, devname, sizeof(path));
     if (oflag & O_CREAT) {
-        // implies FTRUNC
         return creat(path, 0644);
     } else {
         struct stat st;

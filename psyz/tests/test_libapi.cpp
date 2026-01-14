@@ -93,7 +93,21 @@ TEST_F(bu_Test, for_end_of_file_list) {
 }
 
 TEST_F(bu_Test, open_existing_file) {
-    int fd = open("bu00:BASLUS-00000PSYZ00", 1);
+    int fd = open("bu00:BASLUS-00000PSYZ00", FREAD);
     EXPECT_NE(fd, -1);
     close(fd);
+}
+
+TEST_F(bu_Test, create_and_write_file) {
+    unsigned short expected = 1234, actual;
+    int fd = open("bu00:BASLUS-00000PSYZ00", FCREAT);
+    EXPECT_NE(fd, -1);
+    write(fd, &expected, sizeof(unsigned short));
+    close(fd);
+
+    FILE* f = fopen("bu00/BASLUS-00000PSYZ00", "rb");
+    int read = fread(&actual, 1, sizeof(unsigned short), f);
+    fclose(f);
+    EXPECT_EQ(read, sizeof(unsigned short));
+    EXPECT_EQ(actual, expected);
 }
