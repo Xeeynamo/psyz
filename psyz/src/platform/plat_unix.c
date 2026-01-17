@@ -10,56 +10,13 @@
 #include <kernel.h>
 #include <romio.h>
 
-static char* path_join(char* left, const char* right, int maxlen) {
-    size_t left_len = strlen(left);
-    if (left_len >= maxlen - 1) {
-        return NULL;
-    }
-    if (left[left_len - 1] != '/' && right[0] != '/') {
-        if (left_len < maxlen - 1) {
-            left[left_len] = '/';
-            left[left_len + 1] = '\0';
-            left_len++;
-        } else {
-            return NULL;
-        }
-    } else if (left[left_len - 1] == '/' && right[0] == '/') {
-        // Avoid double '/'
-        left[left_len - 1] = '\0';
-        left_len--;
-    }
-    strncpy(left + left_len, right, maxlen - left_len - 1);
-    left[maxlen - 1] = '\0'; // Ensure null-termination
-    return left;
-}
-
-static void adjust_path(char* dst, const char* src, int maxlen) {
-    size_t len = strlen(src);
-    if (len >= 5 && src[0] == 'b' && src[1] == 'u' && src[4] == ':') {
-        // adjust memory card path
-        strncpy(dst, src, maxlen);
-        dst[4] = '\0';
-        struct stat st = {0};
-        if (stat(dst, &st) == -1) {
-            mkdir(dst, 0755);
-        }
-        dst[4] = '/';
-        if (dst[5] == '\0' || dst[5] == '*') { // handles 'bu00:*'
-            dst[5] = '\0';
-        }
-        return;
-    } else {
-        strncpy(dst, src, maxlen);
-        dst[maxlen - 1] = '\0';
-    }
-}
 
 static void populate_entry(
     const char* baseDir, struct DIRENTRY* dst, struct dirent* src) {
     char buf[512];
     struct stat fileStat = {0};
     strncpy(buf, baseDir, sizeof(buf));
-    if (!path_join(buf, src->d_name, sizeof(buf))) {
+    if (!Psyz_JoinPath(buf, src->d_name, sizeof(buf))) {
         ERRORF("failed to join '%s' and '%s': strings are too large", baseDir,
                src->d_name);
         return;
@@ -153,7 +110,7 @@ static struct dirent* read_filesearch_handle() {
 }
 struct DIRENTRY* my_firstfile(char* dirPath, struct DIRENTRY* firstEntry) {
     char basePath[0x100];
-    adjust_path(basePath, dirPath, sizeof(basePath));
+    Psyz_AdjustPath(basePath, dirPath, sizeof(basePath));
     DEBUGF("opendir('%s')", basePath);
     DIRENTRY_RESERVED* handle = open_filesearch_handle(basePath);
     if (!handle) {
@@ -183,7 +140,7 @@ struct DIRENTRY* my_nextfile(struct DIRENTRY* outEntry) {
 long my_format(char* fs) {
     size_t path_end;
     char path[0x200];
-    adjust_path(path, fs, sizeof(path));
+    Psyz_AdjustPath(path, fs, sizeof(path));
     path_end = strlen(path);
     DEBUGF("format('%s')", fs);
     DIR* dir = opendir(path);
@@ -209,7 +166,7 @@ long my_format(char* fs) {
 
 long my_erase(char* path) {
     char adjPath[0x100];
-    adjust_path(adjPath, path, sizeof(adjPath));
+    Psyz_AdjustPath(adjPath, path, sizeof(adjPath));
 
     DEBUGF("remove('%s')", adjPath);
     return remove(adjPath) == 0;
@@ -268,7 +225,7 @@ int psyz_open(const char* devname, int flag) {
     }
 
     char path[0x100];
-    adjust_path(path, devname, sizeof(path));
+    Psyz_AdjustPath(path, devname, sizeof(path));
     if (oflag & O_CREAT) {
         return creat(path, 0644);
     } else {

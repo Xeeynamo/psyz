@@ -109,4 +109,43 @@ int Psyz_SetVsyncMode(Psyz_VsyncMode mode);
 // Returns: 0 on success, -1 if stats is NULL or platform not initialized
 int Psyz_GetGpuStats(Psyz_GpuStats* stats);
 
+// Adjust a PlayStation 1 path to the host filesystem
+// Handles memory card paths (bu00:, bu10:, etc.) and other special cases.
+// If a custom callback is set via Psyz_AdjustPathCB and returns >= 0,
+// the callback result is used; otherwise internal adjustment is applied.
+// The function is used internally when opening and creating files, or
+// when enumerating the list of files in the specified directory.
+//
+// IMPORTANT: The filename portion (after the last path separator) is
+// automatically truncated to 19 characters to match PS1 DIRENTRY.name[20]
+// which requires null-termination for compatibility with SDK string functions.
+// This truncation is applied regardless of whether callback or internal
+// adjustment is used.
+//
+// Parameters:
+//   dst: Destination buffer for adjusted path (must be valid)
+//   src: Source path to adjust (PlayStation 1 format)
+//   maxlen: Maximum length of destination buffer
+void Psyz_AdjustPath(char* dst, const char* src, int maxlen);
+
+// Set custom path adjustment callback
+// The callback is invoked before internal path adjustment
+// Return value from callback:
+//   < 0: No adjustment done, fall back to PSY-Z internal adjustment
+//   >= 0: Number of bytes written to dst (adjustment successful)
+// Parameters:
+//   dst: Destination buffer for adjusted path
+//   src: Source path to adjust
+//   maxlen: Maximum length of destination buffer
+void Psyz_AdjustPathCB(int (*callback)(char* dst, const char* src, int maxlen));
+
+// Join two path components with the platform's path separator
+// Automatically handles path separators to avoid double separators
+// Parameters:
+//   left: Left path component (modified in-place)
+//   right: Right path component to append
+//   maxlen: Maximum length of left buffer
+// Returns: Pointer to left on success, NULL if buffer too small
+char* Psyz_JoinPath(char* left, const char* right, int maxlen);
+
 #endif

@@ -19,44 +19,6 @@
 #include <share.h>
 #include <romio.h>
 
-static void _adjust_path(char* dst, const char* src, int maxlen) {
-    size_t len = strnlen(src, maxlen);
-    if (len >= 5 && src[0] == 'b' && src[1] == 'u' && src[4] == ':') {
-        // adjust memory card path
-        strncpy_s(dst, maxlen, src, _TRUNCATE);
-        dst[4] = '\0';
-        _mkdir(dst);
-        dst[4] = '\\';
-        if (dst[5] == '\0' || dst[5] == '*') { // handles 'bu00:*'
-            dst[5] = '\0';
-        }
-        return;
-    } else {
-        strncpy_s(dst, maxlen, src, _TRUNCATE);
-    }
-}
-
-static char* path_join(char* left, const char* right, int maxlen) {
-    size_t left_len = strlen(left);
-    if (left_len >= maxlen - 1) {
-        return NULL;
-    }
-    if (left[left_len - 1] != '\\' && right[0] != '\\') {
-        if (left_len < maxlen - 1) {
-            left[left_len] = '\\';
-            left[left_len + 1] = '\0';
-            left_len++;
-        } else {
-            return NULL;
-        }
-    } else if (left[left_len - 1] == '\\' && right[0] == '\\') {
-        // Avoid double backslash
-        left[left_len - 1] = '\0';
-        left_len--;
-    }
-    strncpy_s(left + left_len, maxlen - left_len, right, _TRUNCATE);
-    return left;
-}
 
 typedef struct {
     char** filenames;
@@ -151,7 +113,7 @@ static void populate_entry(
     struct _stat fileStat = {0};
 
     strncpy_s(buf, sizeof(buf), baseDir, _TRUNCATE);
-    if (!path_join(buf, filename, sizeof(buf))) {
+    if (!Psyz_JoinPath(buf, filename, sizeof(buf))) {
         ERRORF("failed to join '%s' and '%s': strings are too large", baseDir,
                filename);
         return;
@@ -175,7 +137,7 @@ static void populate_entry(
 
 struct DIRENTRY* my_firstfile(char* dirPath, struct DIRENTRY* firstEntry) {
     char basePath[0x100];
-    _adjust_path(basePath, dirPath, sizeof(basePath));
+    Psyz_AdjustPath(basePath, dirPath, sizeof(basePath));
     DEBUGF("opendir('%s')", basePath);
 
     if (!open_filesearch_handle(basePath)) {
@@ -204,7 +166,7 @@ struct DIRENTRY* my_nextfile(struct DIRENTRY* outEntry) {
 
 long my_erase(char* path) {
     char adjPath[0x100];
-    _adjust_path(adjPath, path, sizeof(adjPath));
+    Psyz_AdjustPath(adjPath, path, sizeof(adjPath));
 
     DEBUGF("remove('%s')", adjPath);
     return remove(adjPath) == 0;
@@ -263,7 +225,7 @@ int psyz_open(const char* devname, int flag, ...) {
     }
 
     char path[0x100];
-    _adjust_path(path, devname, sizeof(path));
+    Psyz_AdjustPath(path, devname, sizeof(path));
     int fd = -1;
     if (oflag & _O_CREAT) {
         // Use _sopen_s for creation with default sharing mode
