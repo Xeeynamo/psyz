@@ -1,5 +1,6 @@
 #ifndef LIBHMD_H
 #define LIBHMD_H
+#include <psyz/types.h>
 
 /**
  * @file libhmd.h
@@ -18,8 +19,6 @@
  * - MIMe (morphing) animation support
  * - Primitive driver architecture for extensible rendering
  */
-
-#include <types.h>
 
 /* Forward declarations for types from other libraries */
 #ifndef MATRIX

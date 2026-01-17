@@ -1,5 +1,6 @@
 #ifndef MCGUI_H
 #define MCGUI_H
+#include <psyz/types.h>
 
 /**
  * @file mcgui.h
@@ -17,8 +18,6 @@
  * - Japanese and English language modes
  * - Automatic icon animation (1-3 frames)
  */
-
-#include <types.h>
 
 /**
  * @brief BG data structure

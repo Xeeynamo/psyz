@@ -1,5 +1,6 @@
 #ifndef LIBMCX_H
 #define LIBMCX_H
+#include <psyz/types.h>
 
 /**
  * @file libmcx.h
@@ -18,8 +19,6 @@
  * - Port 1: 0x00-0x03 (direct connect and multitap A-D)
  * - Port 2: 0x10-0x13 (direct connect and multitap A-D)
  */
-
-#include <types.h>
 
 /* Error codes (McxSync result values) */
 #define McxErrSuccess 0 /**< Normal termination */

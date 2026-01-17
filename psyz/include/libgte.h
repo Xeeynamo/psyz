@@ -1,6 +1,6 @@
 #ifndef LIBGTE_H
 #define LIBGTE_H
-#include <psyz.h>
+#include <psyz/types.h>
 
 /**
  * @file libgte.h
@@ -21,8 +21,6 @@
  *
  * Note: GTE operations use fixed-point arithmetic (12-bit fraction).
  */
-
-#include <types.h>
 
 /* Forward declarations for structures */
 

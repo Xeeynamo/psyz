@@ -1,6 +1,6 @@
 #include <psyz.h>
 #include <libetc.h>
-#include <log.h>
+#include <psyz/log.h>
 
 void MyPadInit(int mode);
 void PadInit(int mode) { MyPadInit(mode); }

@@ -1,6 +1,6 @@
 #include <psyz.h>
 #include <libpress.h>
-#include <log.h>
+#include <psyz/log.h>
 
 void DecDCTReset(int mode) { NOT_IMPLEMENTED; }
 

@@ -1,6 +1,7 @@
 #include <psyz.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include "../internal.h"
 
 #ifdef NDEBUG
 LOG_LEVEL g_MinLogLevel = LOG_LEVEL_W;

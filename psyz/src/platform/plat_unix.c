@@ -1,6 +1,6 @@
 #define _DEFAULT_SOURCE // solves DT_REG undeclared
 #include <psyz.h>
-#include <log.h>
+#include <psyz/log.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>

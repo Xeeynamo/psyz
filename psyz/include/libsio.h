@@ -1,5 +1,6 @@
 #ifndef LIBSIO_H
 #define LIBSIO_H
+#include <psyz/types.h>
 
 /**
  * @file libsio.h
@@ -15,8 +16,6 @@
  * - Interrupt-driven operation with callback support
  * - Status monitoring and error detection
  */
-
-#include <types.h>
 
 /* Driver Status bits (returned by _sio_control(0, 0, 0)) */
 #define SR_TXRDY 0x0001  /**< Bit 0: Able to write communications data */

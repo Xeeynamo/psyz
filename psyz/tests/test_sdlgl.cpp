@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <GLES2/gl2.h>
 extern "C" {
-#include <common.h>
+#include <psyz.h>
 #include <kernel.h>
 #include <libetc.h>
 #include <libgpu.h>

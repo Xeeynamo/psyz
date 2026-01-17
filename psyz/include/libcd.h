@@ -1,6 +1,6 @@
 #ifndef LIBCD_H
 #define LIBCD_H
-#include <types.h>
+#include <psyz/types.h>
 
 /**
  * @file libcd.h

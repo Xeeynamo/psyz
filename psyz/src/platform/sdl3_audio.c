@@ -1,5 +1,5 @@
 #include <psyz.h>
-#include <log.h>
+#include <psyz/log.h>
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <string.h>

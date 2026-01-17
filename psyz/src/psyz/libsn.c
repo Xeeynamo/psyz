@@ -1,4 +1,4 @@
-#include <log.h>
+#include <psyz/log.h>
 
 int PCinit(void) {
     NOT_IMPLEMENTED;

@@ -3,7 +3,7 @@
 #include <libgte.h>
 #include <libgs.h>
 #include <libetc.h>
-#include <log.h>
+#include <psyz/log.h>
 
 static TILE tile_bg_clear[2];
 static int HWD0;
