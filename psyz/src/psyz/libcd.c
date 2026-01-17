@@ -72,6 +72,8 @@ u_char CD_mode = 0;
 u_char CD_com = 0;
 int DS_active = 0;
 
+static int need_cdda_rewind = 1;
+
 // Trim whitespace from both ends of a string
 static char* str_trim(char* str) {
     char* end;
@@ -280,6 +282,10 @@ static void psyz_play() {
         WARNF("CdlModeDA not active, audio will not be played");
         return;
     }
+    if (!need_cdda_rewind) {
+        Audio_Unpause();
+        return;
+    }
     int sector = CdPosToInt(&CD_pos);
     TrackEntry* track = NULL;
     for (int i = 0; i < g_track_count; i++) {
@@ -319,9 +325,14 @@ static void psyz_play() {
     DEBUGF("playing audio from %s at sector %d (offset %d)", track->file_path,
            sector, sector_offset);
     Audio_PlayCdAudio(file);
+    Audio_Unpause();
+    need_cdda_rewind = 0;
 }
 
-static void psyz_stop() { Audio_Stop(); }
+static void psyz_stop() {
+    need_cdda_rewind = 1;
+    Audio_Stop();
+}
 
 static void psyz_pause() { Audio_Pause(); }
 

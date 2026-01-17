@@ -6,6 +6,7 @@ void Audio_Shutdown(void);
 void Audio_SetCdAudioEndCB(void (*callback)(void));
 void Audio_PlayCdAudio(FILE* file);
 void Audio_Stop(void);
+void Audio_Unpause(void);
 void Audio_Pause(void);
 void Audio_Mute(void);
 void Audio_Demute(void);

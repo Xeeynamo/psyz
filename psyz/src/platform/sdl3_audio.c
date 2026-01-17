@@ -17,7 +17,6 @@ static SDL_Thread* thread;
 static SDL_Mutex* mutex;
 static FILE* track_file;
 static int is_playing;
-static int is_paused;
 static int is_muted;
 static int thread_should_exit;
 static void (*cd_audio_end_cb)(void);
@@ -26,7 +25,7 @@ static int audio_thread_func(void* data) {
     unsigned char buffer[SECTOR_SIZE * BUFFER_SECTORS];
     while (!thread_should_exit) {
         SDL_LockMutex(mutex);
-        if (is_playing && !is_paused && !is_muted && track_file && sdl_stream) {
+        if (is_playing && !is_muted && track_file && sdl_stream) {
             int queued = SDL_GetAudioStreamQueued(sdl_stream);
             int len = CD_SAMPLE_RATE * CD_CHANNELS * CD_SAMPLE_SIZE / 2;
             if (queued < len) {
@@ -134,14 +133,12 @@ void Audio_PlayCdAudio(FILE* file) {
         SDL_ClearAudioStream(sdl_stream);
     }
     is_playing = 1;
-    is_paused = 0;
     SDL_UnlockMutex(mutex);
 }
 
 void Audio_Stop(void) {
     SDL_LockMutex(mutex);
     is_playing = 0;
-    is_paused = 0;
     if (track_file) {
         fclose(track_file);
         track_file = NULL;
@@ -152,10 +149,12 @@ void Audio_Stop(void) {
     SDL_UnlockMutex(mutex);
 }
 
+void Audio_Unpause(void) {
+    SDL_ResumeAudioStreamDevice(sdl_stream);
+}
+
 void Audio_Pause(void) {
-    SDL_LockMutex(mutex);
-    is_paused = 1;
-    SDL_UnlockMutex(mutex);
+    SDL_PauseAudioStreamDevice(sdl_stream);
 }
 
 void Audio_Mute(void) {
