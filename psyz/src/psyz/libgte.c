@@ -61,7 +61,7 @@ void InitGeom() {
     ZSF4 = 0x100;
     H = 1000;
     DQA = -0x1062;
-    DQB = 0x1400000;
+    DQB = 0x140;
     OFX = 0;
     OFY = 0;
 }
@@ -370,9 +370,9 @@ long NormalClip(long sxy0, long sxy1, long sxy2) {
     return MAC0;
 }
 
-void RotTrans(SVECTOR* v0, VECTOR* v1, long* flag) { NOT_IMPLEMENTED; }
+void RotTrans(SVECTOR* v0, VECTOR* v1, int* flag) { NOT_IMPLEMENTED; }
 
-long RotTransPers(SVECTOR* v0, long* sxy, long* p, long* flag) {
+long RotTransPers(SVECTOR* v0, int* sxy, int* p, int* flag) {
     V0 = *v0;
     RTPS();
     *(unsigned int*)sxy = SX2 | (SY2 << 16);
@@ -381,8 +381,8 @@ long RotTransPers(SVECTOR* v0, long* sxy, long* p, long* flag) {
     return SZ3 >> 2;
 }
 
-long RotTransPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0,
-                   long* sxy1, long* sxy2, long* p, long* flag) {
+long RotTransPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0, int* sxy1,
+                   int* sxy2, int* p, int* flag) {
     V0 = *v0;
     V1 = *v1;
     V2 = *v2;
@@ -396,17 +396,17 @@ long RotTransPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0,
 }
 
 long RotTransPers4(
-    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* sxy0, long* sxy1,
-    long* sxy2, long* sxy3, long* p, long* flag) {
-    long flag1, flag2;
+    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, int* sxy0, int* sxy1,
+    int* sxy2, int* sxy3, int* p, int* flag) {
+    int flag1, flag2;
     RotTransPers3(v0, v1, v2, sxy0, sxy1, sxy2, p, &flag1);
     RotTransPers(v3, sxy3, p, &flag2);
     *flag = flag1 | flag2;
     return SZ3 >> 2;
 }
 
-long RotAverage3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0, long* sxy1,
-                 long* sxy2, long* p, long* flag) {
+long RotAverage3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0, int* sxy1,
+                 int* sxy2, int* p, int* flag) {
     V0 = *v0;
     V1 = *v1;
     V2 = *v2;
@@ -420,8 +420,8 @@ long RotAverage3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0, long* sxy1,
     return OTZ;
 }
 
-long RotAverage4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* sxy0,
-                 long* sxy1, long* sxy2, long* sxy3, long* p, long* flag) {
+long RotAverage4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, int* sxy0,
+                 int* sxy1, int* sxy2, int* sxy3, int* p, int* flag) {
     V0 = *v0;
     V1 = *v1;
     V2 = *v2;
@@ -439,8 +439,8 @@ long RotAverage4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* sxy0,
     return OTZ;
 }
 
-long RotAverageNclip3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0,
-                      long* sxy1, long* sxy2, long* p, long* otz, long* flag) {
+long RotAverageNclip3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0,
+                      int* sxy1, int* sxy2, int* p, int* otz, int* flag) {
     V0 = *v0;
     V1 = *v1;
     V2 = *v2;
@@ -459,8 +459,8 @@ long RotAverageNclip3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0,
 }
 
 long RotAverageNclip4(
-    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* sxy0, long* sxy1,
-    long* sxy2, long* sxy3, long* p, long* otz, long* flag) {
+    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, int* sxy0, int* sxy1,
+    int* sxy2, int* sxy3, int* p, int* otz, int* flag) {
     V0 = *v0;
     V1 = *v1;
     V2 = *v2;

@@ -28,9 +28,9 @@ class gte_Test : public testing::Test {
     struct RTPContext {
         MATRIX m = {0};
         SVECTOR svs[3] = {};
-        long lgs[3] = {};
-        long p = 0;
-        long flag = 0;
+        int lgs[3] = {};
+        int p = 0;
+        int flag = 0;
 
         RTPContext() {
             InitGeom();
