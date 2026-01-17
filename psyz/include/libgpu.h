@@ -27,6 +27,27 @@ extern int (*GPU_printf)(); /* printf() object */
 
 #define limitRange(x, l, h) ((x) = ((x) < (l) ? (l) : (x) > (h) ? (h) : (x)))
 
+#define setVector(v, _x, _y, _z) (v)->vx = _x, (v)->vy = _y, (v)->vz = _z
+
+#define applyVector(v, _x, _y, _z, op)                                         \
+    (v)->vx op _x, (v)->vy op _y, (v)->vz op _z
+
+#define copyVector(v0, v1)                                                     \
+    (v0)->vx = (v1)->vx, (v0)->vy = (v1)->vy, (v0)->vz = (v1)->vz
+
+#define addVector(v0, v1)                                                      \
+    (v0)->vx += (v1)->vx, (v0)->vy += (v1)->vy, (v0)->vz += (v1)->vz
+
+#define dumpVector(str, v)                                                     \
+    GPU_printf("%s=(%d,%d,%d)\n", str, (v)->vx, (v)->vy, (v)->vz)
+
+#define dumpMatrix(x)                                                          \
+    GPU_printf("\t%5d,%5d,%5d\n", (x)->m[0][0], (x)->m[0][1], (x)->m[0][2]),   \
+        GPU_printf(                                                            \
+            "\t%5d,%5d,%5d\n", (x)->m[1][0], (x)->m[1][1], (x)->m[1][2]),      \
+        GPU_printf(                                                            \
+            "\t%5d,%5d,%5d\n", (x)->m[2][0], (x)->m[2][1], (x)->m[2][2])
+
 #define setRECT(r, _x, _y, _w, _h)                                             \
     (r)->x = (_x), (r)->y = (_y), (r)->w = (_w), (r)->h = (_h)
 

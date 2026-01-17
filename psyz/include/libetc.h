@@ -69,9 +69,6 @@ struct Callbacks {
     int (*RestartCallback)(void);
 };
 
-extern u16 D_8002C2BA;
-extern struct Callbacks* D_8002D340;
-
 /*
  * VSync and timing functions
  */

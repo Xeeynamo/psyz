@@ -1,8 +1,11 @@
 #ifndef COMMON_H
 #define COMMON_H
 #include <types.h>
+
+#ifdef __psyz // exclude when targeting the PSX
 #include <stdio.h>
 #include <string.h>
+#endif
 
 #define INCLUDE_ASM(path, func)
 #define WEAK_INCLUDE_ASM(path, func)

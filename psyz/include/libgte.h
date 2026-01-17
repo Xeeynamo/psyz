@@ -625,13 +625,20 @@ void NormalColor3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, CVECTOR* v3,
                   CVECTOR* v4, CVECTOR* v5, CVECTOR* v6);
 
 /**
- * @brief Normal clip
+ * @brief Outer product of three points.
  *
- * Performs normal clipping to determine if a polygon is front-facing.
+ * Returns the outer product for a triangle formed by three points (sx0, sy0),
+ * (sx1, sy1), and (sx2, sy2).
  *
+ * When viewed from the direction of the viewpoint (Z axis negative) the value
+ * is positive when the triangle is righthanded
+ *
+ * @param sxy0 Vector 0 coordinates (upper 16-bit: X, lower 16-bit: Y)
+ * @param sxy1 Vector 1 coordinates (upper 16-bit: X, lower 16-bit: Y)
+ * @param sxy2 Vector 2 coordinates (upper 16-bit: X, lower 16-bit: Y)
  * @return Clip result (positive = front-facing, negative = back-facing)
  */
-long NormalClip(void);
+long NormalClip(long sxy0, long sxy1, long sxy2);
 
 /**
  * @brief Apply matrix to vector
