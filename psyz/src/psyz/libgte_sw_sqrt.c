@@ -1,6 +1,7 @@
 #include <psyz.h>
 #include <libgte.h>
-#include <log.h>
+#include <psyz/log.h>
+#include "../internal.h"
 
 extern short SQRT[192];
 

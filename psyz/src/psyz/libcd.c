@@ -1,6 +1,6 @@
 #include <psyz.h>
 #include <libcd.h>
-#include <log.h>
+#include <psyz/log.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +8,7 @@
 #include <ctype.h>
 #include <limits.h>
 #include "../audio.h"
+#include "../internal.h"
 
 #define SECTOR_SIZE 2352
 #define MAX_TRACKS 99

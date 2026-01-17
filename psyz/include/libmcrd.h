@@ -1,5 +1,6 @@
 #ifndef LIBMCRD_H
 #define LIBMCRD_H
+#include <psyz/types.h>
 
 /**
  * @file libmcrd.h
@@ -22,8 +23,6 @@
  * - Port B: 0x10 (direct connect)
  * - Card number: normally 0 (supports multitap expansion)
  */
-
-#include <types.h>
 
 /* Forward declaration from libapi.h */
 #ifndef DIRENTRY

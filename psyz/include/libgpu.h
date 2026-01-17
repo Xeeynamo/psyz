@@ -1,6 +1,6 @@
 #ifndef LIBGPU_H
 #define LIBGPU_H
-#include <psyz.h>
+#include <psyz/types.h>
 
 /**
  * @file libgpu.h

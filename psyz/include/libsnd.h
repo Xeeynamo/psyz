@@ -1,5 +1,6 @@
 #ifndef LIBSND_H
 #define LIBSND_H
+#include <psyz/types.h>
 
 /**
  * @file libsnd.h
@@ -9,8 +10,6 @@
  * including MIDI sequence playback (SEQ/SEP), VAB bank management,
  * voice control, reverb effects, and sound effect utilities.
  */
-
-#include <types.h>
 
 /* SEQ/SEP data attribute table size constant */
 #define SS_SEQ_TABSIZ 176

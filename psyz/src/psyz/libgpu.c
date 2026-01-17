@@ -1,7 +1,8 @@
 #include <psyz.h>
 #include <libgpu.h>
-#include <log.h>
+#include <psyz/log.h>
 #include "../draw.h"
+#include "../internal.h"
 
 static u32 GPU_STATUS = 0;
 

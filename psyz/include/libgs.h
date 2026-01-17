@@ -1,5 +1,6 @@
 #ifndef LIBGS_H
 #define LIBGS_H
+#include <libgpu.h>
 #include <libgte.h>
 
 /**
@@ -19,8 +20,6 @@
  * - Packet area management for primitives
  * - World/Screen/Light matrix handling
  */
-
-#include <libgpu.h>
 
 /* Constants */
 #define GsOFSGTE 0

@@ -1,5 +1,6 @@
 #ifndef LIBPRESS_H
 #define LIBPRESS_H
+#include <psyz/types.h>
 
 /**
  * @file libpress.h
@@ -17,8 +18,6 @@
  * - SPU ADPCM encoding
  * - Environment management for compression parameters
  */
-
-#include <types.h>
 
 /* SPU Encoding Constants */
 #define ENCSPU_ENCODE_LOOP 1           /**< Generate loop waveform data */

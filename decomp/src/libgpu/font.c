@@ -1,4 +1,5 @@
 #include <common.h>
+#include <string.h>
 #include <libgte.h>
 #include <libgpu.h>
 

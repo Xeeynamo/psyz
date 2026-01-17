@@ -1,7 +1,8 @@
 #include <assert.h>
 #include <psyz.h>
 #include <libgte.h>
-#include <log.h>
+#include <psyz/log.h>
+#include "../internal.h"
 
 // https://www.problemkaputt.de/psx-spx.htm#gteoverview
 static SVECTOR V0;         // cop1 0-1

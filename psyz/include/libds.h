@@ -1,5 +1,6 @@
 #ifndef LIBDS_H
 #define LIBDS_H
+#include <psyz/types.h>
 
 /**
  * @file libds.h
@@ -19,8 +20,6 @@
  *
  * Note: Cannot be used together with libcd.
  */
-
-#include <types.h>
 
 /* Callback function types */
 

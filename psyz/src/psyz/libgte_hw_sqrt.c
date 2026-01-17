@@ -4,7 +4,7 @@
 
 #include <psyz.h>
 #include <libgte.h>
-#include <log.h>
+#include <psyz/log.h>
 #include <math.h>
 
 long SquareRoot0_impl(long a) {

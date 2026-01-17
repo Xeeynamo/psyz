@@ -1,8 +1,9 @@
 #include <psyz.h>
-#include <log.h>
+#include <psyz/log.h>
 #include <kernel.h>
 #include "libgpu.h"
 #include "../draw.h"
+#include "../internal.h"
 
 #undef _get_errno // Windows: avoid conflicts
 #undef undelete // macOS: avoid conflicts

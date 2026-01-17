@@ -1,7 +1,7 @@
 #include <psyz.h>
 #include <libspu.h>
 #include <libsnd.h>
-#include <log.h>
+#include <psyz/log.h>
 
 short _svm_stereo_mono;
 SpuReverbAttr _svm_rattr;

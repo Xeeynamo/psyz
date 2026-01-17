@@ -2,6 +2,11 @@
 #include <libgte.h>
 #include <libgpu.h>
 
+#ifdef __psyz
+#include <psyz/log.h>
+#define printf INFOF
+#endif
+
 #pragma pack(push, 4)
 typedef struct {
     int vert;

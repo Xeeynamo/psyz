@@ -1,6 +1,6 @@
 #ifndef COMMON_H
 #define COMMON_H
-#include <types.h>
+#include <psyz/types.h>
 
 #ifdef __psyz // exclude when targeting the PSX
 #include <stdio.h>

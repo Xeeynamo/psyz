@@ -10,7 +10,7 @@
  * communication parameter configuration, and flow control.
  */
 
-#include <types.h>
+#include <psyz/types.h>
 
 /* Driver Status bit definitions (Table 13-2) */
 #define COMB_STAT_TX_RDY 0x0001   /**< Bit 0: Possible to write sending data */

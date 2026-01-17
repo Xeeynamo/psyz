@@ -1,5 +1,6 @@
 #ifndef LIBSPU_H
 #define LIBSPU_H
+#include <psyz/types.h>
 
 /**
  * @file libspu.h
@@ -9,8 +10,6 @@
  * Sound Processing Unit (SPU), including voice management, ADSR envelope
  * control, reverb effects, memory management, and data transfer.
  */
-
-#include <types.h>
 
 /*============================================================================
  * Voice Channel Constants

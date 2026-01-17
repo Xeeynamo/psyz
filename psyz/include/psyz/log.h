@@ -1,5 +1,5 @@
-#ifndef LOG_H
-#define LOG_H
+#ifndef PSYZ_LOG_H
+#define PSYZ_LOG_H
 
 typedef enum {
     LOG_LEVEL_D,

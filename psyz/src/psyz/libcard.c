@@ -1,6 +1,6 @@
 #include <psyz.h>
 #include <libapi.h>
-#include <log.h>
+#include <psyz/log.h>
 #include <sys/stat.h>
 
 // 1:valid, 0:invalid

@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include "../internal.h"
 
 #include <SDL3/SDL.h>
 #if defined(_MSC_VER) || defined(__MINGW32__) || defined(__APPLE__)
@@ -261,13 +262,13 @@ static GLuint Init_SetupShader() {
 }
 
 static bool disp_on = false;
-static int set_wnd_width = 256;
+static int set_wnd_width = 320;
 static int set_wnd_height = 240;
-static int set_wnd_scale = SCREEN_SCALE;
+static int set_wnd_scale = 2;
 static int cur_wnd_width = -1;
 static int cur_wnd_height = -1;
 static int cur_wnd_scale = -1;
-static int set_disp_horiz = 256;
+static int set_disp_horiz = 320;
 static int set_disp_vert = 240;
 static int cur_disp_horiz = -1;
 static int cur_disp_vert = -1;
@@ -296,9 +297,11 @@ bool InitPlatform() {
         SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 0);
     SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
-    cur_wnd_height = DISP_HEIGHT;
+    cur_wnd_width = set_wnd_width;
+    cur_wnd_height = set_wnd_height;
+    cur_wnd_scale = set_wnd_scale;
     window = SDL_CreateWindow(
-        "PSY-Z", DISP_WIDTH * SCREEN_SCALE, DISP_HEIGHT * SCREEN_SCALE,
+        "PSY-Z", cur_wnd_width * cur_wnd_scale, cur_wnd_height * cur_wnd_scale,
         SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
     if (!window) {
         ERRORF("SDL_CreateWindow: %s", SDL_GetError());
@@ -335,7 +338,7 @@ bool InitPlatform() {
     }
 
     INFOF("opengl %d.%d initialized", glVer_major, glVer_minor);
-    glLineWidth(SCREEN_SCALE);
+    glLineWidth((GLfloat)cur_wnd_scale);
     shader_program = Init_SetupShader();
     if (!shader_program) {
         ERRORF("failed to compile shaders: %s", SDL_GetError());
