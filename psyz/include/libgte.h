@@ -478,7 +478,7 @@ void SetFogNear(long a, long h);
  * @param v1 Pointer to output vector
  * @return Flag value
  */
-void RotTrans(SVECTOR* v0, VECTOR* v1, long* flag);
+void RotTrans(SVECTOR* v0, VECTOR* v1, int* flag);
 
 /**
  * @brief Rotate, translate and perspective transform
@@ -491,7 +491,7 @@ void RotTrans(SVECTOR* v0, VECTOR* v1, long* flag);
  * @param flag Pointer to flag (output)
  * @return OTZ value
  */
-long RotTransPers(SVECTOR* v0, long* sxy, long* p, long* flag);
+long RotTransPers(SVECTOR* v0, int* sxy, int* p, int* flag);
 
 /**
  * @brief Rotate, translate and perspective transform (3 vertices)
@@ -508,8 +508,8 @@ long RotTransPers(SVECTOR* v0, long* sxy, long* p, long* flag);
  * @param flag Pointer to flag (output)
  * @return OTZ value
  */
-long RotTransPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0,
-                   long* sxy1, long* sxy2, long* p, long* flag);
+long RotTransPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0, int* sxy1,
+                   int* sxy2, int* p, int* flag);
 
 /**
  * @brief Rotate, translate and perspective transform (4 vertices)
@@ -529,8 +529,8 @@ long RotTransPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0,
  * @return OTZ value
  */
 long RotTransPers4(
-    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* sxy0, long* sxy1,
-    long* sxy2, long* sxy3, long* p, long* flag);
+    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, int* sxy0, int* sxy1,
+    int* sxy2, int* sxy3, int* p, int* flag);
 
 /**
  * @brief Rotate, average and normal clip (3 vertices)
@@ -548,8 +548,8 @@ long RotTransPers4(
  * @param flag Pointer to flag (output)
  * @return Normal clip result
  */
-long RotAverageNclip3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0,
-                      long* sxy1, long* sxy2, long* p, long* otz, long* flag);
+long RotAverageNclip3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0,
+                      int* sxy1, int* sxy2, int* p, int* otz, int* flag);
 
 /**
  * @brief Rotate, average and normal clip (4 vertices)
@@ -570,8 +570,8 @@ long RotAverageNclip3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0,
  * @return Normal clip result
  */
 long RotAverageNclip4(
-    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* sxy0, long* sxy1,
-    long* sxy2, long* sxy3, long* p, long* otz, long* flag);
+    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, int* sxy0, int* sxy1,
+    int* sxy2, int* sxy3, int* p, int* otz, int* flag);
 
 /**
  * @brief Normal color calculation
@@ -763,7 +763,7 @@ void PopMatrix(void);
  * @param x Pointer to X offset (output)
  * @param y Pointer to Y offset (output)
  */
-void ReadGeomOffset(long* x, long* y);
+void ReadGeomOffset(int* x, int* y);
 
 /**
  * @brief Read geometry screen distance
@@ -892,7 +892,7 @@ void ReadRGBfifo(CVECTOR* v0, CVECTOR* v1, CVECTOR* v2);
  * @param sxy1 Pointer to second screen coordinates (output)
  * @param sxy2 Pointer to third screen coordinates (output)
  */
-void ReadSXSYfifo(long* sxy0, long* sxy1, long* sxy2);
+void ReadSXSYfifo(int* sxy0, int* sxy1, int* sxy2);
 
 /**
  * @brief Read SZ values (3 vertices)
@@ -903,7 +903,7 @@ void ReadSXSYfifo(long* sxy0, long* sxy1, long* sxy2);
  * @param sz1 Pointer to second SZ value (output)
  * @param sz2 Pointer to third SZ value (output)
  */
-void ReadSZfifo3(long* sz0, long* sz1, long* sz2);
+void ReadSZfifo3(int* sz0, int* sz1, int* sz2);
 
 /**
  * @brief Read SZ values (4 vertices)
@@ -915,7 +915,7 @@ void ReadSZfifo3(long* sz0, long* sz1, long* sz2);
  * @param sz1 Pointer to second SZ value (output)
  * @param sz2 Pointer to third SZ value (output)
  */
-void ReadSZfifo4(long* szx, long* sz0, long* sz1, long* sz2);
+void ReadSZfifo4(int* szx, int* sz0, int* sz1, int* sz2);
 
 /**
  * @brief Rotate, average and get Z values (3 vertices)
@@ -932,8 +932,8 @@ void ReadSZfifo4(long* szx, long* sz0, long* sz1, long* sz2);
  * @param flag Pointer to flag (output)
  * @return OTZ value (average of three Z values)
  */
-long RotAverage3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0, long* sxy1,
-                 long* sxy2, long* p, long* flag);
+long RotAverage3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0, int* sxy1,
+                 int* sxy2, int* p, int* flag);
 
 /**
  * @brief Rotate, average (3 vertices, no output)
@@ -964,8 +964,8 @@ long RotAverage3_nom(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2);
  * @param flag Pointer to flag (output)
  * @return OTZ value (average of four Z values)
  */
-long RotAverage4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* sxy0,
-                 long* sxy1, long* sxy2, long* sxy3, long* p, long* flag);
+long RotAverage4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, int* sxy0,
+                 int* sxy1, int* sxy2, int* sxy3, int* p, int* flag);
 
 /**
  * @brief Coordinate transformation with normal clip (3 vertices)
@@ -983,8 +983,8 @@ long RotAverage4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* sxy0,
  * @param flag Pointer to flag (output)
  * @return Outer product (negative = back-facing)
  */
-long RotAverageNclip3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0,
-                      long* sxy1, long* sxy2, long* p, long* otz, long* flag);
+long RotAverageNclip3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0,
+                      int* sxy1, int* sxy2, int* p, int* otz, int* flag);
 
 /**
  * @brief Coordinate transformation with normal clip (3 vertices, no output)
@@ -1017,8 +1017,8 @@ long RotAverageNclip3_nom(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2);
  * @return Outer product (negative = back-facing)
  */
 long RotAverageNclip4(
-    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* sxy0, long* sxy1,
-    long* sxy2, long* sxy3, long* p, long* otz, long* flag);
+    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, int* sxy0, int* sxy1,
+    int* sxy2, int* sxy3, int* p, int* otz, int* flag);
 
 /**
  * @brief Coordinate transformation with color calculation (3 vertices)
@@ -1044,8 +1044,8 @@ long RotAverageNclip4(
  */
 long RotAverageNclipColorCol3(
     SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, SVECTOR* v4,
-    SVECTOR* v5, CVECTOR* v6, long* sxy0, long* sxy1, long* sxy2, CVECTOR* v7,
-    CVECTOR* v8, CVECTOR* v9, long* otz, long* flag);
+    SVECTOR* v5, CVECTOR* v6, int* sxy0, int* sxy1, int* sxy2, CVECTOR* v7,
+    CVECTOR* v8, CVECTOR* v9, int* otz, int* flag);
 
 /**
  * @brief Coordinate transformation with color (3 vertices, no output)
@@ -1089,8 +1089,8 @@ long RotAverageNclipColorCol3_nom(
  */
 long RotAverageNclipColorDpq3(
     SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, SVECTOR* v4,
-    SVECTOR* v5, CVECTOR* v6, long* sxy0, long* sxy1, long* sxy2, CVECTOR* v7,
-    CVECTOR* v8, CVECTOR* v9, long* otz, long* flag);
+    SVECTOR* v5, CVECTOR* v6, int* sxy0, int* sxy1, int* sxy2, CVECTOR* v7,
+    CVECTOR* v8, CVECTOR* v9, int* otz, int* flag);
 
 /**
  * @brief Coordinate transformation with depth cueing (3 vertices, no output)
@@ -1124,7 +1124,7 @@ long RotAverageNclipColorDpq3_nom(
  * @return OTZ value
  */
 long RotColorDpq(
-    SVECTOR* v0, SVECTOR* v1, CVECTOR* v2, long* sxy, CVECTOR* v3, long* flag);
+    SVECTOR* v0, SVECTOR* v1, CVECTOR* v2, int* sxy, CVECTOR* v3, int* flag);
 
 /**
  * @brief Color calculation with depth cueing (1 vertex, no output)
@@ -1159,10 +1159,9 @@ long RotColorDpq_nom(SVECTOR* v0, SVECTOR* v1, CVECTOR* v2);
  * @param flag Pointer to flag (output)
  * @return OTZ value
  */
-long RotColorDpq3(
-    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, SVECTOR* v4,
-    SVECTOR* v5, CVECTOR* v6, long* sxy0, long* sxy1, long* sxy2, CVECTOR* v7,
-    CVECTOR* v8, CVECTOR* v9, long* flag);
+long RotColorDpq3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3,
+                  SVECTOR* v4, SVECTOR* v5, CVECTOR* v6, int* sxy0, int* sxy1,
+                  int* sxy2, CVECTOR* v7, CVECTOR* v8, CVECTOR* v9, int* flag);
 
 /**
  * @brief Color calculation with depth cueing (3 vertices, no output)
@@ -1195,8 +1194,8 @@ long RotColorDpq3_nom(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3,
  * @param flag Pointer to flag (output)
  * @return OTZ value
  */
-long RotColorMatDpq(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy,
-                    CVECTOR* v3, long matc, long* flag);
+long RotColorMatDpq(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy,
+                    CVECTOR* v3, long matc, int* flag);
 
 /**
  * @brief Alternative rotation matrix (XZY order)
@@ -1317,7 +1316,7 @@ void RotTrans_nom(SVECTOR* v0);
  * @param flag Pointer to flag (output)
  * @return OTZ value
  */
-long RotTransPers(SVECTOR* v0, long* sxy, long* p, long* flag);
+long RotTransPers(SVECTOR* v0, int* sxy, int* p, int* flag);
 
 /**
  * @brief Coordinate and perspective transformation (1 vertex, no output)
@@ -1344,8 +1343,8 @@ long RotTransPers_nom(SVECTOR* v0);
  * @param flag Pointer to flag (output)
  * @return OTZ value
  */
-long RotTransPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0,
-                   long* sxy1, long* sxy2, long* p, long* flag);
+long RotTransPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0, int* sxy1,
+                   int* sxy2, int* p, int* flag);
 
 /**
  * @brief Coordinate and perspective transformation (3 vertices, no output)
@@ -1391,8 +1390,8 @@ void RotTransPers3N(
  * @return OTZ value
  */
 long RotTransPers4(
-    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* sxy0, long* sxy1,
-    long* sxy2, long* sxy3, long* p, long* flag);
+    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, int* sxy0, int* sxy1,
+    int* sxy2, int* sxy3, int* p, int* flag);
 
 /**
  * @brief Coordinate and perspective transformation (4 vertices, no output)
@@ -1431,7 +1430,7 @@ void RotTransPersN(
  * @param v1 Pointer to output vector
  * @param flag Pointer to flag (output)
  */
-void RotTransSV(SVECTOR* v0, SVECTOR* v1, long* flag);
+void RotTransSV(SVECTOR* v0, SVECTOR* v1, int* flag);
 
 /**
  * @brief Coordinate transformation with outer product (3 vertices)
@@ -1449,8 +1448,8 @@ void RotTransSV(SVECTOR* v0, SVECTOR* v1, long* flag);
  * @param flag Pointer to flag (output)
  * @return Outer product
  */
-long RotNclip3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0, long* sxy1,
-               long* sxy2, long* p, long* otz, long* flag);
+long RotNclip3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0, int* sxy1,
+               int* sxy2, int* p, int* otz, int* flag);
 
 /**
  * @brief Coordinate transformation with outer product (3 vertices, no output)
@@ -1482,9 +1481,8 @@ long RotNclip3_nom(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2);
  * @param flag Pointer to flag (output)
  * @return Outer product
  */
-long RotNclip4(
-    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* sxy0, long* sxy1,
-    long* sxy2, long* sxy3, long* p, long* otz, long* flag);
+long RotNclip4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, int* sxy0,
+               int* sxy1, int* sxy2, int* sxy3, int* p, int* otz, int* flag);
 
 /**
  * @brief Scale matrix (column-wise)
@@ -1647,7 +1645,7 @@ void SubPol4(POL4* p, SPOL* sp, int ndiv);
  * @param flag Pointer to flag (output)
  * @return OTZ value
  */
-long TransRotPers(SVECTOR* v0, long* sxy, long* p, long* flag);
+long TransRotPers(SVECTOR* v0, int* sxy, int* p, int* flag);
 
 /**
  * @brief Inverse rotation (translate then rotate, 3 vertices)
@@ -1664,8 +1662,8 @@ long TransRotPers(SVECTOR* v0, long* sxy, long* p, long* flag);
  * @param flag Pointer to flag (output)
  * @return OTZ value
  */
-long TransRotPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0,
-                   long* sxy1, long* sxy2, long* p, long* flag);
+long TransRotPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0, int* sxy1,
+                   int* sxy2, int* p, int* flag);
 
 /**
  * @brief Inverse rotation (translate then rotate)
@@ -1676,7 +1674,7 @@ long TransRotPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0,
  * @param v1 Pointer to output vector
  * @param flag Pointer to flag (output)
  */
-void TransRot_32(VECTOR* v0, VECTOR* v1, long* flag);
+void TransRot_32(VECTOR* v0, VECTOR* v1, int* flag);
 
 /**
  * @brief Triangle division (flat)
