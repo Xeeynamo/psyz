@@ -182,11 +182,36 @@ MATRIX* RotMatrix(SVECTOR* r, MATRIX* m) {
     return m;
 }
 
+MATRIX* RotMatrixY(long r, MATRIX* m) {
+    NOT_IMPLEMENTED;
+    return m;
+}
+
+MATRIX* RotMatrixX(long r, MATRIX* m) {
+    NOT_IMPLEMENTED;
+    return m;
+}
+
+MATRIX* RotMatrixZ(long r, MATRIX* m) {
+    NOT_IMPLEMENTED;
+    return m;
+}
+
 MATRIX* TransMatrix(MATRIX* m, VECTOR* v) {
     m->t[0] = v->vx;
     m->t[1] = v->vy;
     m->t[2] = v->vz;
     return m;
+}
+
+MATRIX* ScaleMatrix(MATRIX* m, VECTOR* v) {
+    NOT_IMPLEMENTED;
+    return m;
+}
+
+MATRIX* MulMatrix(MATRIX* m0, MATRIX* m1) {
+    NOT_IMPLEMENTED;
+    return m0;
 }
 
 // RTPS, RTPT, NCLIP, AVSZ3, AVSZ4 are implementations after
@@ -344,6 +369,8 @@ long NormalClip(long sxy0, long sxy1, long sxy2) {
     return MAC0;
 }
 
+void RotTrans(SVECTOR* v0, VECTOR* v1, long* flag) { NOT_IMPLEMENTED; }
+
 long RotTransPers(SVECTOR* v0, long* sxy, long* p, long* flag) {
     V0 = *v0;
     RTPS();
@@ -453,4 +480,19 @@ long RotAverageNclip4(
         *otz = OTZ;
     }
     return MAC0;
+}
+
+long VectorNormal(VECTOR* v0, VECTOR* v1) {
+    NOT_IMPLEMENTED;
+    return 0;
+}
+
+long VectorNormalS(VECTOR* v0, SVECTOR* v1) {
+    NOT_IMPLEMENTED;
+    return 0;
+}
+
+long VectorNormalSS(SVECTOR* v0, SVECTOR* v1) {
+    NOT_IMPLEMENTED;
+    return 0;
 }
