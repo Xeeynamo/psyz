@@ -54,7 +54,10 @@ void gte_init() {
 
 void GsClearVcount(void) { NOT_IMPLEMENTED; }
 
-long GsGetVcount() { NOT_IMPLEMENTED; }
+long GsGetVcount() {
+    NOT_IMPLEMENTED;
+    return 1;
+}
 
 void GsInitVcount() { NOT_IMPLEMENTED; }
 

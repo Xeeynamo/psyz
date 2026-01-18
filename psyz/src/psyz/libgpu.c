@@ -158,10 +158,12 @@ int GPU_Enqueue(u_long p1, u_long p2) {
     return 0;
 }
 static int GPU_DataWrite(u_long p1, u_long p2) {
+    psyz_exeque();
     Draw_LoadImage((RECT*)p1, (u_long*)p2);
     return 0;
 }
 static int GPU_DataRead(u_long p1, u_long p2) {
+    psyz_exeque();
     Draw_StoreImage((RECT*)p1, (u_long*)p2);
     return 0;
 }
@@ -187,11 +189,10 @@ static int psyz_clr(RECT* rect, u32 color) {
 
     setlen(&clear_cmd, 5);
     clear_cmd.code[0] = 0xE6000000; // mask bit setting
-    clear_cmd.code[1] =
-        0xE1000000 | GPU_STATUS & 0x7FF | (color >> 0x1F) << 10;
+    clear_cmd.code[1] = 0xE1000000 | GPU_STATUS & 0x7FF | (color >> 0x1F) << 10;
     clear_cmd.code[2] = (color & 0xFFFFFF) | 0x02000000;
-    clear_cmd.code[3] = (u_long)*(u32*)&rect->x;
-    clear_cmd.code[4] = (u_long)*(u32*)&rect->w;
+    clear_cmd.code[3] = (u_long) * (u32*)&rect->x;
+    clear_cmd.code[4] = (u_long) * (u32*)&rect->w;
     termPrim(&clear_cmd);
     GPU_Enqueue((u_long)&clear_cmd, 0);
     return 0;

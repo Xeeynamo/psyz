@@ -434,3 +434,35 @@ TEST_F(SDLGL_Test, clear_screen_draw_offset_bugfix) {
 
     AssertFrame("clear_screen_draw_offset_bugfix");
 }
+
+TEST_F(SDLGL_Test, load_move_image_priority) {
+    TIM_IMAGE tim;
+    OpenTIM((u_long*)img_16bpp);
+    ReadTIM(&tim);
+
+    RECT rectMoveNull = {16, 16, 64, 64};
+    MoveImage(&rectMoveNull, 16, 80);
+
+    SetTile(&cdb->tile[0]);
+    setRGB0(&cdb->tile[0], 255, 0, 0);
+    setXY0(&cdb->tile[0], 32, 32);
+    setWH(&cdb->tile[0], 32, 32);
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &db[0].tile[0]);
+
+    RECT rectBlit = {16, 16, 64, 64};
+    LoadImage(&rectBlit, tim.paddr);
+
+    DrawOTag(cdb->ot);
+
+    RECT rectMoveImage = {16, 16, 64, 64};
+    MoveImage(&rectMoveImage, 80, 16);
+
+    DrawSync(0);
+    VSync(0);
+    cdb->disp.disp.x = 0;
+    cdb->disp.disp.y = 0;
+    PutDispEnv(&cdb->disp);
+
+    AssertFrame("load_move_image_priority");
+}
