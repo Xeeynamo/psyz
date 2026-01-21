@@ -11,6 +11,7 @@ unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h);
 
 #include "res/4bpp.h"
 #include "res/16bpp.h"
+#include "res/uv4bpp.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -465,4 +466,151 @@ TEST_F(SDLGL_Test, load_move_image_priority) {
     PutDispEnv(&cdb->disp);
 
     AssertFrame("load_move_image_priority");
+}
+
+TEST_F(SDLGL_Test, flipped_xy) {
+    u_short tpage, clut;
+    if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
+        return;
+    }
+
+    for (int i = 0; i < 4; i++) {
+        setPolyGT4(&cdb->gt4[i]);
+        SetSemiTrans(&cdb->gt4[i], 0);
+        SetShadeTex(&cdb->gt4[i], 0);
+        setUVWH(&cdb->gt4[i], 0, 0, 64, 64);
+        cdb->gt4[i].tpage = tpage;
+        cdb->gt4[i].clut = clut;
+        AddPrim(cdb->ot, &cdb->gt4[i]);
+    }
+    setRGB0(&cdb->gt4[0], 0xFF, 0xFF, 0xFF);
+    setRGB1(&cdb->gt4[0], 0xFF, 0xFF, 0xFF);
+    setRGB2(&cdb->gt4[0], 0xFF, 0xFF, 0xFF);
+    setRGB3(&cdb->gt4[0], 0xFF, 0xFF, 0xFF);
+    setXY4(&cdb->gt4[0], 0, 0, 64, 0, 0, 64, 64, 64);
+    setRGB0(&cdb->gt4[1], 0xFF, 0x00, 0x00);
+    setRGB1(&cdb->gt4[1], 0xFF, 0x00, 0x00);
+    setRGB2(&cdb->gt4[1], 0xFF, 0x00, 0x00);
+    setRGB3(&cdb->gt4[1], 0xFF, 0x00, 0x00);
+    setXY4(&cdb->gt4[1], 128, 0, 64, 0, 128, 64, 64, 64);
+    setRGB0(&cdb->gt4[2], 0x00, 0xFF, 0x00);
+    setRGB1(&cdb->gt4[2], 0x00, 0xFF, 0x00);
+    setRGB2(&cdb->gt4[2], 0x00, 0xFF, 0x00);
+    setRGB3(&cdb->gt4[2], 0x00, 0xFF, 0x00);
+    setXY4(&cdb->gt4[2], 0, 128, 64, 128, 0, 64, 64, 64);
+    setRGB0(&cdb->gt4[3], 0x00, 0x00, 0xFF);
+    setRGB1(&cdb->gt4[3], 0x00, 0x00, 0xFF);
+    setRGB2(&cdb->gt4[3], 0x00, 0x00, 0xFF);
+    setRGB3(&cdb->gt4[3], 0x00, 0x00, 0xFF);
+    setXY4(&cdb->gt4[3], 128, 128, 64, 128, 128, 64, 64, 64);
+
+    ClearImage(&cdb->draw.clip, 0, 0, 0);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+
+    AssertFrame("flipped_xy", 1);
+}
+
+TEST_F(SDLGL_Test, flipped_uv) {
+    u_short tpage, clut;
+    if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
+        return;
+    }
+
+    for (int i = 0; i < 4; i++) {
+        setPolyGT4(&cdb->gt4[i]);
+        SetSemiTrans(&cdb->gt4[i], 0);
+        SetShadeTex(&cdb->gt4[i], 0);
+        cdb->gt4[i].tpage = tpage;
+        cdb->gt4[i].clut = clut;
+        AddPrim(cdb->ot, &cdb->gt4[i]);
+    }
+    setXYWH(&cdb->gt4[0], 0, 0, 64, 64);
+    setRGB0(&cdb->gt4[0], 0xFF, 0xFF, 0xFF);
+    setRGB1(&cdb->gt4[0], 0xFF, 0xFF, 0xFF);
+    setRGB2(&cdb->gt4[0], 0xFF, 0xFF, 0xFF);
+    setRGB3(&cdb->gt4[0], 0xFF, 0xFF, 0xFF);
+    setUV4(&cdb->gt4[0], 0, 0, 64, 0, 0, 64, 64, 64);
+
+    setXYWH(&cdb->gt4[1], 64, 0, 64, 64);
+    setRGB0(&cdb->gt4[1], 0xFF, 0x00, 0x00);
+    setRGB1(&cdb->gt4[1], 0xFF, 0x00, 0x00);
+    setRGB2(&cdb->gt4[1], 0xFF, 0x00, 0x00);
+    setRGB3(&cdb->gt4[1], 0xFF, 0x00, 0x00);
+    setUV4(&cdb->gt4[1], 64, 0, 0, 0, 64, 64, 0, 64);
+
+    setXYWH(&cdb->gt4[2], 0, 64, 64, 64);
+    setRGB0(&cdb->gt4[2], 0x00, 0xFF, 0x00);
+    setRGB1(&cdb->gt4[2], 0x00, 0xFF, 0x00);
+    setRGB2(&cdb->gt4[2], 0x00, 0xFF, 0x00);
+    setRGB3(&cdb->gt4[2], 0x00, 0xFF, 0x00);
+    setUV4(&cdb->gt4[2], 0, 64, 64, 64, 0, 0, 64, 0);
+
+    setXYWH(&cdb->gt4[3], 64, 64, 64, 64);
+    setRGB0(&cdb->gt4[3], 0x00, 0x00, 0xFF);
+    setRGB1(&cdb->gt4[3], 0x00, 0x00, 0xFF);
+    setRGB2(&cdb->gt4[3], 0x00, 0x00, 0xFF);
+    setRGB3(&cdb->gt4[3], 0x00, 0x00, 0xFF);
+    setUV4(&cdb->gt4[3], 64, 64, 0, 64, 64, 0, 0, 0);
+
+    ClearImage(&cdb->draw.clip, 0, 0, 0);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+
+    AssertFrame("flipped_uv", 1);
+}
+
+TEST_F(SDLGL_Test, flipped_xy_uv) {
+    u_short tpage, clut;
+    if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
+        return;
+    }
+
+    for (int i = 0; i < 4; i++) {
+        setPolyGT4(&cdb->gt4[i]);
+        SetSemiTrans(&cdb->gt4[i], 0);
+        SetShadeTex(&cdb->gt4[i], 0);
+        cdb->gt4[i].tpage = tpage;
+        cdb->gt4[i].clut = clut;
+        AddPrim(cdb->ot, &cdb->gt4[i]);
+    }
+    setXY4(&cdb->gt4[0], 0, 0, 64, 0, 0, 64, 64, 64);
+    setRGB0(&cdb->gt4[0], 0xFF, 0xFF, 0xFF);
+    setRGB1(&cdb->gt4[0], 0xFF, 0xFF, 0xFF);
+    setRGB2(&cdb->gt4[0], 0xFF, 0xFF, 0xFF);
+    setRGB3(&cdb->gt4[0], 0xFF, 0xFF, 0xFF);
+    setUV4(&cdb->gt4[0], 0, 0, 64, 0, 0, 64, 64, 64);
+
+    setXY4(&cdb->gt4[1], 128, 0, 64, 0, 128, 64, 64, 64);
+    setRGB0(&cdb->gt4[1], 0xFF, 0x00, 0x00);
+    setRGB1(&cdb->gt4[1], 0xFF, 0x00, 0x00);
+    setRGB2(&cdb->gt4[1], 0xFF, 0x00, 0x00);
+    setRGB3(&cdb->gt4[1], 0xFF, 0x00, 0x00);
+    setUV4(&cdb->gt4[1], 64, 0, 0, 0, 64, 64, 0, 64);
+
+    setXY4(&cdb->gt4[2], 0, 128, 64, 128, 0, 64, 64, 64);
+    setRGB0(&cdb->gt4[2], 0x00, 0xFF, 0x00);
+    setRGB1(&cdb->gt4[2], 0x00, 0xFF, 0x00);
+    setRGB2(&cdb->gt4[2], 0x00, 0xFF, 0x00);
+    setRGB3(&cdb->gt4[2], 0x00, 0xFF, 0x00);
+    setUV4(&cdb->gt4[2], 0, 64, 64, 64, 0, 0, 64, 0);
+
+    setXY4(&cdb->gt4[3], 128, 128, 64, 128, 128, 64, 64, 64);
+    setRGB0(&cdb->gt4[3], 0x00, 0x00, 0xFF);
+    setRGB1(&cdb->gt4[3], 0x00, 0x00, 0xFF);
+    setRGB2(&cdb->gt4[3], 0x00, 0x00, 0xFF);
+    setRGB3(&cdb->gt4[3], 0x00, 0x00, 0xFF);
+    setUV4(&cdb->gt4[3], 64, 64, 0, 64, 64, 0, 0, 0);
+
+    ClearImage(&cdb->draw.clip, 0, 0, 0);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+
+    AssertFrame("flipped_xy_uv", 1);
 }

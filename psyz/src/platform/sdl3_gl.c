@@ -936,6 +936,30 @@ static int writePacket(Vertex* v, int code, int n, u_long* packet, u16* pOut) {
     return w;
 }
 
+static void FixupFlipUV(Vertex* v, int hasFourVertices) {
+    bool fix_u = (v[0].x > v[1].x) ^ (v[0].u > v[1].u);
+    fix_u |= (v[0].x > v[2].x) ^ (v[0].u > v[2].u);
+    if (fix_u) {
+        v[0].u++;
+        v[1].u++;
+        v[2].u++;
+        if (hasFourVertices) {
+            v[3].u++;
+        }
+    }
+
+    bool fix_v = (v[0].y > v[1].y) ^ (v[0].v > v[1].v);
+    fix_v |= (v[0].y > v[2].y) ^ (v[0].v > v[2].v);
+    if (fix_v) {
+        v[0].v++;
+        v[1].v++;
+        v[2].v++;
+        if (hasFourVertices) {
+            v[3].v++;
+        }
+    }
+}
+
 int Draw_PushPrim(u_long* packets, int max_len) {
     int len = max_len;
     int code = (int)(*packets >> 24) & 0xFF;
@@ -994,7 +1018,9 @@ int Draw_PushPrim(u_long* packets, int max_len) {
             packets--;
             len++;
 
-            if (!isTextured) {
+            if (isTextured) {
+                FixupFlipUV(vertex_cur, code & EXTRA_VERTEX);
+            } else {
                 clut = -1;
                 tpage = -1;
             }
@@ -1006,7 +1032,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
             SET_TC_ALL(vertex_cur, tpage, clut);
             Draw_EnqueueBuffer(nVertices, nIndices);
         } else {
-            // shouldn't never happen on a normal PSX application
+            // shouldn't happen on a normal PSX application
             WARNF("code %02X not supported", code);
         }
     } else if (isLine) {
@@ -1056,7 +1082,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
         y = ((s16*)packets)[1];
         packets++;
         len--;
-        if (code & TEXTURED) {
+        if (isTextured) {
             tu = ((u8*)packets)[0];
             tv = ((u8*)packets)[1];
             clut = ((s16*)packets)[1];
@@ -1105,7 +1131,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
         vertex_cur[2].y = (short)(y + h);
         vertex_cur[3].x = (short)(x + w);
         vertex_cur[3].y = (short)(y + h);
-        if (code & TEXTURED) {
+        if (isTextured) {
             vertex_cur[0].u = tu;
             vertex_cur[0].v = tv;
             vertex_cur[1].u = tu + w;
