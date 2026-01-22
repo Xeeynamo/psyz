@@ -58,8 +58,8 @@ typedef struct {
     short* src;      /**< 16-bit PCM data address */
     short* dest;     /**< PlayStation original waveform data */
     short* work;     /**< Work area when encode processing (168 bytes) */
-    long size;       /**< 16-bit PCM data size (in bytes) */
-    long loop_start; /**< PCM data loop start point (in bytes) */
+    int size;        /**< 16-bit PCM data size (in bytes) */
+    int loop_start;  /**< PCM data loop start point (in bytes) */
     char loop;       /**< Loop waveform generation (ENCSPU_ENCODE_[NO_]LOOP) */
     char byte_swap;  /**< PCM endian (ENCSPU_ENCODE_ENDIAN_BIG/LITTLE) */
     char proceed;    /**< Whole/Divided encoding (ENCSPU_ENCODE_*) */

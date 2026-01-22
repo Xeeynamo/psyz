@@ -80,12 +80,12 @@
  * Stores information for each event.
  */
 struct EvCB {
-    unsigned long desc; /**< Cause descriptor */
-    long status;        /**< Status */
-    long spec;          /**< Event type */
-    long mode;          /**< Mode */
+    unsigned int desc;  /**< Cause descriptor */
+    int status;         /**< Status */
+    int spec;           /**< Event type */
+    int mode;           /**< Mode */
     long (*FHandler)(); /**< Pointer to a function type handler */
-    long system[2];     /**< Reserved by system */
+    int system[2];      /**< Reserved by system */
 };
 
 /**
@@ -95,11 +95,11 @@ struct EvCB {
  */
 #define NREGS 32
 struct TCB {
-    long status;              /**< Status */
-    long mode;                /**< Mode */
+    int status;               /**< Status */
+    int mode;                 /**< Mode */
     unsigned long reg[NREGS]; /**< Register saving area (specified by register
                                  designation macro) */
-    long system[6];           /**< Reserved by system */
+    int system[6];            /**< Reserved by system */
 };
 
 /**
@@ -110,7 +110,7 @@ struct TCB {
  */
 struct TCBH {
     struct TCB* entry; /**< Pointer to execution TCB */
-    long flag;         /**< System reserved */
+    int flag;          /**< System reserved */
 };
 
 /**
@@ -121,7 +121,7 @@ struct TCBH {
  */
 struct ToT {
     unsigned long* head; /**< Pointer to a system table start address */
-    long size;           /**< System table size (in bytes) */
+    int size;            /**< System table size (in bytes) */
 };
 
 /**
@@ -156,8 +156,8 @@ struct EXEC {
  */
 struct DIRENTRY {
     char name[20];         /**< Filename */
-    long attr;             /**< Attributes (dependent on file system) */
-    long size;             /**< File size (in bytes) */
+    int attr;              /**< Attributes (dependent on file system) */
+    int size;              /**< File size (in bytes) */
     struct DIRENTRY* next; /**< Pointer to next file entry (for user) */
     char system[8];        /**< Reserved by system */
 };

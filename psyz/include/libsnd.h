@@ -185,9 +185,9 @@ typedef struct ProgAtr {
  * data set size and sound source numerals used at runtime.
  */
 typedef struct VabHdr {
-    long form;         /**< Format name (always 'VABp') */
-    long ver;          /**< Format version number */
-    long id;           /**< Bank (VAB) number */
+    int form;          /**< Format name (always 'VABp') */
+    int ver;           /**< Format version number */
+    int id;            /**< Bank (VAB) number */
     u_long fsize;      /**< Bank file size */
     u_short reserved0; /**< Reserved by the system */
     u_short ps;        /**< Total number of programs contained in the bank */

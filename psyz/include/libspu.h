@@ -270,9 +270,9 @@ typedef struct SpuVoiceAttr {
     short envx;          /**< Current envelope value (read-only) */
     u_long addr;         /**< Waveform data start address */
     u_long loop_addr;    /**< Loop start address */
-    long a_mode;         /**< Attack rate mode */
-    long s_mode;         /**< Sustain rate mode */
-    long r_mode;         /**< Release rate mode */
+    int a_mode;          /**< Attack rate mode */
+    int s_mode;          /**< Sustain rate mode */
+    int r_mode;          /**< Release rate mode */
     u_short ar;          /**< Attack rate (0x00-0x7f) */
     u_short dr;          /**< Decay rate (0x0-0xf) */
     u_short sr;          /**< Sustain rate (0x00-0x7f) */
@@ -300,8 +300,8 @@ typedef struct SpuLVoiceAttr {
  */
 typedef struct SpuExtAttr {
     SpuVolume volume; /**< Volume */
-    long reverb;      /**< Reverb on/off */
-    long mix;         /**< Mixing on/off */
+    int reverb;       /**< Reverb on/off */
+    int mix;          /**< Mixing on/off */
 } SpuExtAttr;
 
 /**
@@ -325,10 +325,10 @@ typedef struct SpuCommonAttr {
  */
 typedef struct SpuReverbAttr {
     u_long mask;     /**< Set mask */
-    long mode;       /**< Reverb mode */
+    int mode;        /**< Reverb mode */
     SpuVolume depth; /**< Reverb depth */
-    long delay;      /**< Delay time (ECHO, DELAY only) */
-    long feedback;   /**< Feedback (ECHO, DELAY only) */
+    int delay;       /**< Delay time (ECHO, DELAY only) */
+    int feedback;    /**< Feedback (ECHO, DELAY only) */
 } SpuReverbAttr;
 
 /**
@@ -361,7 +361,7 @@ typedef struct SpuDecodeData {
 typedef struct SpuStVoiceAttr {
     char status;           /**< Stream status */
     char pad1, pad2, pad3; /**< Padding */
-    long last_size;        /**< Size of final data transfer */
+    int last_size;         /**< Size of final data transfer */
     u_long buf_addr;       /**< Start address of stream buffer */
     u_long data_addr;      /**< Start address of stream data in main RAM */
 } SpuStVoiceAttr;
@@ -372,8 +372,8 @@ typedef struct SpuStVoiceAttr {
  * Used for SPU streaming environment settings.
  */
 typedef struct SpuStEnv {
-    long size;                /**< Stream buffer size */
-    long low_priority;        /**< Priority setting */
+    int size;                 /**< Stream buffer size */
+    int low_priority;         /**< Priority setting */
     SpuStVoiceAttr voice[24]; /**< Each stream attribute set */
 } SpuStEnv;
 

@@ -27,8 +27,8 @@
 /* Forward declaration from libapi.h */
 #ifndef DIRENTRY
 struct DIRENTRY {
-    long status;
-    long reserved[3];
+    int status;
+    int reserved[3];
     char name[20];
     char pad;
 };
