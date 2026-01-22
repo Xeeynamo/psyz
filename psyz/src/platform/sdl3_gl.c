@@ -278,6 +278,7 @@ static void QuitPlatformAtExit(void);
 static bool is_window_visible = false;
 static bool is_platform_initialized = false;
 static bool is_platform_init_successful = false;
+static char window_title[0x100] = {"PSY-Z"};
 bool InitPlatform() {
     if (is_platform_initialized) {
         return is_platform_init_successful;
@@ -301,8 +302,8 @@ bool InitPlatform() {
     cur_wnd_height = set_wnd_height;
     cur_wnd_scale = set_wnd_scale;
     window = SDL_CreateWindow(
-        "PSY-Z", cur_wnd_width * cur_wnd_scale, cur_wnd_height * cur_wnd_scale,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
+        window_title, cur_wnd_width * cur_wnd_scale,
+        cur_wnd_height * cur_wnd_scale, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
     if (!window) {
         ERRORF("SDL_CreateWindow: %s", SDL_GetError());
         return false;
@@ -387,6 +388,14 @@ bool InitPlatform() {
 
     is_platform_init_successful = true;
     return true;
+}
+
+void Psyz_SetTitle(const char* str) {
+    strncpy(window_title, str, sizeof(window_title) - 1);
+    window_title[sizeof(window_title) - 1] = 0;
+    if (window) {
+        SDL_SetWindowTitle(window, window_title);
+    }
 }
 
 static void PresentBufferToScreen(void) {

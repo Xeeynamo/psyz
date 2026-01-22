@@ -41,6 +41,9 @@ long psyz_ioctl(long fd, long com, long arg);
 #define __builtin_memcpy memcpy
 #endif
 
+// Set the title of the game window
+void Psyz_SetTitle(const char* str);
+
 struct PsyzDiskRead {
     // disk sector, can be used as a unique file identifier
     unsigned int sector;
