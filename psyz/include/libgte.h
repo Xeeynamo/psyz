@@ -33,7 +33,7 @@
  */
 typedef struct {
     short m[3][3]; /**< 3x3 matrix coefficient value */
-    long t[3];     /**< Parallel transfer volume */
+    int t[3];      /**< Parallel transfer volume */
 } MATRIX;
 
 /**
@@ -42,8 +42,8 @@ typedef struct {
  * Vector with 32-bit coordinates.
  */
 typedef struct {
-    long vx, vy, vz; /**< Vector coordinates */
-    long pad;        /**< System reserved */
+    int vx, vy, vz;  /**< Vector coordinates */
+    int pad;         /**< System reserved */
 } VECTOR;
 
 /**
@@ -154,7 +154,7 @@ typedef struct {
     DVECTOR sxy;     /**< Screen 2D vertex */
     CVECTOR rgb;     /**< Color palette */
     short txuv, pad; /**< Texture mapping data */
-    long chx, chy;   /**< Clip area data */
+    int chx, chy;    /**< Clip area data */
 } EVECTOR;
 
 /**

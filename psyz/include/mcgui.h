@@ -49,7 +49,7 @@ typedef struct sMcGuiCards {
     char block;       /**< Number of icon images for auto-animation (1-3) */
     u_long* iconAddr; /**< TIM data header address for icon image */
     u_long* dataAddr; /**< Header address of game data */
-    long dataBytes;   /**< Number of game data bytes (128-byte units) */
+    int dataBytes;    /**< Number of game data bytes (128-byte units) */
 } sMcGuiCards;
 
 /**

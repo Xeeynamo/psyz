@@ -1,6 +1,6 @@
 #ifndef LIBHMD_H
 #define LIBHMD_H
-#include <psyz/types.h>
+#include <libgpu.h>
 
 /**
  * @file libhmd.h
@@ -24,7 +24,7 @@
 #ifndef MATRIX
 typedef struct {
     short m[3][3];
-    long t[3];
+    int t[3];
 } MATRIX;
 #endif
 
@@ -37,15 +37,15 @@ typedef struct {
 
 #ifndef DVECTOR
 typedef struct {
-    long vx, vy;
-    long vz;
-    long pad;
+    int vx, vy;
+    int vz;
+    int pad;
 } DVECTOR;
 #endif
 
 #ifndef PACKET
 typedef struct {
-    unsigned long tag;
+    O_TAG tag;
     unsigned char code[3];
     unsigned char len;
 } PACKET;
@@ -53,7 +53,7 @@ typedef struct {
 
 #ifndef GsOT
 typedef struct {
-    unsigned long length;
+    O_TAG length;
     unsigned long* org;
 } GsOT;
 #endif
@@ -113,7 +113,7 @@ typedef struct {
     int shift;           /**< Number of bits to shift when assigning OT */
     int offset;          /**< OT screen coordinate system Z-axis offset */
     PACKET* out_packetp; /**< Pointer to unused packet area */
-    long header_size;    /**< Size of primitive header used in animation */
+    int header_size;     /**< Size of primitive header used in animation */
     u_long* htop; /**< Start address of interpolation function table section */
     u_long* ctop; /**< Start address of sequence control section */
     u_long* ptop; /**< Start address of parameter section */
@@ -320,9 +320,9 @@ struct _GsCOORDUNIT {
  * format, with 4096 set to one degree.
  */
 typedef struct {
-    long vpx, vpy, vpz; /**< Viewpoint coordinates */
-    long vrx, vry, vrz; /**< Reference point coordinates */
-    long rz;            /**< Viewpoint twist */
+    int vpx, vpy, vpz; /**< Viewpoint coordinates */
+    int vrx, vry, vrz; /**< Reference point coordinates */
+    int rz;            /**< Viewpoint twist */
     GsCOORDUNIT*
         super; /**< Pointer to coordinate system which sets viewpoint */
 } GsRVIEWUNIT;

@@ -61,11 +61,11 @@ typedef struct {
  * Manages the ordering table used for depth sorting of graphics primitives.
  */
 typedef struct {
-    unsigned long length; /**< Number of OT entries */
-    GsOT_TAG* org;        /**< Pointer to OT buffer */
-    unsigned long offset; /**< Z offset value */
-    unsigned long point;  /**< Current registration position */
-    GsOT_TAG* tag;        /**< Work pointer */
+    unsigned int length; /**< Number of OT entries */
+    GsOT_TAG* org;       /**< Pointer to OT buffer */
+    unsigned int offset; /**< Z offset value */
+    unsigned int point;  /**< Current registration position */
+    GsOT_TAG* tag;       /**< Work pointer */
 } GsOT;
 
 /**
@@ -182,7 +182,7 @@ typedef struct {
     GsMAP* map;             /**< Pointer to map data */
     short mx, my; /**< Rotation and enlargement central point coordinates */
     short scalex, scaley; /**< Scale values in X and Y directions */
-    long rotate;          /**< Rotation angle (4096 = 1 degree) */
+    int rotate;           /**< Rotation angle (4096 = 1 degree) */
 } GsBG;
 
 /**
@@ -239,7 +239,7 @@ typedef struct {
     u_char r, g, b;       /**< Color */
     short mx, my;         /**< Enlargement center */
     short scalex, scaley; /**< Scale values */
-    long rotate;          /**< Rotation angle */
+    int rotate;           /**< Rotation angle */
 } GsSPRITE;
 
 /**
@@ -260,8 +260,8 @@ typedef struct {
  * Used to set fog parameters with GsSetFogParam().
  */
 typedef struct {
-    long dqa;             /**< Fog coefficient A */
-    long dqb;             /**< Fog coefficient B */
+    int dqa;              /**< Fog coefficient A */
+    int dqb;              /**< Fog coefficient B */
     u_char rfc, gfc, bfc; /**< Fog color (R, G, B) */
 } GsFOGPARAM;
 
@@ -283,9 +283,9 @@ typedef struct {
  * vpz. The reference point coordinates are set in vrx, vry, vrz.
  */
 typedef struct {
-    long vpx, vpy, vpz; /**< Viewpoint coordinates */
-    long vrx, vry, vrz; /**< Reference point coordinates */
-    long rz;            /**< Viewpoint twist */
+    int vpx, vpy, vpz; /**< Viewpoint coordinates */
+    int vrx, vry, vrz; /**< Reference point coordinates */
+    int rz;            /**< Viewpoint twist */
     GsCOORDINATE2*
         super; /**< Pointer to coordinate system which sets viewpoint */
 } GsRVIEW2;
