@@ -1470,7 +1470,7 @@ extern TIM_IMAGE* Krom2Tim(u_short sjis, TIM_IMAGE* tim);
  * @return The number of polygons comprising the object as a positive integer;
  * on failure, returns 0.
  */
-extern long OpenTMD(u_long* addr, long obj_no);
+extern int OpenTMD(u_long* addr, int obj_no);
 
 /**
  * @brief Read TMD file

@@ -6,10 +6,10 @@ struct intr {
     const char* ver;
     void (*cb)();
     void (*set)();
-    void (*start)();
-    void (*stop)();
+    int (*start)();
+    int (*stop)();
     int (*unk14)(int, void (*f)());
-    void (*restart)();
+    int (*restart)();
     short* unk1C;
 };
 
@@ -35,19 +35,19 @@ void* startIntrVSync();
 void trapIntr();
 static void memclr(s32* mem, int len);
 
-void ResetCallback(void) { D_800B7080->start(); }
+int ResetCallback(void) { return D_800B7080->start(); }
 
 void InterruptCallback(void) { D_800B7080->set(); }
 
 void DMACallback(void) { D_800B7080->cb(); }
 
-void VSyncCallback(void (*func)()) { D_800B7080->unk14(4, func); }
+int VSyncCallback(void (*func)()) { return D_800B7080->unk14(4, func); }
 
-void VSyncCallbacks(int n, void (*func)()) { D_800B7080->unk14(n, func); }
+int VSyncCallbacks(int n, void (*func)()) { return D_800B7080->unk14(n, func); }
 
-void StopCallback(void) { D_800B7080->stop(); }
+int StopCallback(void) { return D_800B7080->stop(); }
 
-void RestartCallback(void) { D_800B7080->restart(); }
+int RestartCallback(void) { return D_800B7080->restart(); }
 
 int CheckCallback() { return D_800B5FF8.isCbContext; }
 

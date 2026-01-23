@@ -97,7 +97,11 @@ static struct Gpu _gpucb = {
     _sync,
 };
 static struct Gpu* gpu = &_gpucb;
+#ifdef __psyz
 int (*GPU_printf)(const char* fmt, ...) = printf;
+#else
+int (*GPU_printf)() = printf;
+#endif
 static struct Debug info = {0};
 
 int D_800B89A8[] = {1024, 1024, 1024, 1024, 1024};
@@ -421,9 +425,8 @@ DISPENV* PutDispEnv(DISPENV* env) {
         D_800B8920->ctl( // set vertical display range
             ((v_end & 0x3FF) << 10) | 0x07000000 | (v_start & 0x3FF));
     }
-    if (info.disp.isinter != env->isinter ||
-        info.disp.isrgb24 != env->isrgb24 || info.disp.pad0 != env->pad0 ||
-        info.disp.pad1 != env->pad1 || !RECT_EQ(&info.disp.disp, env->disp)) {
+    if (*(int*)&info.disp.isinter != *(int*)&env->isinter ||
+        !RECT_EQ(&info.disp.disp, env->disp)) {
         env->pad0 = GetVideoMode();
         if (env->pad0 == MODE_PAL) {
             mode |= 0x8;

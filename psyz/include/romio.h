@@ -1,6 +1,18 @@
 #ifndef _ROMIO_H
 #define _ROMIO_H
 
+#undef FREAD
+#undef FWRITE
+#undef FNBLOCK
+#undef FRLOCK
+#undef FWLOCK
+#undef FAPPEND
+#undef FCREAT
+#undef FTRUNC
+#undef FSCAN
+#undef FRCOM
+#undef FNBUF
+#undef FASYNC
 #define FREAD 0x0001   /* readable */
 #define FWRITE 0x0002  /* writable */
 #define FNBLOCK 0x0004 /* non-blocking reads */

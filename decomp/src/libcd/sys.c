@@ -1,6 +1,10 @@
 #include <common.h>
 #include <libcd.h>
 
+#ifndef CdlSync
+#define CdlSync 0
+#endif
+
 extern CdlCB CD_cbsync;
 extern CdlCB CD_cbready;
 extern u_char CD_status;
@@ -19,8 +23,8 @@ int CD_ready(int mode, u_char* result);
 int CD_cw(u8 com, u8* param, u_char* result, s32 arg3);
 int CD_vol(CdlATV* vol);
 int CD_getsector(void* madr, int size);
-int CD_getsector2(void);
-void CD_datasync(int mode);
+int CD_getsector2(void* madr, int size);
+int CD_datasync(int mode);
 CdlCB DMACallback(int mode, CdlCB func);
 
 static int D_800B5718[] = {
@@ -137,11 +141,13 @@ int CdMix(CdlATV* vol) {
 
 int CdGetSector(void* madr, int size) { return CD_getsector(madr, size) == 0; }
 
-int CdGetSector2(void) { return CD_getsector2() == 0; }
+int CdGetSector2(void* madr, int size) {
+    return CD_getsector2(madr, size) == 0;
+}
 
 CdlCB CdDataCallback(CdlCB func) { return DMACallback(3, func); }
 
-void CdDataSync(int mode) { CD_datasync(mode); }
+int CdDataSync(int mode) { return CD_datasync(mode); }
 
 static inline int ENCODE_BCD(int n) { return ((n / 10) << 4) + (n % 10); }
 CdlLOC* CdIntToPos(int i, CdlLOC* p) {
