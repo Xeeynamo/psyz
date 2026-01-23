@@ -23,28 +23,28 @@ extern int PadIdentifier;
 /*
  * PAD I/O (SIO Pad)
  */
-#define PADLup (1 << 12)    /**< D-Pad Up */
-#define PADLdown (1 << 14)  /**< D-Pad Down */
-#define PADLleft (1 << 15)  /**< D-Pad Left */
-#define PADLright (1 << 13) /**< D-Pad Right */
-#define PADRup (1 << 4)     /**< Triangle */
-#define PADRdown (1 << 6)   /**< Cross */
-#define PADRleft (1 << 7)   /**< Square */
-#define PADRright (1 << 5)  /**< Circle */
-#define PADi (1 << 9)       /**< L1 */
-#define PADj (1 << 10)      /**< R1 */
-#define PADk (1 << 8)       /**< L2 */
-#define PADl (1 << 3)       /**< R2 */
-#define PADm (1 << 1)       /**< Start */
-#define PADn (1 << 2)       /**< Select */
-#define PADo (1 << 0)       /**< Analog mode (DUAL SHOCK) */
-#define PADh (1 << 11)      /**< Start */
-#define PADL1 PADn
-#define PADL2 PADo
-#define PADR1 PADl
-#define PADR2 PADm
-#define PADstart PADh
-#define PADselect PADk
+#define PADLup     (1<<12) // Up
+#define PADLdown   (1<<14) // Down
+#define PADLleft   (1<<15) // Left
+#define PADLright  (1<<13) // Right
+#define PADRup     (1<< 4) // Triangle
+#define PADRdown   (1<< 6) // Cross
+#define PADRleft   (1<< 7) // Square
+#define PADRright  (1<< 5) // Circle
+#define PADi       (1<< 9) // L3
+#define PADj       (1<<10) // R3
+#define PADk       (1<< 8) // Select
+#define PADl       (1<< 3) // R1
+#define PADm       (1<< 1) // R2
+#define PADn       (1<< 2) // L1
+#define PADo       (1<< 0) // L2
+#define PADh       (1<<11) // Start
+#define PADL1      PADn
+#define PADL2      PADo
+#define PADR1      PADl
+#define PADR2      PADm
+#define PADstart   PADh
+#define PADselect  PADk
 
 #define _PAD(x, y) ((y) << ((x) << 4))
 
