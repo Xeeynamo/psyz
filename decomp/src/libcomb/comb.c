@@ -8,7 +8,7 @@ const char D_800B28C4[] = "sio";
 
 INCLUDE_ASM("asm/nonmatchings/libcomb/comb", DelCOMB);
 
-void ChangeClearSIO(void) {}
+void ChangeClearSIO(long val) {}
 
 INCLUDE_ASM("asm/nonmatchings/libcomb/comb", SioAnsyncRead);
 

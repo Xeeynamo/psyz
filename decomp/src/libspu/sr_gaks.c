@@ -1,7 +1,7 @@
 #include "libspu_private.h"
 
 inline long SpuRGetAllKeysStatus(long min, long max, char* status) {
-    SPU_VOICE_REG* voices;
+    volatile SPU_VOICE_REG* voices;
     s32 voice;
     int voice_mask;
     u16 volumex;

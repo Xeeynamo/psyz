@@ -32,8 +32,8 @@ static u_long* t_prim;
 static int n_prim;
 static int unused;
 
-u_long get_tim_addr(unsigned int* addr, TIM_IMAGE*);
-u_long get_tmd_addr(
+int get_tim_addr(unsigned int* addr, TIM_IMAGE*);
+int get_tmd_addr(
     TMD* tmd, int obj_no, u_long** t_prim, u_long** v_ofs, u_long** n_ofs);
 
 int OpenTIM(u_long* addr) {
@@ -50,7 +50,7 @@ TIM_IMAGE* ReadTIM(TIM_IMAGE* timimg) {
     return timimg;
 }
 
-long OpenTMD(u_long* tmd, long obj_no) {
+int OpenTMD(u_long* tmd, int obj_no) {
     u_long len = get_tmd_addr((TMD*)tmd, obj_no, &t_prim, &v_ofs, &n_ofs);
     n_prim = len;
     return len;
@@ -59,7 +59,7 @@ long OpenTMD(u_long* tmd, long obj_no) {
 INCLUDE_ASM("asm/nonmatchings/libgpu/tmd", ReadTMD);
 
 // https://www.psxdev.net/forum/viewtopic.php?t=109
-u_long get_tim_addr(unsigned int* timaddr, TIM_IMAGE* img) {
+int get_tim_addr(unsigned int* timaddr, TIM_IMAGE* img) {
     unsigned int clut_len;
     unsigned int img_len;
     if (*(int*)timaddr++ != 0x10) {
@@ -88,10 +88,10 @@ u_long get_tim_addr(unsigned int* timaddr, TIM_IMAGE* img) {
     img_len = *timaddr >> 2;
     img->prect = (RECT*)(timaddr + 1);
     img->paddr = (u_long*)(timaddr + 3);
-    return 2 + clut_len + img_len;
+    return (int)(2 + clut_len + img_len);
 }
 
-u_long get_tmd_addr(
+int get_tmd_addr(
     TMD* tmd, int objid, u_long** t_prim, u_long** v_ofs, u_long** n_ofs) {
     TmdObj* obj = tmd->obj;
     if (GetGraphDebug() == 2) {
