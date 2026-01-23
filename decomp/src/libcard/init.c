@@ -5,7 +5,7 @@
 static u8 D_800B50E0[] = {0x50, 0x73, 0x03, 0x15, 0x9C, 0x85, 0x40};
 
 void InitCARD2(long val);
-long ReadInitPadFlag(void);
+int ReadInitPadFlag(void);
 void InitCARD(long val) {
     ChangeClearPAD(0);
     EnterCriticalSection();
