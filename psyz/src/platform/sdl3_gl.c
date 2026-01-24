@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <libetc.h>
 #include "../internal.h"
 
 #include <SDL3/SDL.h>
@@ -598,26 +599,58 @@ void MySsInitHot(void) {
     SDL_PauseAudioStreamDevice(audio_stream);
 }
 
-static void PollEvents(void) {
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-        switch (event.type) {
-        case SDL_EVENT_QUIT:
-            exit(0);
-        case SDL_EVENT_KEY_DOWN:
-            if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
-                exit(0);
-            }
-            if (event.key.scancode == SDL_SCANCODE_F6) {
-                debug_show_vram ^= 1;
-            }
-            break;
+struct Gamepad {
+    SDL_JoystickID id;
+    SDL_Gamepad* dev;
+    const char* name;
+};
+static bool is_pads_init = false;
+static struct Gamepad gamepads[16] = {0};
+static void AddGamepad(SDL_JoystickID id) {
+    int i;
+    for (i = 0; i < LEN(gamepads); i++) {
+        if (!gamepads[i].id) {
             break;
         }
     }
+    if (i == LEN(gamepads)) {
+        ERRORF("too many gamepads connected");
+    } else {
+        SDL_Gamepad* dev = SDL_OpenGamepad(id);
+        if (!dev) {
+            ERRORF("failed to open gamepad %d", (int)id);
+            return;
+        }
+        gamepads[i].id = id;
+        gamepads[i].dev = dev;
+        gamepads[i].name = SDL_GetGamepadName(dev);
+        INFOF("connected %s", gamepads[i].name);
+    }
 }
 
-void MyPadInit(int mode) { INFOF("use keyboard"); }
+static void RemoveGamepad(SDL_JoystickID id) {
+    int i;
+    for (i = 0; i < LEN(gamepads); i++) {
+        if (gamepads[i].id == id) {
+            break;
+        }
+    }
+    if (i == LEN(gamepads)) {
+        WARNF("gamepad already removed");
+    } else {
+        SDL_CloseGamepad(gamepads[i].dev);
+        gamepads[i] = (struct Gamepad){0};
+    }
+}
+
+void MyPadInit(int mode) {
+    if (!SDL_WasInit(SDL_INIT_GAMEPAD)) {
+        if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD)) {
+            ERRORF("failed to initialize SDL_INIT_GAMEPAD");
+        }
+    }
+    is_pads_init = true;
+}
 
 static u_long keyb_p1[] = {
     SDL_SCANCODE_W,         // PAD_L2
@@ -637,23 +670,97 @@ static u_long keyb_p1[] = {
     SDL_SCANCODE_DOWN,      // PAD_DOWN
     SDL_SCANCODE_LEFT,      // PAD_LEFT
 };
-u_long MyPadRead(int id) {
-    const bool* keyb;
-    int numkeys;
-    PollEvents();
-    keyb = SDL_GetKeyboardState(&numkeys);
-    u_long pressed = 0;
-
-    if (id == 0) {
-        const int to_read =
-            LEN(keyb_p1) < (size_t)numkeys ? (int)LEN(keyb_p1) : numkeys;
-        for (int i = 0; i < to_read; i++) {
-            if (keyb[keyb_p1[i]]) {
-                pressed |= 1UL << i;
-            }
+static u_long PadRead_Keyboard(u_long* config, int config_len) {
+    const bool* keyb = SDL_GetKeyboardState(NULL);
+    u_long r = 0;
+    for (int i = 0; i < config_len; i++) {
+        if (keyb[config[i]]) {
+            r |= 1UL << i;
         }
     }
-    return pressed;
+    return r;
+}
+static u_long PadRead_Gamepad(struct Gamepad* g) {
+    if (!g || !g->dev) {
+        return 0;
+    }
+    u_long r = 0;
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_NORTH))
+        r |= PADRup;
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_SOUTH))
+        r |= PADRdown;
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_WEST))
+        r |= PADRleft;
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_EAST))
+        r |= PADRright;
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_DPAD_UP))
+        r |= PADLup;
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_DPAD_DOWN))
+        r |= PADLdown;
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_DPAD_LEFT))
+        r |= PADLleft;
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_DPAD_RIGHT))
+        r |= PADLright;
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER))
+        r |= PADn;
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER))
+        r |= PADl;
+    if (SDL_GetGamepadAxis(g->dev, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > 8000)
+        r |= PADo;
+    if (SDL_GetGamepadAxis(g->dev, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) > 8000)
+        r |= PADm;
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_LEFT_STICK))
+        r |= PADi;
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_RIGHT_STICK))
+        r |= PADj;
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_START))
+        r |= PADh;
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_BACK))
+        r |= PADk;
+    return r;
+}
+
+static void PollEvents(void);
+u_long MyPadRead(int id) {
+    PollEvents();
+    if (!is_pads_init) {
+        WARNF("PadInit not called");
+        return 0;
+    }
+    if (id < 0 || id >= LEN(gamepads)) {
+        WARNF("invalid pad id %d", id);
+        return 0;
+    }
+
+    u_long pressed = 0;
+    if (id == 0) {
+        pressed |= PadRead_Keyboard(keyb_p1, LEN(keyb_p1));
+    }
+    return pressed | PadRead_Gamepad(&gamepads[id]);
+}
+
+static void PollEvents(void) {
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+        switch (event.type) {
+        case SDL_EVENT_GAMEPAD_ADDED:
+            AddGamepad(event.gdevice.which);
+            break;
+        case SDL_EVENT_GAMEPAD_REMOVED:
+            RemoveGamepad(event.gdevice.which);
+            break;
+        case SDL_EVENT_QUIT:
+            exit(0);
+        case SDL_EVENT_KEY_DOWN:
+            if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
+                exit(0);
+            }
+            if (event.key.scancode == SDL_SCANCODE_F6) {
+                debug_show_vram ^= 1;
+            }
+            break;
+        }
+    }
 }
 
 void Psyz_SetWindowScale(int scale) { set_wnd_scale = scale; }
