@@ -841,11 +841,6 @@ static void UpdateScissor() {
     glScissor(sx, sy, sw, sh);
 }
 static void ApplyDisplayPendingChanges() {
-#if 0
-    if (!disp_on) {
-        return;
-    }
-#endif
     if (!window && !InitPlatform()) {
         return;
     }
@@ -886,6 +881,9 @@ void Draw_Reset() { NOT_IMPLEMENTED; }
 void Draw_DisplayEnable(unsigned int on) {
     disp_on = on;
     if (!on) {
+        if (!window && !InitPlatform()) {
+            return;
+        }
         glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
         glClearColor(0, 0, 0, 1);
         glDisable(GL_SCISSOR_TEST);
