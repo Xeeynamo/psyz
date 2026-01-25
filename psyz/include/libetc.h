@@ -1,6 +1,5 @@
 #ifndef LIBETC_H
 #define LIBETC_H
-#include <psyz.h>
 
 /**
  * @file libetc.h

@@ -1,6 +1,5 @@
 #include <psyz.h>
 #include <libgpu.h>
-#include <stdio.h>
 
 void MyDrawSyncCallback(int mode) { NOT_IMPLEMENTED; }
 
