@@ -1304,7 +1304,6 @@ void Draw_SetOffset(int x, int y) {
 }
 void Draw_SetMask(int bit0, int bit1) { NOT_IMPLEMENTED; }
 
-static u16 vram_buf[VRAM_W * VRAM_H];
 void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
     if (rect->w == 0 || rect->h == 0) {
         return;
@@ -1316,24 +1315,17 @@ void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
     UpdateScissor();
 }
 void Draw_LoadImage(PS1_RECT* rect, u_long* p) {
+    static GLint unpack[4] = {8, 2, 4, 2};
     if (rect->w == 0 || rect->h == 0) {
         return;
     }
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, vram_texture);
-    glGetTexImage(
-        GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_SHORT_1_5_5_5_REV, vram_buf);
-
-    u16* dst = vram_buf + rect->x + rect->y * VRAM_W;
-    u16* src = (u16*)p;
-    for (int i = 0; i < rect->h; i++) {
-        memcpy(dst, src, rect->w * sizeof(u16));
-        src += rect->w;
-        dst += VRAM_W;
-    }
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, VRAM_W, VRAM_H, 0, GL_RGBA,
-                 GL_UNSIGNED_SHORT_1_5_5_5_REV, vram_buf);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, unpack[rect->w & 3]);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, rect->x, rect->y, rect->w, rect->h,
+                    GL_RGBA, GL_UNSIGNED_SHORT_1_5_5_5_REV, p);
 }
+static u16 vram_buf[VRAM_W * VRAM_H];
 void Draw_StoreImage(PS1_RECT* rect, u_long* p) {
     if (rect->w == 0 || rect->h == 0) {
         return;
