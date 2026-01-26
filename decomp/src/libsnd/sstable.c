@@ -12,22 +12,22 @@ void SsSetTableSize(char* table, short s_max, short t_max) {
     }
     for (i = 0; i < _snd_seq_s_max; i++) {
         for (j = 0; j < _snd_seq_t_max; j++) {
-            _ss_score[i][j].unk98 = 0;
+            _ss_score[i][j].flags = 0;
             _ss_score[i][j].unk22 = 0xFF;
             _ss_score[i][j].unk23 = 0;
-            _ss_score[i][j].unk48 = 0;
-            _ss_score[i][j].unk4A = 0;
-            _ss_score[i][j].unk9C = 0;
-            _ss_score[i][j].unkA0 = 0;
+            _ss_score[i][j].vol_l = 0;
+            _ss_score[i][j].vol_r = 0;
+            _ss_score[i][j].v_time_l = 0;
+            _ss_score[i][j].v_time_r = 0;
             _ss_score[i][j].unk4C = 0;
             _ss_score[i][j].unkAC = 0;
             _ss_score[i][j].unkA8 = 0;
             _ss_score[i][j].unkA4 = 0;
             _ss_score[i][j].unk4E = 0;
-            _ss_score[i][j].unk58 = 0x7F;
-            _ss_score[i][j].unk5A = 0x7F;
-            _ss_score[i][j].unk5C = 0x7F;
-            _ss_score[i][j].unk5E = 0x7F;
+            _ss_score[i][j].voll = 127;
+            _ss_score[i][j].volr = 127;
+            _ss_score[i][j].unk5C = 127;
+            _ss_score[i][j].unk5E = 127;
         }
     }
 }

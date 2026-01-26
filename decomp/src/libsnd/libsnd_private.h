@@ -11,10 +11,21 @@ extern "C" {
 #include <libsnd.h>
 
 #define NUM_SPU_CHANNELS 24
+#define SEQ_FLAG_1 1
+#define SEQ_FLAG_2 2
+#define SEQ_FLAG_4 4
+#define SEQ_FLAG_8 8
+#define SEQ_FLAG_10 0x10
+#define SEQ_FLAG_20 0x20
+#define SEQ_FLAG_100 0x100
+#define SEQ_FLAG_400 0x400
 
 #ifndef SndSsMarkCallbackProc_DEF
 typedef void (*SndSsMarkCallbackProc)(short seq_no, short sep_no, short data);
 #endif
+
+#define NUM_CC 13
+#define NUM_DE 20
 
 struct Unk {
     u16 unk0;
@@ -29,8 +40,7 @@ struct Unk {
 };
 
 struct SeqStruct {
-    /* 0x00 */ u8 unk0;
-    /* 0x01 */ u8 pad1[3];
+    /* 0x00 */ u8* unk0;
     /* 0x04 */ u8* read_pos;
     /* 0x08 */ u8* next_sep_pos;
     /* 0x0C */ u8* loop_pos;
@@ -38,61 +48,49 @@ struct SeqStruct {
     /* 0x11 */ u8 unk11;
     /* 0x12 */ u8 channel;
     /* 0x13 */ u8 unk13;
-    /* 0x14 */ u8 unk14;
+    /* 0x14 */ u8 play_mode;
     /* 0x15 */ u8 unk15;
     /* 0x16 */ u8 unk16;
     /* 0x17 */ u8 unk17;
-    /* 0x18 */ s32 unk18;
-    /* 0x1C */ s32 unk1C;
-    /* 0x20 */ s16 unk20;
+    /* 0x18 */ u8 unk18;
+    /* 0x19 */ u8 unk19;
+    /* 0x1A */ u8 unk1A;
+    /* 0x1B */ u8 unk1B;
+    /* 0x1C */ u8 unk1C;
+    /* 0x1D */ u8 unk1D;
+    /* 0x1E */ u8 unk1E;
+    /* 0x1F */ u8 unk1F;
+    /* 0x20 */ u8 unk20;
+    /* 0x21 */ u8 unk21;
     /* 0x22 */ u8 unk22;
     /* 0x23 */ u8 unk23;
-    /* 0x24 */ s32 unk24;
-    /* 0x28 */ u8 unk28;
-    /* 0x29 */ u8 unk29;
-    /* 0x2A */ u8 unk2a;
-    /* 0x2B */ u8 unk2b;
-    /* 0x2C */ u8 programs[16];
-    /* 0x3C */ u8 unk3C;
-    /* 0x3D */ u8 pad3D;
-    /* 0x3E */ s16 unk3E;
-    /* 0x40 */ s16 unk40;
-    /* 0x42 */ s16 unk42;
-    /* 0x44 */ s16 unk44;
-    /* 0x46 */ s16 unk46;
-    /* 0x48 */ s16 unk48;
-    /* 0x4A */ s16 unk4A;
+    /* 0x24 */ u16 unk24;
+    /* 0x26 */ u8 unk26;
+    /* 0x27 */ u8 panpot[16];
+    /* 0x37 */ u8 programs[16];
+    /* 0x47 */ u8 unk47;
+    /* 0x48 */ short vol_l;
+    /* 0x4A */ short vol_r;
     /* 0x4C */ s16 unk4C;
     /* 0x4E */ s16 unk4E;
     /* 0x50 */ s16 unk50;
     /* 0x52 */ s16 unk52;
     /* 0x54 */ s16 unk54;
     /* 0x56 */ s16 unk56;
-    /* 0x58 */ s16 unk58;
-    /* 0x5A */ s16 unk5A;
+    /* 0x58 */ short voll;
+    /* 0x5A */ short volr;
     /* 0x5C */ s16 unk5C;
     /* 0x5E */ s16 unk5E;
-    /* 0x60 */ s32 unk60;
-    /* 0x64 */ s32 unk64;
-    /* 0x68 */ s32 unk68;
-    /* 0x6C */ s16 unk6C;
-    /* 0x6E */ s16 unk6E;
-    /* 0x70 */ s16 unk70;
-    /* 0x72 */ s16 unk72;
-    /* 0x74 */ u16 unk74;
-    /* 0x76 */ u16 unk76;
-    /* 0x78 */ s16 unk78;
-    /* 0x7A */ s16 unk7A;
-    /* 0x7C */ s32 unk7c;
+    /* 0x60 */ short vol[16];
     /* 0x80 */ u32 unk80;
     /* 0x84 */ s32 unk84;
     /* 0x88 */ s32 delta_value;
     /* 0x8C */ s32 unk8c;
     /* 0x90 */ s32 unk90;
     /* 0x94 */ u32 unk94;
-    /* 0x98 */ u32 unk98;
-    /* 0x9C */ s32 unk9C;
-    /* 0xA0 */ u32 unkA0;
+    /* 0x98 */ unsigned int flags;
+    /* 0x9C */ int v_time_l;
+    /* 0xA0 */ int v_time_r;
     /* 0xA4 */ u32 unkA4;
     /* 0xA8 */ s32 unkA8;
     /* 0xAC */ s32 unkAC;
@@ -164,7 +162,7 @@ struct struct_svm {
     char field_0x13;
     u8 field_14_seq_sep_no;
     u8 pad;
-    short field_16_vag_idx;
+    /* 0x8011110E 0x16 */ short seq_sep_no;
     short field_18_voice_idx;
     short field_0x1a;
     short field_0x1c;
@@ -203,6 +201,8 @@ extern u16 _svm_vab_count;
 extern u8 spuVmMaxVoice;
 extern s16 _svm_stereo_mono;
 extern u32 VBLANK_MINUS;
+extern _SsFCALL SsFCALL;
+extern s16 _svm_damper;
 
 void* InterruptCallback(u8, void (*)());
 void SeAutoPan(s16, s16, s16, s16);
@@ -226,9 +226,73 @@ void _SsSndReplay(s16, s16);
 void _SsSndTempo(s16, s16);
 void _SsUtResolveADSR(u16 arg0, u16 arg1, struct Unk* arg2);
 void _SsVmSeqKeyOff(s16 seq_sep_num);
-s32 _SsVmSetSeqVol(s16 seq_sep_no, u16 voll, u16 volr, s16 arg3);
+void _SsVmSetSeqVol(
+    short seq_sep_no, unsigned short voll, unsigned short volr, short arg3);
+void _SsVmGetSeqVol(short seq_sep_no, short* voll, short* volr);
 void _spu_setInTransfer(s32);
 void vmNoiseOn2(u8 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4);
+void _SsSndSetVolData(
+    short sep_access_num, short seq_num, short vol, int v_time);
+void _SsVmDamperOff(void);
+
+void _SsNoteOn(short a0, short a1, unsigned char a2, unsigned char a3);
+void _SsSetProgramChange(short a0, short a1, unsigned char a2);
+void _SsGetMetaEvent(short a0, short a1, unsigned char a2);
+void _SsSetPitchBend(short a0, short a1);
+void _SsSetControlChange(short a0, short a1, unsigned char a2);
+void _SsContBankChange(short a0, short a1);
+void _SsContDataEntry(short a0, short a1, unsigned char a2);
+void _SsContMainVol(short a0, short a1, unsigned char a2);
+void _SsContPanpot(short a0, short a1, unsigned char a2);
+void _SsContExpression(short a0, short a1, unsigned char a2);
+void _SsContDamper(short a0, short a1, unsigned char a2);
+void _SsContExternal(short a0, short a1, unsigned char a2);
+void _SsContNrpn1(short a0, short a1, unsigned char a2);
+void _SsContNrpn2(short a0, short a1, unsigned char a2);
+void _SsContRpn1(short a0, short a1, unsigned char a2);
+void _SsContRpn2(short a0, short a1, unsigned char a2);
+void _SsContResetAll(short a0, short a1);
+
+void _SsSetNrpnVabAttr0(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr1(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr2(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr3(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr4(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr5(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr6(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr7(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr8(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr9(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr10(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr11(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr12(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr13(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr14(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr15(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr16(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr17(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr18(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
+void _SsSetNrpnVabAttr19(
+    short a0, short a1, short a2, VagAtr a3, short a4, unsigned char a5);
 
 #ifdef __cplusplus
 }

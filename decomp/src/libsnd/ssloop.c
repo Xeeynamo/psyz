@@ -1,6 +1,12 @@
-#include <common.h>
-#include <libsnd.h>
+#include "libsnd_private.h"
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/ssloop", SsSetLoop);
+void SsSetLoop(short access_num, short seq_num, short l_count) {
+    struct SeqStruct* score = &_ss_score[access_num][seq_num];
+    score->unk20 = l_count;
+    score->unk21 = 0;
+}
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/ssloop", SsIsEos);
+short SsIsEos(short access_num, short seq_num) {
+    struct SeqStruct* score = &_ss_score[access_num][seq_num];
+    return score->play_mode;
+}
