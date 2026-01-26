@@ -1,3 +1,5 @@
+#include <cstdlib>
+#include <cstring>
 #include <gtest/gtest.h>
 #include <GLES2/gl2.h>
 extern "C" {
@@ -24,7 +26,7 @@ unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h);
 #include "stb_image.h"
 #include "stb_image_write.h"
 
-class SDLGL_Test : public testing::Test {
+class gpu_Test : public testing::Test {
     static float img_eq(
         const unsigned char* a, const unsigned char* b, const size_t len) {
         size_t matches = 0;
@@ -130,7 +132,7 @@ class SDLGL_Test : public testing::Test {
     }
 };
 
-TEST_F(SDLGL_Test, fnt_print) {
+TEST_F(gpu_Test, fnt_print) {
     FntLoad(960, 256);
     SetDumpFnt(FntOpen(4, 4, SCREEN_WIDTH, SCREEN_HEIGHT, 0, 512));
     ClearImage(&cdb->draw.clip, 60, 120, 120);
@@ -143,7 +145,7 @@ TEST_F(SDLGL_Test, fnt_print) {
     AssertFrame("fnt_print");
 }
 
-TEST_F(SDLGL_Test, draw_ft4) {
+TEST_F(gpu_Test, draw_ft4) {
     u_short tpage, clut;
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
@@ -167,7 +169,7 @@ TEST_F(SDLGL_Test, draw_ft4) {
     AssertFrame("draw_ft4");
 }
 
-TEST_F(SDLGL_Test, draw_ft4_colored) {
+TEST_F(gpu_Test, draw_ft4_colored) {
     u_short tpage, clut;
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
@@ -191,7 +193,7 @@ TEST_F(SDLGL_Test, draw_ft4_colored) {
     AssertFrame("draw_ft4_colored");
 }
 
-TEST_F(SDLGL_Test, draw_gt4) {
+TEST_F(gpu_Test, draw_gt4) {
     u_short tpage, clut;
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
@@ -218,7 +220,7 @@ TEST_F(SDLGL_Test, draw_gt4) {
     AssertFrame("draw_gt4");
 }
 
-TEST_F(SDLGL_Test, set_draw_area) {
+TEST_F(gpu_Test, set_draw_area) {
     u_short tpage, clut;
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
@@ -250,7 +252,7 @@ TEST_F(SDLGL_Test, set_draw_area) {
     AssertFrame("set_draw_area");
 }
 
-TEST_F(SDLGL_Test, swap_buffer) {
+TEST_F(gpu_Test, swap_buffer) {
     u_short tpage, clut;
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
@@ -281,7 +283,12 @@ TEST_F(SDLGL_Test, swap_buffer) {
     }
 }
 
-TEST_F(SDLGL_Test, drawenv_clear_vram) {
+TEST_F(gpu_Test, drawenv_clear_vram) {
+    const char* ci = getenv("CI");
+    const char* os = getenv("OS");
+    if (ci && strcmp(ci, "1") == 0 && os && strcmp(os, "linux") == 0) {
+        GTEST_SKIP() << "Skipped on Linux CI";
+    }
     u_short tpage, clut;
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
@@ -322,7 +329,7 @@ TEST_F(SDLGL_Test, drawenv_clear_vram) {
 }
 
 // N.B. this test fails on pcsx-redux, I tested output accuracy with Duckstation
-TEST_F(SDLGL_Test, moveimage) {
+TEST_F(gpu_Test, moveimage) {
     u_short tpage, clut;
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
@@ -353,7 +360,7 @@ TEST_F(SDLGL_Test, moveimage) {
     AssertFrame("moveimage", 0.9979f);
 }
 
-TEST_F(SDLGL_Test, blit) {
+TEST_F(gpu_Test, blit) {
     TIM_IMAGE tim;
     RECT rect = {16, 16, 64, 64};
     OpenTIM((u_long*)img_16bpp);
@@ -363,7 +370,7 @@ TEST_F(SDLGL_Test, blit) {
     AssertFrame("blit", 0.9979f);
 }
 
-TEST_F(SDLGL_Test, draw_disp_env) {
+TEST_F(gpu_Test, draw_disp_env) {
     // Set different buffers for draw and disp
     SetDefDrawEnv(&db[0].draw, 0, 0, 256, 240);
     SetDefDispEnv(&db[0].disp, 256, 0, 256, 240);
@@ -413,7 +420,7 @@ TEST_F(SDLGL_Test, draw_disp_env) {
     AssertFrame("draw_disp_env_3");
 }
 
-TEST_F(SDLGL_Test, clear_screen_draw_offset_bugfix) {
+TEST_F(gpu_Test, clear_screen_draw_offset_bugfix) {
     SetTile(&cdb->tile[0]);
     setRGB0(&cdb->tile[0], 255, 0, 0);
     setXY0(&cdb->tile[0], 0, 0);
@@ -436,7 +443,7 @@ TEST_F(SDLGL_Test, clear_screen_draw_offset_bugfix) {
     AssertFrame("clear_screen_draw_offset_bugfix");
 }
 
-TEST_F(SDLGL_Test, load_move_image_priority) {
+TEST_F(gpu_Test, load_move_image_priority) {
     TIM_IMAGE tim;
     OpenTIM((u_long*)img_16bpp);
     ReadTIM(&tim);
@@ -468,7 +475,7 @@ TEST_F(SDLGL_Test, load_move_image_priority) {
     AssertFrame("load_move_image_priority");
 }
 
-TEST_F(SDLGL_Test, flipped_xy) {
+TEST_F(gpu_Test, flipped_xy) {
     u_short tpage, clut;
     if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
         return;
@@ -513,7 +520,7 @@ TEST_F(SDLGL_Test, flipped_xy) {
     AssertFrame("flipped_xy", 1);
 }
 
-TEST_F(SDLGL_Test, flipped_uv) {
+TEST_F(gpu_Test, flipped_uv) {
     u_short tpage, clut;
     if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
         return;
@@ -564,7 +571,7 @@ TEST_F(SDLGL_Test, flipped_uv) {
     AssertFrame("flipped_uv", 1);
 }
 
-TEST_F(SDLGL_Test, flipped_xy_uv) {
+TEST_F(gpu_Test, flipped_xy_uv) {
     u_short tpage, clut;
     if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
         return;

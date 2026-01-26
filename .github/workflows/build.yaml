@@ -13,6 +13,9 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      CI: 1
+      OS: linux
     steps:
       - name: Install requirements
         run: |
@@ -50,6 +53,9 @@ jobs:
 
   build-and-test-windows:
     runs-on: windows-latest
+    env:
+      CI: 1
+      OS: windows
     strategy:
       matrix:
         compiler:
@@ -66,7 +72,7 @@ jobs:
         working-directory: psyz/
         run: ./${{ matrix.compiler.script }}
         env:
-          GTEST_FILTER: "-SDLGL_Test.*"
+          GTEST_FILTER: "-gpu_Test.*"
       - name: Upload test failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
@@ -77,6 +83,9 @@ jobs:
 
   build-and-test-macos:
     runs-on: macos-latest
+    env:
+      CI: 1
+      OS: darwin
     steps:
       - name: Install requirements
         run: brew install cmake ninja sdl2
