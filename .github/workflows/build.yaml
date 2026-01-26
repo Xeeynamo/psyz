@@ -40,6 +40,13 @@ jobs:
       - name: Test PsyZ
         working-directory: psyz/
         run: make test
+      - name: Upload test failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-failures-linux
+          path: psyz/tests/expected/*.actual.png
+          if-no-files-found: ignore
 
   build-and-test-windows:
     runs-on: windows-latest
@@ -60,6 +67,13 @@ jobs:
         run: ./${{ matrix.compiler.script }}
         env:
           GTEST_FILTER: "-SDLGL_Test.*"
+      - name: Upload test failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-failures-windows-${{ matrix.compiler.name }}
+          path: psyz/tests/expected/*.actual.png
+          if-no-files-found: ignore
 
   build-and-test-macos:
     runs-on: macos-latest
@@ -73,3 +87,10 @@ jobs:
       - name: Test PsyZ
         working-directory: psyz/
         run: make test
+      - name: Upload test failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-failures-macos
+          path: psyz/tests/expected/*.actual.png
+          if-no-files-found: ignore
