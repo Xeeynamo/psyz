@@ -2,7 +2,6 @@
 
 typedef void (*sCb)();
 
-int _SsInitSoundSep(short flag, short i, short vab_id, unsigned int* addr);
 short SsSepOpen(unsigned long* addr, short vab_id, short seq_cnt) {
     short bit;
     short i;

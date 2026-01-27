@@ -149,13 +149,9 @@ void Audio_Stop(void) {
     SDL_UnlockMutex(mutex);
 }
 
-void Audio_Unpause(void) {
-    SDL_ResumeAudioStreamDevice(sdl_stream);
-}
+void Audio_Unpause(void) { SDL_ResumeAudioStreamDevice(sdl_stream); }
 
-void Audio_Pause(void) {
-    SDL_PauseAudioStreamDevice(sdl_stream);
-}
+void Audio_Pause(void) { SDL_PauseAudioStreamDevice(sdl_stream); }
 
 void Audio_Mute(void) {
     SDL_LockMutex(mutex);

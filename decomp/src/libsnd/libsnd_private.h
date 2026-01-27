@@ -234,6 +234,7 @@ void vmNoiseOn2(u8 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4);
 void _SsSndSetVolData(
     short sep_access_num, short seq_num, short vol, int v_time);
 void _SsVmDamperOff(void);
+int _SsInitSoundSep(short flag, short i, short vab_id, unsigned long* addr);
 
 void _SsNoteOn(short a0, short a1, unsigned char a2, unsigned char a3);
 void _SsSetProgramChange(short a0, short a1, unsigned char a2);

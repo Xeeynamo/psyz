@@ -19,7 +19,6 @@
 #include <share.h>
 #include <romio.h>
 
-
 typedef struct {
     char** filenames;
     int file_count;
@@ -229,8 +228,8 @@ int psyz_open(const char* devname, int flag, ...) {
     int fd = -1;
     if (oflag & _O_CREAT) {
         // Use _sopen_s for creation with default sharing mode
-        errno_t err = _sopen_s(&fd, path, oflag | _O_BINARY, _SH_DENYNO,
-                               _S_IREAD | _S_IWRITE);
+        errno_t err = _sopen_s(
+            &fd, path, oflag | _O_BINARY, _SH_DENYNO, _S_IREAD | _S_IWRITE);
         if (err != 0) {
             return -1;
         }
@@ -243,10 +242,9 @@ int psyz_open(const char* devname, int flag, ...) {
         }
         if (!(st.st_mode & _S_IFREG)) {
             if (st.st_mode & _S_IFDIR) {
-                WARNF("path '%s' mapped from '%s' is a directory", path, devname);
+                WARNF("path '%s' mapped as '%s' is a directory", path, devname);
             } else {
-                WARNF("path '%s' mapped from '%s' is not a regular file", path,
-                      devname);
+                WARNF("path '%s' mapped as '%s' is not a file", path, devname);
             }
             return -1;
         }
@@ -264,9 +262,7 @@ long psyz_lseek(int fd, long offset, int flag) {
     return _lseek(fd, offset, flag);
 }
 
-int psyz_read(int fd, void* buf, unsigned int n) {
-    return _read(fd, buf, n);
-}
+int psyz_read(int fd, void* buf, unsigned int n) { return _read(fd, buf, n); }
 
 int psyz_write(int fd, const void* buf, unsigned int n) {
     return _write(fd, buf, n);

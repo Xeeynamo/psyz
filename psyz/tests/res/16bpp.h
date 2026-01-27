@@ -1,6 +1,7 @@
 #ifndef __img_16bpp__
 #define __img_16bpp__
 
+// clang-format off
 static unsigned int size_img_16bpp = 8216;
 static unsigned char img_16bpp[]
 #ifndef _MSC_VER
