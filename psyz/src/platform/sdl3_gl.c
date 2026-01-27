@@ -135,30 +135,41 @@ static const char gl33_fragment_shader[] = {
     "0);\n"
     "    }\n"
     // check for full transparency
-    "    bool colorDiscard = texColor == vec4(0, 0, 0, 0);"
-    "    if (!colorDiscard) {\n"
+    "    if (texColor == vec4(0, 0, 0, 0)) {\n"
+    "        FragColor = vec4(0);\n"
+    "        return;\n"
+    "    }\n"
     // check for setSemiTrans(p, 1)
-    "        bool isSemiTrans = vertexColor.a < 0.75;"
+    "    bool isSemiTrans = vertexColor.a < 0.75;"
     // when a color has the 0x8000 bit left then it has the semitrans flag on
-    "        bool colorSemiTrans = texColor.a > 0;"
-    "        if (colorSemiTrans && isSemiTrans) {\n"
-    "            uint abr = (tpage & 0x60u) >> 5u;\n"
-    "            if (abr == 0u) {\n"
-    "                texColor.a = 1;\n" // 50% opacity
-    "            } else if (abr == 1u) {\n"
-    "                texColor.a = 1;\n" // TODO additive blending
-    "            } else if (abr == 2u) {\n"
-    "                texColor.a = 1;\n"   // TODO subtractive blending
-    "            } else {\n"              // abr == 3u
-    "                texColor.a = 0.5;\n" // 25% opacity?
-    "            }\n"
-    "        } else {\n"
-    "            texColor.a = 2;\n" // full opacity
+    "    bool colorSemiTrans = texColor.a > 0;"
+    // PS1-accurate texture-color modulation: (tex5 * col8) >> 7, clamp to 31
+    "    vec3 modColor;\n"
+    "    if (textureMode == 0u) {\n"
+    // untextured: PS1 uses color directly, no modulation
+    "        modColor = texColor.rgb * vertexColor.rgb;\n"
+    "    } else {\n"
+    "        vec3 tex5 = floor(texColor.rgb * 31.0 + 0.5);\n"
+    "        vec3 col8 = min(floor(vertexColor.rgb * 127.5 + 0.5), "
+    "vec3(255.0));\n"
+    "        modColor = min(floor(tex5 * col8 / 128.0), vec3(31.0)) / "
+    "31.0;\n"
+    "    }\n"
+    // pre-multiplied alpha output for GL_ONE, GL_ONE_MINUS_SRC_ALPHA blending
+    "    if (colorSemiTrans && isSemiTrans) {\n"
+    "        uint abr = (tpage & 0x60u) >> 5u;\n"
+    "        if (abr == 0u) {\n"
+    "            FragColor = vec4(modColor * 0.5, 0.5);\n" // 50% blend
+    "        } else if (abr == 1u) {\n"
+    "            FragColor = vec4(modColor, 0.0);\n" // additive
+    "        } else if (abr == 2u) {\n"
+    "            FragColor = vec4(modColor, 0.0);\n"        // subtractive
+    "        } else {\n"                                    // abr == 3u
+    "            FragColor = vec4(modColor * 0.25, 0.0);\n" // B + F/4
     "        }\n"
     "    } else {\n"
-    "        texColor.a = 0;\n"
+    "        FragColor = vec4(modColor, 1.0);\n" // full opacity
     "    }\n"
-    "    FragColor = texColor * vertexColor;\n"
     "}\n"};
 
 typedef struct {
@@ -361,7 +372,7 @@ bool InitPlatform() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_BLEND);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, VRAM_W, VRAM_H, 0, GL_RGBA,
                  GL_UNSIGNED_SHORT_1_5_5_5_REV, NULL);
@@ -1129,8 +1140,10 @@ int Draw_PushPrim(u_long* packets, int max_len) {
                 nIndices = 3;
             }
             // HACK last rgb are not read by writePacket, so we patch the amount
-            packets--;
-            len++;
+            if (isGouraud) {
+                packets--;
+                len++;
+            }
 
             if (isTextured) {
                 FixupFlipUV(vertex_cur, code & EXTRA_VERTEX);
@@ -1418,6 +1431,33 @@ void Draw_FlushBuffer(void) {
     glBufferSubData(
         GL_ELEMENT_ARRAY_BUFFER, 0, sizeof(*index_buf) * n_indices, index_buf);
     glBindVertexArray(VAO);
-    glDrawElements(flush_mode, n_indices, GL_UNSIGNED_SHORT, 0);
+    int prim_size = (flush_mode == GL_LINES) ? 2 : 3;
+    int start = 0;
+    bool cur_subtract = false;
+    while (start < n_indices) {
+        Vertex* v = &vertex_buf[index_buf[start]];
+        bool need_subtract =
+            (v->a == 0x80) && (v->t != (u16)-1) && ((v->t & 0x60) == 0x40);
+        int end = start + prim_size;
+        while (end < n_indices) {
+            v = &vertex_buf[index_buf[end]];
+            bool next_subtract =
+                (v->a == 0x80) && (v->t != (u16)-1) && ((v->t & 0x60) == 0x40);
+            if (next_subtract != need_subtract)
+                break;
+            end += prim_size;
+        }
+        if (need_subtract != cur_subtract) {
+            glBlendEquation(
+                need_subtract ? GL_FUNC_REVERSE_SUBTRACT : GL_FUNC_ADD);
+            cur_subtract = need_subtract;
+        }
+        glDrawElements(flush_mode, end - start, GL_UNSIGNED_SHORT,
+                       (void*)(uintptr_t)(start * sizeof(unsigned short)));
+        start = end;
+    }
+    if (cur_subtract) {
+        glBlendEquation(GL_FUNC_ADD);
+    }
     Draw_ResetBuffer();
 }
