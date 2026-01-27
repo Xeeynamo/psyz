@@ -1,28 +1,23 @@
 #include <psyz.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include "../internal.h"
 
-#ifdef NDEBUG
-LOG_LEVEL g_MinLogLevel = LOG_LEVEL_W;
-#else
-LOG_LEVEL g_MinLogLevel = LOG_LEVEL_D;
-#endif
-
-void SetMinLogLevel(LOG_LEVEL level) { g_MinLogLevel = level; }
-
-void _log(unsigned int level, const char* file, unsigned int line,
-          const char* func, const char* fmt, ...) {
+#ifndef NO_LOGS
+LOG_LEVEL psyz_logLevel = LOG_LEVEL_D;
+void psyz_log(unsigned int level, const char* file, unsigned int line,
+              const char* func, const char* fmt, ...) {
     static const char levels[] = "DIWE";
     va_list args;
 
     va_start(args, fmt);
-    if (level >= g_MinLogLevel && level < LEN(levels)) {
+    if (level >= psyz_logLevel && level < sizeof(levels) - 1) {
         char buf[1024];
 
         int n = vsnprintf(buf, sizeof(buf), fmt, args);
-        if (n >= sizeof(buf)) {
-            WARNF("cannot write '%d' characters in '%s'", n, NAMEOF(buf));
+        if (n < 0) {
+            buf[0] = '\0';
+        } else if ((size_t)n >= sizeof(buf)) {
+            buf[sizeof(buf) - 1] = '\0';
         }
 
         fprintf(stderr, "[%c][%s:%d][%s] %s\n", levels[level], file, line, func,
@@ -30,3 +25,4 @@ void _log(unsigned int level, const char* file, unsigned int line,
     }
     va_end(args);
 }
+#endif
