@@ -59,6 +59,7 @@
 #define SS_MUTE_OFF 0 /**< Mute off */
 
 /* Skip unit constants for SsSeqSkip */
+/* Skip unit constants for SsSeqSkip */
 #define SSSKIP_TICK 0  /**< Skip in tick units */
 #define SSSKIP_NOTE4 1 /**< Skip in quarter note units */
 #define SSSKIP_NOTE8 2 /**< Skip in eighth note units */
@@ -73,7 +74,7 @@
 #define SND_ADSR2 0x0020 /**< ADSR2 information */
 
 /* Control change index constants for _SsFCALL */
-#define CC_CONTROL 0    /**< Control change */
+#define CC_NUMBER 0     /**< Control change */
 #define CC_BANKCHANGE 1 /**< Bank change (CC#1) */
 #define CC_DATAENTRY 2  /**< Data entry (CC#6) */
 #define CC_MAINVOL 3    /**< Main volume (CC#7) */
@@ -229,6 +230,8 @@ typedef struct VagAtr {
     short reserved[4]; /**< Reserved by the system */
 } VagAtr;
 
+typedef void (*sCb)();
+
 /**
  * @brief Function table for low-level MIDI functions
  *
@@ -236,12 +239,12 @@ typedef struct VagAtr {
  * only needed low-level MIDI functions, reducing code size.
  */
 typedef struct _SsFCALL {
-    void (*noteon)();        /**< Note on function */
-    void (*programchange)(); /**< Program change function */
-    void (*pitchbend)();     /**< Pitch bend function */
-    void (*metaevent)();     /**< Meta event function */
-    void (*control[13])();   /**< Control change functions */
-    void (*ccentry[20])();   /**< CC entry functions */
+    sCb noteon;        /**< Note on function */
+    sCb programchange; /**< Program change function */
+    sCb pitchbend;     /**< Pitch bend function */
+    sCb metaevent;     /**< Meta event function */
+    sCb control[13];   /**< Control change functions */
+    sCb ccentry[20];   /**< CC entry functions */
 } _SsFCALL;
 
 /** Global function table variable */
@@ -611,7 +614,7 @@ int SsSeqSkip(short access_num, short seq_num, char unit, short count);
  * @param seq_num Number of SEQs contained in SEP
  * @return SEP access number
  */
-short SsSepOpen(u_long* addr, short vab_id, short seq_num);
+short SsSepOpen(unsigned long* addr, short vab_id, short seq_num);
 
 /**
  * @brief Open SEP data (function table version)

@@ -1,4 +1,3 @@
-#include <common.h>
-#include <libsnd.h>
+#include "libsnd_private.h"
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/vm_doff", _SsVmDamperOff);
+void _SsVmDamperOff(void) { _svm_damper = 0; }

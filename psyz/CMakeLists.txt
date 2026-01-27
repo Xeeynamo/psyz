@@ -58,12 +58,17 @@ set(PSYZ_SOURCES
     ../decomp/src/libspu/sr_gaks.c
     src/psyz/libspu.c
     ../decomp/src/libsnd/ssclose.c
+    ../decomp/src/libsnd/sscres.c
     ../decomp/src/libsnd/ssinit.c
     ../decomp/src/libsnd/ssinit_c.c
+    ../decomp/src/libsnd/ssloop.c
+    ../decomp/src/libsnd/ssopenp.c
     ../decomp/src/libsnd/ssplay.c
     ../decomp/src/libsnd/ssquit.c
     ../decomp/src/libsnd/sssattr.c
+    ../decomp/src/libsnd/ssstop.c
     ../decomp/src/libsnd/sssv.c
+    ../decomp/src/libsnd/ssvol.c
     ../decomp/src/libsnd/sstable.c
     ../decomp/src/libsnd/sstick.c
     ../decomp/src/libsnd/ut_rdel.c
@@ -71,6 +76,8 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/ut_rev.c
     ../decomp/src/libsnd/ut_roff.c
     ../decomp/src/libsnd/ut_ron.c
+    ../decomp/src/libsnd/vol.c
+    ../decomp/src/libsnd/vm_doff.c
     ../decomp/src/libsnd/vs_mono.c
     ../decomp/src/libsnd/vs_vh.c
     src/psyz/libsnd.c
