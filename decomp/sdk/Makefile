@@ -12,5 +12,5 @@ psyq470: Psy-Q_47.zip
 	cd $@ && unzip ../$^
 	mv psyq470/LIB/Libcd.lib psyq470/LIB/LIBCD.LIB
 Psy-Q_47.zip:
-	wget https://web.archive.org/web/20230812163440id_/https://psxdev.net/downloads/$@
+	wget https://github.com/psyqz/psyz/releases/download/requirements/$@
 	sha256sum -c $@.sha256
