@@ -1,6 +1,7 @@
 #ifndef __img_uv_4bpp__
 #define __img_uv_4bpp__
 
+// clang-format off
 static unsigned int size_img_uv_4bpp = 2112;
 static unsigned char img_uv_4bpp[]
 #ifndef _MSC_VER

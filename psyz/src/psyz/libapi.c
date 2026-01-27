@@ -6,7 +6,7 @@
 #include "../internal.h"
 
 #undef _get_errno // Windows: avoid conflicts
-#undef undelete // macOS: avoid conflicts
+#undef undelete   // macOS: avoid conflicts
 
 int MyVSync(int mode);
 int VSync(int mode) { return MyVSync(mode); }

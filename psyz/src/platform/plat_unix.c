@@ -10,7 +10,6 @@
 #include <kernel.h>
 #include <romio.h>
 
-
 static void populate_entry(
     const char* baseDir, struct DIRENTRY* dst, struct dirent* src) {
     char buf[512];
@@ -257,4 +256,6 @@ long psyz_read(long fd, void* buf, long n) {
 long psyz_write(long fd, void* buf, long n) {
     return (long)write((int)fd, buf, (size_t)n);
 }
-long psyz_ioctl(long fd, long com, long arg) { return ioctl((int)fd, com, arg); }
+long psyz_ioctl(long fd, long com, long arg) {
+    return ioctl((int)fd, com, arg);
+}
