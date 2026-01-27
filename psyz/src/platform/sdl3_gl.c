@@ -1284,14 +1284,25 @@ int Draw_PushPrim(u_long* packets, int max_len) {
 
 void Draw_SetTexpageMode(ParamDrawTexpageMode* p) {
     // implements SetDrawMode, SetDrawEnv
-    cur_tpage = *(u_short*)p & 0xFF; // TODO
-    NOT_IMPLEMENTED;
+    cur_tpage = *(u_short*)p & 0x1FF;
+    if (p->tex_y_extra_vram) {
+        DEBUGF("tex_y_extra_vram not implemented");
+    }
+    if (p->tex_flip_x) {
+        DEBUGF("tex_flip_x not implemented");
+    }
+    if (p->tex_flip_y) {
+        DEBUGF("tex_flip_y not implemented");
+    }
 }
 void Draw_SetTextureWindow(unsigned int mask_x, unsigned int mask_y,
                            unsigned int off_x, unsigned int off_y) {
     // implements SetTexWindow
     // it seems it is some kind of texture clamp/repeat
-    NOT_IMPLEMENTED;
+    if (off_x > 0 || off_y > 0 || mask_x != 0xFFFFFFFF ||
+        mask_y != 0xFFFFFFFF) {
+        NOT_IMPLEMENTED;
+    }
 }
 void Draw_SetAreaStart(int x, int y) {
     draw_area_start.x = x;
@@ -1315,7 +1326,11 @@ void Draw_SetOffset(int x, int y) {
     draw_offset.y = y;
     glUniform2f(uniform_draw_offset, (float)x, (float)y);
 }
-void Draw_SetMask(int bit0, int bit1) { NOT_IMPLEMENTED; }
+void Draw_SetMask(int bit0, int bit1) {
+    if (bit0 || bit1) {
+        NOT_IMPLEMENTED;
+    }
+}
 
 void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
     if (rect->w == 0 || rect->h == 0) {

@@ -93,6 +93,10 @@ short SsUtKeyOff(short voice, short vabid, short prog, short tone, short note) {
 
 void SsUtAllKeyOff(short mode) { NOT_IMPLEMENTED; }
 
+void _SsVmGetSeqVol(short seq_sep_no, short* voll, short* volr) {
+    NOT_IMPLEMENTED;
+}
+
 int _SsInitSoundSep(short flag, short i, short vab_id, unsigned int* addr) {
     NOT_IMPLEMENTED;
     return -1;
