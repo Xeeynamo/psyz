@@ -2,8 +2,6 @@
 #include <libapi.h>
 #include <kernel.h>
 
-void _SpuDataCallback(void (*arg0)());
-
 void SpuQuit(void) {
     if (_spu_isCalled == 1) {
         _spu_isCalled = 0;

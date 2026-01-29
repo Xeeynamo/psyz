@@ -10,7 +10,7 @@ extern "C" {
 #include <libspu.h>
 #include <libsnd.h>
 
-#define NUM_SPU_CHANNELS 24
+#define NUM_VOICES 24
 #define SEQ_FLAG_1 1
 #define SEQ_FLAG_2 2
 #define SEQ_FLAG_4 4

@@ -41,5 +41,5 @@ inline long SpuRGetAllKeysStatus(long min, long max, char* status) {
 }
 
 void SpuGetAllKeysStatus(char* status) {
-    SpuRGetAllKeysStatus(0, NUM_SPU_CHANNELS, status);
+    SpuRGetAllKeysStatus(0, NUM_VOICES, status);
 }

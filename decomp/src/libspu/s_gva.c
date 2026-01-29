@@ -6,7 +6,7 @@ void SpuGetVoiceAttr(SpuVoiceAttr* attr) {
     s32 i;
 
     voice = -1;
-    for (i = 0; i < NUM_SPU_CHANNELS; i++) {
+    for (i = 0; i < NUM_VOICES; i++) {
         if (attr->voice & (1 << i)) {
             voice = i;
             break;
