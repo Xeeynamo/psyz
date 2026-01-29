@@ -11,7 +11,10 @@ typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned int u32;
 
+#ifndef NULL
 #define NULL 0
+#endif
+
 #define LEN(x) ((s32)(sizeof(x) / sizeof(*(x))))
 #define OFF(type, field) ((size_t)(&((type*)0)->field))
 #ifdef PERMUTER

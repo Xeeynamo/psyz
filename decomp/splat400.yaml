@@ -1349,7 +1349,7 @@ segments:
       - [0xD09F0, data, libsnd/vm_n2p]
       - [0xD0B78, data, libsnd/vs_vtbp]
       - [0xD0B80, .data, libspu/s_ini]
-      - [0xD0FF8, data, libspu/s_m]
+      - [0xD0FF8, .data, libspu/s_m]
       - [0xD1008, data, libspu/spu]
       - [0xD1020, .data, libspu/spu]
       - [0xD1068, .data, libspu/s_rmp]

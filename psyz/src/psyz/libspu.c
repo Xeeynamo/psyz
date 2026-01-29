@@ -6,16 +6,18 @@
 static SPU_RXX spu_RXX;
 union SpuUnion* _spu_RXX = (union SpuUnion*)&spu_RXX;
 
-void _SpuInit(s32 arg0) { NOT_IMPLEMENTED; }
+void _spu_init(int bHot) { NOT_IMPLEMENTED; }
 
 s32 _spu_t(s32 arg0, ...) {
     NOT_IMPLEMENTED;
     return 0;
 }
 
-void SpuSetVoiceAttr(SpuVoiceAttr* arg) { NOT_IMPLEMENTED; }
+void _spu_FsetRXX(u32 offset, u32 value, u32 mode) { NOT_IMPLEMENTED; }
 
-void SpuSetCommonAttr(SpuCommonAttr* arg) { NOT_IMPLEMENTED; }
+void _spu_FiDMA(void) { NOT_IMPLEMENTED; }
+
+void SpuSetVoiceAttr(SpuVoiceAttr* arg) { NOT_IMPLEMENTED; }
 
 long SpuSetReverbModeParam(SpuReverbAttr* attr) {
     NOT_IMPLEMENTED;

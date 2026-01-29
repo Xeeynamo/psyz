@@ -48,11 +48,13 @@ set(PSYZ_SOURCES
     ../decomp/src/libspu/s_ini.c
     ../decomp/src/libspu/s_it.c
     ../decomp/src/libspu/s_itc.c
+    ../decomp/src/libspu/s_m.c
     ../decomp/src/libspu/s_m_f.c
     ../decomp/src/libspu/s_m_init.c
     ../decomp/src/libspu/s_q.c
     ../decomp/src/libspu/s_r.c
     ../decomp/src/libspu/s_rmp.c
+    ../decomp/src/libspu/s_sca.c
     ../decomp/src/libspu/s_sr.c
     ../decomp/src/libspu/spu.c
     ../decomp/src/libspu/sr_gaks.c
