@@ -113,6 +113,10 @@ int Psyz_SetVsyncMode(Psyz_VsyncMode mode);
 // Returns: 0 on success, -1 if stats is NULL or platform not initialized
 int Psyz_GetGpuStats(Psyz_GpuStats* stats);
 
+// Get frame output as a byte array. This function is very slow.
+// Returns: NULL on failure, otherwise ptr to be destroyed with free(ptr)
+unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h);
+
 // Adjust a PlayStation 1 path to the host filesystem
 // Handles memory card paths (bu00:, bu10:, etc.) and other special cases.
 // If a custom callback is set via Psyz_AdjustPathCB and returns >= 0,

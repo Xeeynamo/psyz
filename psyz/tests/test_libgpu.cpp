@@ -8,7 +8,6 @@ extern "C" {
 #include <libetc.h>
 #include <libgpu.h>
 void Psyz_SetWindowScale(int scale);
-unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h);
 }
 
 #include "res/4bpp.h"
