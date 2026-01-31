@@ -99,6 +99,7 @@ typedef enum {
 
 typedef struct {
     double last_frame_time_us;       // duration of last frame
+    double last_draw_time_us;        // render time excluding vsync wait
     double target_frame_time_us;     // target frame time
     unsigned long long total_frames; // total frames rendered
     int using_driver_vsync;          // 1 for VSync, 0 for limiter

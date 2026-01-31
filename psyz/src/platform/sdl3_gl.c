@@ -218,6 +218,7 @@ static double target_frame_rate = VSYNC_NTSC;
 static double target_frame_time_us = 1000000.0 / VSYNC_NTSC;
 static Uint64 perf_frequency = 0;
 static Uint64 last_frame_time = 0;
+static Uint64 finish_time = 0;
 static double drift_compensation = 0.0;
 static Psyz_VsyncMode vsync_mode = PSYZ_VSYNC_AUTO;
 static bool use_driver_vsync = false;
@@ -432,6 +433,7 @@ static void PresentBufferToScreen(void) {
     glBlitFramebuffer(src_x, src_y + src_h, src_x + src_w, src_y, 0, 0, fb_w,
                       fb_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     glFinish(); // fix: black screen on Windows+Nvidia
+    finish_time = SDL_GetPerformanceCounter();
     SDL_GL_SwapWindow(window);
 
     glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
@@ -565,7 +567,10 @@ static void WaitForNextFrame(void) {
     }
 
     Uint64 frame_end_time = SDL_GetPerformanceCounter();
-    gpu_stats.last_frame_time_us = elapsed_us;
+    gpu_stats.last_frame_time_us =
+        GetElapsedMicroseconds(last_frame_time, frame_end_time);
+    gpu_stats.last_draw_time_us =
+        GetElapsedMicroseconds(last_frame_time, finish_time);
     gpu_stats.target_frame_time_us = target_frame_time_us;
     gpu_stats.total_frames++;
     gpu_stats.using_driver_vsync = use_driver_vsync;
