@@ -1,6 +1,10 @@
 #ifndef PSYZ_H
 #define PSYZ_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <psyz/platform.h>
 #include <psyz/types.h>
 #include <psyz/log.h>
@@ -155,5 +159,9 @@ void Psyz_AdjustPathCB(int (*callback)(char* dst, const char* src, int maxlen));
 //   maxlen: Maximum length of left buffer
 // Returns: Pointer to left on success, NULL if buffer too small
 char* Psyz_JoinPath(char* left, const char* right, int maxlen);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

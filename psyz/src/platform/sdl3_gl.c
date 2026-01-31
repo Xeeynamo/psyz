@@ -1,4 +1,6 @@
 #include <psyz.h>
+#include <psyz/overlay.h>
+#include <psyz/overlay_sdl3_gl.h>
 #include <assert.h>
 #include <math.h>
 #include <stdbool.h>
@@ -213,6 +215,7 @@ static GLposi draw_offset = {0, 0};
 static GLposi draw_area_start = {0, 0};
 static GLposi draw_area_end = {0x10000, 0x10000};
 static bool debug_show_vram = false;
+static bool quit_requested = false;
 
 static double target_frame_rate = VSYNC_NTSC;
 static double target_frame_time_us = 1000000.0 / VSYNC_NTSC;
@@ -287,7 +290,34 @@ static int cur_disp_horiz = -1;
 static int cur_disp_vert = -1;
 static int fb_w = 0, fb_h = 0;
 
-static void QuitPlatformAtExit(void);
+static PsyzOverlayInitCB_SDL3GL overlay_init_cb;
+PsyzOverlayInitCB_SDL3GL Psyz_OverlayInit_SDL3GL(PsyzOverlayInitCB_SDL3GL cb) {
+    const PsyzOverlayInitCB_SDL3GL prev = overlay_init_cb;
+    overlay_init_cb = cb;
+    return prev;
+}
+
+static PsyzOverlayEventCB_SDL3 overlay_event_cb;
+PsyzOverlayEventCB_SDL3 Psyz_OverlayEvent_SDL3(PsyzOverlayEventCB_SDL3 cb) {
+    const PsyzOverlayEventCB_SDL3 prev = overlay_event_cb;
+    overlay_event_cb = cb;
+    return prev;
+}
+
+static PsyzOverlayFrameCB overlay_frame_cb;
+PsyzOverlayFrameCB Psyz_OverlayFrameCB(PsyzOverlayFrameCB cb) {
+    const PsyzOverlayFrameCB prev = overlay_frame_cb;
+    overlay_frame_cb = cb;
+    return prev;
+}
+
+static PsyzOverlayDestroyCB overlay_destroy_cb;
+PsyzOverlayDestroyCB Psyz_OverlayDestroyCB(PsyzOverlayDestroyCB cb) {
+    const PsyzOverlayDestroyCB prev = overlay_destroy_cb;
+    overlay_destroy_cb = cb;
+    return prev;
+}
+
 static bool is_window_visible = false;
 static bool is_platform_initialized = false;
 static bool is_platform_init_successful = false;
@@ -299,7 +329,6 @@ bool InitPlatform() {
     // avoid re-initializing it continuously on failures
     is_platform_initialized = true;
 
-    atexit(QuitPlatformAtExit);
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         ERRORF("SDL_Init: %s", SDL_GetError());
         return false;
@@ -400,6 +429,8 @@ bool InitPlatform() {
     UpdateTargetFramerate(VSYNC_NTSC);
 
     is_platform_init_successful = true;
+    if (overlay_init_cb)
+        overlay_init_cb(window, glContext);
     return true;
 }
 
@@ -432,25 +463,25 @@ static void PresentBufferToScreen(void) {
     }
     glBlitFramebuffer(src_x, src_y + src_h, src_x + src_w, src_y, 0, 0, fb_w,
                       fb_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    if (overlay_frame_cb)
+        overlay_frame_cb();
     glFinish(); // fix: black screen on Windows+Nvidia
     finish_time = SDL_GetPerformanceCounter();
     SDL_GL_SwapWindow(window);
 
     glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
+    glBindTexture(GL_TEXTURE_2D, vram_texture);
     glEnable(GL_SCISSOR_TEST);
 }
 
-static void QuitPlatformAtExit() {
+static void QuitPlatform() {
+    if (overlay_destroy_cb) {
+        overlay_destroy_cb();
+    }
     if (glContext) {
         SDL_GL_DestroyContext(glContext);
         glContext = NULL;
     }
-}
-
-static void QuitPlatform() {
-    QuitPlatformAtExit();
-    // for some reason, the functions below cannot be called by atexit,
-    // or it will cause a segfault while on Wayland.
     if (window) {
         SDL_DestroyWindow(window);
         window = NULL;
@@ -758,6 +789,9 @@ u_long MyPadRead(int id) {
 static void PollEvents(void) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
+        if (overlay_event_cb) {
+            overlay_event_cb(&event);
+        }
         switch (event.type) {
         case SDL_EVENT_GAMEPAD_ADDED:
             AddGamepad(event.gdevice.which);
@@ -766,16 +800,21 @@ static void PollEvents(void) {
             RemoveGamepad(event.gdevice.which);
             break;
         case SDL_EVENT_QUIT:
-            exit(0);
+            quit_requested = true;
+            break;
         case SDL_EVENT_KEY_DOWN:
             if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
-                exit(0);
+                quit_requested = true;
             }
             if (event.key.scancode == SDL_SCANCODE_F6) {
                 debug_show_vram ^= 1;
             }
             break;
         }
+    }
+    if (quit_requested) {
+        QuitPlatform();
+        exit(0);
     }
 }
 
