@@ -10,3 +10,6 @@
 [submodule "external/SDL"]
 	path = external/SDL
 	url = https://github.com/libsdl-org/SDL.git
+[submodule "external/cimgui"]
+	path = external/cimgui
+	url = git@github.com:cimgui/cimgui.git
