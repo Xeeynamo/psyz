@@ -51,7 +51,11 @@ static int audio_thread_func(void* data) {
     return 0;
 }
 
+static bool is_audio_init = false;
 int Audio_Init(void) {
+    if (is_audio_init) {
+        return 0;
+    }
     if (!SDL_WasInit(SDL_INIT_AUDIO)) {
         if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
             ERRORF("failed to init SDL audio: %s", SDL_GetError());
@@ -88,6 +92,7 @@ int Audio_Init(void) {
         return -1;
     }
 
+    is_audio_init = true;
     DEBUGF("audio initialized");
     return 0;
 }
@@ -110,6 +115,7 @@ void Audio_Shutdown(void) {
         SDL_DestroyAudioStream(sdl_stream);
         sdl_stream = NULL;
     }
+    is_audio_init = false;
 }
 
 void Audio_SetCdAudioEndCB(void (*callback)(void)) {
