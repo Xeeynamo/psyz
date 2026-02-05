@@ -9,7 +9,7 @@ typedef enum {
 } LOG_LEVEL;
 
 #define NAMEOF(var) #var
-#define NOT_IMPLEMENTED DEBUGF("not implemented")
+#define NOT_IMPLEMENTED LOG_ONCE("not implemented")
 
 #ifndef NO_LOGS
 
@@ -18,6 +18,14 @@ typedef enum {
 // set to LOG_LEVEL_E+1 to disable all logging
 extern LOG_LEVEL psyz_logLevel;
 
+#define LOG_ONCE(...)                                                          \
+    do {                                                                       \
+        static int was_logged = 0;                                             \
+        if (LOG_LEVEL_D >= psyz_logLevel && !was_logged) {                     \
+            was_logged = 1;                                                    \
+            psyz_log(LOG_LEVEL_D, __FILE__, __LINE__, __func__, __VA_ARGS__);  \
+        }                                                                      \
+    } while (0)
 #define DEBUGF(...)                                                            \
     do {                                                                       \
         if (LOG_LEVEL_D >= psyz_logLevel)                                      \

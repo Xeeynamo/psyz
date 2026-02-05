@@ -36,6 +36,12 @@ struct Gpu {
 
 u32 get_vram_wh(void);
 
+static void GPU_clear_cache() { NOT_IMPLEMENTED; }
+
+static void GPU_write_image() { NOT_IMPLEMENTED; }
+
+static void GPU_read_image() { NOT_IMPLEMENTED; }
+
 static int queue_len = 0;
 static u_long queue_buf[0x4000];
 static int GPU_Exeque() {
@@ -51,7 +57,7 @@ static int GPU_Exeque() {
             // empty?!
             break;
         case 0x01: // clear cache
-            WARNF("unsupported command %s", "clear cache");
+            GPU_clear_cache();
             break;
         case 0x02: // frame buffer rectangle draw
             rect.x = (short)(queue_buf[i + 1] & 0xFFFF);
@@ -73,10 +79,10 @@ static int GPU_Exeque() {
             Draw_MoveImage(&rect, x, y);
             break;
         case 0xA0: // write image
-            WARNF("unsupported command %s", "write image");
+            GPU_write_image();
             break;
         case 0xC0: // read image
-            WARNF("unsupported command %s", "read image");
+            GPU_read_image();
             break;
         case 0xE1:
             Draw_SetTexpageMode((ParamDrawTexpageMode*)&op);
