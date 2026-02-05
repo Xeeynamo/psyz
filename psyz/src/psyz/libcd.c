@@ -397,31 +397,31 @@ int CD_cw(u8 com, u8* param, u_char* result, s32 arg3) {
             Audio_Init();
         }
         if (*param & CdlModeAP) {
-            DEBUGF("%s does not support CdlModeAP", CD_comstr[com]);
+            LOG_ONCE("%s does not support CdlModeAP", CD_comstr[com]);
         }
         if (*param & CdlModeRept) {
-            DEBUGF("%s does not support CdlModeRept", CD_comstr[com]);
+            LOG_ONCE("%s does not support CdlModeRept", CD_comstr[com]);
         }
         if (*param & CdlModeSF) {
-            DEBUGF("%s does not support CdlModeSF", CD_comstr[com]);
+            LOG_ONCE("%s does not support CdlModeSF", CD_comstr[com]);
         }
         if (*param & CdlModeSize0) {
-            DEBUGF("%s does not support CdlModeSize0", CD_comstr[com]);
+            LOG_ONCE("%s does not support CdlModeSize0", CD_comstr[com]);
         }
         if (*param & CdlModeSize1) {
-            DEBUGF("%s does not support CdlModeSize1", CD_comstr[com]);
+            LOG_ONCE("%s does not support CdlModeSize1", CD_comstr[com]);
         }
         if (*param & CdlModeRT) {
-            DEBUGF("%s does not support CdlModeRT", CD_comstr[com]);
+            LOG_ONCE("%s does not support CdlModeRT", CD_comstr[com]);
         }
         if (*param & CdlModeSpeed) {
-            DEBUGF("%s does not support CdlModeSpeed", CD_comstr[com]);
+            LOG_ONCE("%s does not support CdlModeSpeed", CD_comstr[com]);
         }
         if (*param & CdlModeStream2) {
-            DEBUGF("%s does not support CdlModeStream2", CD_comstr[com]);
+            LOG_ONCE("%s does not support CdlModeStream2", CD_comstr[com]);
         }
         if (*param & CdlModeStream) {
-            DEBUGF("%s does not support CdlModeStream", CD_comstr[com]);
+            LOG_ONCE("%s does not support CdlModeStream", CD_comstr[com]);
         }
         CD_mode = *param;
         break;
