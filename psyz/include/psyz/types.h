@@ -15,7 +15,7 @@ typedef unsigned short u_short;
 #endif
 
 // u_long* is widely used in PSY-Q, it should reflect the OS max pointer size
-#if defined(_WIN64) && defined(_MSC_VER)
+#ifdef _WIN64
 // long on MSVC is 32-bit, unlike any other platform
 typedef unsigned long long u_long;
 #else
@@ -41,6 +41,10 @@ typedef int8_t byte;
 
 #ifndef NULL
 #define NULL ((void*)0)
+#endif
+
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+_Static_assert(sizeof(u_long) == 8, "long type must be 8-bytes long");
 #endif
 
 #endif
