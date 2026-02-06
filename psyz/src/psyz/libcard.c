@@ -65,6 +65,11 @@ long _card_load(long chan) {
     return 1;
 }
 
+long _card_clear(long chan) {
+    NOT_IMPLEMENTED;
+    return 1;
+}
+
 void _new_card(void) { NOT_IMPLEMENTED; }
 
 long _card_status(long drv) {
@@ -72,7 +77,14 @@ long _card_status(long drv) {
     return 0;
 }
 
+void InitCARD(long val) { NOT_IMPLEMENTED; }
+
 void InitCARD2(long val) { NOT_IMPLEMENTED; }
+
+long StartCARD(void) {
+    NOT_IMPLEMENTED;
+    return 0;
+}
 
 long StartCARD2(void) {
     NOT_IMPLEMENTED;
