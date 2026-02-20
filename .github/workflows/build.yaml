@@ -36,7 +36,7 @@ jobs:
         working-directory: decomp/
         run: |
           make dependencies
-          (make clean && make all) || cat psyq400.map
+          make clean && make all
       - name: Compile sample (PC)
         working-directory: samples/gpu_hello
         run: cmake -GNinja -DSDL_STATIC=ON -B build/  && cmake --build build/

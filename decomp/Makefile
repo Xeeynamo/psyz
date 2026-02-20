@@ -59,7 +59,7 @@ build/psyq$(PSYQ_VER).elf: build/psyq$(PSYQ_VER).ld $(OBJS) $(ASSETS_OBJS)
 
 build/psyq$(PSYQ_VER).elf.link: $(ASM_OBJS)
 	@echo Link build/psyq$(PSYQ_VER).elf
-	@$(LD) -o build/psyq$(PSYQ_VER).elf.intermediate -Map=build/psyq$(PSYQ_VER).map \
+	$(LD) -o build/psyq$(PSYQ_VER).elf.intermediate -Map=build/psyq$(PSYQ_VER).map \
 		-T symbols.$(PSYQ_VER).bss.txt \
 		-T undefined_funcs_auto.$(PSYQ_VER).txt undefined_syms_auto.$(PSYQ_VER).txt -T build/psyq$(PSYQ_VER).ld \
 		$(OBJS) $(ASM_OBJS)
