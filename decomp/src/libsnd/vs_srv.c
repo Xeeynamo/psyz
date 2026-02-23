@@ -1,4 +1,11 @@
-#include <common.h>
-#include <libsnd.h>
+#include "libsnd_private.h"
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/vs_srv", SsSetReservedVoice);
+char SsSetReservedVoice(char voices) {
+    char temp_v1;
+
+    if (voices > NUM_VOICES || voices == 0) {
+        return -1;
+    }
+    _SsVmMaxVoice = voices;
+    return _SsVmMaxVoice;
+}

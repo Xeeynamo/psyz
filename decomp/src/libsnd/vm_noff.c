@@ -1,4 +1,8 @@
-#include <common.h>
-#include <libsnd.h>
+#include "libsnd_private.h"
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/vm_noff", vmNoiseOff);
+void vmNoiseOff(char voice) {
+    _svm_voice[voice].unk1b = 0;
+    _svm_voice[voice].unk04 = 0;
+    _svm_sreg->noise_mode[0] = 0;
+    _svm_sreg->noise_mode[1] = 0;
+}

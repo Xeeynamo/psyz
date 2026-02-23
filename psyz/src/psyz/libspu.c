@@ -40,3 +40,19 @@ long SpuSetTransferMode(long mode) {
 }
 
 void SpuSetKey(long on_off, u_long voice_bit) { NOT_IMPLEMENTED; }
+
+long SpuInitMalloc(long num, char* top) {
+    NOT_IMPLEMENTED; // can't use original implementation
+}
+
+void SpuFree(u_long* addr) {
+    for (int i = 0; i < _spu_AllocBlockNum; i++) {
+        if (!_spu_memList[i].addr) {
+            continue;
+        }
+        if (_spu_memList[i].addr == addr) {
+            NOT_IMPLEMENTED; // can't use original implementation
+            break;
+        }
+    }
+}
