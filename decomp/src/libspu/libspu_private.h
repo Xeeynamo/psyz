@@ -73,18 +73,18 @@ struct rev_param_entry {
 };
 
 typedef struct tagSpuMalloc {
-    u32 addr;
+    u_long* addr;
     u32 size;
 } SPU_MALLOC;
 
 typedef struct tagSpuVoiceRegister {
-    SpuVolume volume; // 0-2
-    u16 pitch;        // 4
-    u16 addr;         // 6
-    u16 adsr[2];      // 8-A
-    u16 volumex;      // C
-    u16 loop_addr;    // E
-} SPU_VOICE_REG;      // 16 bytes
+    /* 0x00 */ SpuVolume volume;
+    /* 0x04 */ u16 pitch;
+    /* 0x06 */ u16 addr;
+    /* 0x08 */ u16 adsr[2];
+    /* 0x0C */ u16 volumex;
+    /* 0x0E */ u16 loop_addr;
+} SPU_VOICE_REG; // size:0x10
 
 typedef struct tagSpuControl {
     SPU_VOICE_REG voice[NUM_VOICES];
@@ -193,5 +193,6 @@ void _spu_gcSPU(void);
 s32 _spu_t(s32, ...);
 s32 _spu_write(u8*, u32);
 void _SpuDataCallback(SpuTransferCallbackProc func);
+void _SsVmKeyOffNow(int mode);
 
 #endif

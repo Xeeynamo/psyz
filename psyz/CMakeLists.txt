@@ -49,8 +49,6 @@ set(PSYZ_SOURCES
     ../decomp/src/libspu/s_it.c
     ../decomp/src/libspu/s_itc.c
     ../decomp/src/libspu/s_m.c
-    ../decomp/src/libspu/s_m_f.c
-    ../decomp/src/libspu/s_m_init.c
     ../decomp/src/libspu/s_q.c
     ../decomp/src/libspu/s_r.c
     ../decomp/src/libspu/s_rmp.c
@@ -73,6 +71,8 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/ssvol.c
     ../decomp/src/libsnd/sstable.c
     ../decomp/src/libsnd/sstick.c
+    ../decomp/src/libsnd/ut_ako.c
+    ../decomp/src/libsnd/ut_key.c
     ../decomp/src/libsnd/ut_rdel.c
     ../decomp/src/libsnd/ut_rdep.c
     ../decomp/src/libsnd/ut_rev.c
@@ -80,7 +80,13 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/ut_ron.c
     ../decomp/src/libsnd/vol.c
     ../decomp/src/libsnd/vm_doff.c
+    ../decomp/src/libsnd/vm_f.c
+    ../decomp/src/libsnd/vm_g.c
+    ../decomp/src/libsnd/vm_noff.c
+    ../decomp/src/libsnd/vm_nowof.c
     ../decomp/src/libsnd/vs_mono.c
+    ../decomp/src/libsnd/vs_srv.c
+    ../decomp/src/libsnd/vs_vab.c
     ../decomp/src/libsnd/vs_vh.c
     src/psyz/libsnd.c
     src/psyz/libsn.c

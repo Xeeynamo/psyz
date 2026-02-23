@@ -1,16 +1,15 @@
 #include "libspu_private.h"
 
-extern s32 _spu_AllocBlockNum;
-
-void SpuFree(u_long addr) {
-    s32 i;
+void SpuFree(u_long* addr) {
+    int i;
 
     for (i = 0; i < _spu_AllocBlockNum; i++) {
-        if (_spu_memList[i].addr & 0x40000000) {
+        if ((u_long)_spu_memList[i].addr & 0x40000000) {
             break;
         }
         if (_spu_memList[i].addr == addr) {
-            _spu_memList[i].addr |= 0x80000000;
+            _spu_memList[i].addr =
+                (u_long*)((u_long)_spu_memList[i].addr | 0x80000000);
             break;
         }
     }

@@ -3,15 +3,9 @@
 #include <libsnd.h>
 #include <psyz/log.h>
 
-short _svm_stereo_mono;
-short _svm_damper;
-SpuReverbAttr _svm_rattr;
 u_long _snd_seq_tick_env[0x100]; // HACK: make it tick enough
 
-void _SsInit(void) {
-    _svm_stereo_mono = 0;
-    NOT_IMPLEMENTED;
-}
+void _SsInit(void) { NOT_IMPLEMENTED; }
 
 s32 _SpuIsInAllocateArea_(u32 arg0) {
     NOT_IMPLEMENTED;
@@ -71,7 +65,6 @@ short SsVabTransBody(unsigned char* addr, short vabid) {
     NOT_IMPLEMENTED;
     return 0;
 }
-void SsVabClose(short vab_id) { NOT_IMPLEMENTED; }
 
 void SsEnd(void) { NOT_IMPLEMENTED; }
 
@@ -79,19 +72,6 @@ void SsSetMarkCallback(
     short access_num, short seq_num, SsMarkCallbackProc proc) {
     NOT_IMPLEMENTED;
 }
-
-short SsUtKeyOn(short vabid, short prog, short tone, short note, short fine,
-                short voll, short volr) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
-short SsUtKeyOff(short voice, short vabid, short prog, short tone, short note) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
-void SsUtAllKeyOff(short mode) { NOT_IMPLEMENTED; }
 
 void _SsVmGetSeqVol(short seq_sep_no, short* voll, short* volr) {
     NOT_IMPLEMENTED;
@@ -102,7 +82,21 @@ int _SsInitSoundSep(short flag, short i, short vab_id, unsigned int* addr) {
     return -1;
 }
 
+char _SsVmAlloc(short voice) {
+    NOT_IMPLEMENTED;
+    return -1;
+}
+
+void _SsVmDoAllocate(void) { NOT_IMPLEMENTED; }
+
 void SsSeqCalledTbyT(void) { NOT_IMPLEMENTED; }
+
+void _SsVmKeyOnNow(u16 vagCount, u16 pitch) { NOT_IMPLEMENTED; }
+
+int _SsVmVSetUp(short vabId, short prog) {
+    NOT_IMPLEMENTED;
+    return -1;
+}
 
 s32 _SsVmSetSeqVol(s16 seq_sep_no, u16 voll, u16 volr, s16 arg3) {
     NOT_IMPLEMENTED;
@@ -110,6 +104,13 @@ s32 _SsVmSetSeqVol(s16 seq_sep_no, u16 voll, u16 volr, s16 arg3) {
 }
 
 void _SsVmSeqKeyOff(s16 seq_sep_num) { NOT_IMPLEMENTED; }
+
+void vmNoiseOn(char voice) { NOT_IMPLEMENTED; }
+
+int note2pitch2(u16 note, u16 fine) {
+    NOT_IMPLEMENTED;
+    return 0;
+}
 
 void _SsNoteOn(short a0, short a1, unsigned char a2, unsigned char a3) {
     NOT_IMPLEMENTED;

@@ -191,6 +191,11 @@ void EnterCriticalSection(void) { NOT_IMPLEMENTED; }
 
 void ExitCriticalSection(void) { NOT_IMPLEMENTED; }
 
+void SystemError(char c, long n) {
+    NOT_IMPLEMENTED;
+    ERRORF("SystemError('%c', 0x%X)", c, n);
+}
+
 struct DIRENTRY* my_firstfile(char* dirPath, struct DIRENTRY* firstEntry);
 struct DIRENTRY* firstfile(char* dirPath, struct DIRENTRY* firstEntry) {
     return my_firstfile(dirPath, firstEntry);

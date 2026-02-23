@@ -73,6 +73,11 @@ void SetGeomOffset(long ofx, long ofy) {
 
 void SetGeomScreen(long h) { H = h; }
 
+long ratan2(long y, long x) {
+    NOT_IMPLEMENTED;
+    return 1;
+}
+
 void SetRotMatrix(MATRIX* m) {
     M.m[0][0] = m->m[0][0];
     M.m[0][1] = m->m[0][1];
@@ -194,6 +199,11 @@ MATRIX* RotMatrixX(long r, MATRIX* m) {
 }
 
 MATRIX* RotMatrixZ(long r, MATRIX* m) {
+    NOT_IMPLEMENTED;
+    return m;
+}
+
+MATRIX* RotMatrixYXZ(SVECTOR* r, MATRIX* m) {
     NOT_IMPLEMENTED;
     return m;
 }
@@ -497,3 +507,8 @@ long VectorNormalSS(SVECTOR* v0, SVECTOR* v1) {
     NOT_IMPLEMENTED;
     return 0;
 }
+
+MATRIX* TransposeMatrix(MATRIX* m0, MATRIX* m1) {
+    NOT_IMPLEMENTED;
+    return m0;
+};

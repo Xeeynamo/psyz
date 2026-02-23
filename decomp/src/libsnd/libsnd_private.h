@@ -7,8 +7,8 @@ extern "C" {
 #endif
 
 #include <common.h>
-#include <libspu.h>
 #include <libsnd.h>
+#include "../libspu/libspu_private.h"
 
 #define NUM_VOICES 24
 #define SEQ_FLAG_1 1
@@ -19,6 +19,8 @@ extern "C" {
 #define SEQ_FLAG_20 0x20
 #define SEQ_FLAG_100 0x100
 #define SEQ_FLAG_400 0x400
+
+#define NUM_VAB 16
 
 #ifndef SndSsMarkCallbackProc_DEF
 typedef void (*SndSsMarkCallbackProc)(short seq_no, short sep_no, short data);
@@ -164,7 +166,7 @@ struct struct_svm {
     u8 pad;
     /* 0x8011110E 0x16 */ short seq_sep_no;
     short field_18_voice_idx;
-    short field_0x1a;
+    u16 field_0x1a;
     short field_0x1c;
     short field_0x1e;
 };
@@ -178,33 +180,35 @@ extern s32 _snd_openflag;
 extern s16 _snd_seq_s_max;
 extern s16 _snd_seq_t_max;
 extern struct SndSeqTickEnv _snd_seq_tick_env;
+extern SPU_RXX* _svm_sreg;
 extern struct SeqStruct* _ss_score[32];
 extern s32 _svm_brr_start_addr[];
+extern int kMaxPrograms;
 extern struct struct_svm _svm_cur;
 extern s16 _svm_damper;
-extern s16 kMaxPrograms;
 extern unsigned short _svm_okon1;
 extern unsigned short _svm_okon2;
 extern unsigned short _svm_okof1;
 extern unsigned short _svm_okof2;
-extern ProgAtr* _svm_pg;
+extern struct SpuVoice _svm_voice[NUM_VOICES];
 extern SpuReverbAttr _svm_rattr;
-extern VagAtr* _svm_tn;
-extern s32 _svm_vab_start[];
-extern VagAtr* _svm_vab_tn[16];
-extern s32 _svm_vab_total[];
-extern u8 _svm_vab_used[];
-extern ProgAtr* _svm_vab_pg[16];
-extern VabHdr* _svm_vab_vh[16];
+extern u8 _svm_vab_used[NUM_VAB];
+extern char _SsVmMaxVoice;
+extern VabHdr* _svm_vab_vh[NUM_VAB];
+extern ProgAtr* _svm_vab_pg[NUM_VAB];
+extern VagAtr* _svm_vab_tn[NUM_VAB];
+extern u_long* _svm_vab_start[NUM_VAB];
+extern s32 _svm_vab_total[NUM_VAB];
 extern VabHdr* _svm_vh;
+extern ProgAtr* _svm_pg;
+extern VagAtr* _svm_tn;
+extern u_long* _svm_vg;
 extern u16 _svm_vab_count;
 extern u8 spuVmMaxVoice;
-extern s16 _svm_stereo_mono;
+extern short _svm_stereo_mono;
 extern u32 VBLANK_MINUS;
 extern _SsFCALL SsFCALL;
-extern s16 _svm_damper;
 
-void* InterruptCallback(u8, void (*)());
 void SeAutoPan(s16, s16, s16, s16);
 void SeAutoVol(s16, s16, s16, s16);
 void Snd_SetPlayMode(s16, s16, u8, s16);
@@ -235,6 +239,13 @@ void _SsSndSetVolData(
     short sep_access_num, short seq_num, short vol, int v_time);
 void _SsVmDamperOff(void);
 int _SsInitSoundSep(short flag, short i, short vab_id, unsigned long* addr);
+char _SsVmAlloc(short voice);
+void vmNoiseOn(char voice);
+void vmNoiseOff(char voice);
+int note2pitch2(u16 note, u16 fine);
+void _SsVmKeyOnNow(u16 vagCount, u16 pitch);
+int _SsVmVSetUp(short vabId, short prog);
+void _SsVmDoAllocate(void);
 
 void _SsNoteOn(short a0, short a1, unsigned char a2, unsigned char a3);
 void _SsSetProgramChange(short a0, short a1, unsigned char a2);
