@@ -1356,7 +1356,7 @@ long SpuMallocWithStartAddr(u_long addr, long size);
  *
  * @param addr Start address of area
  */
-void SpuFree(u_long addr);
+void SpuFree(u_long* addr);
 
 /*============================================================================
  * Environment Functions
