@@ -7,10 +7,24 @@ u_long _snd_seq_tick_env[0x100]; // HACK: make it tick enough
 
 void _SsInit(void) { NOT_IMPLEMENTED; }
 
+void _SsVmFlush(void) { NOT_IMPLEMENTED; }
+
 s32 _SpuIsInAllocateArea_(u32 arg0) {
     NOT_IMPLEMENTED;
     return 0;
 }
+
+void _SsSndPlay(short arg0, short arg1) { NOT_IMPLEMENTED; }
+
+void _SsSndCrescendo(short arg0, short arg1) { NOT_IMPLEMENTED; }
+
+void _SsSndDecrescendo(short arg0, short arg1) { NOT_IMPLEMENTED; }
+
+void _SsSndTempo(short arg0, short arg1) { NOT_IMPLEMENTED; }
+
+void _SsSndPause(short arg0, short arg1) { NOT_IMPLEMENTED; }
+
+void _SsSndReplay(short arg0, short arg1) { NOT_IMPLEMENTED; }
 
 short SsUtSetVVol(short vc, short voll, short volr) {
     NOT_IMPLEMENTED;
@@ -78,8 +92,6 @@ char _SsVmAlloc(short voice) {
 }
 
 void _SsVmDoAllocate(void) { NOT_IMPLEMENTED; }
-
-void SsSeqCalledTbyT(void) { NOT_IMPLEMENTED; }
 
 void _SsVmKeyOnNow(u16 vagCount, u16 pitch) { NOT_IMPLEMENTED; }
 
