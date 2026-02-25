@@ -56,11 +56,6 @@ short SsVabOpenHeadWithMode(
     return 0;
 }
 
-short SsVabTransBody(unsigned char* addr, short vabid) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
 void SsEnd(void) { NOT_IMPLEMENTED; }
 
 void SsSetMarkCallback(

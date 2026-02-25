@@ -45,6 +45,16 @@ long SpuInitMalloc(long num, char* top) {
     NOT_IMPLEMENTED; // can't use original implementation
 }
 
+u_long SpuSetTransferStartAddr(u_long addr) {
+    NOT_IMPLEMENTED;
+    return 0;
+}
+
+u_long SpuWrite(u_char* addr, u_long size) {
+    NOT_IMPLEMENTED;
+    return 0;
+}
+
 void SpuFree(u_long* addr) {
     for (int i = 0; i < _spu_AllocBlockNum; i++) {
         if (!_spu_memList[i].addr) {
