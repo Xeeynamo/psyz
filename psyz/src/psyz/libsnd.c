@@ -45,11 +45,6 @@ char SsSetReservedVoice(char voices) {
 void MySsInitHot();
 void SsInitHot(void) { MySsInitHot(); }
 
-short SsVabTransCompleted(short immediateFlag) {
-    NOT_IMPLEMENTED;
-    return 1;
-}
-
 short SsVabTransBodyPartly(u_char* addr, u_long bufsize, short vabid) {
     NOT_IMPLEMENTED;
     return 0;

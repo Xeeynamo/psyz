@@ -1,4 +1,5 @@
-#include <common.h>
-#include <libsnd.h>
+#include "libsnd_private.h"
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/vs_vtc", SsVabTransCompleted);
+short SsVabTransCompleted(short immediateFlag) {
+    return SpuIsTransferCompleted(immediateFlag);
+}
