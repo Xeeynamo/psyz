@@ -1,18 +1,3 @@
-#include <common.h>
-#include <libsnd.h>
-
-#define SndSsMarkCallbackProc_DEF
-typedef void (*SndSsMarkCallbackProc)(short seq_no, short sep_no, short data);
-
-extern s16 _snd_seq_s_max;
-extern s16 _snd_seq_t_max;
-extern s32 _snd_ev_flag;
-extern _SsFCALL SsFCALL;
-extern SndSsMarkCallbackProc _SsMarkCallback[32][16];
-extern struct SeqStruct* _ss_score[32];
-extern u32 VBLANK_MINUS;
-extern s32 _snd_openflag;
-
 #include "libsnd_private.h"
 
 s16 _snd_seq_s_max;
@@ -24,4 +9,41 @@ struct SeqStruct* _ss_score[32];
 u32 VBLANK_MINUS;
 s32 _snd_openflag;
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/ssinit", _SsInit);
+static int D_800D0998[] = {0x15107350, 0x0040B19C};
+
+// matches SndRegisterAttr struct
+static s16 default_voice[] = {0, 0, 0x1000, 0x3000, 0x00BF, 0, 0, 0};
+
+static s16 default_state[] = {
+    0x3FFF, 0x3FFF, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+    0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000};
+
+#ifndef __psyz
+void _SsInit(void) {
+    short* ptr;
+    int i, j;
+
+    ptr = (short*)0x1F801C00;
+    for (i = 0; i < NUM_VOICES; i++) {
+        for (j = 0; j < LEN(default_voice); j++) {
+            *ptr++ = default_voice[j];
+        }
+    }
+
+    ptr = (short*)0x1F801D80;
+    for (i = 0; i < LEN(default_state); i++) {
+        *ptr++ = default_state[i];
+    }
+
+    _SsVmInit(NUM_VOICES);
+    for (j = 0; j < LEN(_SsMarkCallback); j++) {
+        for (i = 0; i < LEN(*_SsMarkCallback); i++) {
+            _SsMarkCallback[j][i] = NULL;
+        }
+    }
+
+    VBLANK_MINUS = 60;
+    _snd_openflag = 0;
+    _snd_ev_flag = 0;
+}
+#endif

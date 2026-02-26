@@ -3,7 +3,49 @@
 #include <libsnd.h>
 #include <psyz/log.h>
 
-void _SsInit(void) { NOT_IMPLEMENTED; }
+#define LEN(x) ((s32)(sizeof(x) / sizeof(*(x))))
+#define NUM_VOICES 24
+
+typedef void (*SndSsMarkCallbackProc)(short seq_no, short sep_no, short data);
+
+extern short _snd_seq_s_max;
+extern short _snd_seq_t_max;
+extern int _snd_ev_flag;
+extern _SsFCALL SsFCALL;
+extern SndSsMarkCallbackProc _SsMarkCallback[32][16];
+extern struct SeqStruct* _ss_score[32];
+extern unsigned int VBLANK_MINUS;
+extern int _snd_openflag;
+
+void _SsVmInit(int num_voices) { NOT_IMPLEMENTED; }
+
+static void SetVoiceData(int nVoice, short* data) { NOT_IMPLEMENTED; }
+
+static void SetStateData(short* data) { NOT_IMPLEMENTED; }
+
+static short default_voice[] = {0, 0, 0x1000, 0x3000, 0x00BF, 0, 0, 0};
+static short default_state[] = {
+    0x3FFF, 0x3FFF, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+    0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000};
+void _SsInit(void) {
+    int i, j;
+
+    for (i = 0; i < NUM_VOICES; i++) {
+        SetVoiceData(i, default_voice);
+    }
+    SetStateData(default_state);
+
+    _SsVmInit(NUM_VOICES);
+    for (j = 0; j < LEN(_SsMarkCallback); j++) {
+        for (i = 0; i < LEN(*_SsMarkCallback); i++) {
+            _SsMarkCallback[j][i] = NULL;
+        }
+    }
+
+    VBLANK_MINUS = 60;
+    _snd_openflag = 0;
+    _snd_ev_flag = 0;
+}
 
 void _SsVmFlush(void) { NOT_IMPLEMENTED; }
 

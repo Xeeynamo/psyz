@@ -22,9 +22,7 @@ extern "C" {
 
 #define NUM_VAB 16
 
-#ifndef SndSsMarkCallbackProc_DEF
 typedef void (*SndSsMarkCallbackProc)(short seq_no, short sep_no, short data);
-#endif
 
 #define NUM_CC 13
 #define NUM_DE 20
@@ -171,9 +169,7 @@ struct struct_svm {
 };
 
 extern s32 D_8003C74C;
-#ifndef SndSsMarkCallbackProc_DEF
 extern SndSsMarkCallbackProc _SsMarkCallback[32][16];
-#endif
 extern s32 _snd_ev_flag;
 extern s32 _snd_openflag;
 extern s16 _snd_seq_s_max;
@@ -220,6 +216,7 @@ void SpuVmSeKeyOn(s16 arg0, s16 arg1, u16 arg2, s32 arg3, u16 arg4, u16 arg5);
 s32 SpuVmSetSeqVol(s16 seq_sep_no, u16 voll, u16 volr, s16 arg3);
 u32 SpuVmVSetUp(s16, s16);
 void _SsInit(void);
+void _SsVmInit(int numVoices);
 void _SsVmFlush(void);
 void _SsSeqPlay(short arg0, short arg1);
 void _SsSndCrescendo(short arg0, short arg1);

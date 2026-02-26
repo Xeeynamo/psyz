@@ -1343,7 +1343,7 @@ segments:
       - [0xD0890, data, libsio/siohandl]
       - [0xD08F0, data, libsio/sio]
       - [0xD0900, data, libsnd/dmyprint]
-      - [0xD0998, data, libsnd/ssinit]
+      - [0xD0998, .data, libsnd/ssinit]
       - [0xD09D0, .data, libsnd/ssstart]
       - [0xD09E8, .data, libsnd/vm_f]
       - [0xD09F0, data, libsnd/vm_n2p]
