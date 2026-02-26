@@ -1,4 +1,10 @@
-#include <common.h>
-#include <libsnd.h>
+#include "libsnd_private.h"
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/sssmv", SsSetMVol);
+void SsSetMVol(short voll, short volr) {
+    SpuCommonAttr attr;
+
+    attr.mask = SPU_VOICE_VOLL | SPU_VOICE_VOLR;
+    attr.mvol.left = voll * 129;
+    attr.mvol.right = volr * 129;
+    SpuSetCommonAttr(&attr);
+}

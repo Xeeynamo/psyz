@@ -57,6 +57,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libspu/spu.c
     ../decomp/src/libspu/sr_gaks.c
     src/psyz/libspu.c
+    ../decomp/src/libsnd/sscall.c
     ../decomp/src/libsnd/ssclose.c
     ../decomp/src/libsnd/sscres.c
     ../decomp/src/libsnd/ssinit.c
@@ -66,6 +67,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/ssplay.c
     ../decomp/src/libsnd/ssquit.c
     ../decomp/src/libsnd/sssattr.c
+    ../decomp/src/libsnd/sssmv.c
     ../decomp/src/libsnd/ssstop.c
     ../decomp/src/libsnd/sssv.c
     ../decomp/src/libsnd/ssvol.c

@@ -17,7 +17,6 @@ void SpuSetCommonAttr(SpuCommonAttr* attr) {
     if (bSetAll || mask & SPU_COMMON_MVOLL) {
         if (bSetAll || mask & SPU_COMMON_MVOLMODEL) {
             switch (attr->mvolmode.left) {
-
             case SPU_VOICE_LINEARIncN:
                 mvol_mode_left = SPU_VOL_MODE_LINEARIncN;
                 break;

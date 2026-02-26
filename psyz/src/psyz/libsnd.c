@@ -36,8 +36,6 @@ void Snd_SetPlayMode(
     NOT_IMPLEMENTED;
 }
 
-void SsSetMVol(short voll, short volr) { NOT_IMPLEMENTED; }
-
 short SsSeqOpen(u_long* addr, short vab_id) {
     NOT_IMPLEMENTED;
     return 0;
