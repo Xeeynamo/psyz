@@ -8,4 +8,4 @@ void _spu_setInTransfer(s32 arg0) {
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/libspu/s_it", _spu_getInTransfer);
+int _spu_getInTransfer(void) { return _spu_inTransfer != 1; }

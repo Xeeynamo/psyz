@@ -68,11 +68,13 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/ssquit.c
     ../decomp/src/libsnd/sssattr.c
     ../decomp/src/libsnd/sssmv.c
+    ../decomp/src/libsnd/ssstart.c
     ../decomp/src/libsnd/ssstop.c
     ../decomp/src/libsnd/sssv.c
     ../decomp/src/libsnd/ssvol.c
     ../decomp/src/libsnd/sstable.c
     ../decomp/src/libsnd/sstick.c
+    ../decomp/src/libsnd/sstickcb.c
     ../decomp/src/libsnd/ut_ako.c
     ../decomp/src/libsnd/ut_key.c
     ../decomp/src/libsnd/ut_rdel.c

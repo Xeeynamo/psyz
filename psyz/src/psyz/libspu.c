@@ -24,11 +24,6 @@ long SpuSetReverbModeParam(SpuReverbAttr* attr) {
     return 0;
 }
 
-long SpuMallocWithStartAddr(u_long addr, long size) {
-    NOT_IMPLEMENTED;
-    return -1;
-}
-
 SpuIRQCallbackProc SpuSetIRQCallback(SpuIRQCallbackProc in) {
     NOT_IMPLEMENTED;
     return in;
@@ -55,7 +50,17 @@ u_long SpuWrite(u_char* addr, u_long size) {
     return 0;
 }
 
-void SpuFree(u_long* addr) {
+long* SpuMallocWithStartAddr(long* addr, long size) {
+    NOT_IMPLEMENTED;
+    return (long*)-1;
+}
+
+long* SpuMalloc(long size) {
+    NOT_IMPLEMENTED;
+    return (long*)-1;
+}
+
+void SpuFree(long* addr) {
     for (int i = 0; i < _spu_AllocBlockNum; i++) {
         if (!_spu_memList[i].addr) {
             continue;

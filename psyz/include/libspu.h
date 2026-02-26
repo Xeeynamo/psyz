@@ -1340,7 +1340,7 @@ long SpuInitMalloc(long num, char* top);
  * @param size Size in bytes
  * @return Start address, or -1 on failure
  */
-long SpuMalloc(long size);
+long* SpuMalloc(long size);
 
 /**
  * @brief Allocate area from specific address
@@ -1349,14 +1349,14 @@ long SpuMalloc(long size);
  * @param size Size in bytes
  * @return Start address, or -1 on failure
  */
-long SpuMallocWithStartAddr(u_long addr, long size);
+long* SpuMallocWithStartAddr(long* addr, long size);
 
 /**
  * @brief Free allocated area
  *
  * @param addr Start address of area
  */
-void SpuFree(u_long* addr);
+void SpuFree(long* addr);
 
 /*============================================================================
  * Environment Functions

@@ -73,8 +73,8 @@ struct rev_param_entry {
 };
 
 typedef struct tagSpuMalloc {
-    u_long* addr;
-    u32 size;
+    long* addr;
+    long size;
 } SPU_MALLOC;
 
 typedef struct tagSpuVoiceRegister {
@@ -194,5 +194,6 @@ s32 _spu_t(s32, ...);
 s32 _spu_write(u8*, u32);
 void _SpuDataCallback(SpuTransferCallbackProc func);
 void _SsVmKeyOffNow(int mode);
+int _spu_getInTransfer(void);
 
 #endif

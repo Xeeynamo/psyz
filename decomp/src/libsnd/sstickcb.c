@@ -1,4 +1,11 @@
-#include <common.h>
-#include <libsnd.h>
+#include "libsnd_private.h"
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/sstickcb", SsSetTickCallback);
+SndTickCallback SsSetTickCallback(SndTickCallback cb) {
+    void (*prev)(void);
+
+    prev = _snd_seq_tick_env.tick_cb;
+    if (cb != _snd_seq_tick_env.tick_cb) {
+        _snd_seq_tick_env.tick_cb = cb;
+    }
+    return prev;
+}

@@ -3,8 +3,6 @@
 #include <libsnd.h>
 #include <psyz/log.h>
 
-u_long _snd_seq_tick_env[0x100]; // HACK: make it tick enough
-
 void _SsInit(void) { NOT_IMPLEMENTED; }
 
 void _SsVmFlush(void) { NOT_IMPLEMENTED; }
@@ -47,7 +45,7 @@ short SsUtKeyOnV(short voice, short vabId, short prog, short tone, short note,
     return 0;
 }
 
-void SsStart(void) { NOT_IMPLEMENTED; }
+void _SsStart(int arg0) { NOT_IMPLEMENTED; }
 
 char SsSetReservedVoice(char voices) {
     NOT_IMPLEMENTED;
@@ -58,12 +56,6 @@ void MySsInitHot();
 void SsInitHot(void) { MySsInitHot(); }
 
 short SsVabTransBodyPartly(u_char* addr, u_long bufsize, short vabid) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
-short SsVabOpenHeadWithMode(
-    u_char* addr, short vabid, short mode, u_long sbaddr) {
     NOT_IMPLEMENTED;
     return 0;
 }

@@ -110,6 +110,8 @@
 #define DE_ECHO_DELAY 18  /**< Echo delay */
 #define DE_DELAY 19       /**< Delay time */
 
+typedef void (*SndTickCallback)(void);
+
 /**
  * @brief Volume structure
  *
@@ -341,7 +343,7 @@ void SsSeqCalledTbyT(void);
  * @param cb Pointer to tick callback function
  * @return Previously set tick callback function
  */
-int SsSetTickCallback(void (*cb)());
+SndTickCallback SsSetTickCallback(SndTickCallback cb);
 
 /*============================================================================
  * VAB (Voice Attribute Bank) Functions

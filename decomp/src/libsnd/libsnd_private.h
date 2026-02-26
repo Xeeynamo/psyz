@@ -99,15 +99,14 @@ struct SeqStruct {
 };
 
 struct SndSeqTickEnv {
-    s32 unk0;
-    s32 unk4;
-    void (*unk8)();
-    void (*unk12)();
-    u8 unk16;
-    u8 unk17;
-    u8 unk18;
-    u8 unk19;
-    u32 unk20;
+    /* 0x00 */ s32 tick_mode;
+    /* 0x04 */ s32 manual_tick;
+    /* 0x08 */ void (*tick_cb)(void);
+    /* 0x0C */ void (*vsync_cb)();
+    /* 0x10 */ u8 vsync_tick;
+    /* 0x11 */ u8 unk11;
+    /* 0x12 */ u8 alarm_tick;
+    /* 0x14 */ int unk14;
 };
 
 struct SpuVoice {
@@ -183,7 +182,7 @@ extern struct SndSeqTickEnv _snd_seq_tick_env;
 extern SPU_RXX* _svm_sreg;
 extern struct SeqStruct* _ss_score[32];
 extern s32 _svm_brr_start_addr[];
-extern int kMaxPrograms;
+extern short kMaxPrograms;
 extern struct struct_svm _svm_cur;
 extern s16 _svm_damper;
 extern unsigned short _svm_okon1;
