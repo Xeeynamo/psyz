@@ -45,8 +45,6 @@ short SsUtKeyOnV(short voice, short vabId, short prog, short tone, short note,
     return 0;
 }
 
-void _SsStart(int arg0) { NOT_IMPLEMENTED; }
-
 char SsSetReservedVoice(char voices) {
     NOT_IMPLEMENTED;
     return 0;

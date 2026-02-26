@@ -1,6 +1,6 @@
 #include "libsnd_private.h"
 
-SndTickCallback SsSetTickCallback(SndTickCallback cb) {
+void (*SsSetTickCallback(void (*cb)(void)))(void) {
     void (*prev)(void);
 
     prev = _snd_seq_tick_env.tick_cb;

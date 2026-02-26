@@ -5,7 +5,7 @@
 struct intr {
     const char* ver;
     void (*cb)();
-    void (*set)();
+    void (*set)(int arg0, void (*cb)(void));
     int (*start)();
     int (*stop)();
     int (*unk14)(int, void (*f)());
@@ -37,7 +37,9 @@ static void memclr(s32* mem, int len);
 
 int ResetCallback(void) { return D_800B7080->start(); }
 
-void InterruptCallback(void) { D_800B7080->set(); }
+void InterruptCallback(int arg0, void (*cb)(void)) {
+    D_800B7080->set(arg0, cb);
+}
 
 void DMACallback(void) { D_800B7080->cb(); }
 

@@ -47,3 +47,14 @@ void* DMACallback(int dma, void (*func)()) {
     NOT_IMPLEMENTED;
     return NULL;
 }
+
+static void (*intr_cb[0x100])(void) = { NULL };
+void* InterruptCallback(int arg0, void(*cb)()) {
+    if (arg0 < 0 || arg0 >= 0x100) {
+        return NULL;
+    }
+    void(*prev)(void) = intr_cb[arg0];
+    intr_cb[arg0] = cb;
+    NOT_IMPLEMENTED;
+    return prev;
+}

@@ -196,6 +196,11 @@ void SystemError(char c, long n) {
     ERRORF("SystemError('%c', 0x%X)", c, n);
 }
 
+long ResetRCnt(long spec) {
+    NOT_IMPLEMENTED;
+    return 1;
+}
+
 struct DIRENTRY* my_firstfile(char* dirPath, struct DIRENTRY* firstEntry);
 struct DIRENTRY* firstfile(char* dirPath, struct DIRENTRY* firstEntry) {
     return my_firstfile(dirPath, firstEntry);
