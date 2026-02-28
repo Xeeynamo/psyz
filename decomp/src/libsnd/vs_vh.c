@@ -15,22 +15,19 @@ short SsVabFakeHead(u_char* addr, short vabid, u_long sbaddr) {
     return SsVabOpenHeadWithMode(addr, vabid, 1, sbaddr);
 }
 
-#ifndef __psyz
-INCLUDE_ASM("asm/nonmatchings/libsnd/vs_vh", SsVabOpenHeadWithMode);
-#else
 short SsVabOpenHeadWithMode(
     u_char* addr, short vabid, short mode, u_long sbaddr) {
     int vagLens[256];
-    s32 i;
-    s32 size;
-    s16 vab_id;
-    u16 temp_v1;
-    u16* ptr_vag_off_table;
+    int i;
+    int size;
+    short vab_id;
+    unsigned short vag_header_len;
+    unsigned short* ptr_vag_off_table;
     unsigned int magic;
-    u_long vab_start;
-    u8 num_vags;
-    ProgAtr* pProgTable;
-    u8* ptr;
+    u_long spuAllocMem;
+    unsigned char num_vags;
+    unsigned char* ptr;
+    ProgAtr* progAtr;
     VabHdr* vab_header;
 
     vab_id = NUM_VAB;
@@ -63,10 +60,10 @@ short SsVabOpenHeadWithMode(
         _spu_setInTransfer(0);
         return -1;
     }
+
     ptr = addr;
     _svm_vab_vh[vab_id] = (VabHdr*)ptr;
-
-    ptr = ptr + 0x20;
+    ptr += sizeof(VabHdr);
     vab_header = (VabHdr*)addr;
     magic = vab_header->form;
     if ((magic >> 8) != ('V' << 0x10 | 'A' << 0x8 | 'B')) {
@@ -85,7 +82,6 @@ short SsVabOpenHeadWithMode(
         kMaxPrograms = 0x40;
     }
     if (vab_header->ps > kMaxPrograms) {
-        // _svm_vab_used[vabId_2] = 0;
         _svm_vab_used[vab_id] = 0;
         _spu_setInTransfer(0);
         _svm_vab_count--;
@@ -93,56 +89,61 @@ short SsVabOpenHeadWithMode(
     }
 
     _svm_vab_pg[vab_id] = (ProgAtr*)ptr;
-    pProgTable = (ProgAtr*)ptr;
-    ptr = ptr + (kMaxPrograms * 0x10);
+    progAtr = (ProgAtr*)ptr;
+    ptr += kMaxPrograms * 0x10;
     size = 0;
     for (i = 0; i < kMaxPrograms; i++) {
-        pProgTable[i].reserved1 = size;
-        if (pProgTable[i].tones != 0) {
+        progAtr[i].reserved1 = size;
+        if (progAtr[i].tones != 0) {
             size++;
         }
     }
     size = 0;
     _svm_vab_tn[vab_id] = (VagAtr*)ptr;
-    ptr_vag_off_table = (u16*)(ptr + (vab_header->ps << 9));
+    ptr_vag_off_table = (u16*)(ptr + vab_header->ps * 512);
     num_vags = vab_header->vs;
     for (i = 0; i < LEN(vagLens); i++) {
         if (num_vags >= i) {
-            temp_v1 = *ptr_vag_off_table;
+            vag_header_len = *ptr_vag_off_table;
             if (vab_header->ver >= 5) {
-                vagLens[i] = temp_v1 * 8;
+                vagLens[i] = vag_header_len * 8;
             } else {
-                vagLens[i] = temp_v1 * 4;
+                vagLens[i] = vag_header_len * 4;
             }
             size += vagLens[i];
         }
         ptr_vag_off_table++;
     }
 
-    vab_start = sbaddr;
-    if (mode == 0 && (vab_start = (u_long)SpuMalloc(size)) == -1) {
-        _spu_setInTransfer(0);
-        _svm_vab_count--;
-        return -1;
+    if (mode == 0) {
+        spuAllocMem = (u_long)SpuMalloc(size);
+        if (spuAllocMem == -1) {
+            _svm_vab_used[vab_id] = 0;
+            _spu_setInTransfer(0);
+            _svm_vab_count--;
+            return -1;
+        }
+    } else {
+        spuAllocMem = sbaddr;
     }
 #ifdef __psyz
     if (size > 0x80000) {
 #else
-    if (vab_start + size > 0x80000) {
+    if (spuAllocMem + size > 0x80000) {
 #endif
         _svm_vab_used[vab_id] = 0;
         _spu_setInTransfer(0);
         _svm_vab_count--;
         return -1;
     }
-    _svm_vab_start[vab_id] = (u_long*)vab_start;
+    _svm_vab_start[vab_id] = (u_long*)spuAllocMem;
     size = 0;
     for (i = 0; i <= num_vags; i++) {
         size += vagLens[i];
         if (!(i & 1)) {
-            ((short*)&pProgTable[i / 2].reserved2)[0] = (vab_start + size) / 8;
+            ((short*)&progAtr[i / 2].reserved2)[0] = (spuAllocMem + size) / 8;
         } else {
-            ((short*)&pProgTable[i / 2].reserved2)[1] = (vab_start + size) / 8;
+            ((short*)&progAtr[i / 2].reserved2)[1] = (spuAllocMem + size) / 8;
         }
     }
 
@@ -150,4 +151,3 @@ short SsVabOpenHeadWithMode(
     _svm_vab_used[vab_id] = 2;
     return vab_id;
 }
-#endif
