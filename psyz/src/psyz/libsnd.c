@@ -2,6 +2,7 @@
 #include <libspu.h>
 #include <libsnd.h>
 #include <psyz/log.h>
+#include "../../decomp/src/libspu/libspu_private.h"
 
 #define LEN(x) ((s32)(sizeof(x) / sizeof(*(x))))
 #define NUM_VOICES 24
@@ -17,8 +18,6 @@ extern struct SeqStruct* _ss_score[32];
 extern unsigned int VBLANK_MINUS;
 extern int _snd_openflag;
 
-void _SsVmInit(int num_voices) { NOT_IMPLEMENTED; }
-
 static void SetVoiceData(int nVoice, short* data) { NOT_IMPLEMENTED; }
 
 static void SetStateData(short* data) { NOT_IMPLEMENTED; }
@@ -27,9 +26,13 @@ static short default_voice[] = {0, 0, 0x1000, 0x3000, 0x00BF, 0, 0, 0};
 static short default_state[] = {
     0x3FFF, 0x3FFF, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
     0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000};
+static SPU_RXX impl_svm_sreg;
+extern SPU_RXX* _svm_sreg;
+void _SsVmInit(int num_voices);
 void _SsInit(void) {
     int i, j;
 
+    _svm_sreg = &impl_svm_sreg;
     for (i = 0; i < NUM_VOICES; i++) {
         SetVoiceData(i, default_voice);
     }
@@ -47,7 +50,7 @@ void _SsInit(void) {
     _snd_ev_flag = 0;
 }
 
-void _SsVmFlush(void) { NOT_IMPLEMENTED; }
+//void _SsVmFlush(void) { NOT_IMPLEMENTED; }
 
 s32 _SpuIsInAllocateArea_(u32 arg0) {
     NOT_IMPLEMENTED;

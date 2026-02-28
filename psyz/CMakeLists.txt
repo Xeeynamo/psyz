@@ -86,6 +86,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/vm_doff.c
     ../decomp/src/libsnd/vm_f.c
     ../decomp/src/libsnd/vm_g.c
+    ../decomp/src/libsnd/vm_init.c
     ../decomp/src/libsnd/vm_noff.c
     ../decomp/src/libsnd/vm_nowof.c
     ../decomp/src/libsnd/vs_mono.c

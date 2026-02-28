@@ -1424,7 +1424,7 @@ segments:
       - [0x1100C0, .bss, libsnd/ssinit]
       - [0x1109E8, .bss, libsnd/vm_f]
       - [0x1110C0, .bss, libsnd/vm_g]
-      - [0x111270, bss, libsnd/vm_init]
+      - [0x111270, .bss, libsnd/vm_init]
       - [0x111380, bss, libspu/spu]
       - [0x111398, bss, libspu/s_sca]
       - [0x1113A0, bss, libspu/s_sccm]

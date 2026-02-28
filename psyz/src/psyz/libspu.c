@@ -71,3 +71,8 @@ void SpuFree(long* addr) {
         }
     }
 }
+
+u_long SpuSetNoiseVoice(long on_off, u_long voice_bit) {
+    NOT_IMPLEMENTED;
+    return 0;
+}
