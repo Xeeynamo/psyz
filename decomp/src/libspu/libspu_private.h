@@ -4,6 +4,7 @@
 
 #include <common.h>
 #include <libspu.h>
+#include "libdma.h"
 
 #define NUM_VOICES 24
 
@@ -87,30 +88,28 @@ typedef struct tagSpuVoiceRegister {
 } SPU_VOICE_REG; // size:0x10
 
 typedef struct tagSpuControl {
-    SPU_VOICE_REG voice[NUM_VOICES];
-    SpuVolume main_vol; // 180
-    SpuVolume rev_vol;  // 184
-    // bit flags
-    u16 key_on[2];       // 188
-    u16 key_off[2];      // 18C
-    u16 chan_fm[2];      // 190
-    u16 noise_mode[2];   // 194
-    u16 rev_mode[2];     // 198
-    u32 chan_on;         // 19C
-    u16 unk;             // 1A0
-    u16 rev_work_addr;   // 1A2
-    u16 irq_addr;        // 1A4
-    u16 trans_addr;      // 1A6
-    u16 trans_fifo;      // 1A8
-    u16 spucnt;          // 1AA SPUCNT
-    u16 data_trans;      // 1AC
-    u16 spustat;         // 1AE SPUSTAT
-    SpuVolume cd_vol;    // 1B0
-    SpuVolume ex_vol;    // 1B4
-    SpuVolume main_volx; // 1B8
-    SpuVolume unk_vol;   // 1BC
-
-    u16 dAPF1; // Starting at 0x1F801DC0
+    /* 0x00 */ SPU_VOICE_REG voice[NUM_VOICES];
+    /* 0xC0 */ SpuVolume main_vol;
+    /* 0xC4 */ SpuVolume rev_vol;
+    /* 0xC8 */ u16 key_on[2];
+    /* 0xCC */ u16 key_off[2];
+    /* 0xD0 */ u16 chan_fm[2];
+    /* 0xD4 */ u16 noise_mode[2];
+    /* 0xD8 */ u16 rev_mode[2];
+    /* 0xDC */ u32 chan_on;
+    /* 0xE0 */ u16 unk;
+    /* 0xE2 */ u16 rev_work_addr;
+    /* 0xE4 */ u16 irq_addr;
+    /* 0xE6 */ u16 trans_addr;
+    /* 0xE8 */ u16 trans_fifo;
+    /* 0xEA */ u16 spucnt;
+    /* 0xEC */ u16 data_trans;
+    /* 0xED */ u16 spustat;
+    /* 0xF0 */ SpuVolume cd_vol;
+    /* 0xF4 */ SpuVolume ex_vol;
+    /* 0xF8 */ SpuVolume main_volx;
+    /* 0xFC */ SpuVolume unk_vol;
+    /* 0x100 */ u16 dAPF1; // Starting at 0x1F801DC0
     u16 dAPF2;
     u16 vIIR;
     u16 vCOMB1;
@@ -176,14 +175,14 @@ extern s32 _spu_transMode;
 extern s32 _spu_trans_mode;
 extern u16 _spu_tsa;
 extern u16 _spu_voice_centerNote[];
-extern void (* volatile _spu_IRQCallback)();
 extern void (* volatile _spu_transferCallback)();
+extern void (* volatile _spu_IRQCallback)();
 
 void* InterruptCallback(int, void (*)(void));
 s32 SpuSetAnyVoice(s32 on_off, u32 bits, s32 addr1, s32 addr2);
 void _SpuCallback(void (*cb)());
 void _SpuInit(int bHot);
-void _spu_init(int bHot);
+int _spu_init(int bHot);
 s32 _SpuIsInAllocateArea_(u32);
 void _spu_FiDMA(void);
 void _spu_Fr(u_char* addr, u_long size);
