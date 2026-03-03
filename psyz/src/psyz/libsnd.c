@@ -50,7 +50,7 @@ void _SsInit(void) {
     _snd_ev_flag = 0;
 }
 
-//void _SsVmFlush(void) { NOT_IMPLEMENTED; }
+// void _SsVmFlush(void) { NOT_IMPLEMENTED; }
 
 s32 _SpuIsInAllocateArea_(u32 arg0) {
     NOT_IMPLEMENTED;
