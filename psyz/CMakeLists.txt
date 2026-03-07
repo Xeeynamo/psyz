@@ -38,6 +38,7 @@ set(PSYZ_SOURCES
     src/psyz/libgte.c
     src/psyz/libgs.c
     src/psyz/libcd.c
+    ../decomp/src/libcd/iso9660.c
     ../decomp/src/libcd/sys.c
     src/psyz/libcard.c
     ../decomp/src/libspu/s_cb.c

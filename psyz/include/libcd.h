@@ -146,7 +146,7 @@ typedef struct {
 
 typedef struct {
     CdlLOC pos;    /* file location */
-    u_long size;   /* file size */
+    int size;      /* file size */
     char name[16]; /* file name (body) */
 } CdlFILE;
 
