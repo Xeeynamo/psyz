@@ -44,7 +44,8 @@ typedef int8_t byte;
 #endif
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-_Static_assert(sizeof(u_long) == 8, "long type must be 8-bytes long");
+_Static_assert(
+    sizeof(u_long) == sizeof(void*), "u_long type must be pointer aligned");
 #endif
 
 #endif
