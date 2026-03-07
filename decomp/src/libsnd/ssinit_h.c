@@ -1,4 +1,10 @@
 #include <common.h>
-#include <libsnd.h>
+#include <libetc.h>
+#include <libspu.h>
+#include "libsnd_private.h"
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/ssinit_h", SsInitHot);
+void SsInitHot(void) {
+    ResetCallback();
+    SpuInitHot();
+    _SsInit();
+}

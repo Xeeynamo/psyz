@@ -62,6 +62,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/sscres.c
     ../decomp/src/libsnd/ssinit.c
     ../decomp/src/libsnd/ssinit_c.c
+    ../decomp/src/libsnd/ssinit_h.c
     ../decomp/src/libsnd/ssloop.c
     ../decomp/src/libsnd/ssopenp.c
     ../decomp/src/libsnd/ssplay.c
