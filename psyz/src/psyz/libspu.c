@@ -17,7 +17,9 @@ u32* dma_dpcr = &_dma_dpcr;
 u32* spu_delay = &_spu_delay;
 volatile u16 _spu_RQ[10] = {0};
 
-void _spu_Fw1ts(void) {}
+int Audio_Init(void);
+void _spu_Fw1ts(void) { Audio_Init(); }
+
 void _spu_FwriteByIO(void* addr, int len) { NOT_IMPLEMENTED; }
 
 s32 _spu_t(s32 arg0, ...) {

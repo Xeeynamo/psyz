@@ -357,6 +357,17 @@ int CdMix(CdlATV* vol);
 int CdGetSector(void* madr, int size);
 
 /**
+ * @brief Read CD-ROM table of contents information
+ *
+ * Get starting position of each track on the CD-ROM disc.
+ * The maximum number of tracks is 100.
+ *
+ * @param loc Pointer to location table
+ * @return Positive integer is a track number; anything else is an error
+ */
+int CdGetToc(CdlLOC* loc);
+
+/**
  * @brief Set data ready callback
  *
  * Sets the callback function to be called when data is ready.

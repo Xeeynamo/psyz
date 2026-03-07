@@ -1,4 +1,5 @@
 #include <psyz.h>
+#include <libetc.h>
 #include <libcd.h>
 #include <psyz/log.h>
 #include <inttypes.h>
@@ -9,6 +10,7 @@
 #include <limits.h>
 #include "../audio.h"
 #include "../internal.h"
+#include "../../decomp/src/libspu/libspu_private.h"
 
 #define SECTOR_SIZE 2352
 #define MAX_TRACKS 99
@@ -31,6 +33,19 @@ typedef struct {
     TrackType type;
     int is_valid;
 } TrackEntry;
+
+// https://www.problemkaputt.de/psx-spx.htm#cdromcontrollerioports
+typedef struct {
+    u_char cd_src_l_dst_l;  // volume for CD(L) -> SPU (L)
+    u_char cd_src_l_dst_r;  // volume for CD(L) -> SPU (R)
+    u_char cd_src_r_dst_l;  // volume for CD(R) -> SPU (L)
+    u_char cd_src_r_dst_r;  // volume for CD(R) -> SPU (R)
+    u_char adpcm_mute;      // 0=Normal, 1=Mute
+    u_char is_stereo;       // 0=Mono, 1=Stereo
+    u_char sample_rate;     // 0=37800Hz, 1=18900Hz
+    u_char bits_per_sample; // 0=4bit, 1=8bit
+    u_char emphasis;        // 0=Off, 1=Emphasis
+} CdContext;
 
 // Global CUE data storage
 static TrackEntry g_tracks[MAX_TRACKS];
@@ -71,6 +86,20 @@ CdlLOC CD_pos = {2, 0, 0, 0};
 u_char CD_mode = 0;
 u_char CD_com = 0;
 int DS_active = 0;
+static CdContext ctx;
+
+int CD_cw(u8 com, u8* param, u_char* result, s32 arg3);
+int CD_sync(int mode, u_char* result);
+
+static void ADPMUTE(int mute) {
+    // 0x1F801800 = 3
+    ctx.adpcm_mute = mute != 0; // 0x1F801803 = mute & 1
+}
+
+static void CHNGATV() {
+    // 0x1F801800 = 3
+    // 0x1F801803 = 0x20
+}
 
 static int need_cdda_rewind = 1;
 
@@ -345,16 +374,68 @@ static void cdaudio_end_cb(void) {
         CD_cbready(CdlDataEnd, NULL);
     }
 }
+
+static void callback(void) { NOT_IMPLEMENTED; }
+
 int CD_init(void) {
+    CD_com = 0;
+    CD_mode = 0;
+    CD_cbready = 0;
+    CD_cbsync = 0;
+    CD_status1 = 0;
+    CD_status = 0;
+    ResetCallback();
+    InterruptCallback(2, &callback);
+    CD_cw(CdlNop, 0, 0, 0);
+    if (CD_status & CdlStatShellOpen) {
+        CD_cw(CdlNop, 0, 0, 0);
+    }
+    if (CD_cw(CdlReset, 0, 0, 0)) {
+        return -1;
+    }
+    if (CD_cw(CdlDemute, 0, 0, 0)) {
+        return -1;
+    }
+    if (CD_sync(0, 0) != 2) {
+        return -1;
+    }
     Audio_SetCdAudioEndCB(cdaudio_end_cb);
-    return 1;
-}
-void CD_initintr(void) { NOT_IMPLEMENTED; }
-void CD_flush(void) { NOT_IMPLEMENTED; }
-int CD_initvol(void) {
-    NOT_IMPLEMENTED;
     return 0;
 }
+
+void CD_initintr(void) { NOT_IMPLEMENTED; }
+void CD_flush(void) { NOT_IMPLEMENTED; }
+
+int CD_vol(CdlATV* vol) {
+    // 0x1F801800 = 2
+    ctx.cd_src_l_dst_l = vol->val0; // 0x1F801802
+    ctx.cd_src_l_dst_r = vol->val1; // 0x1F801803
+
+    // 0x1F801800 = 3
+    ctx.cd_src_r_dst_l = vol->val2; // 0x1F801801
+    ctx.cd_src_r_dst_r = vol->val3; // 0x1F801802
+    CHNGATV();                      // 0x1F801803 = 0x20
+}
+
+int CD_getsector(void* madr, int size) { NOT_IMPLEMENTED; }
+int CD_getsector2(void) { NOT_IMPLEMENTED; }
+void CD_datasync(int mode) { NOT_IMPLEMENTED; }
+
+int CD_initvol(void) {
+    CdlATV vol = {128, 0, 128};
+    if (_spu_RXX->rxx.main_volx.left == 0 &&
+        _spu_RXX->rxx.main_volx.right == 0) {
+        _spu_RXX->rxx.main_vol.left = 0x3FFF;
+        _spu_RXX->rxx.main_vol.right = 0x3FFF;
+    }
+    _spu_RXX->rxx.cd_vol.left = 0x3FFF;
+    _spu_RXX->rxx.cd_vol.right = 0x3FFF;
+    _spu_RXX->rxx.spucnt = SPU_CTRL_MASK_SPU_ENABLE | SPU_CTRL_MASK_MUTE_SPU |
+                           SPU_CTRL_MASK_CD_AUDIO_ENABLE;
+    CD_vol(&vol);
+    return 0;
+}
+
 int CD_sync(int mode, u_char* result) {
     NOT_IMPLEMENTED;
     return CdlComplete;
@@ -393,7 +474,7 @@ int CD_cw(u8 com, u8* param, u_char* result, s32 arg3) {
             ERRORF("%s got NULL param", CD_comstr[com]);
             return -2;
         }
-        if (*param & CdlModeDA) {
+        if (*param & (CdlModeDA | CdlModeRT)) {
             Audio_Init();
         }
         if (*param & CdlModeAP) {
@@ -402,17 +483,11 @@ int CD_cw(u8 com, u8* param, u_char* result, s32 arg3) {
         if (*param & CdlModeRept) {
             LOG_ONCE("%s does not support CdlModeRept", CD_comstr[com]);
         }
-        if (*param & CdlModeSF) {
-            LOG_ONCE("%s does not support CdlModeSF", CD_comstr[com]);
-        }
         if (*param & CdlModeSize0) {
             LOG_ONCE("%s does not support CdlModeSize0", CD_comstr[com]);
         }
         if (*param & CdlModeSize1) {
             LOG_ONCE("%s does not support CdlModeSize1", CD_comstr[com]);
-        }
-        if (*param & CdlModeRT) {
-            LOG_ONCE("%s does not support CdlModeRT", CD_comstr[com]);
         }
         if (*param & CdlModeSpeed) {
             LOG_ONCE("%s does not support CdlModeSpeed", CD_comstr[com]);
@@ -434,13 +509,10 @@ int CD_cw(u8 com, u8* param, u_char* result, s32 arg3) {
     }
     return 0;
 }
-int CD_vol(CdlATV* vol) { NOT_IMPLEMENTED; }
-int CD_getsector(void* madr, int size) { NOT_IMPLEMENTED; }
-int CD_getsector2(void) { NOT_IMPLEMENTED; }
-void CD_datasync(int mode) { NOT_IMPLEMENTED; }
 
 int CdInit(void) {
     NOT_IMPLEMENTED;
+    CdReset(CdlModeDA);
     return CD_init();
 }
 
@@ -450,6 +522,20 @@ int CdReading() {
 }
 
 void ExecCd() { NOT_IMPLEMENTED; }
+
+int CdGetToc(CdlLOC* loc) {
+    if (!loc || g_track_count == 0) {
+        return 0;
+    }
+    for (int i = 0; i < g_track_count; i++) {
+        if (!g_tracks[i].is_valid) {
+            continue;
+        }
+        CdIntToPos(g_tracks[i].abs_sector, &loc[i]);
+        loc[i].track = g_tracks[i].track_num;
+    }
+    return g_track_count;
+}
 
 CdlFILE* CdSearchFile(CdlFILE* fp, char* name) {
     NOT_IMPLEMENTED;

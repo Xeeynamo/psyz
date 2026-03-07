@@ -95,9 +95,6 @@ char SsSetReservedVoice(char voices) {
     return 0;
 }
 
-void MySsInitHot();
-void SsInitHot(void) { MySsInitHot(); }
-
 short SsVabTransBodyPartly(u_char* addr, u_long bufsize, short vabid) {
     NOT_IMPLEMENTED;
     return 0;
