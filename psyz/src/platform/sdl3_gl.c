@@ -900,7 +900,7 @@ static void ApplyDisplayPendingChanges() {
         return;
     }
     if (cur_wnd_width != set_wnd_width || cur_wnd_height != set_wnd_height ||
-        cur_wnd_scale != set_wnd_scale) {
+        cur_wnd_scale != set_wnd_scale || !is_window_visible) {
         cur_wnd_width = set_wnd_width;
         cur_wnd_height = set_wnd_height;
         cur_wnd_scale = set_wnd_scale;
