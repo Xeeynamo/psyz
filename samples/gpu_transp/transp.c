@@ -42,8 +42,8 @@ static int LoadTim(void* data, u_short* outTpage, u_short* outClut) {
     }
     return 0;
 }
-static void SetPolyF4Img(POLY_FT4* poly, int x, int y, int w, int h, int u, int v,
-                         u_short tpage, u_short clut, int semitrans) {
+static void SetPolyF4Img(POLY_FT4* poly, int x, int y, int w, int h, int u,
+                         int v, u_short tpage, u_short clut, int semitrans) {
     SetPolyFT4(poly);
     setXYWH(poly, x, y, w, h);
     setRGB0(poly, 255, 128, 128);
@@ -74,11 +74,15 @@ static void initGraphics(DB* db, int is_pal) {
     if (!LoadTim(img_4bpp, &tpage, &clut)) {
         SetPolyF4Img(&db[0].ft4[0], 8, 16, 64, 64, 0, 0, tpage, clut, 0);
         SetPolyF4Img(&db[0].ft4[3], 8, 96, 64, 64, 0, 0, tpage | 0x20, clut, 0);
-        SetPolyF4Img(&db[0].ft4[4], 80, 96, 64, 64, 0, 0, tpage | 0x40, clut, 0);
-        SetPolyF4Img(&db[0].ft4[5], 152, 96, 64, 64, 0, 0, tpage | 0x60, clut, 1);
+        SetPolyF4Img(
+            &db[0].ft4[4], 80, 96, 64, 64, 0, 0, tpage | 0x40, clut, 0);
+        SetPolyF4Img(
+            &db[0].ft4[5], 152, 96, 64, 64, 0, 0, tpage | 0x60, clut, 1);
         SetPolyF4Img(&db[0].ft4[6], 8, 176, 64, 64, 0, 0, tpage, clut, 1);
-        SetPolyF4Img(&db[0].ft4[7], 80, 176, 64, 64, 0, 0, tpage | 0x20, clut, 1);
-        SetPolyF4Img(&db[0].ft4[8], 152, 176, 64, 64, 0, 0, tpage | 0x40, clut, 1);
+        SetPolyF4Img(
+            &db[0].ft4[7], 80, 176, 64, 64, 0, 0, tpage | 0x20, clut, 1);
+        SetPolyF4Img(
+            &db[0].ft4[8], 152, 176, 64, 64, 0, 0, tpage | 0x40, clut, 1);
     }
     if (!LoadTim(img_8bpp, &tpage, &clut)) {
         SetPolyF4Img(&db[0].ft4[1], 80, 16, 64, 64, 0, 0, tpage, clut, 0);
@@ -118,7 +122,8 @@ int main(void) {
             u16 pal[16];
             const int keycol = 2;
             StoreImage(&rect, (u_long*)pal);
-            while (DrawSync(1));
+            while (DrawSync(1))
+                ;
             switch (pal_type) {
             case 0:
                 for (int i = 0; i < 16; i++) {
@@ -146,9 +151,11 @@ int main(void) {
                 break;
             }
             LoadImage(&rect, (u_long*)pal);
-            while (DrawSync(1));
+            while (DrawSync(1))
+                ;
             invalidate_pal = 0;
-            while (PadRead(0));
+            while (PadRead(0))
+                ;
         }
 
         cdb = (cdb == &db[0]) ? &db[0] : &db[0];

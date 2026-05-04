@@ -1,3 +1,4 @@
+// clang-format off
 #ifndef __img_16bpp__
 #define __img_16bpp__
 

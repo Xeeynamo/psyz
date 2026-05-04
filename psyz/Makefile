@@ -45,5 +45,7 @@ test-wine:
 clean:
 	rm -rf build tests/build
 
+CLANG_FORMAT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))../bin/clang-format
+
 format:
-	find src psxgen tests -type f \( -name '*.c' -o -name '*.cpp' -o -name '*.h' \) -exec clang-format -i {} +
+	find src psxgen tests -type f \( -name '*.c' -o -name '*.cpp' -o -name '*.h' \) -print0 | xargs -0 -P$$(nproc) -n1 $(CLANG_FORMAT) -i

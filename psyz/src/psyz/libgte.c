@@ -511,4 +511,4 @@ long VectorNormalSS(SVECTOR* v0, SVECTOR* v1) {
 MATRIX* TransposeMatrix(MATRIX* m0, MATRIX* m1) {
     NOT_IMPLEMENTED;
     return m0;
-};
+}

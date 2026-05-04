@@ -30,7 +30,7 @@ static char* progname = "graphics/balls/balls.cpe";
 /*
  * Kaji Printf: �������v�����g���邽�߂̒�`
  */
-//#define KANJI
+// #define KANJI
 
 /*#define DEBUG */
 /*
@@ -45,8 +45,8 @@ static char* progname = "graphics/balls/balls.cpe";
 typedef struct {
     DRAWENV draw;         /* drawing environment : �`��� */
     DISPENV disp;         /* display environment : �\���� */
-    OT_TYPE ot[OTSIZE];    /* ordering table:
-                     : �I�[�_�����O�e�[�u�� */
+    OT_TYPE ot[OTSIZE];   /* ordering table:
+                    : �I�[�_�����O�e�[�u�� */
     SPRT_16 sprt[MAXOBJ]; /* 16x16 fixed-size sprite:
                  16x16�Œ�T�C�Y�̃X�v���C�g */
 } DB;
@@ -85,7 +85,8 @@ int main() {
     /* �{�[���̍��W�l�ƈړ��������i�[����o�b�t�@ */
     POS pos[MAXOBJ];
 
-    /* double buffer: �_�u���o�b�t�@�̂��߂Q�p�ӂ���
+    /* double buffer:
+     * �_�u���o�b�t�@�̂��߂Q�p�ӂ���
      */
     DB db[2];
 
@@ -114,7 +115,8 @@ int main() {
     PadInit(0);
 #endif
 
-    /* reset graphics sysmtem (0:cold,1:warm); �`��E�\�����̃��Z�b�g
+    /* reset graphics sysmtem (0:cold,1:warm);
+     * �`��E�\�����̃��Z�b�g
      */
     ResetGraph(0);
 
@@ -160,7 +162,8 @@ int main() {
 
     /* ; ���C�����[�v */
     while ((nobj = pad_read(nobj)) > 0) {
-        /* swap double buffer ID: �_�u���o�b�t�@�|�C���^�̐؂�ւ�
+        /* swap double buffer ID:
+         * �_�u���o�b�t�@�|�C���^�̐؂�ւ�
          */
         cdb = (cdb == db) ? db + 1 : db;
 #ifdef DEBUG
@@ -236,7 +239,7 @@ int main() {
 #endif
     StopCallback();
 
-    return (0);
+    return 0;
 }
 
 /*
@@ -338,11 +341,11 @@ static int pad_read(int n) {
 #endif
 
     if (padd & PADselect)
-        return (-1); /*: �v���O�����̏I�� */
+        return -1; /*: �v���O�����̏I�� */
 
     limitRange(n, 1, MAXOBJ - 1); /*: n��1<=n<=(MAXOBJ-1)�̒l�ɂ��� */
     /* see libgpu.h: libgpu.h�ɋL�� */
-    return (n);
+    return n;
 }
 
 /*

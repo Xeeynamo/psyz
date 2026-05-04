@@ -44,9 +44,11 @@ clean:
 	git clean -xfd obj/ build/ asm/ assets/
 	rm -f *.elf* *.map undefined_*_auto*.txt
 
+CLANG_FORMAT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))../bin/clang-format
+
 .PHONY: format
 format:
-	find src -type f -name '*.c' -exec clang-format -i {} +
+	find src -type f -name '*.c' -print0 | xargs -0 -P$$(nproc) -n1 $(CLANG_FORMAT) -i
 
 .PHONY: expected
 expected: build/psyq$(PSYQ_VER).elf

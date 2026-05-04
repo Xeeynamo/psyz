@@ -1,4 +1,5 @@
 TARGETS := $(wildcard */)
+CLANG_FORMAT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))../bin/clang-format
 
 build: build_psx
 
@@ -26,3 +27,7 @@ clean_pc:
 	for dir in $(TARGETS); do \
 		cd "$$dir" && (rm -rf build/ || true) && cd ..; \
 	done
+
+.PHONY: format
+format:
+	find . -not -path '*/build/*' -type f \( -name '*.c' -o -name '*.h' \) -print0 | xargs -0 -P$$(nproc) -n1 $(CLANG_FORMAT) -i

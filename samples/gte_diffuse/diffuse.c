@@ -111,12 +111,12 @@ int main() {
 }
 
 static void update(DB* db) {
-    POS* pp;                    /* work */
-    OT_TYPE* ot;                /* current OT */
-    int i;                   /* work */
+    POS* pp;              /* work */
+    OT_TYPE* ot;          /* current OT */
+    int i;                /* work */
     int p, otz, dmy, flg; /* work for GTE */
-    SPRT_16* sp;                /* sprite pointer */
-    POLY_F4* wp;                /* wall pointer */
+    SPRT_16* sp;          /* sprite pointer */
+    POLY_F4* wp;          /* wall pointer */
 
     ClearOTag(db->ot, OTSIZE); /* clear ordering table */
 
@@ -245,5 +245,5 @@ static int padread(void) {
 
     /* reserve old data */
     opadd = padd;
-    return (ret);
+    return ret;
 }
