@@ -37,7 +37,7 @@ long SquareRoot0_impl(long a) {
         return 0;
     }
     if (a < 0) {
-        WARNF("SquareRoot0(%d) negative value", a);
+        WARNF("SquareRoot0(%d) negative value", (int)a);
     }
 
     lzc = gte_leadingzerocount(a);
@@ -55,7 +55,7 @@ long SquareRoot0_impl(long a) {
 
     normalized -= 0x40;
     if (normalized < 0 || normalized >= LEN(SQRT)) {
-        WARNF("SquareRoot0(%d) out of bounds", a);
+        WARNF("SquareRoot0(%d) out of bounds", (int)a);
         normalized %= 192;
     }
     result_shift = (0x1F - shift) >> 1;
@@ -73,7 +73,7 @@ long SquareRoot12_impl(long a) {
         return 0;
     }
     if (a < 0) {
-        WARNF("SquareRoot12(%d) negative value", a);
+        WARNF("SquareRoot12(%d) negative value", (int)a);
     }
 
     lzc = gte_leadingzerocount(a);
@@ -91,7 +91,7 @@ long SquareRoot12_impl(long a) {
 
     normalized -= 0x40;
     if (normalized < 0 || normalized >= LEN(SQRT)) {
-        WARNF("SquareRoot12(%d) out of bounds", a);
+        WARNF("SquareRoot12(%d) out of bounds", (int)a);
         normalized %= 192;
     }
     result_shift = (0x1F - shift) >> 1;

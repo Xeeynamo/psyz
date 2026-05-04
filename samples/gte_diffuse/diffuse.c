@@ -1,3 +1,4 @@
+#include <psyz.h>
 #include <libetc.h>
 #include <libgpu.h>
 #include <libgte.h>
@@ -112,8 +113,8 @@ int main() {
 static void update(DB* db) {
     POS* pp;                    /* work */
     OT_TYPE* ot;                /* current OT */
-    int i, j;                   /* work */
-    long p, otz, opz, dmy, flg; /* work for GTE */
+    int i;                   /* work */
+    int p, otz, dmy, flg; /* work for GTE */
     SPRT_16* sp;                /* sprite pointer */
     POLY_F4* wp;                /* wall pointer */
 
@@ -125,7 +126,7 @@ static void update(DB* db) {
     if (Isball) { /* draw ball sprite */
         for (sp = db->sprt, i = 0; i < NOBJ3; i++, sp++, pp++) {
 
-            otz = RotTransPers(&pp->x[0], (long*)&sp->x0, &dmy, &flg);
+            otz = RotTransPers(&pp->x[0], (int*)&sp->x0, &dmy, &flg);
 
             if (otz > 0 && otz < OTSIZE)
                 AddPrim(ot + otz, sp);
@@ -136,8 +137,8 @@ static void update(DB* db) {
         for (wp = db->wall, i = 0; i < NOBJ3; i++, wp++, pp++) {
 
             otz = RotAverage4(
-                &pp->x[0], &pp->x[1], &pp->x[2], &pp->x[3], (long*)&wp->x0,
-                (long*)&wp->x1, (long*)&wp->x2, (long*)&wp->x3, &p, &flg);
+                &pp->x[0], &pp->x[1], &pp->x[2], &pp->x[3], (int*)&wp->x0,
+                (int*)&wp->x1, (int*)&wp->x2, (int*)&wp->x3, &p, &flg);
 
             if (otz > (SCR_Z / 2) >> 2 && otz < OTSIZE)
                 addPrim(ot + otz, wp);

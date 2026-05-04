@@ -401,7 +401,7 @@ long RotTransPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0, int* sxy1,
     *(unsigned int*)sxy1 = SX1 | (SY1 << 16);
     *(unsigned int*)sxy2 = SX2 | (SY2 << 16);
     *p = IR0;
-    *flag = (long)FLAG;
+    *flag = (int)FLAG;
     return SZ3 >> 2;
 }
 
@@ -424,7 +424,7 @@ long RotAverage3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0, int* sxy1,
     *(unsigned int*)sxy0 = SX0 | (SY0 << 16);
     *(unsigned int*)sxy1 = SX1 | (SY1 << 16);
     *(unsigned int*)sxy2 = SX2 | (SY2 << 16);
-    *flag = (long)FLAG;
+    *flag = (int)FLAG;
     *p = IR0;
     AVSZ3();
     return OTZ;
@@ -439,12 +439,12 @@ long RotAverage4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, int* sxy0,
     *(unsigned int*)sxy0 = SX0 | (SY0 << 16);
     *(unsigned int*)sxy1 = SX1 | (SY1 << 16);
     *(unsigned int*)sxy2 = SX2 | (SY2 << 16);
-    long flag1 = (long)FLAG;
+    int flag1 = (int)FLAG;
     V0 = *v3;
     RTPS();
     *(unsigned int*)sxy3 = SX2 | (SY2 << 16);
     *p = IR0;
-    *flag = flag1 | (long)FLAG;
+    *flag = flag1 | (int)FLAG;
     AVSZ4();
     return OTZ;
 }
@@ -455,7 +455,7 @@ long RotAverageNclip3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0,
     V1 = *v1;
     V2 = *v2;
     RTPT();
-    *flag = (long)FLAG;
+    *flag = (int)FLAG;
     NCLIP();
     if (MAC0 > 0) {
         *(unsigned int*)sxy0 = SX0 | (SY0 << 16);
@@ -475,7 +475,7 @@ long RotAverageNclip4(
     V1 = *v1;
     V2 = *v2;
     RTPT();
-    long flag1 = (long)FLAG;
+    int flag1 = (int)FLAG;
     *flag = flag1;
     NCLIP();
     if (MAC0 > 0) {
@@ -486,7 +486,7 @@ long RotAverageNclip4(
         RTPS();
         *(unsigned int*)sxy3 = SX2 | (SY2 << 16);
         *p = IR0;
-        *flag = flag1 | (long)FLAG;
+        *flag = flag1 | (int)FLAG;
         AVSZ4();
         *otz = OTZ;
     }

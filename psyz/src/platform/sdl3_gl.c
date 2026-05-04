@@ -717,9 +717,9 @@ static u_long keyb_p1[] = {
     SDL_SCANCODE_DOWN,      // PAD_DOWN
     SDL_SCANCODE_LEFT,      // PAD_LEFT
 };
-static u_long PadRead_Keyboard(u_long* config, int config_len) {
+static unsigned int PadRead_Keyboard(u_long* config, int config_len) {
     const bool* keyb = SDL_GetKeyboardState(NULL);
-    u_long r = 0;
+    unsigned int r = 0;
     for (int i = 0; i < config_len; i++) {
         if (keyb[config[i]]) {
             r |= 1UL << i;
@@ -727,11 +727,11 @@ static u_long PadRead_Keyboard(u_long* config, int config_len) {
     }
     return r;
 }
-static u_long PadRead_Gamepad(struct Gamepad* g) {
+static unsigned int PadRead_Gamepad(struct Gamepad* g) {
     if (!g || !g->dev) {
         return 0;
     }
-    u_long r = 0;
+    unsigned int r = 0;
     if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_NORTH))
         r |= PADRup;
     if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_SOUTH))
@@ -768,7 +768,7 @@ static u_long PadRead_Gamepad(struct Gamepad* g) {
 }
 
 static void PollEvents(void);
-u_long MyPadRead(int id) {
+unsigned int MyPadRead(int id) {
     PollEvents();
     if (!is_pads_init) {
         WARNF("PadInit not called");

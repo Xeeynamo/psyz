@@ -41,7 +41,7 @@ static void init_cube(DB* db, CVECTOR* col) {
     }
 }
 static void add_cube(OT_TYPE* ot, POLY_F4* s, MATRIX* transform) {
-    long p, otz, flg;
+    int p, otz, flg;
     int nclip;
     size_t i;
 
@@ -54,8 +54,8 @@ static void add_cube(OT_TYPE* ot, POLY_F4* s, MATRIX* transform) {
             &cube_vertices[cube_indices[i + 0]],
             &cube_vertices[cube_indices[i + 1]],
             &cube_vertices[cube_indices[i + 2]],
-            &cube_vertices[cube_indices[i + 3]], (long*)&s->x0, (long*)&s->x1,
-            (long*)&s->x3, (long*)&s->x2, &p, &otz, &flg);
+            &cube_vertices[cube_indices[i + 3]], (int*)&s->x0, (int*)&s->x1,
+            (int*)&s->x3, (int*)&s->x2, &p, &otz, &flg);
 
         if (nclip <= 0)
             continue;
