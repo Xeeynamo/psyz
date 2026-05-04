@@ -5,9 +5,9 @@
 void MyPadInit(int mode);
 void PadInit(int mode) { MyPadInit(mode); }
 
-u_long MyPadRead(int id);
-u_long PadRead(int id) {
-    u_long r = MyPadRead(id);
+unsigned int MyPadRead(int id);
+unsigned int PadRead(int id) {
+    unsigned int r = MyPadRead(id);
 
     // PS1 gamepad cannot have opposite D-pad pressed at the same time
     // sovles a bug on Castlevania SOTN when pressing both Left and Right

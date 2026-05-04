@@ -163,7 +163,7 @@ int RestartCallback(void);
  *
  * @return 0: normal context; 1: callback context
  */
-u16 CheckCallback(void);
+int CheckCallback(void);
 
 /*
  * Video mode functions
@@ -215,7 +215,7 @@ void PadInit(int mode);
  * @return Controller button status. High 2 bytes are pad 2, low 2 bytes are
  * pad 1.
  */
-u_long PadRead(int id);
+unsigned int PadRead(int id);
 
 /**
  * @brief Halt controller (for prototyping only).
