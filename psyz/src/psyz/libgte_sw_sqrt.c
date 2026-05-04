@@ -91,7 +91,7 @@ long SquareRoot12_impl(long a) {
 
     normalized -= 0x40;
     if (normalized < 0 || normalized >= LEN(SQRT)) {
-        WARNF("SquareRoot12(%d) out of bounds", a);
+        WARNF("SquareRoot12(%d) out of bounds", (int)a);
         normalized %= 192;
     }
     result_shift = (0x1F - shift) >> 1;
