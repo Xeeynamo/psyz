@@ -28,5 +28,5 @@ jobs:
             sample_dir=$(dirname "$cmake_file")
             echo "Building $sample_dir"
             cmake -GNinja -DSDL_STATIC=ON -DCMAKE_MESSAGE_LOG_LEVEL=NOTICE -B "$sample_dir/build/" -S "$sample_dir/"
-            cmake --build "$sample_dir/build/" -- -s
+            cmake --build "$sample_dir/build/" -- --quiet
           done
