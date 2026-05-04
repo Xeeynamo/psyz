@@ -1,0 +1,32 @@
+name: Build samples
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '*.md'
+      - '**/*.md'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-samples-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install requirements
+        run: |
+          sudo apt-get update
+          sudo apt-get install build-essential cmake ninja-build libsdl2-dev
+      - name: Clone repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Compile samples (PC)
+        run: |
+          for cmake_file in samples/*/CMakeLists.txt; do
+            sample_dir=$(dirname "$cmake_file")
+            echo "Building $sample_dir"
+            cmake -GNinja -DSDL_STATIC=ON -B "$sample_dir/build/" -S "$sample_dir/"
+            cmake --build "$sample_dir/build/"
+          done
