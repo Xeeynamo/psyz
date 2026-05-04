@@ -27,6 +27,6 @@ jobs:
           for cmake_file in samples/*/CMakeLists.txt; do
             sample_dir=$(dirname "$cmake_file")
             echo "Building $sample_dir"
-            cmake -GNinja -DSDL_STATIC=ON -B "$sample_dir/build/" -S "$sample_dir/"
-            cmake --build "$sample_dir/build/"
+            cmake -GNinja -DSDL_STATIC=ON -DCMAKE_MESSAGE_LOG_LEVEL=NOTICE -B "$sample_dir/build/" -S "$sample_dir/"
+            cmake --build "$sample_dir/build/" -- -s
           done
