@@ -45,5 +45,14 @@ test-wine:
 clean:
 	rm -rf build tests/build
 
-format:
-	find src psxgen tests -type f \( -name '*.c' -o -name '*.cpp' -o -name '*.h' \) -exec clang-format -i {} +
+CLANG_FORMAT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))../bin/clang-format
+CLANG_FORMAT_URL := https://github.com/Xeeynamo/llvm-clang-format-tidy/releases/download/llvmorg-22.1.4/clang-format.xz
+
+$(CLANG_FORMAT):
+	@cd $(dir $(CLANG_FORMAT)) && wget --quiet -O clang-format.xz $(CLANG_FORMAT_URL)
+	@cd $(dir $(CLANG_FORMAT)) && sha256sum -c clang-format.xz.sha256
+	@cd $(dir $(CLANG_FORMAT)) && xz -d clang-format.xz
+	@chmod +x $@
+
+format: $(CLANG_FORMAT)
+	find src psxgen tests -type f \( -name '*.c' -o -name '*.cpp' -o -name '*.h' \) -print0 | xargs -0 -P$$(nproc) -n1 $(CLANG_FORMAT) -i

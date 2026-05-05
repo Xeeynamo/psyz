@@ -2,8 +2,6 @@ name: Linter
 
 on:
   push:
-    branches-ignore:
-      - main
   pull_request_target:
   workflow_dispatch:
 
@@ -11,10 +9,8 @@ jobs:
   linter:
     runs-on: ubuntu-latest
     steps:
-      - name: Install requirements
-        run: sudo apt-get install clang-format
       - name: Clone main repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.ref }}
           submodules: false

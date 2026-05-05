@@ -9,6 +9,7 @@ clean:
 format:
 	cd decomp && make format
 	cd psyz && make format
+	cd samples && make format
 
 .PHONY: psyq_libs
 psyq_libs: nugget/psyq/lib/libgpu.a

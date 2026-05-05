@@ -29,9 +29,9 @@ static int audio_thread_func(void* data) {
             int queued = SDL_GetAudioStreamQueued(sdl_stream);
             int len = CD_SAMPLE_RATE * CD_CHANNELS * CD_SAMPLE_SIZE / 2;
             if (queued < len) {
-                size_t read = fread(buffer, 1, sizeof(buffer), track_file);
-                if (read > 0) {
-                    SDL_PutAudioStreamData(sdl_stream, buffer, read);
+                size_t nRead = fread(buffer, 1, sizeof(buffer), track_file);
+                if (nRead > 0) {
+                    SDL_PutAudioStreamData(sdl_stream, buffer, (int)nRead);
                 } else {
                     DEBUGF("cd audio playbacl reached end of file");
                     is_playing = 0;
@@ -57,7 +57,7 @@ int Audio_Init(void) {
         return 0;
     }
     if (!SDL_WasInit(SDL_INIT_AUDIO)) {
-        if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
+        if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
             ERRORF("failed to init SDL audio: %s", SDL_GetError());
             return -1;
         }

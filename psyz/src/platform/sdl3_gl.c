@@ -187,9 +187,10 @@ typedef struct {
 } GLposi; // this is custom
 
 #define VRGBA(p) (*(unsigned int*)(&((p).r)))
-#define SET_TC(p, tpage, clut) (p)->t = (u16)tpage, (p)->c = (u16)clut;
+#define SET_TC(p, tpage, clut) (p)->t = (u16)(tpage), (p)->c = (u16)(clut);
 #define SET_TC_ALL(p, t, c)                                                    \
-    SET_TC(p, t, c) SET_TC(&p[1], t, c) SET_TC(&p[2], t, c) SET_TC(&p[3], t, c)
+    SET_TC(p, t, c)                                                            \
+    SET_TC(&(p)[1], t, c) SET_TC(&(p)[2], t, c) SET_TC(&(p)[3], t, c)
 
 const int glVer_required_major = 3;
 const int glVer_required_minor = 3;
@@ -429,8 +430,9 @@ bool InitPlatform() {
     UpdateTargetFramerate(VSYNC_NTSC);
 
     is_platform_init_successful = true;
-    if (overlay_init_cb)
+    if (overlay_init_cb) {
         overlay_init_cb(window, glContext);
+    }
     return true;
 }
 
@@ -463,8 +465,9 @@ static void PresentBufferToScreen(void) {
     }
     glBlitFramebuffer(src_x, src_y + src_h, src_x + src_w, src_y, 0, 0, fb_w,
                       fb_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-    if (overlay_frame_cb)
+    if (overlay_frame_cb) {
         overlay_frame_cb();
+    }
     glFinish(); // fix: black screen on Windows+Nvidia
     finish_time = SDL_GetPerformanceCounter();
     SDL_GL_SwapWindow(window);
@@ -591,10 +594,12 @@ static void WaitForNextFrame(void) {
 
         // apply gentle correction (10% per frame)
         drift_compensation -= frame_error * 0.1;
-        if (drift_compensation > 5000.0)
+        if (drift_compensation > 5000.0) {
             drift_compensation = 5000.0;
-        if (drift_compensation < -5000.0)
+        }
+        if (drift_compensation < -5000.0) {
             drift_compensation = -5000.0;
+        }
     }
 
     Uint64 frame_end_time = SDL_GetPerformanceCounter();
@@ -732,38 +737,54 @@ static unsigned int PadRead_Gamepad(struct Gamepad* g) {
         return 0;
     }
     unsigned int r = 0;
-    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_NORTH))
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_NORTH)) {
         r |= PADRup;
-    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_SOUTH))
+    }
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_SOUTH)) {
         r |= PADRdown;
-    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_WEST))
+    }
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_WEST)) {
         r |= PADRleft;
-    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_EAST))
+    }
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_EAST)) {
         r |= PADRright;
-    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_DPAD_UP))
+    }
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_DPAD_UP)) {
         r |= PADLup;
-    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_DPAD_DOWN))
+    }
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_DPAD_DOWN)) {
         r |= PADLdown;
-    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_DPAD_LEFT))
+    }
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_DPAD_LEFT)) {
         r |= PADLleft;
-    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_DPAD_RIGHT))
+    }
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_DPAD_RIGHT)) {
         r |= PADLright;
-    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER))
+    }
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER)) {
         r |= PADn;
-    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER))
+    }
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER)) {
         r |= PADl;
-    if (SDL_GetGamepadAxis(g->dev, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > 8000)
+    }
+    if (SDL_GetGamepadAxis(g->dev, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > 8000) {
         r |= PADo;
-    if (SDL_GetGamepadAxis(g->dev, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) > 8000)
+    }
+    if (SDL_GetGamepadAxis(g->dev, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) > 8000) {
         r |= PADm;
-    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_LEFT_STICK))
+    }
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_LEFT_STICK)) {
         r |= PADi;
-    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_RIGHT_STICK))
+    }
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_RIGHT_STICK)) {
         r |= PADj;
-    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_START))
+    }
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_START)) {
         r |= PADh;
-    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_BACK))
+    }
+    if (SDL_GetGamepadButton(g->dev, SDL_GAMEPAD_BUTTON_BACK)) {
         r |= PADk;
+    }
     return r;
 }
 
@@ -810,6 +831,8 @@ static void PollEvents(void) {
                 debug_show_vram ^= 1;
             }
             break;
+        default:
+            break;
         }
     }
     if (quit_requested) {
@@ -837,8 +860,8 @@ unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h) {
         return NULL;
     }
 
-    while (glGetError() != GL_NO_ERROR)
-        ;
+    while (glGetError() != GL_NO_ERROR) {
+    }
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, vram_fbo);
 
@@ -989,6 +1012,8 @@ void Draw_SetDisplayMode(DisplayMode* mode) {
             break;
         case 3:
             set_wnd_width = 640;
+            break;
+        default:
             break;
         }
     }
@@ -1293,6 +1318,9 @@ int Draw_PushPrim(u_long* packets, int max_len) {
             w = 16;
             h = 16;
             break;
+        default:
+            // TODO warn about unrecognized code
+            break;
         }
         vertex_cur[0].x = (short)(x);
         vertex_cur[0].y = (short)(y);
@@ -1362,10 +1390,12 @@ void Draw_SetOffset(int x, int y) {
 
     x = x % VRAM_W;
     y = y % VRAM_H;
-    if (x < 0)
+    if (x < 0) {
         x += VRAM_W;
-    if (y < 0)
+    }
+    if (y < 0) {
         y += VRAM_H;
+    }
     draw_offset.x = x;
     draw_offset.y = y;
     glUniform2f(uniform_draw_offset, (float)x, (float)y);
@@ -1382,7 +1412,7 @@ void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
     }
     glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
     glScissor(rect->x, rect->y, rect->w, rect->h);
-    glClearColor(r / 255.0f, g / 255.0f, b / 255.0f, 0.0f);
+    glClearColor((float)r / 255.0f, (float)g / 255.0f, (float)b / 255.0f, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     UpdateScissor();
 }
@@ -1485,10 +1515,12 @@ void Draw_FlushBuffer(void) {
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferSubData(
-        GL_ARRAY_BUFFER, 0, sizeof(Vertex) * n_vertices, vertex_buf);
+        GL_ARRAY_BUFFER, 0, (GLsizeiptr)(sizeof(Vertex) * (size_t)n_vertices),
+        vertex_buf);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glBufferSubData(
-        GL_ELEMENT_ARRAY_BUFFER, 0, sizeof(*index_buf) * n_indices, index_buf);
+        GL_ELEMENT_ARRAY_BUFFER, 0,
+        (GLsizeiptr)(sizeof(*index_buf) * (size_t)n_indices), index_buf);
     glBindVertexArray(VAO);
     int prim_size = (flush_mode == GL_LINES) ? 2 : 3;
     int start = 0;
@@ -1502,8 +1534,9 @@ void Draw_FlushBuffer(void) {
             v = &vertex_buf[index_buf[end]];
             bool next_subtract =
                 (v->a == 0x80) && (v->t != (u16)-1) && ((v->t & 0x60) == 0x40);
-            if (next_subtract != need_subtract)
+            if (next_subtract != need_subtract) {
                 break;
+            }
             end += prim_size;
         }
         if (need_subtract != cur_subtract) {
@@ -1511,8 +1544,9 @@ void Draw_FlushBuffer(void) {
                 need_subtract ? GL_FUNC_REVERSE_SUBTRACT : GL_FUNC_ADD);
             cur_subtract = need_subtract;
         }
-        glDrawElements(flush_mode, end - start, GL_UNSIGNED_SHORT,
-                       (void*)(uintptr_t)(start * sizeof(unsigned short)));
+        glDrawElements(
+            flush_mode, end - start, GL_UNSIGNED_SHORT,
+            (const GLvoid*)((uintptr_t)start * sizeof(unsigned short)));
         start = end;
     }
     if (cur_subtract) {

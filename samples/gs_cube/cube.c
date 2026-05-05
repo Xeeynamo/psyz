@@ -65,7 +65,7 @@ static void add_cube(OT_TYPE* ot, POLY_F4* s, MATRIX* transform) {
     }
 }
 
-//#define USE_REVERSE_OT
+// #define USE_REVERSE_OT
 
 static void initGraphics(DB* db, int is_pal) {
     SetDefDrawEnv(&db[0].draw, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);

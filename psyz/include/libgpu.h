@@ -27,7 +27,7 @@ extern int (*GPU_printf)(); /* printf() object */
 
 #define limitRange(x, l, h) ((x) = ((x) < (l) ? (l) : (x) > (h) ? (h) : (x)))
 
-#define setVector(v, _x, _y, _z) (v)->vx = _x, (v)->vy = _y, (v)->vz = _z
+#define setVector(v, _x, _y, _z) (v)->vx = (_x), (v)->vy = (_y), (v)->vz = (_z)
 
 #define applyVector(v, _x, _y, _z, op)                                         \
     (v)->vx op _x, (v)->vy op _y, (v)->vz op _z
@@ -61,13 +61,17 @@ extern int (*GPU_printf)(); /* printf() object */
 /*
  * Set Primitive Colors
  */
-#define setRGB0(p, _r0, _g0, _b0) (p)->r0 = _r0, (p)->g0 = _g0, (p)->b0 = _b0
+#define setRGB0(p, _r0, _g0, _b0)                                              \
+    (p)->r0 = (_r0), (p)->g0 = (_g0), (p)->b0 = (_b0)
 
-#define setRGB1(p, _r1, _g1, _b1) (p)->r1 = _r1, (p)->g1 = _g1, (p)->b1 = _b1
+#define setRGB1(p, _r1, _g1, _b1)                                              \
+    (p)->r1 = (_r1), (p)->g1 = (_g1), (p)->b1 = (_b1)
 
-#define setRGB2(p, _r2, _g2, _b2) (p)->r2 = _r2, (p)->g2 = _g2, (p)->b2 = _b2
+#define setRGB2(p, _r2, _g2, _b2)                                              \
+    (p)->r2 = (_r2), (p)->g2 = (_g2), (p)->b2 = (_b2)
 
-#define setRGB3(p, _r3, _g3, _b3) (p)->r3 = _r3, (p)->g3 = _g3, (p)->b3 = _b3
+#define setRGB3(p, _r3, _g3, _b3)                                              \
+    (p)->r3 = (_r3), (p)->g3 = (_g3), (p)->b3 = (_b3)
 
 /*
  * Set Primitive Screen Points
@@ -93,7 +97,7 @@ extern int (*GPU_printf)(); /* printf() object */
 /*
  * Set Primitive Width/Height
  */
-#define setWH(p, _w, _h) (p)->w = _w, (p)->h = _h
+#define setWH(p, _w, _h) (p)->w = (_w), (p)->h = (_h)
 
 /*
  * Set Primitive Texture Points
@@ -124,10 +128,11 @@ extern int (*GPU_printf)(); /* printf() object */
 #define getcode(p) (u_char)(((P_TAG*)(p))->code)
 #define getaddr(p) (u_long)(((P_TAG*)(p))->addr)
 
-#define nextPrim(p) (void*)((((P_TAG*)(p))->addr) | 0x80000000)
 #ifdef __psyz
 #undef nextPrim
 #define nextPrim(p) (void*)(((P_TAG*)(p))->addr)
+#else
+#define nextPrim(p) (void*)((((P_TAG*)(p))->addr) | 0x80000000)
 #endif
 
 #define isendprim(p) ((((P_TAG*)(p))->addr) == 0xffffff)
@@ -179,7 +184,7 @@ extern int (*GPU_printf)(); /* printf() object */
     ((((tp) & 0x3) << 7) | (((abr) & 0x3) << 5) | (((y) & 0x100) >> 4) |       \
      (((x) & 0x3ff) >> 6) | (((y) & 0x200) << 2))
 
-#define getClut(x, y) ((y << 6) | ((x >> 4) & 0x3f))
+#define getClut(x, y) (((y) << 6) | (((x) >> 4) & 0x3f))
 
 typedef struct {
     /* 0x0 */ short x;

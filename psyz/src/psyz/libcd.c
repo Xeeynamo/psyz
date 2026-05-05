@@ -106,13 +106,16 @@ static int need_cdda_rewind = 1;
 // Trim whitespace from both ends of a string
 static char* str_trim(char* str) {
     char* end;
-    while (isspace((unsigned char)*str))
+    while (isspace((unsigned char)*str)) {
         str++;
-    if (*str == 0)
+    }
+    if (*str == 0) {
         return str;
+    }
     end = str + strlen(str) - 1;
-    while (end > str && isspace((unsigned char)*end))
+    while (end > str && isspace((unsigned char)*end)) {
         end--;
+    }
     end[1] = '\0';
     return str;
 }
@@ -123,16 +126,18 @@ static char* extract_token(char* str, char* dest, int max_len) {
     int len = 0;
 
     // Skip leading whitespace
-    while (*p && isspace((unsigned char)*p))
+    while (*p && isspace((unsigned char)*p)) {
         p++;
+    }
     if (*p == '"') {
         // Quoted string
         p++;
         while (*p && *p != '"' && len < max_len - 1) {
             dest[len++] = *p++;
         }
-        if (*p == '"')
+        if (*p == '"') {
             p++;
+        }
     } else {
         // Unquoted token (up to space)
         while (*p && !isspace((unsigned char)*p) && len < max_len - 1) {
@@ -161,7 +166,7 @@ static int get_file_size_in_sectors(const char* file_path) {
     }
 
     // Convert bytes to sectors (rounded up)
-    return (file_size + SECTOR_SIZE - 1) / SECTOR_SIZE;
+    return (int)((file_size + SECTOR_SIZE - 1) / SECTOR_SIZE);
 }
 
 // Parse a CUE file and populate the global track table
@@ -178,9 +183,10 @@ static int parse_cue_file(const char* cue_path) {
         last_slash = strrchr(cue_path, '\\');
     }
     if (last_slash) {
-        int len = last_slash - cue_path + 1;
-        if (len >= MAX_PATH_LEN)
+        unsigned int len = (unsigned int)(last_slash - cue_path + 1);
+        if (len >= MAX_PATH_LEN) {
             len = MAX_PATH_LEN - 1;
+        }
         strncpy(g_cue_base_path, cue_path, len);
         g_cue_base_path[len] = '\0';
     } else {
@@ -318,8 +324,9 @@ static void psyz_play() {
     int sector = CdPosToInt(&CD_pos);
     TrackEntry* track = NULL;
     for (int i = 0; i < g_track_count; i++) {
-        if (!g_tracks[i].is_valid)
+        if (!g_tracks[i].is_valid) {
             continue;
+        }
 
         // Check if sector falls within this track
         // For the last track, assume it extends to end of file

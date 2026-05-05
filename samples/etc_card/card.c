@@ -449,7 +449,7 @@ u_long GetPad() {
     w = PadRead(0);
 #endif
     if (w != old)
-        return (old = w);
+        return old = w;
     return 0;
 }
 

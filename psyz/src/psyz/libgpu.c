@@ -124,7 +124,7 @@ int GPU_Enqueue(u_long p1, u_long p2) {
     if (mask) {
         WARNF("mask not supported (mask:%08X)", mask);
     }
-    DR_ENV* env = (DR_ENV*)p1;
+    DR_ENV* env = (DR_ENV*)(uintptr_t)p1;
     while (1) {
         if (queue_len + env->len > LEN(queue_buf)) {
             if (env->len > 0x100) {
@@ -165,12 +165,12 @@ int GPU_Enqueue(u_long p1, u_long p2) {
 }
 static int GPU_DataWrite(u_long p1, u_long p2) {
     psyz_exeque();
-    Draw_LoadImage((RECT*)p1, (u_long*)p2);
+    Draw_LoadImage((RECT*)(uintptr_t)p1, (u_long*)(uintptr_t)p2);
     return 0;
 }
 static int GPU_DataRead(u_long p1, u_long p2) {
     psyz_exeque();
-    Draw_StoreImage((RECT*)p1, (u_long*)p2);
+    Draw_StoreImage((RECT*)(uintptr_t)p1, (u_long*)(uintptr_t)p2);
     return 0;
 }
 

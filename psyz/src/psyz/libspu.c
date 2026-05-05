@@ -52,6 +52,7 @@ void SpuSetKey(long on_off, u_long voice_bit) { NOT_IMPLEMENTED; }
 
 long SpuInitMalloc(long num, char* top) {
     NOT_IMPLEMENTED; // can't use original implementation
+    return 0;
 }
 
 u_long SpuSetTransferStartAddr(u_long addr) {
@@ -66,12 +67,12 @@ u_long SpuWrite(u_char* addr, u_long size) {
 
 long* SpuMallocWithStartAddr(long* addr, long size) {
     NOT_IMPLEMENTED;
-    return (long*)-1;
+    return (long*)(uintptr_t)-1;
 }
 
 long* SpuMalloc(long size) {
     NOT_IMPLEMENTED;
-    return (long*)-1;
+    return (long*)(uintptr_t)-1;
 }
 
 void SpuFree(long* addr) {

@@ -37,7 +37,7 @@ long InitPAD(char* bufA, char* bufB, long lenA, long lenB) {
         memset(bufB, 0, lenB);
         if (lenB >= 2) {
             bufB[0] = 0;
-            bufB[1] = PAD_KIND_DISCONNECTED;
+            bufB[1] = (char)PAD_KIND_DISCONNECTED;
         } else {
             WARNF("bufB len too small");
         }
@@ -94,8 +94,8 @@ long OpenEvent(unsigned long desc, long spec, long mode, long (*func)()) {
     }
     struct EvCB* e = &events[id];
     e->desc = desc;
-    e->spec = spec;
-    e->mode = mode;
+    e->spec = (int)spec;
+    e->mode = (int)mode;
     e->FHandler = func;
     e->system[0] = 0;
     e->system[1] = 0;

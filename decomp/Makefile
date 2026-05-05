@@ -44,9 +44,18 @@ clean:
 	git clean -xfd obj/ build/ asm/ assets/
 	rm -f *.elf* *.map undefined_*_auto*.txt
 
+CLANG_FORMAT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))../bin/clang-format
+CLANG_FORMAT_URL := https://github.com/Xeeynamo/llvm-clang-format-tidy/releases/download/llvmorg-22.1.4/clang-format.xz
+
+$(CLANG_FORMAT):
+	@cd $(dir $(CLANG_FORMAT)) && wget --quiet -O clang-format.xz $(CLANG_FORMAT_URL)
+	@cd $(dir $(CLANG_FORMAT)) && sha256sum -c clang-format.xz.sha256
+	@cd $(dir $(CLANG_FORMAT)) && xz -d clang-format.xz
+	@chmod +x $@
+
 .PHONY: format
-format:
-	find src -type f -name '*.c' -exec clang-format -i {} +
+format: $(CLANG_FORMAT)
+	find src -type f -name '*.c' -print0 | xargs -0 -P$$(nproc) -n1 $(CLANG_FORMAT) -i
 
 .PHONY: expected
 expected: build/psyq$(PSYQ_VER).elf
@@ -104,7 +113,7 @@ bin/psyqdump: bin/psyq2elf
 bin/psyq2elf:
 	git clone --depth 1 https://gitlab.com/jype/psyq2elf.git bin/psyq2elf
 bin/cc1-psx-272:
-	wget -O bin/gcc-2.7.2-psx.tar.gz https://github.com/decompals/old-gcc/releases/download/0.13/gcc-2.7.2-psx.tar.gz
+	wget --quiet -O bin/gcc-2.7.2-psx.tar.gz https://github.com/decompals/old-gcc/releases/download/0.13/gcc-2.7.2-psx.tar.gz
 	sha256sum -c bin/gcc-2.7.2-psx.tar.gz.sha256
 	cd bin && tar -xf gcc-2.7.2-psx.tar.gz
 	rm -f bin/gcc-2.7.2-psx.tar.gz bin/cc1plus bin/cpp bin/g++ bin/gcc

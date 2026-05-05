@@ -13,19 +13,19 @@
  *
  *****************************************************************/
 
-typedef	struct	{
-	int	fileEntry;
-	char	fileName[15][64];
+typedef struct {
+    int fileEntry;
+    char fileName[15][64];
 } _FINF;
 
 typedef struct {
-	char	Magic[2];
-	char	Type;
-	char	BlockEntry;
-	char	Title[64];
-	char	reserve[28];
-	char	Clut[32];
-	char	Icon[3][128];
+    char Magic[2];
+    char Type;
+    char BlockEntry;
+    char Title[64];
+    char reserve[28];
+    char Clut[32];
+    char Icon[3][128];
 } _CARD;
 
 #endif /* _CARDIO_H_ */
