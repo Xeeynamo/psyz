@@ -32,15 +32,15 @@ void gpu_init(unsigned short x, unsigned short y, unsigned short intmode,
     }
     GsDRAWENV.dtd = dith;
     PutDrawEnv(&GsDRAWENV);
-    GsDISPENV.disp.w = x;
-    GsDISPENV.disp.h = y;
+    GsDISPENV.disp.w = (short)x;
+    GsDISPENV.disp.h = (short)y;
     if (GetVideoMode() == 1) { // check if PAL
         GsDISPENV.screen.y = 24;
         GsDISPENV.pad0 = 1;
     }
     GsDISPENV.isrgb24 = varmmode;
     GsDISPENV.isinter = intmode & 1;
-    PSDGPU = intmode & 4;
+    PSDGPU = (short)(intmode & 4);
     PutDispEnv(&GsDISPENV);
 }
 
@@ -103,20 +103,20 @@ void GsInitGraph(unsigned short x, unsigned short y, unsigned short intmode,
 }
 void GsDefDispBuff(unsigned short x0, unsigned short y0, unsigned short x1,
                    unsigned short y1) {
-    PSDOFSX[0] = x0;
-    PSDOFSX[1] = x1;
-    PSDOFSY[0] = y0;
-    PSDOFSY[1] = y0;
+    PSDOFSX[0] = (short)x0;
+    PSDOFSX[1] = (short)x1;
+    PSDOFSY[0] = (short)y0;
+    PSDOFSY[1] = (short)y0;
     if (PSDGPU) {
         PSDBASEX[0] = 0;
         PSDBASEX[1] = 0;
         PSDBASEY[0] = 0;
         PSDBASEY[1] = 0;
     } else {
-        PSDBASEX[0] = x0;
-        PSDBASEX[1] = x1;
-        PSDBASEY[0] = y0;
-        PSDBASEY[1] = y1;
+        PSDBASEX[0] = (short)x0;
+        PSDBASEX[1] = (short)x1;
+        PSDBASEY[0] = (short)y0;
+        PSDBASEY[1] = (short)y1;
     }
     GsSetDrawBuffClip();
     GsSetDrawBuffOffset();
@@ -127,13 +127,14 @@ int GsGetActiveBuff(void) { return PSDIDX; }
 void GsSetWorkBase(PACKET* outpacketp) { GsOUT_PACKET_P = outpacketp; }
 
 void GsSwapDispBuff(void) {
-    GsDISPENV.disp.x = PSDOFSX[PSDIDX];
-    GsDISPENV.disp.y = PSDOFSY[PSDIDX];
+    GsDISPENV.disp.x = (short)PSDOFSX[PSDIDX];
+    GsDISPENV.disp.y = (short)PSDOFSY[PSDIDX];
     PutDispEnv(&GsDISPENV);
     SetDispMask(1);
-    if (!PSDCNT++)
+    if (!PSDCNT++) {
         PSDCNT = 1;
-    PSDIDX = PSDIDX == 0;
+    }
+    PSDIDX = (short)(PSDIDX == 0);
     GsSetDrawBuffClip();
     GsSetDrawBuffOffset();
 }
@@ -142,14 +143,14 @@ void GsSortClear(unsigned char r, unsigned char g, unsigned char b, GsOT* ot) {
     tile_bg_clear[PSDIDX].r0 = r;
     tile_bg_clear[PSDIDX].g0 = g;
     tile_bg_clear[PSDIDX].b0 = b;
-    tile_bg_clear[PSDIDX].x0 = PSDOFSX[PSDIDX];
-    tile_bg_clear[PSDIDX].y0 = PSDOFSY[PSDIDX];
+    tile_bg_clear[PSDIDX].x0 = (short)PSDOFSX[PSDIDX];
+    tile_bg_clear[PSDIDX].y0 = (short)PSDOFSY[PSDIDX];
     if (GsDISPENV.isrgb24) {
-        tile_bg_clear[PSDIDX].w = (3 * HWD0) >> 1;
+        tile_bg_clear[PSDIDX].w = (short)((3 * HWD0) >> 1);
     } else {
-        tile_bg_clear[PSDIDX].w = HWD0;
+        tile_bg_clear[PSDIDX].w = (short)HWD0;
     }
-    tile_bg_clear[PSDIDX].h = VWD0;
+    tile_bg_clear[PSDIDX].h = (short)VWD0;
     AddPrim((OT_TYPE*)ot->tag, &tile_bg_clear[PSDIDX]);
 }
 

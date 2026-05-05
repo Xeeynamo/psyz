@@ -81,8 +81,14 @@ static int open_filesearch_handle(const char* basePath) {
         if (!(file_info.attrib & _A_SUBDIR) && file_info.name[0] != '.') {
             if (singleton_dir.file_count >= capacity) {
                 capacity *= 2;
-                singleton_dir.filenames = (char**)realloc(
-                    singleton_dir.filenames, capacity * sizeof(char*));
+                char** new_filenames = (char**)realloc(
+                    (void*)singleton_dir.filenames, capacity * sizeof(char*));
+                if (!new_filenames) {
+                    close_filesearch_handle();
+                    _findclose(handle);
+                    return 0;
+                }
+                singleton_dir.filenames = new_filenames;
             }
             singleton_dir.filenames[singleton_dir.file_count] =
                 _strdup(file_info.name);

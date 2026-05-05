@@ -52,8 +52,9 @@ static unsigned int FLAG;  // cop2 31
 
 // Update bit 31 based on error bits
 static void FLAG_update_error() {
-    if (FLAG & FLAG_ERROR_MASK)
+    if (FLAG & FLAG_ERROR_MASK) {
         FLAG |= FLAG_ERROR;
+    }
 }
 
 void InitGeom() {
@@ -109,9 +110,9 @@ void SetLightMatrix(MATRIX* m) {
 }
 
 void SetBackColor(long rbk, long gbk, long bbk) {
-    L1.t[0] = rbk << 4;
-    L1.t[1] = gbk << 4;
-    L1.t[2] = bbk << 4;
+    L1.t[0] = (int)(rbk << 4);
+    L1.t[1] = (int)(gbk << 4);
+    L1.t[2] = (int)(bbk << 4);
 }
 
 void SetColorMatrix(MATRIX* m) {
@@ -127,9 +128,9 @@ void SetColorMatrix(MATRIX* m) {
 }
 
 void SetFarColor(long rfc, long gfc, long bfc) {
-    L2.t[0] = rfc << 4;
-    L2.t[1] = gfc << 4;
-    L2.t[2] = bfc << 4;
+    L2.t[0] = (int)(rfc << 4);
+    L2.t[1] = (int)(gfc << 4);
+    L2.t[2] = (int)(bfc << 4);
 }
 
 long SquareRoot0_impl(long a);
@@ -243,12 +244,15 @@ static void RTPS_vertex(SVECTOR* v, int depth_cue) {
            12;
 
     // IR1,IR2,IR3 saturated to -8000h..+7FFFh
-    if (MAC1 < -0x8000 || MAC1 > 0x7FFF)
+    if (MAC1 < -0x8000 || MAC1 > 0x7FFF) {
         FLAG |= FLAG_IR1_SAT;
-    if (MAC2 < -0x8000 || MAC2 > 0x7FFF)
+    }
+    if (MAC2 < -0x8000 || MAC2 > 0x7FFF) {
         FLAG |= FLAG_IR2_SAT;
-    if (MAC3 < -0x8000 || MAC3 > 0x7FFF)
+    }
+    if (MAC3 < -0x8000 || MAC3 > 0x7FFF) {
         FLAG |= FLAG_IR3_SAT;
+    }
     IR1 = (short)(CLAMP(MAC1, -0x8000, 0x7FFF));
     IR2 = (short)(CLAMP(MAC2, -0x8000, 0x7FFF));
     IR3 = (short)(CLAMP(MAC3, -0x8000, 0x7FFF));
@@ -259,8 +263,9 @@ static void RTPS_vertex(SVECTOR* v, int depth_cue) {
     SZ2 = SZ3;
 
     // SZ3 = MAC3 (with sf=1, no additional shift), saturate to 0..FFFFh
-    if (MAC3 < 0 || MAC3 > 0xFFFF)
+    if (MAC3 < 0 || MAC3 > 0xFFFF) {
         FLAG |= FLAG_SZ3_OTZ_SAT;
+    }
     SZ3 = (unsigned short)(CLAMP(MAC3, 0, 0xFFFF));
 
     // Division: (H*20000h/SZ3+1)/2, saturate to 1FFFFh
@@ -285,15 +290,17 @@ static void RTPS_vertex(SVECTOR* v, int depth_cue) {
     // MAC0=(div_result)*IR1+OFX, SX2=MAC0/10000h, saturate to -400h..+3FFh
     MAC0 = div_result * IR1 + (OFX << 16);
     int sx = MAC0 >> 16;
-    if (sx < -0x400 || sx > 0x3FF)
+    if (sx < -0x400 || sx > 0x3FF) {
         FLAG |= FLAG_SX2_SAT;
+    }
     SX2 = (short)(CLAMP(sx, -0x400, 0x3FF));
 
     // MAC0=(div_result)*IR2+OFY, SY2=MAC0/10000h, saturate to -400h..+3FFh
     MAC0 = div_result * IR2 + (OFY << 16);
     int sy = MAC0 >> 16;
-    if (sy < -0x400 || sy > 0x3FF)
+    if (sy < -0x400 || sy > 0x3FF) {
         FLAG |= FLAG_SY2_SAT;
+    }
     SY2 = (short)(CLAMP(sy, -0x400, 0x3FF));
 
     // Depth cueing only for the last vertex
@@ -301,8 +308,9 @@ static void RTPS_vertex(SVECTOR* v, int depth_cue) {
         // MAC0=(div_result)*DQA+DQB, IR0=MAC0/1000h, saturate to 0..+1000h
         MAC0 = div_result * DQA + DQB;
         int ir0 = MAC0 >> 12;
-        if (ir0 < 0 || ir0 > 0x1000)
+        if (ir0 < 0 || ir0 > 0x1000) {
             FLAG |= FLAG_IR0_SAT;
+        }
         IR0 = (short)(CLAMP(ir0, 0, 0x1000));
     }
 }
@@ -334,8 +342,9 @@ static void AVSZ3() {
     FLAG = 0;
     MAC0 = ZSF3 * (SZ1 + SZ2 + SZ3);
     int otz = MAC0 >> 12;
-    if (otz < 0 || otz > 0xFFFF)
+    if (otz < 0 || otz > 0xFFFF) {
         FLAG |= FLAG_SZ3_OTZ_SAT;
+    }
     OTZ = (unsigned short)(CLAMP(otz, 0, 0xFFFF));
     FLAG_update_error();
 }
@@ -345,8 +354,9 @@ static void AVSZ4() {
     FLAG = 0;
     MAC0 = ZSF4 * (SZ0 + SZ1 + SZ2 + SZ3);
     int otz = MAC0 >> 12;
-    if (otz < 0 || otz > 0xFFFF)
+    if (otz < 0 || otz > 0xFFFF) {
         FLAG |= FLAG_SZ3_OTZ_SAT;
+    }
     OTZ = (unsigned short)(CLAMP(otz, 0, 0xFFFF));
     FLAG_update_error();
 }
@@ -387,7 +397,7 @@ long RotTransPers(SVECTOR* v0, int* sxy, int* p, int* flag) {
     RTPS();
     *(unsigned int*)sxy = SX2 | (SY2 << 16);
     *p = IR0;
-    *flag = (long)FLAG;
+    *flag = (int)FLAG;
     return SZ3 >> 2;
 }
 

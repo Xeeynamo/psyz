@@ -30,7 +30,7 @@
 #define ENCSPU_ENCODE_END 3            /**< End divided encoding */
 #define ENCSPU_ENCODE_MIDDLE_QUALITY 0 /**< Middle quality (faster) */
 #define ENCSPU_ENCODE_HIGH_QUALITY 1   /**< High quality (slower) */
-#define ENC_ENCODE_ERROR -1            /**< Encoding error */
+#define ENC_ENCODE_ERROR (-1)          /**< Encoding error */
 
 typedef void (*DecDCCb)(); /**< Callback */
 

@@ -25,6 +25,8 @@ static void populate_entry(
         return;
     }
 
+    // TODO: files bigger than 2GB should be excluded due to .size being an int
+
     // TODO: names longer than 20 characters are not supported
     if (strlen(src->d_name) >= sizeof(dst->name) - 1) {
         WARNF("dir name '%s' will be truncated", src->d_name);
@@ -32,7 +34,7 @@ static void populate_entry(
     strncpy(dst->name, src->d_name, sizeof(dst->name) - 1);
     dst->name[sizeof(dst->name) - 1] = '\0';
     dst->attr = 0x10 | 0x40; // not sure what this is
-    dst->size = fileStat.st_size;
+    dst->size = (int)fileStat.st_size;
     dst->next = NULL;
     dst->system[0] = 0;
 }
@@ -246,7 +248,7 @@ int psyz_open(const char* devname, int flag) {
         return open(path, oflag);
     }
 }
-int psyz_close(int fd) { return (long)close((int)fd); }
+int psyz_close(int fd) { return (int)close((int)fd); }
 long psyz_lseek(long fd, long offset, long flag) {
     return lseek((int)fd, (off_t)offset, (int)flag);
 }

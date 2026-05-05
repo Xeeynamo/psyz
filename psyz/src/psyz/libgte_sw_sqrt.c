@@ -8,10 +8,12 @@ extern short SQRT[192];
 // https://github.com/OpenDriver2/PsyCross/blob/093501/src/gte/PsyX_GTE.cpp#L51
 // modified fast version to handle negative values, borrowed from PsyX GTE impl
 static unsigned int gte_leadingzerocount(unsigned int lzcs) {
-    if (!lzcs)
+    if (!lzcs) {
         return 32;
-    if (lzcs & 0x80000000)
+    }
+    if (lzcs & 0x80000000) {
         lzcs = ~lzcs;
+    }
     unsigned int lzcr = lzcs;
     static char debruijn32[32] = {
         0, 31, 9, 30, 3, 8,  13, 29, 2,  5,  7,  21, 12, 24, 28, 19,
