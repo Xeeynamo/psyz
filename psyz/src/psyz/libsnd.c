@@ -26,13 +26,15 @@ static short default_voice[] = {0, 0, 0x1000, 0x3000, 0x00BF, 0, 0, 0};
 static short default_state[] = {
     0x3FFF, 0x3FFF, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
     0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000};
-static SPU_RXX impl_svm_sreg;
 extern SPU_RXX* _svm_sreg;
 void _SsVmInit(int num_voices);
 void _SsInit(void) {
     int i, j;
 
-    _svm_sreg = &impl_svm_sreg;
+    /* Point to the same register file used by libspu / SPU emulation.
+     * On real PS1 hardware, _svm_sreg = (SPU_RXX*)0x1F801C00, which is
+     * the same physical address as _spu_RXX. */
+    _svm_sreg = (SPU_RXX*)_spu_RXX;
     for (i = 0; i < NUM_VOICES; i++) {
         SetVoiceData(i, default_voice);
     }
@@ -51,11 +53,6 @@ void _SsInit(void) {
 }
 
 // void _SsVmFlush(void) { NOT_IMPLEMENTED; }
-
-s32 _SpuIsInAllocateArea_(u32 arg0) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
 
 void _SsSndPlay(short arg0, short arg1) { NOT_IMPLEMENTED; }
 
@@ -104,6 +101,9 @@ void SsEnd(void) { NOT_IMPLEMENTED; }
 
 void SsSetMarkCallback(
     short access_num, short seq_num, SsMarkCallbackProc proc) {
+    NOT_IMPLEMENTED;
+}
+void SsSeqSetDecrescendo(short seq_access_num, short vol, long v_time) {
     NOT_IMPLEMENTED;
 }
 

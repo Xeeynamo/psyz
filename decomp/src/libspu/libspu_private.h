@@ -73,10 +73,17 @@ struct rev_param_entry {
     u16 vRIN;
 };
 
+#ifdef __psyz
+typedef struct tagSpuMalloc {
+    u32 addr; // SPU RAM address with flag bits (always fits in 32 bits)
+    u32 size; // Block size in bytes (max 512KB)
+} SPU_MALLOC;
+#else
 typedef struct tagSpuMalloc {
     long* addr;
     long size;
 } SPU_MALLOC;
+#endif
 
 typedef struct tagSpuVoiceRegister {
     /* 0x00 */ SpuVolume volume;

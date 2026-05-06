@@ -175,10 +175,10 @@ typedef struct ProgAtr {
     u_char prior; /**< Program priority (0-15) */
     u_char mode;  /**< Sound source mode */
     u_char mpan;  /**< Program pan */
-    char reserved0;   /**< Reserved by the system */
-    short attr;       /**< Program attribute */
-    u_long reserved1; /**< Reserved by the system */
-    u_long reserved2; /**< Reserved by the system */
+    char reserved0;         /**< Reserved by the system */
+    short attr;             /**< Program attribute */
+    unsigned int reserved1; /**< Reserved by the system */
+    unsigned int reserved2; /**< Reserved by the system */
 } ProgAtr;
 
 /**
@@ -188,19 +188,19 @@ typedef struct ProgAtr {
  * data set size and sound source numerals used at runtime.
  */
 typedef struct VabHdr {
-    int form;          /**< Format name (always 'VABp') */
-    int ver;           /**< Format version number */
-    int id;            /**< Bank (VAB) number */
-    u_long fsize;      /**< Bank file size */
-    u_short reserved0; /**< Reserved by the system */
-    u_short ps;        /**< Total number of programs contained in the bank */
-    u_short ts;        /**< Total number of tones contained in the bank */
-    u_short vs;        /**< Number of VAGs contained in the bank */
-    u_char mvol;       /**< Master volume */
-    u_char pan;        /**< Master pan level */
-    u_char attr1;      /**< Bank attribute 1 (user definable) */
-    u_char attr2;      /**< Bank attribute 2 (user definable) */
-    u_long reserved1;  /**< Reserved by the system */
+    int form;           /**< Format name (always 'VABp') */
+    int ver;            /**< Format version number */
+    int id;             /**< Bank (VAB) number */
+    unsigned int fsize; /**< Bank file size */
+    u_short reserved0;  /**< Reserved by the system */
+    u_short ps;         /**< Total number of programs contained in the bank */
+    u_short ts;         /**< Total number of tones contained in the bank */
+    u_short vs;         /**< Number of VAGs contained in the bank */
+    u_char mvol;        /**< Master volume */
+    u_char pan;         /**< Master pan level */
+    u_char attr1;       /**< Bank attribute 1 (user definable) */
+    u_char attr2;       /**< Bank attribute 2 (user definable) */
+    unsigned int reserved1; /**< Reserved by the system */
 } VabHdr;
 
 /**

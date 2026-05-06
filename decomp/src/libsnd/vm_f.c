@@ -73,8 +73,8 @@ void _SsVmFlush(void) {
             _svm_sreg->voice[i].addr = _svm_sreg_buf[i].addr;
         }
         if (_svm_sreg_dirty[i] & 0x10) {
-            _svm_sreg[i].voice->volume.left = _svm_sreg_buf[i].adsr[0];
-            _svm_sreg[i].voice->volume.right = _svm_sreg_buf[i].adsr[1];
+            _svm_sreg[i].voice->adsr[0] = _svm_sreg_buf[i].adsr[0];
+            _svm_sreg[i].voice->adsr[1] = _svm_sreg_buf[i].adsr[1];
         }
         _svm_sreg_dirty[i] = 0;
     }
