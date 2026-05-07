@@ -295,16 +295,52 @@ static int parse_cue_file(const char* cue_path) {
     return 0;
 }
 
-int Psyz_SetDiskPath(const char* diskPath) {
-    if (!diskPath) {
-        ERRORF("diskPath is NULL");
-        return -1;
+// Cached last-command response, exposed via CD_sync().
+static u_char last_result[8];
+static int last_intr = CdlComplete;
+
+static void cache_last_result(const u_char* result, int intr) {
+    memcpy(last_result, result, sizeof(last_result));
+    last_intr = intr;
+}
+
+static int is_disk_loaded = 0;
+
+// Compute the absolute sector of the disc lead-out, used by CdlGetTD with
+// param = 0x00. Equals the absolute sector where the last track's file ends.
+static int lead_out_sector(void) {
+    if (g_track_count == 0) {
+        return 0;
     }
+    TrackEntry* last = &g_tracks[g_track_count - 1];
+    return last->abs_sector + get_file_size_in_sectors(last->file_path);
+}
+
+// 1 = disc lid is open, 0 = lid closed
+static int shell_is_open = 0;
+void Psyz_CdShellOpen(int is_open) {
+    shell_is_open = is_open ? 1 : 0;
+    if (shell_is_open) {
+        CD_status |= CdlStatShellOpen;
+        CD_status &= ~CdlStatStandby;
+    } else {
+        CD_status &= ~CdlStatShellOpen;
+        CD_status |= CdlStatStandby;
+    }
+}
+
+int Psyz_SetDiskPath(const char* diskPath) {
+    is_disk_loaded = 0;
     g_track_count = 0;
     memset(g_tracks, 0, sizeof(g_tracks));
+    if (!diskPath) {
+        DEBUGF("Disk path unset");
+        return 0;
+    }
     if (parse_cue_file(diskPath) < 0) {
         return -1;
     }
+    is_disk_loaded = 1;
     DEBUGF("Disk path set: %s", diskPath);
     return 0;
 }
@@ -444,16 +480,41 @@ int CD_initvol(void) {
 }
 
 int CD_sync(int mode, u_char* result) {
-    NOT_IMPLEMENTED;
-    return CdlComplete;
+    if (result) {
+        memcpy(result, last_result, sizeof(last_result));
+    }
+    return last_intr;
 }
 int CD_ready(int mode, u_char* result) {
     NOT_IMPLEMENTED;
     return CdlComplete;
 }
-int CD_cw(u8 com, u8* param, u_char* result, s32 arg3) {
+int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
+    int total;
+    int t;
+    int abs_sector;
+
     CD_sync(0, 0);
     switch (com) {
+    case CdlNop:
+        if (shell_is_open) {
+            if (result) {
+                result[0] = (u_char)(CD_status | CdlStatError);
+                result[1] = 0x80;
+                result[2] = 0x00;
+                result[3] = 0x00;
+                cache_last_result(result, CdlDiskError);
+            }
+            return -1;
+        }
+        if (result) {
+            result[0] = (u_char)CD_status;
+            result[1] = 0x00;
+            result[2] = 0x00;
+            result[3] = 0x00;
+            cache_last_result(result, CdlComplete);
+        }
+        break;
     case CdlSetloc:
         if (!param) {
             ERRORF("%s got NULL param", CD_comstr[com]);
@@ -507,6 +568,60 @@ int CD_cw(u8 com, u8* param, u_char* result, s32 arg3) {
         }
         CD_mode = *param;
         break;
+    case CdlGetTN:
+        if (!result) {
+            ERRORF("%s got NULL result", CD_comstr[com]);
+            return -2;
+        }
+        if (shell_is_open || !is_disk_loaded || g_track_count == 0) {
+            result[0] = (u_char)(CD_status | CdlStatError);
+            result[1] = 0x80; // error-response sentinel
+            result[2] = 0x00;
+            result[3] = 0x00;
+            cache_last_result(result, CdlDiskError);
+            return -1;
+        }
+        result[0] = (u_char)CD_status;
+        result[1] = itob(1);
+        result[2] = itob(g_track_count);
+        result[3] = 0x00;
+        cache_last_result(result, CdlComplete);
+        break;
+    case CdlGetTD:
+        if (!param || !result) {
+            ERRORF("%s got NULL param/result", CD_comstr[com]);
+            return -2;
+        }
+        if (shell_is_open || !is_disk_loaded || g_track_count == 0) {
+            result[0] = (u_char)(CD_status | CdlStatError);
+            result[1] = 0x80;
+            result[2] = 0x00;
+            result[3] = 0x00;
+            cache_last_result(result, CdlDiskError);
+            return -1;
+        }
+        t = btoi(param[0]);
+        abs_sector;
+        if (t == 0) {
+            abs_sector = lead_out_sector();
+        } else if (t < 1 || t > g_track_count || !g_tracks[t - 1].is_valid) {
+            result[0] = (u_char)(CD_status | CdlStatError);
+            result[1] = 0x80;
+            result[2] = 0x00;
+            result[3] = 0x00;
+            cache_last_result(result, CdlDiskError);
+            return -1;
+        } else {
+            abs_sector = g_tracks[t - 1].abs_sector;
+        }
+        // The +150 lead-in pregap is part of the controller-reported MSF.
+        total = abs_sector + 150;
+        result[0] = (u_char)CD_status;
+        result[1] = itob(total / 75 / 60);
+        result[2] = itob(total / 75 % 60);
+        result[3] = 0x00;
+        cache_last_result(result, CdlComplete);
+        break;
     default:
         if (com >= LEN(CD_comstr)) {
             ERRORF("com %X invalid", com);
@@ -529,20 +644,6 @@ int CdReading() {
 }
 
 void ExecCd() { NOT_IMPLEMENTED; }
-
-int CdGetToc(CdlLOC* loc) {
-    if (!loc || g_track_count == 0) {
-        return 0;
-    }
-    for (int i = 0; i < g_track_count; i++) {
-        if (!g_tracks[i].is_valid) {
-            continue;
-        }
-        CdIntToPos(g_tracks[i].abs_sector, &loc[i]);
-        loc[i].track = g_tracks[i].track_num;
-    }
-    return g_track_count;
-}
 
 CdlFILE* CdSearchFile(CdlFILE* fp, char* name) {
     NOT_IMPLEMENTED;
