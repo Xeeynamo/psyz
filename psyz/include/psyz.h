@@ -62,9 +62,13 @@ struct PsyzDiskRead {
 // returns byte read, -1 is not found, unsuccessful or not implemented
 typedef int (*DiskReadCB)(struct PsyzDiskRead* read);
 
-// Set path to CUE file, simulating a CD loaded
-// negative value means unsuccessful, zero means ok
+// Set path to CUE file, simulating a CD loaded.
+// Passing a NULL will unset a previously set disk path.
+// Returns: 0 on success, otherwise CUE parsing failed
 int Psyz_SetDiskPath(const char* diskPath);
+
+// Simulate CD-ROM drive shell (lid) opening or closing.
+void Psyz_CdShellOpen(int is_open);
 
 // Set callback when a disk read is triggered
 // if cb is NULL or returns a negative value, PSY-Z falls back to CD emulation

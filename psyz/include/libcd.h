@@ -16,6 +16,9 @@
  * - Asynchronous command execution
  * - Callback support for completion and ready events
  * - Audio volume control (CD-DA and CD-XA)
+ *
+ * BCD: minute/second/sector expression where each digit of a decimal number is
+ * assigned to a 4-bit field. For example, decimal 60 is specified as 0x60.
  */
 
 /* Low Level File System for CdSearchFile() */
@@ -43,9 +46,48 @@
 #define CdlSetmode 0x0e
 #define CdlGetparam 0x0f
 #define CdlGetlocL 0x10
+
+/**
+ * @brief Gets the physical address of the sector being read or played
+ *
+ * Gets the physical address of the sector being read or played. The table below
+ * shows the obtainable parameters. CdlGetlocP gets the subcode address, so it
+ * is effective on all sector types, including audio sectors.
+ *
+ *  | Result byte no. | Details
+ *  |-----------------|----------------------------
+ *  | 0               | Track number (BCD)
+ *  | 1               | Index number (BCD)
+ *  | 2               | Track relative minute (BCD)
+ *  | 3               | Track relative second (BCD)
+ *  | 4               | Track relative sector (BCD)
+ *  | 5               | Absolute minute (BCD)
+ *  | 6               | Absolute second (BCD)
+ *  | 7               | Absolute sector (BCD)
+ * Track relative minute/second/sector indicates an offset value from that
+ * track's header location. Absolute minute/second/sector specifies the location
+ * from the initial track.
+ */
 #define CdlGetlocP 0x11
+
+/**
+ * @brief Obtains number of TOC entries
+ *
+ * @return 0: Status, 1: Intial track Number (BCD), 2: Final track Number (BCD)
+ */
 #define CdlGetTN 0x13
+
+/**
+ * @brief Obtains TOC entry for track
+ *
+ * Obtains the TOC entries information (min, sec) corresponding to the
+ * track number specified in the parameters.
+ * Please set the track No. in the BCD parameters.
+ *
+ * @return 0: Status, 1: TOC min, 2: TOC sec
+ */
 #define CdlGetTD 0x14
+
 #define CdlSeekL 0x15
 #define CdlSeekP 0x16
 #define CdlReadS 0x1B
@@ -88,18 +130,39 @@
 #define CdlDataEnd 0x04     /* End of Data Detected */
 #define CdlDiskError 0x05   /* Error Detected */
 
+/*
+ * Library Macros
+ */
+#define btoi(b) ((b) / 16 * 10 + (b) % 16) /* BCD to u_char */
+#define itob(i) ((i) / 10 * 16 + (i) % 10) /* u_char to BCD */
+
+#define CdSeekL(p) CdControl(CdlSeekL, (u_char*)p, 0)
+#define CdSeekP(p) CdControl(CdlSeekP, (u_char*)p, 0)
+#define CdStandby() CdControl(CdlStandby, 0, 0)
+#define CdPause() CdControl(CdlPause, 0, 0)
+#define CdStop() CdControl(CdlStop, 0, 0)
+#define CdMute() CdControl(CdlMute, 0, 0)
+#define CdDeMute() CdControl(CdlDemute, 0, 0)
+#define CdForward() CdControl(CdlForward, 0, 0)
+#define CdBackward() CdControl(CdlBackward, 0, 0)
+
+/*
+ *	Position
+ */
+#define CdlMAXTOC 100
+
 /**
  * @brief Time-code based CD-ROM disc position
  *
- * Defines a time-code position on a CD-ROM, based on the time needed to reach
- * that position when playing the disc from the beginning at normal speed. The
- * track member is not used at present.
+ * Defines a time-code position on a CD-ROM, based on the time needed to
+ * reach that position when playing the disc from the beginning at normal
+ * speed. The track member is not used at present.
  */
 typedef struct {
-    u_char minute;
-    u_char second;
-    u_char sector;
-    u_char track;
+    u_char minute; /* minute (BCD) */
+    u_char second; /* second (BCD) */
+    u_char sector; /* sector (BCD) */
+    u_char track;  /* track (void) */
 } CdlLOC;
 
 /**
@@ -308,7 +371,7 @@ CdlCB CdReadyCallback(CdlCB func);
  * @param com Command code
  * @param param Pointer to command arguments
  * @param result Pointer to return value storage buffer (requires 8 bytes)
- * @return 1 if successful, 0 otherwise
+ * @return non-zero if successful, 0 otherwise
  */
 int CdControl(u_char com, u_char* param, u_char* result);
 
@@ -320,7 +383,7 @@ int CdControl(u_char com, u_char* param, u_char* result);
  * @param com Command code
  * @param param Pointer to command arguments
  * @param result Pointer to return value storage buffer
- * @return 1 if successful, 0 otherwise
+ * @return non-zero if successful, 0 otherwise
  */
 int CdControlB(u_char com, u_char* param, u_char* result);
 
@@ -331,7 +394,7 @@ int CdControlB(u_char com, u_char* param, u_char* result);
  *
  * @param com Command code
  * @param param Pointer to command arguments
- * @return 1 if successful, 0 otherwise
+ * @return non-zero if successful, 0 otherwise
  */
 int CdControlF(u_char com, u_char* param);
 

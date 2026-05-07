@@ -23,6 +23,7 @@ add_executable(psyz_tests
     test_libapi.cpp
     test_libgte.cpp
     test_libgpu.cpp
+    test_libcd.cpp
 )
 add_subdirectory(../ build)
 target_link_libraries(psyz_tests PRIVATE gtest_main psyz)
