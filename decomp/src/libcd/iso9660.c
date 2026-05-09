@@ -127,7 +127,7 @@ int _cmp(const char* str1, const char* str2) {
 
 s32 CD_newmedia(void) {
     LBA pathTableLBA;
-    char* pathTablePtr;
+    unsigned char* pathTablePtr;
     int i;
 
     if (cd_read(1, 0x10, load_buf_) != 1) {

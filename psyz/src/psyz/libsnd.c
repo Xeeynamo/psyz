@@ -31,9 +31,6 @@ void _SsVmInit(int num_voices);
 void _SsInit(void) {
     int i, j;
 
-    /* Point to the same register file used by libspu / SPU emulation.
-     * On real PS1 hardware, _svm_sreg = (SPU_RXX*)0x1F801C00, which is
-     * the same physical address as _spu_RXX. */
     _svm_sreg = (SPU_RXX*)_spu_RXX;
     for (i = 0; i < NUM_VOICES; i++) {
         SetVoiceData(i, default_voice);
@@ -103,6 +100,7 @@ void SsSetMarkCallback(
     short access_num, short seq_num, SsMarkCallbackProc proc) {
     NOT_IMPLEMENTED;
 }
+
 void SsSeqSetDecrescendo(short seq_access_num, short vol, long v_time) {
     NOT_IMPLEMENTED;
 }

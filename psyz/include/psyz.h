@@ -1,6 +1,33 @@
 #ifndef PSYZ_H
 #define PSYZ_H
 
+// Main header to include when re-compiling a PS1 application targeting foreign
+// platforms. It contains all publicly exposed APIs from PsyZ.
+//
+// All public API of PsyZ use the prefix `Psyz_`.
+//
+// APIs that re-implement PSY-Q-specific behavior use the prefix `Psyz_{lib}`.
+// These are guaranteed to be platform-agnostic and exist for the sole purpose
+// of emulating certain PlayStation hardware characteristics. Typically this is
+// a lightweight layer that decodes hardware registers, manages state, and
+// ingests commands. Events are then dispatched to the relevant subsystem
+// backend. Examples: `Psyz_Cd`, `Psyz_Spu`, etc.
+//
+// APIs that implement the backend of a specific subsystem for the target
+// platform use the prefix `Psyz_{subsystem}`. These are the lowest layer of
+// abstraction of PsyZ, and they generally communicate with the platform
+// library or the hardware directly. When targeting a new platform, all the
+// subsystem endpoints are required to be implemented to guarantee full
+// functionality. All micro-optimizations and the use of hardware-specific
+// quirks live here. Examples: `Psyz_Audio`, `Psyz_Draw`, etc.
+//
+// A typical game running on PsyZ is structured as follows:
+//    Game ->
+//        PSY-Q decompiled APIs ->
+//            PsyZ platform agnostic PS1 hardware emulation ->
+//                PsyZ platform-specific subsystems ->
+//                    Hardware, Driver or Operating System
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -62,6 +89,57 @@ struct PsyzDiskRead {
 // returns byte read, -1 is not found, unsuccessful or not implemented
 typedef int (*DiskReadCB)(struct PsyzDiskRead* read);
 
+// PS1 SPU constants (the SPU emulator is platform-agnostic; SDL or any other
+// audio backend pulls 44100 Hz stereo s16 frames from Psyz_SpuPullSamples).
+#define PSYZ_SPU_RAM_SIZE (512 * 1024)
+#define PSYZ_SPU_NUM_VOICES 24
+#define PSYZ_SPU_SAMPLE_RATE 44100
+
+// Initialize SPU emulation state. Idempotent; safe to call multiple times.
+void Psyz_SpuInit(void);
+
+// Reset SPU state. When `hot` is non-zero, RAM contents are preserved across
+// the reset (mirrors the PSX-Q "hot init" semantics for libspu).
+void Psyz_SpuReset(int hot);
+
+// Set the SPU RAM transfer address (byte address into the 512 KB RAM).
+void Psyz_SpuSetTransferAddr(unsigned int addr);
+
+// Write `size` raw bytes to SPU RAM starting at the current transfer address.
+// The address auto-advances and wraps at 512 KB.
+void Psyz_SpuWriteToRam(const unsigned char* src, unsigned int size);
+
+// Direct pointer to the 512 KB SPU RAM (for tests and offline rendering).
+unsigned char* Psyz_SpuGetRam(void);
+
+// Generate num_frames stereo 16-bit LE PCM frames into out (interleaved L, R).
+// Internally used by the PsyZ Audio subsystem, it can also be used for offline
+// rendering and unit tests.
+void Psyz_SpuPullSamples(short* out, int num_frames);
+
+// Initialize the audio subsystem: open the host audio device and the SPU
+// mixer. Idempotent. Returns 0 on success, -1 on failure.
+int Psyz_AudioInit(void);
+
+// Shut down the audio subsystem and release its resources.
+// Typically used to undo the audio subsystem init for audio offline rendering.
+void Psyz_AudioDestroy(void);
+
+// Pause the host audio device so it stops pulling samples from the SPU.
+// Psyz_AudioUnpause must be called to resume.
+void Psyz_AudioPause(void);
+
+// Resume audio playback after Psyz_AudioPause.
+void Psyz_AudioUnpause(void);
+
+// Acquire the audio mutex. Intended for tests and offline rendering that need
+// to suspend the SDL audio callback while pulling samples directly. Must be
+// paired with Psyz_AudioUnlock.
+void Psyz_AudioLock(void);
+
+// Release the audio mutex acquired with Psyz_AudioLock.
+void Psyz_AudioUnlock(void);
+
 // Set path to CUE file, simulating a CD loaded.
 // Passing a NULL will unset a previously set disk path.
 // Returns: 0 on success, otherwise CUE parsing failed
@@ -69,6 +147,13 @@ int Psyz_SetDiskPath(const char* diskPath);
 
 // Simulate CD-ROM drive shell (lid) opening or closing.
 void Psyz_CdShellOpen(int is_open);
+
+// Pull PCM audio samples from the CD into the output buffer as interleaved
+// stereo frames. In XA mode, ADPCM sectors are decoded before being returned.
+// CdMix attenuation has already been applied to the output. Called internally
+// from libcd, and typically not used by the user. Returns the number of
+// frames read.
+size_t Psyz_CdPullSamples(short* out, size_t num_frames);
 
 // Set callback when a disk read is triggered
 // if cb is NULL or returns a negative value, PSY-Z falls back to CD emulation

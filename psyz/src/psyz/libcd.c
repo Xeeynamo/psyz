@@ -8,7 +8,6 @@
 #include <string.h>
 #include <ctype.h>
 #include <limits.h>
-#include "../audio.h"
 #include "../internal.h"
 #include "../../decomp/src/libspu/libspu_private.h"
 
@@ -348,14 +347,117 @@ int Psyz_SetDiskPath(const char* diskPath) {
 static DiskReadCB disk_read_cb = NULL;
 void Psyz_SetDiskCallback(DiskReadCB cb) { disk_read_cb = cb; }
 
+#define N_CHANNELS 2
+#define SAMPLE_SIZE sizeof(short)
+#define SECTOR_SIZE 2352
+#define BUFFER_SECTORS 8 // Read 8 sectors at a time
+#define CD_BUF_FRAMES                                                          \
+    (SECTOR_SIZE * BUFFER_SECTORS / (N_CHANNELS * SAMPLE_SIZE))
+static FILE* track_file;
+static s16 cd_buf[CD_BUF_FRAMES * N_CHANNELS];
+static size_t cd_buf_pos = 0;   // current read position (in frames)
+static size_t cd_buf_count = 0; // number of valid frames in buffer
+static int is_playing = 0; // pause or unpause seeking through the CD stream
+static int is_muted = 0;   // return empty samples while CD keeps streaming
+
+// CD audio pull callback — called by SPU when its internal ring buffer
+// runs low. Fills `buf` with up to `max_frames` interleaved stereo frames.
+// One mutex lock per batch rather than per frame.
+static size_t cdda_pull_samples(short* buf, size_t max_frames) {
+    size_t written = 0;
+    int hit_eof = 0;
+    Psyz_AudioLock();
+    if (!is_playing || !track_file) {
+        goto end;
+    }
+    while (written < max_frames) {
+        // Refill file read buffer if consumed
+        if (cd_buf_pos >= cd_buf_count) {
+            size_t nRead = fread(cd_buf, 1, sizeof(cd_buf), track_file);
+            if (nRead > 0) {
+                cd_buf_count = (int)(nRead / (N_CHANNELS * SAMPLE_SIZE));
+                cd_buf_pos = 0;
+            } else {
+                DEBUGF("cd audio playback reached end of file");
+                is_playing = 0;
+                hit_eof = 1;
+                break;
+            }
+        }
+        // Copy as many frames as possible from file buffer to output
+        const size_t avail = cd_buf_count - cd_buf_pos;
+        const size_t want = max_frames - written;
+        const size_t n = avail < want ? avail : want;
+        if (is_muted) {
+            memset(&buf[written * 2], 0, n * N_CHANNELS * SAMPLE_SIZE);
+        } else {
+            memcpy(&buf[written * 2], &cd_buf[cd_buf_pos * 2],
+                   n * N_CHANNELS * SAMPLE_SIZE);
+        }
+        cd_buf_pos += n;
+        written += n;
+    }
+end:
+    Psyz_AudioUnlock();
+    if (hit_eof && CD_cbready) {
+        CD_cbready(CdlDataEnd, NULL);
+    }
+    return written;
+}
+
+static size_t xa_pull_samples(short* buf, size_t max_frames) {
+    Psyz_AudioLock();
+    if (!is_playing || !track_file) {
+        goto end;
+    }
+    NOT_IMPLEMENTED;
+end:
+    Psyz_AudioUnlock();
+    return 0;
+}
+
+size_t Psyz_CdPullSamples(short* out, size_t num_frames) {
+    size_t read_frames;
+    if (CD_mode & CdlModeDA) {
+        read_frames = cdda_pull_samples(out, num_frames);
+    } else if (CD_mode & CdlModeRT) {
+        read_frames = xa_pull_samples(out, num_frames);
+    } else {
+        read_frames = 0;
+    }
+    for (size_t i = 0; i < read_frames; i++) {
+        int l = out[i * 2 + 0];
+        int r = out[i * 2 + 1];
+        int l_out = (l * ctx.cd_src_l_dst_l + r * ctx.cd_src_r_dst_l) >> 7;
+        int r_out = (l * ctx.cd_src_l_dst_r + r * ctx.cd_src_r_dst_r) >> 7;
+        if (l_out < -32768)
+            l_out = -32768;
+        else if (l_out > 32767)
+            l_out = 32767;
+        if (r_out < -32768)
+            r_out = -32768;
+        else if (r_out > 32767)
+            r_out = 32767;
+        out[i * 2 + 0] = (short)l_out;
+        out[i * 2 + 1] = (short)r_out;
+    }
+    return read_frames;
+}
+
+// play on CDDA mode only (not XA)
 static void psyz_play() {
     if (!(CD_mode & CdlModeDA)) {
         WARNF("CdlModeDA not active, audio will not be played");
         return;
     }
-    if (!need_cdda_rewind) {
-        Audio_Unpause();
+    if (is_playing) {
+        DEBUGF("audio already playing");
         return;
+    }
+    if (!need_cdda_rewind) {
+        Psyz_AudioLock();
+        is_playing = 1;
+        Psyz_AudioUnlock();
     }
     int sector = CdPosToInt(&CD_pos);
     TrackEntry* track = NULL;
@@ -379,6 +481,10 @@ static void psyz_play() {
         WARNF("no track found for sector %d", sector);
         return;
     }
+    if (track_file) {
+        fclose(track_file);
+        track_file = NULL;
+    }
     FILE* file = fopen(track->file_path, "rb");
     if (!file) {
         ERRORF("failed to open audio file: %s", track->file_path);
@@ -387,7 +493,8 @@ static void psyz_play() {
 
     // sector is the absolute sector, track->abs_sector is where this track
     // starts track->start_sector is the MSF offset within the file
-    int sector_offset = (sector - track->abs_sector) + track->start_sector;
+    int sector_offset = sector - track->abs_sector;
+    sector_offset += track->start_sector;
     long byte_offset = (long)sector_offset * SECTOR_SIZE;
     if (fseek(file, byte_offset, SEEK_SET) != 0) {
         ERRORF("failed to seek to sector %d in %s", sector, track->file_path);
@@ -396,31 +503,50 @@ static void psyz_play() {
     }
     DEBUGF("playing audio from %s at sector %d (offset %d)", track->file_path,
            sector, sector_offset);
-    Audio_PlayCdAudio(file);
-    Audio_Unpause();
+    Psyz_AudioLock();
+    track_file = file;
+    cd_buf_pos = 0;
+    cd_buf_count = 0;
     need_cdda_rewind = 0;
+    is_playing = 1;
+    Psyz_AudioUnlock();
 }
 
 static void psyz_stop() {
     need_cdda_rewind = 1;
-    Audio_Stop();
+    Psyz_AudioLock();
+    is_playing = 0;
+    if (track_file) {
+        fclose(track_file);
+        track_file = NULL;
+    }
+    cd_buf_pos = 0;
+    cd_buf_count = 0;
+    Psyz_AudioUnlock();
 }
 
-static void psyz_pause() { Audio_Pause(); }
+static void psyz_pause() {
+    Psyz_AudioLock();
+    is_playing = 0;
+    Psyz_AudioUnlock();
+}
 
-static void psyz_mute() { Audio_Mute(); }
+static void psyz_mute() {
+    Psyz_AudioLock();
+    is_muted = 1;
+    Psyz_AudioUnlock();
+}
 
-static void psyz_demute() { Audio_Demute(); }
-
-static void cdaudio_end_cb(void) {
-    if (CD_cbready) {
-        CD_cbready(CdlDataEnd, NULL);
-    }
+static void psyz_demute() {
+    Psyz_AudioLock();
+    is_muted = 0;
+    Psyz_AudioUnlock();
 }
 
 static void callback(void) { NOT_IMPLEMENTED; }
 
 int CD_init(void) {
+    u_char nop_result[8];
     CD_com = 0;
     CD_mode = 0;
     CD_cbready = 0;
@@ -429,9 +555,9 @@ int CD_init(void) {
     CD_status = 0;
     ResetCallback();
     InterruptCallback(2, &callback);
-    CD_cw(CdlNop, 0, 0, 0);
+    CD_cw(CdlNop, 0, nop_result, 0);
     if (CD_status & CdlStatShellOpen) {
-        CD_cw(CdlNop, 0, 0, 0);
+        CD_cw(CdlNop, 0, nop_result, 0);
     }
     if (CD_cw(CdlReset, 0, 0, 0)) {
         return -1;
@@ -442,7 +568,6 @@ int CD_init(void) {
     if (CD_sync(0, 0) != 2) {
         return -1;
     }
-    Audio_SetCdAudioEndCB(cdaudio_end_cb);
     return 0;
 }
 
@@ -455,9 +580,10 @@ int CD_vol(CdlATV* vol) {
     ctx.cd_src_l_dst_r = vol->val1; // 0x1F801803
 
     // 0x1F801800 = 3
-    ctx.cd_src_r_dst_l = vol->val2; // 0x1F801801
-    ctx.cd_src_r_dst_r = vol->val3; // 0x1F801802
+    ctx.cd_src_r_dst_r = vol->val2; // 0x1F801801
+    ctx.cd_src_r_dst_l = vol->val3; // 0x1F801802
     CHNGATV();                      // 0x1F801803 = 0x20
+    return 0;
 }
 
 int CD_getsector(void* madr, int size) { NOT_IMPLEMENTED; }
@@ -465,7 +591,7 @@ int CD_getsector2(void) { NOT_IMPLEMENTED; }
 void CD_datasync(int mode) { NOT_IMPLEMENTED; }
 
 int CD_initvol(void) {
-    CdlATV vol = {128, 0, 128};
+    CdlATV vol = {128, 0, 128, 0};
     if (_spu_RXX->rxx.main_volx.left == 0 &&
         _spu_RXX->rxx.main_volx.right == 0) {
         _spu_RXX->rxx.main_vol.left = 0x3FFF;
@@ -542,8 +668,11 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
             ERRORF("%s got NULL param", CD_comstr[com]);
             return -2;
         }
-        if (*param & (CdlModeDA | CdlModeRT)) {
-            Audio_Init();
+        if (*param & CdlModeDA) {
+            Psyz_AudioInit();
+        }
+        if (*param & CdlModeRT) {
+            Psyz_AudioInit();
         }
         if (*param & CdlModeAP) {
             LOG_ONCE("%s does not support CdlModeAP", CD_comstr[com]);
@@ -567,6 +696,9 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
             LOG_ONCE("%s does not support CdlModeStream", CD_comstr[com]);
         }
         CD_mode = *param;
+        break;
+    case CdlGetlocP:
+        LOG_ONCE("com %s not implemented", CD_comstr[com]);
         break;
     case CdlGetTN:
         if (!result) {
@@ -627,7 +759,7 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
             ERRORF("com %X invalid", com);
             return -1;
         }
-        DEBUGF("com %s not implemented", CD_comstr[com]);
+        LOG_ONCE("com %s not implemented", CD_comstr[com]);
     }
     return 0;
 }
