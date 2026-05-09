@@ -17,8 +17,7 @@ u32* dma_dpcr = &_dma_dpcr;
 u32* spu_delay = &_spu_delay;
 volatile u16 _spu_RQ[10] = {0};
 
-int Audio_Init(void);
-void _spu_Fw1ts(void) { Audio_Init(); }
+void _spu_Fw1ts(void) { Psyz_AudioInit(); }
 
 void _spu_FwriteByIO(void* addr, int len) { NOT_IMPLEMENTED; }
 
@@ -91,3 +90,7 @@ u_long SpuSetNoiseVoice(long on_off, u_long voice_bit) {
     NOT_IMPLEMENTED;
     return 0;
 }
+
+s32 _SpuIsInAllocateArea_(u32 arg0) { NOT_IMPLEMENTED; }
+
+s32 _SpuIsInAllocateArea(u32 arg0) { NOT_IMPLEMENTED; }

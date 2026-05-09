@@ -73,10 +73,17 @@ struct rev_param_entry {
     u16 vRIN;
 };
 
+#ifdef __psyz
+typedef struct tagSpuMalloc {
+    u32 addr; // SPU RAM address with flag bits (always fits in 32 bits)
+    u32 size; // Block size in bytes (max 512KB)
+} SPU_MALLOC;
+#else
 typedef struct tagSpuMalloc {
     long* addr;
     long size;
 } SPU_MALLOC;
+#endif
 
 typedef struct tagSpuVoiceRegister {
     /* 0x00 */ SpuVolume volume;
@@ -88,28 +95,28 @@ typedef struct tagSpuVoiceRegister {
 } SPU_VOICE_REG; // size:0x10
 
 typedef struct tagSpuControl {
-    /* 0x00 */ SPU_VOICE_REG voice[NUM_VOICES];
-    /* 0xC0 */ SpuVolume main_vol;
-    /* 0xC4 */ SpuVolume rev_vol;
-    /* 0xC8 */ u16 key_on[2];
-    /* 0xCC */ u16 key_off[2];
-    /* 0xD0 */ u16 chan_fm[2];
-    /* 0xD4 */ u16 noise_mode[2];
-    /* 0xD8 */ u16 rev_mode[2];
-    /* 0xDC */ u32 chan_on;
-    /* 0xE0 */ u16 unk;
-    /* 0xE2 */ u16 rev_work_addr;
-    /* 0xE4 */ u16 irq_addr;
-    /* 0xE6 */ u16 trans_addr;
-    /* 0xE8 */ u16 trans_fifo;
-    /* 0xEA */ u16 spucnt;
-    /* 0xEC */ u16 data_trans;
-    /* 0xED */ u16 spustat;
-    /* 0xF0 */ SpuVolume cd_vol;
-    /* 0xF4 */ SpuVolume ex_vol;
-    /* 0xF8 */ SpuVolume main_volx;
-    /* 0xFC */ SpuVolume unk_vol;
-    /* 0x100 */ u16 dAPF1; // Starting at 0x1F801DC0
+    /* 0x1F801C00 0x000 */ SPU_VOICE_REG voice[NUM_VOICES];
+    /* 0x1F801D80 0x180 */ SpuVolume main_vol;
+    /* 0x1F801D84 0x184 */ SpuVolume rev_vol;
+    /* 0x1F801D88 0x188 */ u16 key_on[2];
+    /* 0x1F801D8C 0x18C */ u16 key_off[2];
+    /* 0x1F801D90 0x190 */ u16 chan_fm[2];
+    /* 0x1F801D94 0x194 */ u16 noise_mode[2];
+    /* 0x1F801D98 0x198 */ u16 rev_mode[2];
+    /* 0x1F801D9C 0x19C */ u32 chan_on;
+    /* 0x1F801DA0 0x1A0 */ u16 unk;
+    /* 0x1F801DA2 0x1A2 */ u16 rev_work_addr;
+    /* 0x1F801DA4 0x1A4 */ u16 irq_addr;
+    /* 0x1F801DA6 0x1A6 */ u16 trans_addr;
+    /* 0x1F801DA8 0x1A8 */ u16 trans_fifo;
+    /* 0x1F801DAA 0x1AA */ u16 spucnt;
+    /* 0x1F801DAC 0x1AC */ u16 data_trans;
+    /* 0x1F801DAD 0x1AD */ u16 spustat;
+    /* 0x1F801DB0 0x1B0 */ SpuVolume cd_vol;
+    /* 0x1F801DB4 0x1B4 */ SpuVolume ex_vol;
+    /* 0x1F801DB8 0x1B8 */ SpuVolume main_volx;
+    /* 0x1F801DBC 0x1BC */ SpuVolume unk_vol;
+    /* 0x1F801DC0 0x1C0 */ u16 dAPF1;
     u16 dAPF2;
     u16 vIIR;
     u16 vCOMB1;

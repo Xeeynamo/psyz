@@ -10,8 +10,10 @@ long SpuIsTransferCompleted(long immediateFlag) {
     in_transfer = TestEvent(_spu_EVdma);
     if (immediateFlag == 1) {
         if (in_transfer == 0) {
+#ifndef __psyz // HACK the TestEvent must work
             do {
             } while (TestEvent(_spu_EVdma) == 0);
+#endif
         }
         in_transfer = 1;
         _spu_inTransfer = in_transfer;

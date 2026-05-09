@@ -125,14 +125,16 @@
 #define SPU_COMMON_MVOLR (1 << 1)     /**< Master volume (right) */
 #define SPU_COMMON_MVOLMODEL (1 << 2) /**< Master volume mode (left) */
 #define SPU_COMMON_MVOLMODER (1 << 3) /**< Master volume mode (right) */
-#define SPU_COMMON_CDVOLL (1 << 4)    /**< CD input volume (left) */
-#define SPU_COMMON_CDVOLR (1 << 5)    /**< CD input volume (right) */
-#define SPU_COMMON_CDREV (1 << 6)     /**< CD input reverb ON/OFF */
-#define SPU_COMMON_CDMIX (1 << 7)     /**< CD input ON/OFF */
-#define SPU_COMMON_EXTVOLL (1 << 8)   /**< External input volume (left) */
-#define SPU_COMMON_EXTVOLR (1 << 9)   /**< External input volume (right) */
-#define SPU_COMMON_EXTREV (1 << 10)   /**< External input reverb ON/OFF */
-#define SPU_COMMON_EXTMIX (1 << 11)   /**< External input ON/OFF */
+#define SPU_COMMON_RVOLL (1 << 4)     /**< Reverb volume mode (left) */
+#define SPU_COMMON_RVOLR (1 << 5)     /**< Reverb volume mode (right) */
+#define SPU_COMMON_CDVOLL (1 << 6)    /**< CD input volume (left) */
+#define SPU_COMMON_CDVOLR (1 << 7)    /**< CD input volume (right) */
+#define SPU_COMMON_CDREV (1 << 8)     /**< CD input reverb ON/OFF */
+#define SPU_COMMON_CDMIX (1 << 9)     /**< CD input ON/OFF */
+#define SPU_COMMON_EXTVOLL (1 << 10)  /**< External input volume (left) */
+#define SPU_COMMON_EXTVOLR (1 << 11)  /**< External input volume (right) */
+#define SPU_COMMON_EXTREV (1 << 12)   /**< External input reverb ON/OFF */
+#define SPU_COMMON_EXTMIX (1 << 13)   /**< External input ON/OFF */
 
 /*============================================================================
  * General Constants

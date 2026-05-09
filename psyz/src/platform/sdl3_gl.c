@@ -8,7 +8,6 @@
 #include <stddef.h>
 #include <libetc.h>
 #include "../internal.h"
-
 #include <SDL3/SDL.h>
 #if defined(_MSC_VER) || defined(__MINGW32__) || defined(__APPLE__)
 #include "glad/glad.h"
@@ -210,8 +209,6 @@ static GLuint vram_texture;
 static GLuint vram_fbo = 0;
 static GLposi display_area = {0, 0};
 static GLposi display_size = {256, 240};
-static SDL_AudioStream* audio_stream = NULL;
-static SDL_AudioDeviceID audio_device_id = {0};
 static GLposi draw_offset = {0, 0};
 static GLposi draw_area_start = {0, 0};
 static GLposi draw_area_end = {0x10000, 0x10000};
@@ -629,26 +626,6 @@ int PlatformVSync(int mode) {
         WaitForNextFrame();
     }
     return ret;
-}
-
-void SDLAudioCallback(void* userdata, SDL_AudioStream* stream,
-                      int additional_amount, int total_amount) {
-    NOT_IMPLEMENTED;
-}
-
-void MySsInitHot(void) {
-    SDL_AudioSpec specs = {0};
-    specs.freq = 44100;
-    specs.format = SDL_AUDIO_S16;
-    specs.channels = 2;
-    audio_stream = SDL_OpenAudioDeviceStream(
-        SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &specs, SDLAudioCallback, NULL);
-    if (!audio_stream) {
-        WARNF("SDL_OpenAudioDevice failed: %s", SDL_GetError());
-        return;
-    }
-    INFOF("SDL audio device stream opened");
-    SDL_PauseAudioStreamDevice(audio_stream);
 }
 
 struct Gamepad {

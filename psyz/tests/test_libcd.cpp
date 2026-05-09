@@ -3,10 +3,12 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <vector>
 
 extern "C" {
 #include <psyz.h>
 #include <libcd.h>
+#include <libspu.h>
 }
 
 #ifdef _WIN32
@@ -379,6 +381,109 @@ TEST_F(LibCdTest, sync_peek_caches_last_response) {
     std::memset(sr, 0xCC, sizeof(sr));
     EXPECT_EQ(CdSync(1, sr), CdlDiskError);
     EXPECT_NE(sr[1] & 0x80, 0);
+}
+
+class LibCdPlaybackTest : public ::testing::Test {
+  protected:
+    std::string dir;
+    std::string cue;
+    std::vector<std::string> bins;
+
+    void SetUp() override {
+        dir = std::string("psyz_libcdplayback_test_") +
+              std::to_string(std::time(nullptr));
+        ASSERT_EQ(mkdir(dir.c_str(), 0755), 0) << dir;
+        Psyz_SetDiskPath(nullptr);
+        Psyz_CdShellOpen(0);
+    }
+
+    void TearDown() override {
+        Psyz_SetDiskPath(nullptr);
+        Psyz_CdShellOpen(0);
+        for (const auto& b : bins) {
+            std::remove(b.c_str());
+        }
+        if (!cue.empty()) {
+            std::remove(cue.c_str());
+        }
+        rmdir(dir.c_str());
+    }
+
+    void mount_bin_cue_pair(std::vector<unsigned short>& data) {
+        std::string cdda_path = dir + "/cdda.bin";
+        FILE* f = std::fopen(cdda_path.c_str(), "wb");
+        ASSERT_NE(f, nullptr) << "fopen " << cdda_path;
+        std::fwrite(data.data(), sizeof(unsigned short), data.size(), f);
+        std::fclose(f);
+        bins.push_back(cdda_path);
+
+        cue = dir + "/cdda.cue";
+        write_text(cue, "FILE \"cdda.bin\" BINARY\n"
+                        "  TRACK 01 AUDIO\n"
+                        "    INDEX 01 00:00:00\n");
+        ASSERT_EQ(Psyz_SetDiskPath(cue.c_str()), 0)
+            << "Psyz_SetDiskPath failed for " << cue;
+        Psyz_CdShellOpen(0);
+    }
+};
+
+TEST_F(LibCdPlaybackTest, cdda_playback) {
+    // 2 channels * 2 seconds * 44100 frames/s = 176400 stereo frames
+    constexpr int channels = 2;
+    constexpr int frame_count = channels * PSYZ_SPU_SAMPLE_RATE;
+    std::vector<unsigned short> sample(frame_count);
+    for (size_t i = 0; i < frame_count; i++) {
+        sample[i] = 0x6000u;
+    }
+    mount_bin_cue_pair(sample);
+
+    // Set arbitrary CD volume that will get reset with CdReset(1) anyway
+    CdlATV fake_vol = {11, 22, 33, 44};
+    CdMix(&fake_vol);
+
+    // Initialize CD and audio systems
+    CdReset(1);
+
+    // Set CD-DA mode (required for CDDA playback)
+    u_char param[8];
+    param[0] = CdlModeDA;
+    CdControl(CdlSetmode, param, nullptr);
+
+    // Get start sector of track 1 via CdlGetTD
+    u_char td_param[4] = {itob(1), 0, 0, 0};
+    u_char td_result[4] = {};
+    ASSERT_EQ(CdControlB(CdlGetTD, td_param, td_result), CdlDataReady);
+
+    // Build CdlLOC from BCD MM:SS returned by CdlGetTD (sector = 0)
+    CdlLOC loc;
+    loc.minute = td_result[1];
+    loc.second = td_result[2];
+    loc.sector = 0x00;
+    loc.track = 0x00;
+    CdControlB(CdlSeekP, (u_char*)&loc, nullptr);
+
+    // Stop the SDL audio thread from pulling samples and take the lock so we
+    // drive Psyz_SpuPullSamples deterministically and avoid race conditions.
+    Psyz_AudioPause();
+    Psyz_AudioLock();
+
+    // Start actual CDDA playback. CdlPlay does not touch the SDL pause state,
+    // so the stream stays paused until the test releases.
+    CdControlB(CdlPlay, nullptr, nullptr);
+
+    // Pull samples from the SPU that would've been otherwise read from the HW
+    std::vector<s16> out(frame_count * 2, 0);
+    Psyz_SpuPullSamples(out.data(), frame_count);
+
+    // Reverse Psyz_AudioLock
+    Psyz_AudioUnlock();
+
+    for (int i = 0; i < frame_count / 2; i++) {
+        ASSERT_EQ(out[i * 2 + 0], 0x2FFE)
+            << "frame " << i << " left channel unexpected value";
+        ASSERT_EQ(out[i * 2 + 1], 0x2FFE)
+            << "frame " << i << " right channel unexpected value";
+    }
 }
 
 } // namespace
