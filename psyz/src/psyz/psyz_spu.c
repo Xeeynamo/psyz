@@ -96,7 +96,8 @@ static void spu_tick(short* out) {
     // Pre-fill CD ring buffer if running low
     if (spu.cd_ring_count < CD_RING_LOW_WATER) {
         size_t space = CD_RING_FRAMES - spu.cd_ring_count;
-        size_t write_pos = (spu.cd_ring_read + spu.cd_ring_count) & CD_RING_MASK;
+        size_t write_pos =
+            (spu.cd_ring_read + spu.cd_ring_count) & CD_RING_MASK;
         // Fill into contiguous chunk up to end of array
         size_t chunk = CD_RING_FRAMES - write_pos;
         if (chunk > space)
