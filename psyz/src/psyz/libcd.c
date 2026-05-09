@@ -95,9 +95,26 @@ static void ADPMUTE(int mute) {
     ctx.adpcm_mute = mute != 0; // 0x1F801803 = mute & 1
 }
 
+static int enable_passthrough = 1;
 static void CHNGATV() {
     // 0x1F801800 = 3
     // 0x1F801803 = 0x20
+
+    // enabling passthrough avoid the transformation of the CD pulled samples
+    // to be re-mixed with different volume values, leading an increase of
+    // performance on weak/embedded targets.
+    //
+    // PS1 defaults CD_vol as 127,0,127,0 - if detected, enable passthrough.
+    //
+    // Volume mix algo on PsyZ is (sample * volume) / 128, meaning 128,0,128,0
+    // would also return 1:1 samples - enable passthrough here too.
+    //
+    // volume at 127 and 128 would theoretically generate sound at different
+    // levels of volume, but no normal human would ever notice such difference.
+    enable_passthrough =
+        (ctx.cd_src_l_dst_l == 127 || ctx.cd_src_l_dst_l == 128) &&
+        (ctx.cd_src_r_dst_r == 127 || ctx.cd_src_r_dst_r == 128) &&
+        ctx.cd_src_l_dst_r == 0 && ctx.cd_src_r_dst_l == 0;
 }
 
 static int need_cdda_rewind = 1;
@@ -425,21 +442,23 @@ size_t Psyz_CdPullSamples(short* out, size_t num_frames) {
     } else {
         read_frames = 0;
     }
-    for (size_t i = 0; i < read_frames; i++) {
-        int l = out[i * 2 + 0];
-        int r = out[i * 2 + 1];
-        int l_out = (l * ctx.cd_src_l_dst_l + r * ctx.cd_src_r_dst_l) >> 7;
-        int r_out = (l * ctx.cd_src_l_dst_r + r * ctx.cd_src_r_dst_r) >> 7;
-        if (l_out < -32768)
-            l_out = -32768;
-        else if (l_out > 32767)
-            l_out = 32767;
-        if (r_out < -32768)
-            r_out = -32768;
-        else if (r_out > 32767)
-            r_out = 32767;
-        out[i * 2 + 0] = (short)l_out;
-        out[i * 2 + 1] = (short)r_out;
+    if (!enable_passthrough) {
+        for (size_t i = 0; i < read_frames; i++) {
+            int l = out[i * 2 + 0];
+            int r = out[i * 2 + 1];
+            int l_out = (l * ctx.cd_src_l_dst_l + r * ctx.cd_src_r_dst_l) >> 7;
+            int r_out = (l * ctx.cd_src_l_dst_r + r * ctx.cd_src_r_dst_r) >> 7;
+            if (l_out < -32768)
+                l_out = -32768;
+            else if (l_out > 32767)
+                l_out = 32767;
+            if (r_out < -32768)
+                r_out = -32768;
+            else if (r_out > 32767)
+                r_out = 32767;
+            out[i * 2 + 0] = (short)l_out;
+            out[i * 2 + 1] = (short)r_out;
+        }
     }
     return read_frames;
 }
