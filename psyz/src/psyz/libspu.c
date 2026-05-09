@@ -90,3 +90,7 @@ u_long SpuSetNoiseVoice(long on_off, u_long voice_bit) {
     NOT_IMPLEMENTED;
     return 0;
 }
+
+s32 _SpuIsInAllocateArea_(u32 arg0) { NOT_IMPLEMENTED; }
+
+s32 _SpuIsInAllocateArea(u32 arg0) { NOT_IMPLEMENTED; }
