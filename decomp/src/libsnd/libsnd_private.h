@@ -209,8 +209,9 @@ extern void (*_autovol)(int voice);
 extern void (*_autopan)(int voice);
 
 void SetAutoPan(int voices);
-void SeAutoPan(s16, s16, s16, s16);
-void SeAutoVol(s16, s16, s16, s16);
+void SetAutoVol(int voices);
+void SeAutoPan(short, short, short, short);
+void SeAutoVol(short, short, short, short);
 void Snd_SetPlayMode(s16, s16, u8, s16);
 long SpuIsTransferCompleted(long);
 void SpuQuit(void);
