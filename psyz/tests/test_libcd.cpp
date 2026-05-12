@@ -392,7 +392,14 @@ class LibCdPlaybackTest : public ::testing::Test {
     void SetUp() override {
         dir = std::string("psyz_libcdplayback_test_") +
               std::to_string(std::time(nullptr));
-        ASSERT_EQ(mkdir(dir.c_str(), 0755), 0) << dir;
+#ifndef _WIN32
+        int ret = mkdir(dir.c_str(), 0755);
+#else
+        int ret = _mkdir(dir.c_str());
+#endif
+        if (ret == -1) {
+            ASSERT_EQ(errno, EEXIST) << "mkdir failed";
+        }
         Psyz_SetDiskPath(nullptr);
         Psyz_CdShellOpen(0);
     }
