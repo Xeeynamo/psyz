@@ -1,6 +1,6 @@
 #include "libspu_private.h"
 
-unsigned long SpuWrite(unsigned char* addr, unsigned long size) {
+u_long SpuWrite(u_char* addr, u_long size) {
     if (size > 0x7EFF0) {
         size = 0x7EFF0;
     }

@@ -49,8 +49,6 @@ long SpuSetTransferMode(long mode) {
     return 0;
 }
 
-void SpuSetKey(long on_off, u_long voice_bit) { NOT_IMPLEMENTED; }
-
 long SpuInitMalloc(long num, char* top) {
     NOT_IMPLEMENTED; // can't use original implementation
     return 0;
