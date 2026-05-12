@@ -392,7 +392,14 @@ class LibCdPlaybackTest : public ::testing::Test {
     void SetUp() override {
         dir = std::string("psyz_libcdplayback_test_") +
               std::to_string(std::time(nullptr));
-        ASSERT_EQ(mkdir(dir.c_str(), 0755), 0) << dir;
+#ifndef _WIN32
+        int ret = mkdir(dir.c_str(), 0755);
+#else
+        int ret = _mkdir(dir.c_str());
+#endif
+        if (ret == -1) {
+            ASSERT_EQ(errno, EEXIST) << "mkdir failed";
+        }
         Psyz_SetDiskPath(nullptr);
         Psyz_CdShellOpen(0);
     }
@@ -409,7 +416,8 @@ class LibCdPlaybackTest : public ::testing::Test {
         rmdir(dir.c_str());
     }
 
-    void mount_bin_cue_pair(std::vector<unsigned short>& data) {
+    void mount_bin_cue_pair(
+        std::vector<unsigned short>& data, const char* track_type) {
         std::string cdda_path = dir + "/cdda.bin";
         FILE* f = std::fopen(cdda_path.c_str(), "wb");
         ASSERT_NE(f, nullptr) << "fopen " << cdda_path;
@@ -418,12 +426,49 @@ class LibCdPlaybackTest : public ::testing::Test {
         bins.push_back(cdda_path);
 
         cue = dir + "/cdda.cue";
-        write_text(cue, "FILE \"cdda.bin\" BINARY\n"
-                        "  TRACK 01 AUDIO\n"
-                        "    INDEX 01 00:00:00\n");
+        write_text(cue, std::string("FILE \"cdda.bin\" BINARY\n") +
+                            "  TRACK 01 " + std::string(track_type) + "\n" +
+                            "    INDEX 01 00:00:00\n");
         ASSERT_EQ(Psyz_SetDiskPath(cue.c_str()), 0)
             << "Psyz_SetDiskPath failed for " << cue;
         Psyz_CdShellOpen(0);
+    }
+
+    // Build a deterministic raw 2352-byte MODE2/2352 XA Form2 sector.
+    // All ADPCM blocks use shift_in=0 (so shift=12) and filter=0, and every
+    // nibble is 0x1, so each decoded sample = (1 << 12) = 0x1000 (DC). After
+    // CD volume (0x3FFF) and main volume (0x3FFF) this comes out as 0x07FE.
+    static void build_xa_sector(unsigned char* sector, int sector_idx) {
+        std::memset(sector, 0, 2352);
+        // sync
+        sector[0] = 0x00;
+        for (int i = 1; i < 11; ++i)
+            sector[i] = 0xFF;
+        sector[11] = 0x00;
+        // header (BCD MSF + mode 0x02). mm=0, ss=2, ff=sector_idx.
+        sector[0x0C] = 0x00;
+        sector[0x0D] = 0x02;
+        sector[0x0E] = (unsigned char)sector_idx;
+        sector[0x0F] = 0x02;
+        // subheader: file=1, channel=0, submode=0x64 (audio|RT|Form2), CI=0x01
+        // (stereo, 37800Hz, 4-bit ADPCM)
+        unsigned char sh[4] = {0x01, 0x00, 0x64, 0x01};
+        std::memcpy(&sector[0x10], sh, 4);
+        std::memcpy(&sector[0x14], sh, 4);
+        // 18 ADPCM blocks at offset 0x18
+        for (int b = 0; b < 18; ++b) {
+            unsigned char* blk = &sector[0x18 + b * 128];
+            // bytes 0..3 are a copy of bytes 4..7 (sub-block headers)
+            // header byte = (filter << 4) | shift_in = 0
+            for (int i = 0; i < 8; ++i)
+                blk[i] = 0x00;
+            // bytes 8..15 zero-padded (8-bit extended hdr unused for 4-bit)
+            // bytes 16..127 = 28 words × 4 bytes of nibble-packed data.
+            // every nibble = 0x1 -> byte = 0x11
+            for (int i = 16; i < 128; ++i)
+                blk[i] = 0x11;
+        }
+        // remaining bytes (0x18+18*128 .. 0x92F) stay zero (padding + EDC)
     }
 };
 
@@ -435,7 +480,7 @@ TEST_F(LibCdPlaybackTest, cdda_playback) {
     for (size_t i = 0; i < frame_count; i++) {
         sample[i] = 0x6000u;
     }
-    mount_bin_cue_pair(sample);
+    mount_bin_cue_pair(sample, "AUDIO");
 
     // Set arbitrary CD volume that will get reset with CdReset(1) anyway
     CdlATV fake_vol = {11, 22, 33, 44};
@@ -482,6 +527,63 @@ TEST_F(LibCdPlaybackTest, cdda_playback) {
         ASSERT_EQ(out[i * 2 + 0], 0x2FFE)
             << "frame " << i << " left channel unexpected value";
         ASSERT_EQ(out[i * 2 + 1], 0x2FFE)
+            << "frame " << i << " right channel unexpected value";
+    }
+}
+
+TEST_F(LibCdPlaybackTest, xa_playback) {
+    // Each MODE2/2352 XA Form2 sector decodes to 18*4*28 = 2016 stereo frames
+    // at 37800 Hz, which yields 2016 * 44100/37800 = 2352 output frames at
+    // 44100 Hz. 16 sectors -> ~37632 output frames.
+    constexpr int kSectors = 16;
+    std::vector<unsigned short> sample(kSectors * 2352 / 2, 0);
+    auto* raw = reinterpret_cast<unsigned char*>(sample.data());
+    for (int i = 0; i < kSectors; i++) {
+        build_xa_sector(raw + i * 2352, i);
+    }
+    mount_bin_cue_pair(sample, "MODE2/2352");
+
+    // Initialize CD and audio systems
+    CdReset(1);
+
+    // Set XA-ADPCM mode at double-speed with channel filtering enabled.
+    u_char param[8];
+    param[0] = CdlModeSpeed | CdlModeRT | CdlModeSF;
+    CdControlB(CdlSetmode, param, nullptr);
+
+    // Filter to file=1 channel=0, matching the synthesized subheader.
+    param[0] = 1;
+    param[1] = 0;
+    CdControlB(CdlSetfilter, param, nullptr);
+
+    CdlLOC loc;
+    CdIntToPos(0, &loc);
+    CdControl(CdlSetloc, (u_char*)&loc, nullptr);
+
+    // Stop the SDL audio thread from pulling samples and take the lock so we
+    // drive Psyz_SpuPullSamples deterministically and avoid race conditions.
+    Psyz_AudioPause();
+    Psyz_AudioLock();
+
+    // Kick off XA-ADPCM streaming.
+    CdControl(CdlReadN, nullptr, nullptr);
+
+    constexpr int frame_count = 37632;
+    std::vector<short> out(frame_count * 2, 0);
+    Psyz_SpuPullSamples(out.data(), frame_count);
+
+    // Reverse Psyz_AudioLock
+    Psyz_AudioUnlock();
+
+    // Each XA sample decodes to 0x1000 -> after cd_vol (0x3FFF >> 15) and
+    // main_vol (0x3FFF >> 14) the steady-state output is 0x07FE per channel.
+    // Skip the first 64 frames where the Hermite ring is filling and the
+    // resampler is settling toward the DC plateau.
+    constexpr int kSettle = 64;
+    for (int i = kSettle; i < frame_count; ++i) {
+        ASSERT_EQ(out[i * 2 + 0], 0x07FE)
+            << "frame " << i << " left channel unexpected value";
+        ASSERT_EQ(out[i * 2 + 1], 0x07FE)
             << "frame " << i << " right channel unexpected value";
     }
 }

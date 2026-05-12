@@ -35,7 +35,12 @@
 #define CdlPlay 0x03
 #define CdlForward 0x04
 #define CdlBackward 0x05
+
+/**
+ * @brief  Start data read, with retry
+ */
 #define CdlReadN 0x06
+
 #define CdlStandby 0x07
 #define CdlStop 0x08
 #define CdlPause 0x09
@@ -90,6 +95,10 @@
 
 #define CdlSeekL 0x15
 #define CdlSeekP 0x16
+
+/**
+* @brief  Commence data read, no retry
+ */
 #define CdlReadS 0x1B
 
 /*

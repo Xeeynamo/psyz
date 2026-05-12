@@ -117,7 +117,13 @@ static void CHNGATV() {
         ctx.cd_src_l_dst_r == 0 && ctx.cd_src_r_dst_l == 0;
 }
 
-static int need_cdda_rewind = 1;
+static short clamp16(int v) {
+    if (v < -32768)
+        return -32768;
+    if (v > 32767)
+        return 32767;
+    return (short)v;
+}
 
 // Trim whitespace from both ends of a string
 static char* str_trim(char* str) {
@@ -422,15 +428,237 @@ end:
     return written;
 }
 
+#define XA_DECODED_MAX_FRAMES 4032            // 18 blocks * 4 sub * 28 samples
+#define XA_STEP_Q16 ((37800u << 16) / 44100u) // 56173
+
+static struct {
+    short decoded[XA_DECODED_MAX_FRAMES * 2];
+    int active;
+    unsigned char filter_file;
+    unsigned char filter_channel;
+    int filter_set; // 1 once CdlSetfilter has been called
+    int decoded_count;
+    int decoded_pos;
+    int hist_l_old, hist_l_older;
+    int hist_r_old, hist_r_older;
+    // Hermite ring: index [0]=oldest .. [3]=newest per channel
+    short rh_l[4], rh_r[4];
+    unsigned int phase; // 16.16 fractional position into the input stream
+} xa;
+
+static void xa_reset_stream(void) {
+    xa.decoded_count = 0;
+    xa.decoded_pos = 0;
+    xa.hist_l_old = xa.hist_l_older = 0;
+    xa.hist_r_old = xa.hist_r_older = 0;
+    memset(xa.rh_l, 0, sizeof(xa.rh_l));
+    memset(xa.rh_r, 0, sizeof(xa.rh_r));
+    xa.phase = 0;
+}
+
+static int xa_sector_matches(unsigned char file, unsigned char channel) {
+    if (!xa.filter_set) {
+        return 1;
+    }
+    if (file != xa.filter_file) {
+        return 0;
+    }
+    if (xa.filter_channel == 0) {
+        return 1;
+    }
+    if (channel == xa.filter_channel) {
+        return 1;
+    }
+    return 0;
+}
+
+static int s4(int n) { return (n & 0x8) ? (n - 0x10) : n; }
+
+static const int xa_pos[4] = {0, 60, 115, 98};
+static const int xa_neg[4] = {0, 0, -52, -55};
+// Decode 28 samples for one (block, nibble) pair into `dst` (stride=2 stereo
+// or stride=1 mono). Returns updated old/older via pointers.
+static void xa_decode_28(const unsigned char* blk, int sub, int nibble,
+                         short* dst, int stride, int* prev, int* prev2) {
+    const unsigned char hdr = blk[4 + sub * 2 + nibble];
+    const int shift_in = hdr & 0x0F;
+    const int shift = (shift_in > 12) ? 9 : (12 - shift_in);
+    const int filter = (hdr & 0x30) >> 4; // 0..3
+    const int f0 = xa_pos[filter];
+    const int f1 = xa_neg[filter];
+    for (int j = 0; j < 28; j++) {
+        const unsigned char byte = blk[16 + sub + j * 4];
+        const int t = s4((byte >> (nibble * 4)) & 0x0F);
+        const int s = (t << shift) + (((*prev) * f0 + (*prev2) * f1 + 32) / 64);
+        dst[j * stride] = clamp16(s);
+        *prev2 = *prev;
+        *prev = s;
+    }
+}
+
+// Decode a Form2 user-data area (0x914 = 2324 bytes) of 4-bit stereo XA.
+// Writes interleaved L,R s16 frames into xa.decoded; returns frame count.
+static int xa_decode_user_stereo_4bit(const unsigned char* user) {
+    int frame = 0;
+    for (int i = 0; i < 18; i++) {
+        const unsigned char* block = user + i * 128;
+        for (int sub = 0; sub < 4; sub++) {
+            xa_decode_28(block, sub, 0, &xa.decoded[(frame) * 2 + 0], 2,
+                         &xa.hist_l_old, &xa.hist_l_older);
+            xa_decode_28(block, sub, 1, &xa.decoded[(frame) * 2 + 1], 2,
+                         &xa.hist_r_old, &xa.hist_r_older);
+            frame += 28;
+        }
+    }
+    return frame;
+}
+
+// Decode a Form2 user-data area of 4-bit mono XA: both nibble passes write
+// to the same mono buffer; we duplicate to L and R for output.
+static int xa_decode_user_mono_4bit(const unsigned char* user) {
+    short mono[XA_DECODED_MAX_FRAMES];
+    int frame = 0;
+    for (int i = 0; i < 18; i++) {
+        const unsigned char* block = user + i * 128;
+        for (int sub = 0; sub < 4; sub++) {
+            xa_decode_28(block, sub, 0, &mono[frame], 1, &xa.hist_l_old,
+                         &xa.hist_l_older);
+            frame += 28;
+            xa_decode_28(block, sub, 1, &mono[frame], 1, &xa.hist_l_old,
+                         &xa.hist_l_older);
+            frame += 28;
+        }
+    }
+    for (int i = 0; i < frame; i++) {
+        xa.decoded[i * 2 + 0] = mono[i];
+        xa.decoded[i * 2 + 1] = mono[i];
+    }
+    return frame;
+}
+
+static int xa_read_and_decode_sector(void) {
+    unsigned char sector[SECTOR_SIZE];
+    while (1) {
+        const size_t n = fread(sector, 1, SECTOR_SIZE, track_file);
+        if (n != SECTOR_SIZE) {
+            return 0; // EOF or short read
+        }
+        const unsigned char file = sector[0x10];
+        const unsigned char channel = sector[0x11];
+        const unsigned char submode = sector[0x12];
+        const unsigned char ci = sector[0x13];
+        if ((submode & 0x44) != 0x44) {
+            continue; // data sector, skip from XA stream
+        }
+        if (!xa_sector_matches(file, channel)) {
+            continue;
+        }
+        const unsigned char* user = &sector[0x18];
+        int stereo = (ci & 0x03) == 1;
+        int rate18900 = (ci & 0x04) != 0;
+        int bits8 = (ci & 0x30) != 0;
+        if (rate18900 || bits8) {
+            LOG_ONCE(
+                "XA: 18900Hz or 8-bit not supported, decoding as 4bit/37800");
+        }
+        if (stereo) {
+            xa.decoded_count = xa_decode_user_stereo_4bit(user);
+        } else {
+            xa.decoded_count = xa_decode_user_mono_4bit(user);
+        }
+        xa.decoded_pos = 0;
+        return 1;
+    }
+}
+
+// Pull next 37800 Hz stereo input frame into the Hermite ring buffers.
+// Returns 1 on success, 0 if stream ended.
+static int xa_advance_input(void) {
+    if (xa.decoded_pos >= xa.decoded_count) {
+        if (!xa_read_and_decode_sector()) {
+            return 0;
+        }
+    }
+    short l = xa.decoded[xa.decoded_pos * 2 + 0];
+    short r = xa.decoded[xa.decoded_pos * 2 + 1];
+    xa.decoded_pos++;
+    xa.rh_l[0] = xa.rh_l[1];
+    xa.rh_l[1] = xa.rh_l[2];
+    xa.rh_l[2] = xa.rh_l[3];
+    xa.rh_l[3] = l;
+    xa.rh_r[0] = xa.rh_r[1];
+    xa.rh_r[1] = xa.rh_r[2];
+    xa.rh_r[2] = xa.rh_r[3];
+    xa.rh_r[3] = r;
+    return 1;
+}
+
+// 4-point Hermite (Catmull-Rom-like) at fractional position frac in [0,1).
+// frac is given as Q1.16 (only low 16 bits used).
+// TODO !!! slown down considerably on hardware without float processing unit
+static short hermite4(
+    short ym1, short y0, short y1, short y2, unsigned int frac_q16) {
+    // Use floating math here for correctness; this is run-once per output
+    // sample and is still very cheap. Embedded targets get clean output.
+    float x = (float)(frac_q16 & 0xFFFF) / 65536.0f;
+    float c0 = (float)y0;
+    float c1 = 0.5f * (float)(y1 - ym1);
+    float c2 =
+        (float)ym1 - 2.5f * (float)y0 + 2.0f * (float)y1 - 0.5f * (float)y2;
+    float c3 = 0.5f * (float)(y2 - ym1) + 1.5f * (float)(y0 - y1);
+    float v = ((c3 * x + c2) * x + c1) * x + c0;
+    int iv = (int)(v + (v >= 0 ? 0.5f : -0.5f));
+    return clamp16(iv);
+}
+
 static size_t xa_pull_samples(short* buf, size_t max_frames) {
+    size_t written = 0;
+    int hit_eof = 0;
     Psyz_AudioLock();
-    if (!is_playing || !track_file) {
+    if (!is_playing || !track_file || !xa.active) {
         goto end;
     }
-    NOT_IMPLEMENTED;
+    // Prime Hermite ring on first call so we have y0..y2 valid.
+    while (xa.rh_l[3] == 0 && xa.rh_l[2] == 0 && xa.rh_l[1] == 0 &&
+           xa.decoded_pos == 0 && xa.decoded_count == 0) {
+        if (!xa_advance_input()) {
+            hit_eof = 1;
+            goto end;
+        }
+        if (xa.decoded_count > 0)
+            break;
+    }
+    while (written < max_frames) {
+        // Advance input as many times as needed to get phase < 1.0.
+        while (xa.phase >= 0x10000) {
+            if (!xa_advance_input()) {
+                hit_eof = 1;
+                goto end;
+            }
+            xa.phase -= 0x10000;
+        }
+        if (is_muted) {
+            buf[written * 2 + 0] = 0;
+            buf[written * 2 + 1] = 0;
+        } else {
+            buf[written * 2 + 0] = hermite4(
+                xa.rh_l[0], xa.rh_l[1], xa.rh_l[2], xa.rh_l[3], xa.phase);
+            buf[written * 2 + 1] = hermite4(
+                xa.rh_r[0], xa.rh_r[1], xa.rh_r[2], xa.rh_r[3], xa.phase);
+        }
+        xa.phase += XA_STEP_Q16;
+        written++;
+    }
 end:
+    if (hit_eof) {
+        is_playing = 0;
+        xa.active = 0;
+    }
     Psyz_AudioUnlock();
-    return 0;
+    if (hit_eof && CD_cbready) {
+        CD_cbready(CdlDataEnd, NULL);
+    }
+    return written;
 }
 
 size_t Psyz_CdPullSamples(short* out, size_t num_frames) {
@@ -448,21 +676,59 @@ size_t Psyz_CdPullSamples(short* out, size_t num_frames) {
             int r = out[i * 2 + 1];
             int l_out = (l * ctx.cd_src_l_dst_l + r * ctx.cd_src_r_dst_l) >> 7;
             int r_out = (l * ctx.cd_src_l_dst_r + r * ctx.cd_src_r_dst_r) >> 7;
-            if (l_out < -32768)
-                l_out = -32768;
-            else if (l_out > 32767)
-                l_out = 32767;
-            if (r_out < -32768)
-                r_out = -32768;
-            else if (r_out > 32767)
-                r_out = 32767;
-            out[i * 2 + 0] = (short)l_out;
-            out[i * 2 + 1] = (short)r_out;
+            out[i * 2 + 0] = clamp16(l_out);
+            out[i * 2 + 1] = clamp16(r_out);
         }
     }
     return read_frames;
 }
 
+// Open the track containing the absolute sector encoded in CD_pos. Closes
+// any previously-open track_file. Returns 0 on success, -1 on failure.
+static int open_track_at_cd_pos(void) {
+    int sector = CdPosToInt(&CD_pos);
+    TrackEntry* track = NULL;
+    for (int i = 0; i < g_track_count; i++) {
+        if (!g_tracks[i].is_valid) {
+            continue;
+        }
+        int next_abs_sector = INT_MAX;
+        if (i + 1 < g_track_count && g_tracks[i + 1].is_valid) {
+            next_abs_sector = g_tracks[i + 1].abs_sector;
+        }
+        if (sector >= g_tracks[i].abs_sector && sector < next_abs_sector) {
+            track = &g_tracks[i];
+            break;
+        }
+    }
+    if (!track) {
+        WARNF("no track found for sector %d", sector);
+        return -1;
+    }
+    if (track_file) {
+        fclose(track_file);
+        track_file = NULL;
+    }
+    FILE* file = fopen(track->file_path, "rb");
+    if (!file) {
+        ERRORF("failed to open audio file: %s", track->file_path);
+        return -1;
+    }
+    int sector_offset = sector - track->abs_sector;
+    sector_offset += track->start_sector;
+    long byte_offset = (long)sector_offset * SECTOR_SIZE;
+    if (fseek(file, byte_offset, SEEK_SET) != 0) {
+        ERRORF("failed to seek to sector %d in %s", sector, track->file_path);
+        fclose(file);
+        return -1;
+    }
+    DEBUGF("opened track %s at sector %d (offset %d)", track->file_path, sector,
+           sector_offset);
+    track_file = file;
+    return 0;
+}
+
+static int need_cdda_rewind = 1;
 // play on CDDA mode only (not XA)
 static void psyz_play() {
     if (!(CD_mode & CdlModeDA)) {
@@ -477,56 +743,31 @@ static void psyz_play() {
         Psyz_AudioLock();
         is_playing = 1;
         Psyz_AudioUnlock();
-    }
-    int sector = CdPosToInt(&CD_pos);
-    TrackEntry* track = NULL;
-    for (int i = 0; i < g_track_count; i++) {
-        if (!g_tracks[i].is_valid) {
-            continue;
-        }
-
-        // Check if sector falls within this track
-        // For the last track, assume it extends to end of file
-        int next_abs_sector = INT_MAX;
-        if (i + 1 < g_track_count && g_tracks[i + 1].is_valid) {
-            next_abs_sector = g_tracks[i + 1].abs_sector;
-        }
-        if (sector >= g_tracks[i].abs_sector && sector < next_abs_sector) {
-            track = &g_tracks[i];
-            break;
-        }
-    }
-    if (!track) {
-        WARNF("no track found for sector %d", sector);
         return;
     }
-    if (track_file) {
-        fclose(track_file);
-        track_file = NULL;
-    }
-    FILE* file = fopen(track->file_path, "rb");
-    if (!file) {
-        ERRORF("failed to open audio file: %s", track->file_path);
+    if (open_track_at_cd_pos() != 0) {
         return;
     }
-
-    // sector is the absolute sector, track->abs_sector is where this track
-    // starts track->start_sector is the MSF offset within the file
-    int sector_offset = sector - track->abs_sector;
-    sector_offset += track->start_sector;
-    long byte_offset = (long)sector_offset * SECTOR_SIZE;
-    if (fseek(file, byte_offset, SEEK_SET) != 0) {
-        ERRORF("failed to seek to sector %d in %s", sector, track->file_path);
-        fclose(file);
-        return;
-    }
-    DEBUGF("playing audio from %s at sector %d (offset %d)", track->file_path,
-           sector, sector_offset);
     Psyz_AudioLock();
-    track_file = file;
     cd_buf_pos = 0;
     cd_buf_count = 0;
     need_cdda_rewind = 0;
+    is_playing = 1;
+    Psyz_AudioUnlock();
+}
+
+// Begin XA streaming at CD_pos (CdlReadN / CdlReadS).
+static void psyz_xa_read(void) {
+    if (!(CD_mode & CdlModeRT)) {
+        LOG_ONCE("CdlReadN/ReadS without CdlModeRT not implemented");
+        return;
+    }
+    if (open_track_at_cd_pos()) {
+        return;
+    }
+    Psyz_AudioLock();
+    xa_reset_stream();
+    xa.active = 1;
     is_playing = 1;
     Psyz_AudioUnlock();
 }
@@ -535,6 +776,7 @@ static void psyz_stop() {
     need_cdda_rewind = 1;
     Psyz_AudioLock();
     is_playing = 0;
+    xa.active = 0;
     if (track_file) {
         fclose(track_file);
         track_file = NULL;
@@ -547,6 +789,7 @@ static void psyz_stop() {
 static void psyz_pause() {
     Psyz_AudioLock();
     is_playing = 0;
+    xa.active = 0;
     Psyz_AudioUnlock();
 }
 
@@ -670,6 +913,19 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
     case CdlPlay:
         psyz_play();
         break;
+    case CdlReadN:
+    case CdlReadS:
+        psyz_xa_read();
+        break;
+    case CdlSetfilter:
+        if (!param) {
+            ERRORF("%s got NULL param", CD_comstr[com]);
+            return -2;
+        }
+        xa.filter_file = param[0];
+        xa.filter_channel = param[1];
+        xa.filter_set = 1;
+        break;
     case CdlStop:
         psyz_stop();
         break;
@@ -785,7 +1041,7 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
 
 int CdInit(void) {
     NOT_IMPLEMENTED;
-    CdReset(CdlModeDA);
+    CdReset(1);
     return CD_init();
 }
 
