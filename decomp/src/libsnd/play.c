@@ -1,4 +1,5 @@
-#include <common.h>
-#include <libsnd.h>
+#include "libsnd_private.h"
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/play", _SsSndPlay);
+void _SsSndPlay(short seq_access_num, short arg1) {
+    _SsSeqPlay(seq_access_num, arg1);
+}

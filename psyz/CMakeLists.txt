@@ -61,6 +61,8 @@ set(PSYZ_SOURCES
     ../decomp/src/libspu/spu.c
     ../decomp/src/libspu/sr_gaks.c
     src/psyz/libspu.c
+    ../decomp/src/libsnd/pause.c
+    ../decomp/src/libsnd/play.c
     ../decomp/src/libsnd/sscall.c
     ../decomp/src/libsnd/ssclose.c
     ../decomp/src/libsnd/sscres.c
