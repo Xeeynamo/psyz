@@ -207,6 +207,8 @@ extern u32 VBLANK_MINUS;
 extern _SsFCALL SsFCALL;
 extern void (*_autovol)(int voice);
 extern void (*_autopan)(int voice);
+extern SPU_VOICE_REG _svm_sreg_buf[NUM_VOICES];
+extern char _svm_sreg_dirty[NUM_VOICES];
 
 void SetAutoPan(int voices);
 void SetAutoVol(int voices);
