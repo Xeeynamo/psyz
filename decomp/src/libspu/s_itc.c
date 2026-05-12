@@ -2,6 +2,12 @@
 #include "libapi.h"
 
 long SpuIsTransferCompleted(long immediateFlag) {
+#ifdef __psyz // HACK the TestEvent must work
+    if (immediateFlag == 0) {
+        return 1;
+    }
+    return 0;
+#endif
     s32 in_transfer;
 
     if (_spu_trans_mode == 1 || _spu_inTransfer == 1) {

@@ -167,7 +167,7 @@ extern s32 _spu_RQmask;
 extern s32 _spu_RQvoice;
 extern union SpuUnion* _spu_RXX;
 extern s32 _spu_env;
-extern s32 _spu_inTransfer;
+extern int _spu_inTransfer;
 extern s32 _spu_isCalled;
 extern s32 _spu_keystat;
 extern s32 _spu_mem_mode_plus;
