@@ -205,7 +205,10 @@ extern u8 spuVmMaxVoice;
 extern short _svm_stereo_mono;
 extern u32 VBLANK_MINUS;
 extern _SsFCALL SsFCALL;
+extern void (*_autovol)(int voice);
+extern void (*_autopan)(int voice);
 
+void SetAutoPan(int voices);
 void SeAutoPan(s16, s16, s16, s16);
 void SeAutoVol(s16, s16, s16, s16);
 void Snd_SetPlayMode(s16, s16, u8, s16);
