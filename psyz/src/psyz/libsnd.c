@@ -53,10 +53,6 @@ void _SsInit(void) {
 
 void _SsSeqPlay(short arg0, short arg1) { NOT_IMPLEMENTED; }
 
-void _SsSndCrescendo(short arg0, short arg1) { NOT_IMPLEMENTED; }
-
-void _SsSndDecrescendo(short arg0, short arg1) { NOT_IMPLEMENTED; }
-
 void _SsSndTempo(short arg0, short arg1) { NOT_IMPLEMENTED; }
 
 short SsUtSetVVol(short vc, short voll, short volr) {
