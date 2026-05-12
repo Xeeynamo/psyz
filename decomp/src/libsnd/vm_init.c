@@ -1,7 +1,7 @@
 #include "libsnd_private.h"
 
 extern SPU_RXX* _svm_sreg;
-extern u16 _svm_sreg_buf[NUM_VOICES * sizeof(SPU_VOICE_REG) / sizeof(u16)];
+extern SPU_VOICE_REG _svm_sreg_buf[NUM_VOICES];
 extern char _svm_sreg_dirty[NUM_VOICES];
 extern unsigned short _svm_okon1;
 extern unsigned short _svm_okon2;
@@ -23,9 +23,10 @@ void _SsVmInit(char numVoices) {
     _spu_setInTransfer(0);
     _svm_damper = 0;
     SpuInitMalloc(32, _ss_spu_vm_rec + 8);
-    for (i = 0; i < LEN(_svm_sreg_buf); i++) {
-        _svm_sreg_buf[i] = 0;
-    }
+    // for (i = 0; i < LEN(_svm_sreg_buf); i++) {
+    //     _svm_sreg_buf[i] = 0;
+    // }
+    memset(_svm_sreg_buf, 0, sizeof(_svm_sreg_buf)); // not matching
     for (i = 0; i < NUM_VOICES; i++) {
         _svm_sreg_dirty[i] = 0;
     }

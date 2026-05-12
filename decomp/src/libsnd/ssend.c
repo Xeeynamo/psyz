@@ -1,4 +1,6 @@
 #include "libsnd_private.h"
+#include "kernel.h"
+#include "libetc.h"
 
 void SsEnd(void) {
     if (_snd_seq_tick_env.manual_tick == 0) {

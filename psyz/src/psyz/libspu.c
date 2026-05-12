@@ -26,6 +26,8 @@ s32 _spu_t(s32 arg0, ...) {
     return 0;
 }
 
+void _spu_Fw(unsigned char* addr, unsigned long size) { NOT_IMPLEMENTED; }
+
 void _spu_FsetRXX(u32 offset, u32 value, u32 mode) { NOT_IMPLEMENTED; }
 
 void _spu_FiDMA(void) { NOT_IMPLEMENTED; }
@@ -55,11 +57,6 @@ long SpuInitMalloc(long num, char* top) {
 }
 
 u_long SpuSetTransferStartAddr(u_long addr) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
-u_long SpuWrite(u_char* addr, u_long size) {
     NOT_IMPLEMENTED;
     return 0;
 }

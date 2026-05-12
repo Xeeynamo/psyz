@@ -201,5 +201,6 @@ s32 _spu_write(u8*, u32);
 void _SpuDataCallback(SpuTransferCallbackProc func);
 void _SsVmKeyOffNow(int mode);
 int _spu_getInTransfer(void);
+void _spu_Fw(unsigned char* addr, unsigned long size);
 
 #endif

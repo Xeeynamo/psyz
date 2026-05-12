@@ -84,17 +84,10 @@ short SsUtKeyOnV(short voice, short vabId, short prog, short tone, short note,
     return 0;
 }
 
-char SsSetReservedVoice(char voices) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
 short SsVabTransBodyPartly(u_char* addr, u_long bufsize, short vabid) {
     NOT_IMPLEMENTED;
     return 0;
 }
-
-void SsEnd(void) { NOT_IMPLEMENTED; }
 
 void SsSetMarkCallback(
     short access_num, short seq_num, SsMarkCallbackProc proc) {

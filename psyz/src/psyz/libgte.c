@@ -74,11 +74,6 @@ void SetGeomOffset(long ofx, long ofy) {
 
 void SetGeomScreen(long h) { H = h; }
 
-long ratan2(long y, long x) {
-    NOT_IMPLEMENTED;
-    return 1;
-}
-
 void SetRotMatrix(MATRIX* m) {
     M.m[0][0] = m->m[0][0];
     M.m[0][1] = m->m[0][1];
