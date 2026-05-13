@@ -11,7 +11,7 @@ typedef struct {
 } SpuRQ;
 extern SpuRQ _spu_RQ;
 
-void SpuSetKey(long on_off, unsigned long voice_bit) {
+void SpuSetKey(long on_off, u_long voice_bit) {
     u32 temp_a1;
     unsigned short new_var;
     u32 temp_a3;
