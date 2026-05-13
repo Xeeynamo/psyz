@@ -51,17 +51,9 @@ void _SsInit(void) {
 
 // void _SsVmFlush(void) { NOT_IMPLEMENTED; }
 
-void _SsSndPlay(short arg0, short arg1) { NOT_IMPLEMENTED; }
-
-void _SsSndCrescendo(short arg0, short arg1) { NOT_IMPLEMENTED; }
-
-void _SsSndDecrescendo(short arg0, short arg1) { NOT_IMPLEMENTED; }
+void _SsSeqPlay(short arg0, short arg1) { NOT_IMPLEMENTED; }
 
 void _SsSndTempo(short arg0, short arg1) { NOT_IMPLEMENTED; }
-
-void _SsSndPause(short arg0, short arg1) { NOT_IMPLEMENTED; }
-
-void _SsSndReplay(short arg0, short arg1) { NOT_IMPLEMENTED; }
 
 short SsUtSetVVol(short vc, short voll, short volr) {
     NOT_IMPLEMENTED;
@@ -84,17 +76,10 @@ short SsUtKeyOnV(short voice, short vabId, short prog, short tone, short note,
     return 0;
 }
 
-char SsSetReservedVoice(char voices) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
 short SsVabTransBodyPartly(u_char* addr, u_long bufsize, short vabid) {
     NOT_IMPLEMENTED;
     return 0;
 }
-
-void SsEnd(void) { NOT_IMPLEMENTED; }
 
 void SsSetMarkCallback(
     short access_num, short seq_num, SsMarkCallbackProc proc) {

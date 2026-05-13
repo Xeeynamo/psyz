@@ -56,13 +56,22 @@ set(PSYZ_SOURCES
     ../decomp/src/libspu/s_r.c
     ../decomp/src/libspu/s_rmp.c
     ../decomp/src/libspu/s_sca.c
+    ../decomp/src/libspu/s_sk.c
+    ../decomp/src/libspu/s_snv.c
     ../decomp/src/libspu/s_sr.c
+    ../decomp/src/libspu/s_w.c
     ../decomp/src/libspu/spu.c
     ../decomp/src/libspu/sr_gaks.c
     src/psyz/libspu.c
+    ../decomp/src/libsnd/cres.c
+    ../decomp/src/libsnd/decres.c
+    ../decomp/src/libsnd/pause.c
+    ../decomp/src/libsnd/play.c
+    ../decomp/src/libsnd/replay.c
     ../decomp/src/libsnd/sscall.c
     ../decomp/src/libsnd/ssclose.c
     ../decomp/src/libsnd/sscres.c
+    ../decomp/src/libsnd/ssend.c
     ../decomp/src/libsnd/ssinit.c
     ../decomp/src/libsnd/ssinit_c.c
     ../decomp/src/libsnd/ssinit_h.c
@@ -80,6 +89,8 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/sstick.c
     ../decomp/src/libsnd/sstickcb.c
     ../decomp/src/libsnd/ut_ako.c
+    ../decomp/src/libsnd/ut_autop.c
+    ../decomp/src/libsnd/ut_cadsr.c
     ../decomp/src/libsnd/ut_key.c
     ../decomp/src/libsnd/ut_rdel.c
     ../decomp/src/libsnd/ut_rdep.c

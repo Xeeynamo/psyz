@@ -167,7 +167,7 @@ extern s32 _spu_RQmask;
 extern s32 _spu_RQvoice;
 extern union SpuUnion* _spu_RXX;
 extern s32 _spu_env;
-extern s32 _spu_inTransfer;
+extern int _spu_inTransfer;
 extern s32 _spu_isCalled;
 extern s32 _spu_keystat;
 extern s32 _spu_mem_mode_plus;
@@ -201,5 +201,7 @@ s32 _spu_write(u8*, u32);
 void _SpuDataCallback(SpuTransferCallbackProc func);
 void _SsVmKeyOffNow(int mode);
 int _spu_getInTransfer(void);
+void _spu_Fw(unsigned char* addr, unsigned long size);
+u_long _SpuSetAnyVoice(long on_off, u_long voice_bit, int arg2, int arg3);
 
 #endif
