@@ -517,3 +517,385 @@ MATRIX* TransposeMatrix(MATRIX* m0, MATRIX* m1) {
     NOT_IMPLEMENTED;
     return m0;
 }
+
+// External-emulator COP2/GTE bridge.
+//
+// Maps the canonical PSX GTE register file (data regs cop2.dataN, control regs
+// cop2.ctrlN, and 25-bit COP2 commands) onto Psy-Z's internal high-level state.
+// Intended for emulators integration: the emulator must catch the opcodes
+// MTC2/CTC2/MFC2/CFC2/LWC2/SWC2 forwards them here.
+//
+// Register indices and naming follow
+// https://psx-spx.consoledev.net/geometrytransformationenginegte/
+
+static unsigned int pack_xy(short x, short y) {
+    return ((unsigned int)(u16)x) | (((unsigned int)(u16)y) << 16);
+}
+static void unpack_xy(unsigned int v, short* x, short* y) {
+    *x = (short)(v & 0xFFFF);
+    *y = (short)((v >> 16) & 0xFFFF);
+}
+
+unsigned int Psyz_GteDataRead(unsigned idx) {
+    switch (idx) {
+    case 0:
+        return ((unsigned int)(u16)V0.vx) | (((unsigned int)(u16)V0.vy) << 16);
+    case 1:
+        return (unsigned int)(int)V0.vz;
+    case 2:
+        return ((unsigned int)(u16)V1.vx) | (((unsigned int)(u16)V1.vy) << 16);
+    case 3:
+        return (unsigned int)(int)V1.vz;
+    case 4:
+        return ((unsigned int)(u16)V2.vx) | (((unsigned int)(u16)V2.vy) << 16);
+    case 5:
+        return (unsigned int)(int)V2.vz;
+    case 6:
+        return *(unsigned int*)&RGBC;
+    case 7:
+        return (unsigned int)OTZ;
+    case 8:
+        return (unsigned int)(int)IR0;
+    case 9:
+        return (unsigned int)(int)IR1;
+    case 10:
+        return (unsigned int)(int)IR2;
+    case 11:
+        return (unsigned int)(int)IR3;
+    case 12:
+        return pack_xy(SX0, SY0);
+    case 13:
+        return pack_xy(SX1, SY1);
+    case 14:
+        return pack_xy(SX2, SY2);
+    case 15:
+        return pack_xy(SXP, SYP);
+    case 16:
+        return (unsigned int)SZ0;
+    case 17:
+        return (unsigned int)SZ1;
+    case 18:
+        return (unsigned int)SZ2;
+    case 19:
+        return (unsigned int)SZ3;
+    case 24:
+        return (unsigned int)MAC0;
+    case 25:
+        return (unsigned int)MAC1;
+    case 26:
+        return (unsigned int)MAC2;
+    case 27:
+        return (unsigned int)MAC3;
+    default:
+        return 0;
+    }
+}
+
+void Psyz_GteDataWrite(unsigned idx, unsigned int v) {
+    switch (idx) {
+    case 0:
+        V0.vx = (short)(v & 0xFFFF);
+        V0.vy = (short)((v >> 16) & 0xFFFF);
+        break;
+    case 1:
+        V0.vz = (short)(v & 0xFFFF);
+        break;
+    case 2:
+        V1.vx = (short)(v & 0xFFFF);
+        V1.vy = (short)((v >> 16) & 0xFFFF);
+        break;
+    case 3:
+        V1.vz = (short)(v & 0xFFFF);
+        break;
+    case 4:
+        V2.vx = (short)(v & 0xFFFF);
+        V2.vy = (short)((v >> 16) & 0xFFFF);
+        break;
+    case 5:
+        V2.vz = (short)(v & 0xFFFF);
+        break;
+    case 6:
+        *(unsigned int*)&RGBC = v;
+        break;
+    case 7:
+        OTZ = (u16)(v & 0xFFFF);
+        break;
+    case 8:
+        IR0 = (short)(v & 0xFFFF);
+        break;
+    case 9:
+        IR1 = (short)(v & 0xFFFF);
+        break;
+    case 10:
+        IR2 = (short)(v & 0xFFFF);
+        break;
+    case 11:
+        IR3 = (short)(v & 0xFFFF);
+        break;
+    case 12:
+        unpack_xy(v, &SX0, &SY0);
+        break;
+    case 13:
+        unpack_xy(v, &SX1, &SY1);
+        break;
+    case 14:
+        unpack_xy(v, &SX2, &SY2);
+        break;
+    case 15:
+        unpack_xy(v, &SXP, &SYP);
+        break;
+    case 16:
+        SZ0 = (u16)(v & 0xFFFF);
+        break;
+    case 17:
+        SZ1 = (u16)(v & 0xFFFF);
+        break;
+    case 18:
+        SZ2 = (u16)(v & 0xFFFF);
+        break;
+    case 19:
+        SZ3 = (u16)(v & 0xFFFF);
+        break;
+    case 24:
+        MAC0 = (int)v;
+        break;
+    case 25:
+        MAC1 = (int)v;
+        break;
+    case 26:
+        MAC2 = (int)v;
+        break;
+    case 27:
+        MAC3 = (int)v;
+        break;
+    default:
+        break;
+    }
+}
+
+unsigned int Psyz_GteCtrlRead(unsigned idx) {
+    switch (idx) {
+    case 0:
+        return ((unsigned int)(u16)M.m[0][0]) |
+               (((unsigned int)(u16)M.m[0][1]) << 16);
+    case 1:
+        return ((unsigned int)(u16)M.m[0][2]) |
+               (((unsigned int)(u16)M.m[1][0]) << 16);
+    case 2:
+        return ((unsigned int)(u16)M.m[1][1]) |
+               (((unsigned int)(u16)M.m[1][2]) << 16);
+    case 3:
+        return ((unsigned int)(u16)M.m[2][0]) |
+               (((unsigned int)(u16)M.m[2][1]) << 16);
+    case 4:
+        return (unsigned int)(int)M.m[2][2];
+    case 5:
+        return (unsigned int)M.t[0];
+    case 6:
+        return (unsigned int)M.t[1];
+    case 7:
+        return (unsigned int)M.t[2];
+    case 8:
+        return ((unsigned int)(u16)L1.m[0][0]) |
+               (((unsigned int)(u16)L1.m[0][1]) << 16);
+    case 9:
+        return ((unsigned int)(u16)L1.m[0][2]) |
+               (((unsigned int)(u16)L1.m[1][0]) << 16);
+    case 10:
+        return ((unsigned int)(u16)L1.m[1][1]) |
+               (((unsigned int)(u16)L1.m[1][2]) << 16);
+    case 11:
+        return ((unsigned int)(u16)L1.m[2][0]) |
+               (((unsigned int)(u16)L1.m[2][1]) << 16);
+    case 12:
+        return (unsigned int)(int)L1.m[2][2];
+    case 13:
+        return (unsigned int)L1.t[0];
+    case 14:
+        return (unsigned int)L1.t[1];
+    case 15:
+        return (unsigned int)L1.t[2];
+    case 16:
+        return ((unsigned int)(u16)L2.m[0][0]) |
+               (((unsigned int)(u16)L2.m[0][1]) << 16);
+    case 17:
+        return ((unsigned int)(u16)L2.m[0][2]) |
+               (((unsigned int)(u16)L2.m[1][0]) << 16);
+    case 18:
+        return ((unsigned int)(u16)L2.m[1][1]) |
+               (((unsigned int)(u16)L2.m[1][2]) << 16);
+    case 19:
+        return ((unsigned int)(u16)L2.m[2][0]) |
+               (((unsigned int)(u16)L2.m[2][1]) << 16);
+    case 20:
+        return (unsigned int)(int)L2.m[2][2];
+    case 21:
+        return (unsigned int)L2.t[0];
+    case 22:
+        return (unsigned int)L2.t[1];
+    case 23:
+        return (unsigned int)L2.t[2];
+    case 24:
+        return (unsigned int)(OFX << 16);
+    case 25:
+        return (unsigned int)(OFY << 16);
+    case 26:
+        return (unsigned int)H;
+    case 27:
+        return (unsigned int)(int)DQA;
+    case 28:
+        return (unsigned int)DQB;
+    case 29:
+        return (unsigned int)(int)ZSF3;
+    case 30:
+        return (unsigned int)(int)ZSF4;
+    case 31:
+        return FLAG;
+    default:
+        return 0;
+    }
+}
+
+void Psyz_GteCtrlWrite(unsigned idx, unsigned int v) {
+    switch (idx) {
+    case 0:
+        M.m[0][0] = (short)(v & 0xFFFF);
+        M.m[0][1] = (short)((v >> 16) & 0xFFFF);
+        break;
+    case 1:
+        M.m[0][2] = (short)(v & 0xFFFF);
+        M.m[1][0] = (short)((v >> 16) & 0xFFFF);
+        break;
+    case 2:
+        M.m[1][1] = (short)(v & 0xFFFF);
+        M.m[1][2] = (short)((v >> 16) & 0xFFFF);
+        break;
+    case 3:
+        M.m[2][0] = (short)(v & 0xFFFF);
+        M.m[2][1] = (short)((v >> 16) & 0xFFFF);
+        break;
+    case 4:
+        M.m[2][2] = (short)(v & 0xFFFF);
+        break;
+    case 5:
+        M.t[0] = (int)v;
+        break;
+    case 6:
+        M.t[1] = (int)v;
+        break;
+    case 7:
+        M.t[2] = (int)v;
+        break;
+    case 8:
+        L1.m[0][0] = (short)(v & 0xFFFF);
+        L1.m[0][1] = (short)((v >> 16) & 0xFFFF);
+        break;
+    case 9:
+        L1.m[0][2] = (short)(v & 0xFFFF);
+        L1.m[1][0] = (short)((v >> 16) & 0xFFFF);
+        break;
+    case 10:
+        L1.m[1][1] = (short)(v & 0xFFFF);
+        L1.m[1][2] = (short)((v >> 16) & 0xFFFF);
+        break;
+    case 11:
+        L1.m[2][0] = (short)(v & 0xFFFF);
+        L1.m[2][1] = (short)((v >> 16) & 0xFFFF);
+        break;
+    case 12:
+        L1.m[2][2] = (short)(v & 0xFFFF);
+        break;
+    case 13:
+        L1.t[0] = (int)v;
+        break;
+    case 14:
+        L1.t[1] = (int)v;
+        break;
+    case 15:
+        L1.t[2] = (int)v;
+        break;
+    case 16:
+        L2.m[0][0] = (short)(v & 0xFFFF);
+        L2.m[0][1] = (short)((v >> 16) & 0xFFFF);
+        break;
+    case 17:
+        L2.m[0][2] = (short)(v & 0xFFFF);
+        L2.m[1][0] = (short)((v >> 16) & 0xFFFF);
+        break;
+    case 18:
+        L2.m[1][1] = (short)(v & 0xFFFF);
+        L2.m[1][2] = (short)((v >> 16) & 0xFFFF);
+        break;
+    case 19:
+        L2.m[2][0] = (short)(v & 0xFFFF);
+        L2.m[2][1] = (short)((v >> 16) & 0xFFFF);
+        break;
+    case 20:
+        L2.m[2][2] = (short)(v & 0xFFFF);
+        break;
+    case 21:
+        L2.t[0] = (int)v;
+        break;
+    case 22:
+        L2.t[1] = (int)v;
+        break;
+    case 23:
+        L2.t[2] = (int)v;
+        break;
+    // OFX/OFY are 20.12 fixed-point on the real GTE (PSY-Q's SetGeomOffset
+    // writes `pixels << 16` into the ctrl reg). Psy-Z's RTPS math stores
+    // them as integer pixels (it later does `OFX << 16` to align to 16.16),
+    // so convert on the way in. Use arithmetic shift to keep sign.
+    case 24:
+        OFX = (int)v >> 16;
+        break;
+    case 25:
+        OFY = (int)v >> 16;
+        break;
+    case 26:
+        H = (u16)(v & 0xFFFF);
+        break;
+    case 27:
+        DQA = (short)(v & 0xFFFF);
+        break;
+    case 28:
+        DQB = (int)v;
+        break;
+    case 29:
+        ZSF3 = (short)(v & 0xFFFF);
+        break;
+    case 30:
+        ZSF4 = (short)(v & 0xFFFF);
+        break;
+    case 31:
+        FLAG = v;
+        break;
+    default:
+        break;
+    }
+}
+
+void Psyz_GteCommand(unsigned int cmd) {
+    // bits 0..5 select the op
+    unsigned op = cmd & 0x3F;
+    switch (op) {
+    case 0x01:
+        RTPS();
+        break;
+    case 0x06:
+        NCLIP();
+        break;
+    case 0x2D:
+        AVSZ3();
+        break;
+    case 0x2E:
+        AVSZ4();
+        break;
+    case 0x30:
+        RTPT();
+        break;
+    default:
+        WARNF("unhandled GTE op:%02X", op);
+        break;
+    }
+}
