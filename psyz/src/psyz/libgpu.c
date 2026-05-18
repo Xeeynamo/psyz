@@ -44,7 +44,7 @@ static void GPU_read_image() { NOT_IMPLEMENTED; }
 
 static int queue_len = 0;
 static u_long queue_buf[0x4000];
-static int GPU_Exeque() {
+int Psyz_GpuExeque() {
     RECT rect;
     unsigned int x, y;
     Draw_ResetBuffer();
@@ -118,8 +118,8 @@ static int GPU_Exeque() {
     queue_len = 0;
     return queue_len;
 }
-static int psyz_exeque();
-int GPU_Enqueue(u_long p1, u_long p2) {
+
+static int GPU_Enqueue(u_long p1, u_long p2) {
     int mask = (int)p2;
     if (mask) {
         WARNF("mask not supported (mask:%08X)", mask);
@@ -131,7 +131,7 @@ int GPU_Enqueue(u_long p1, u_long p2) {
                 ERRORF("packet 0x%X long, likely corrupted", env->len);
             }
             INFOF("GPU queue full, calling exeque");
-            psyz_exeque();
+            Psyz_GpuExeque();
         } else if (sizeof(u_long) == 4) {
             // this is fine on 32-bit systems
             memcpy(queue_buf + queue_len, env->code, env->len * sizeof(u_long));
@@ -164,12 +164,12 @@ int GPU_Enqueue(u_long p1, u_long p2) {
     return 0;
 }
 static int GPU_DataWrite(u_long p1, u_long p2) {
-    psyz_exeque();
+    Psyz_GpuExeque();
     Draw_LoadImage((RECT*)(uintptr_t)p1, (u_long*)(uintptr_t)p2);
     return 0;
 }
 static int GPU_DataRead(u_long p1, u_long p2) {
-    psyz_exeque();
+    Psyz_GpuExeque();
     Draw_StoreImage((RECT*)(uintptr_t)p1, (u_long*)(uintptr_t)p2);
     return 0;
 }
@@ -204,14 +204,23 @@ static int psyz_clr(RECT* rect, u32 color) {
     return 0;
 }
 
-static void psyz_ctl(unsigned int cmd) {
+void Psyz_GpuDisplayCommand(unsigned int cmd) {
     unsigned char op = (cmd >> 24) & 0x3F;
     switch (op) {
     case 0:
         Draw_Reset();
         break;
+    case 1:
+        LOG_ONCE("Reset FIFO not implemented");
+        break;
+    case 2:
+        LOG_ONCE("Ack IRQ not implemented");
+        break;
     case 3:
         Draw_DisplayEnable(!(cmd & 1));
+        break;
+    case 4:
+        LOG_ONCE("DMA direction not implemented");
         break;
     case 5:
         Draw_DisplayArea(cmd & 0x3FF, (cmd >> 10) & 0x3FF);
@@ -235,7 +244,6 @@ static int psyz_cwb() {
     NOT_IMPLEMENTED;
     return 0;
 }
-static int psyz_exeque() { return GPU_Exeque(); }
 static int psyz_getctl(int _) {
     NOT_IMPLEMENTED;
     return 0;
@@ -256,11 +264,20 @@ static int psyz_sync(int mode) {
     // mode 1 process the queue and return how many elements have been queued
     // return -1 if GPU has timed out
     // but on PC the implementation is much simpler as it's always synced
-    psyz_exeque();
+    Psyz_GpuExeque();
     return 0;
 }
 
 int psyz_gpu_version(int mode) { return GPU_V0; }
+
+// forwards raw GP0 words into the internal queue, then trigger execution.
+void Psyz_GpuWriteGP0(unsigned int word) {
+    if (queue_len >= (int)LEN(queue_buf)) {
+        WARNF("GPU queue full");
+        return;
+    }
+    queue_buf[queue_len++] = (u_long)word;
+}
 
 void GPU_cw(u_long* param) {
     struct Gpu* gpu = (struct Gpu*)param;
@@ -268,12 +285,12 @@ void GPU_cw(u_long* param) {
     gpu->addque = psyz_addque;
     gpu->addque2 = psyz_addque2;
     gpu->clr = psyz_clr;
-    gpu->ctl = psyz_ctl;
+    gpu->ctl = Psyz_GpuDisplayCommand;
     gpu->cwb = psyz_cwb;
     gpu->cwc = GPU_Enqueue;
     gpu->drs = GPU_DataRead;
     gpu->dws = GPU_DataWrite;
-    gpu->exeque = psyz_exeque;
+    gpu->exeque = Psyz_GpuExeque;
     gpu->getctl = psyz_getctl;
     gpu->otc = psyz_otc;
     gpu->param = psyz_param;
