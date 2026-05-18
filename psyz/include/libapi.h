@@ -501,12 +501,12 @@ long LoadTest(char* name, struct EXEC* exec);
  * the Multi Tap, use InitTAP(). When using the gun controller, use InitGUN().
  *
  * @param bufA Pointer to incoming data buffer for port A
- * @param bufB Pointer to incoming data buffer for port B
  * @param lenA Length of incoming data buffer for port A (in bytes)
+ * @param bufB Pointer to incoming data buffer for port B
  * @param lenB Length of incoming data buffer for port B (in bytes)
  * @return Always 1.
  */
-long InitPAD(char* bufA, char* bufB, long lenA, long lenB);
+long InitPAD(char* bufA, long lenA, char* bufB, long lenB);
 
 /**
  * @brief Start reading the controller

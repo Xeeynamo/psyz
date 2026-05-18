@@ -21,7 +21,7 @@ typedef enum {
     PAD_KIND_DISCONNECTED = 0xFF,
 } PadKind;
 
-long InitPAD(char* bufA, char* bufB, long lenA, long lenB) {
+long InitPAD(char* bufA, long lenA, char* bufB, long lenB) {
     if (bufA) {
         memset(bufA, 0, lenA);
         if (lenA >= 2) {

@@ -10,27 +10,27 @@ void SetInitPadFlag(int initPadFlag) { is_pad_init = initPadFlag; }
 int ReadInitPadFlag(void) { return is_pad_init; }
 
 void PAD_init2(char* bufA, char* bufB, long lenA, long lenB);
-void PAD_init(char* bufA, char* bufB, long lenA, long lenB) {
+void PAD_init(char* bufA, long lenA, char* bufB, long lenB) {
     _remove_ChgclrPAD();
     EnterCriticalSection();
     _patch_pad();
     ExitCriticalSection();
     ChangeClearPAD(0);
     SetPatchPad();
-    PAD_init2(bufA, bufB, lenA, lenB);
+    PAD_init2(bufA, lenA, bufB, lenB);
     _send_pad();
     is_pad_init = 1;
 }
 
-void InitPAD2(char* bufA, char* bufB, long lenA, long lenB);
-long InitPAD(char* bufA, char* bufB, long lenA, long lenB) {
+void InitPAD2(char* bufA, long lenA, char* bufB, long lenB);
+long InitPAD(char* bufA, long lenA, char* bufB, long lenB) {
     _remove_ChgclrPAD();
     EnterCriticalSection();
     _patch_pad();
     ExitCriticalSection();
     ChangeClearPAD(0);
     SetPatchPad();
-    InitPAD2(bufA, bufB, lenA, lenB);
+    InitPAD2(bufA, lenA, bufB, lenB);
     _send_pad();
     is_pad_init = 1;
     return is_pad_init;
