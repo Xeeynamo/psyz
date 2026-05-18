@@ -611,7 +611,7 @@ static void WaitForNextFrame(void) {
     last_frame_time = frame_end_time;
 }
 
-int PlatformVSync(int mode) {
+int Psyz_VSync(int mode) {
     Uint32 cur;
     unsigned short ret;
     cur = (Uint32)SDL_GetTicks();

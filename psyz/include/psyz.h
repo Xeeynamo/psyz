@@ -202,6 +202,20 @@ typedef struct {
 // Returns: 0 on success, -1 if invalid mode
 int Psyz_SetVsyncMode(Psyz_VsyncMode mode);
 
+/**
+ * @brief Synchronize with vertical blank
+ *
+ * Synchronize with the refresh rate mode set in Psyz_SetVsyncMode.
+ * The interface is very similar to libetc VSync.
+ *
+ * @param mode Synchronization mode:
+ *             - 0: Wait for next vertical blank
+ *             - Negative: Return immediately (non-blocking)
+ *             - Positive: Wait for specified number of vertical blanks
+ * @return Number of vertical blanks since last call
+ */
+int Psyz_VSync(int mode);
+
 // Get frame timing statistics
 // Returns: 0 on success, -1 if stats is NULL or platform not initialized
 int Psyz_GetGpuStats(Psyz_GpuStats* stats);
@@ -248,6 +262,20 @@ void Psyz_AdjustPathCB(int (*callback)(char* dst, const char* src, int maxlen));
 //   maxlen: Maximum length of left buffer
 // Returns: Pointer to left on success, NULL if buffer too small
 char* Psyz_JoinPath(char* left, const char* right, int maxlen);
+
+/**
+ * @brief Synchronize with vertical blank
+ *
+ * Synchronize with the refresh rate mode set in Psyz_SetVsyncMode.
+ * The interface is very similar to libetc VSync.
+ *
+ * @param mode Synchronization mode:
+ *             - 0: Wait for next vertical blank
+ *             - Negative: Return immediately (non-blocking)
+ *             - Positive: Wait for specified number of vertical blanks
+ * @return Number of vertical blanks since last call
+ */
+int Psyz_GpuVSync(int mode);
 
 #ifdef __cplusplus
 }
