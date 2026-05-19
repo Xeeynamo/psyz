@@ -4,6 +4,18 @@
 #include <psyz/log.h>
 #include "../internal.h"
 
+// This GTE implementation is mostly accurate to how the PS1 computes math.
+// Most of the implementation needs 64-bit vars for accuracy, which can be slow
+// on 32-bit hardware where the type `long long` is software emulated.
+//
+// There are yet no target-specific code paths here. Most consoles such as PS2,
+// Dreamcast or GBA could use different code paths to use hardware accelerated
+// math, while ensuring a decent level of accuracy.
+//
+// https://github.com/nicolasnoble/pcsx-redux/tree/main/src/mips/tests/gte
+// The above test suite from Nicolas Noble, one of the main PCSX Redux emulator
+// developers, has been used to verify this GTE emulation is accurate enough.
+
 // https://www.problemkaputt.de/psx-spx.htm#gteoverview
 static SVECTOR V0;         // cop1 0-1
 static SVECTOR V1;         // cop1 2-3
@@ -26,6 +38,10 @@ static int MAC0;           // cop1 24 math accumulator (value)
 static int MAC1;           // cop1 25 math accumulator (vector)
 static int MAC2;           // cop1 26 math accumulator (vector)
 static int MAC3;           // cop1 27 math accumulator (vector)
+static unsigned int RGB0;  // cop1 20 color FIFO
+static unsigned int RGB1;  // cop1 21
+static unsigned int RGB2;  // cop1 22
+static unsigned int RES1;  // cop1 23 (reserved)
 static MATRIX M = {0};     // cop2 0-7, rotation 3x3 + translation
 static MATRIX L1 = {0};    // cop2 8-15 light source 3x3 + bg color
 static MATRIX L2 = {0};    // cop2 16-23 light source 3x3 + bg color
@@ -33,22 +49,33 @@ static int OFX;            // cop2 24 screen offset X
 static int OFY;            // cop2 25 screen offset Y
 static unsigned short H;   // cop2 26 projection plane distance
 static short DQA;          // cop2 27 depth queing parameter A (coeff)
-static short DQB;          // cop2 28 depth queing parameter B (offset)
+static int DQB;            // cop2 28 depth queing parameter B (offset, s32)
 static short ZSF3;         // cop2 29 average Z scale factor
 static short ZSF4;         // cop2 30 average Z scale factor
 static unsigned int FLAG;  // cop2 31
 
 // FLAG register bits
-#define FLAG_IR1_SAT (1 << 24)     // IR1 saturated
-#define FLAG_IR2_SAT (1 << 23)     // IR2 saturated
-#define FLAG_IR3_SAT (1 << 22)     // IR3 saturated
-#define FLAG_SZ3_OTZ_SAT (1 << 18) // SZ3 or OTZ saturated
-#define FLAG_DIV_OVF (1 << 17)     // Divide overflow
-#define FLAG_SX2_SAT (1 << 14)     // SX2 saturated
-#define FLAG_SY2_SAT (1 << 13)     // SY2 saturated
-#define FLAG_IR0_SAT (1 << 12)     // IR0 saturated
-#define FLAG_ERROR_MASK 0x7F87E000 // Bits 30-23 and 18-13
-#define FLAG_ERROR (1u << 31)      // Error flag (OR of error bits)
+#define FLAG_MAC1_OVF_POS (1u << 30) // MAC1 overflow > +(1<<43)-1
+#define FLAG_MAC2_OVF_POS (1u << 29)
+#define FLAG_MAC3_OVF_POS (1u << 28)
+#define FLAG_MAC1_OVF_NEG (1u << 27) // MAC1 overflow < -(1<<43)
+#define FLAG_MAC2_OVF_NEG (1u << 26)
+#define FLAG_MAC3_OVF_NEG (1u << 25)
+#define FLAG_IR1_SAT (1u << 24)
+#define FLAG_IR2_SAT (1u << 23)
+#define FLAG_IR3_SAT (1u << 22)
+#define FLAG_COL_R_SAT (1u << 21) // RGB FIFO R saturated to 0..ff
+#define FLAG_COL_G_SAT (1u << 20)
+#define FLAG_COL_B_SAT (1u << 19)
+#define FLAG_SZ3_OTZ_SAT (1u << 18)  // SZ3 or OTZ saturated to 0..ffff
+#define FLAG_DIV_OVF (1u << 17)      // Divide overflow
+#define FLAG_MAC0_OVF_POS (1u << 16) // MAC0 overflow > +(1<<31)-1
+#define FLAG_MAC0_OVF_NEG (1u << 15) // MAC0 overflow < -(1<<31)
+#define FLAG_SX2_SAT (1u << 14)
+#define FLAG_SY2_SAT (1u << 13)
+#define FLAG_IR0_SAT (1u << 12)
+#define FLAG_ERROR_MASK 0x7F87E000u
+#define FLAG_ERROR (1u << 31)
 
 // Update bit 31 based on error bits
 static void FLAG_update_error() {
@@ -224,112 +251,683 @@ MATRIX* MulMatrix(MATRIX* m0, MATRIX* m1) {
 // RTPS, RTPT, NCLIP, AVSZ3, AVSZ4 are implementations after
 // https://problemkaputt.de/psxspx-gte-coordinate-calculation-commands.htm
 
-// Perspective Transformation helper (assumes sf=1)
-// depth_cue: if non-zero, compute IR0 from DQA/DQB
-static void RTPS_vertex(SVECTOR* v, int depth_cue) {
-    // IR1 = MAC1 = (TRX*1000h + RT11*VX + RT12*VY + RT13*VZ) SAR 12
-    MAC1 = ((M.t[0] << 12) + M.m[0][0] * v->vx + M.m[0][1] * v->vy +
-            M.m[0][2] * v->vz) >>
-           12;
-    MAC2 = ((M.t[1] << 12) + M.m[1][0] * v->vx + M.m[1][1] * v->vy +
-            M.m[1][2] * v->vz) >>
-           12;
-    MAC3 = ((M.t[2] << 12) + M.m[2][0] * v->vx + M.m[2][1] * v->vy +
-            M.m[2][2] * v->vz) >>
-           12;
+// PSX divider table (UNR). Entry i estimates 1 / (1 + i/256) used in the
+// Newton-Raphson step for the (H << 17) / SZ3 calculation in RTPS.
+static const unsigned char unr_table[257] = {
+    0xFF, 0xFD, 0xFB, 0xF9, 0xF7, 0xF5, 0xF3, 0xF1, 0xEF, 0xEE, 0xEC, 0xEA,
+    0xE8, 0xE6, 0xE4, 0xE3, 0xE1, 0xDF, 0xDD, 0xDC, 0xDA, 0xD8, 0xD6, 0xD5,
+    0xD3, 0xD1, 0xD0, 0xCE, 0xCD, 0xCB, 0xC9, 0xC8, 0xC6, 0xC5, 0xC3, 0xC1,
+    0xC0, 0xBE, 0xBD, 0xBB, 0xBA, 0xB8, 0xB7, 0xB5, 0xB4, 0xB2, 0xB1, 0xB0,
+    0xAE, 0xAD, 0xAB, 0xAA, 0xA9, 0xA7, 0xA6, 0xA4, 0xA3, 0xA2, 0xA0, 0x9F,
+    0x9E, 0x9C, 0x9B, 0x9A, 0x99, 0x97, 0x96, 0x95, 0x94, 0x92, 0x91, 0x90,
+    0x8F, 0x8D, 0x8C, 0x8B, 0x8A, 0x89, 0x87, 0x86, 0x85, 0x84, 0x83, 0x82,
+    0x81, 0x7F, 0x7E, 0x7D, 0x7C, 0x7B, 0x7A, 0x79, 0x78, 0x77, 0x75, 0x74,
+    0x73, 0x72, 0x71, 0x70, 0x6F, 0x6E, 0x6D, 0x6C, 0x6B, 0x6A, 0x69, 0x68,
+    0x67, 0x66, 0x65, 0x64, 0x63, 0x62, 0x61, 0x60, 0x5F, 0x5E, 0x5D, 0x5D,
+    0x5C, 0x5B, 0x5A, 0x59, 0x58, 0x57, 0x56, 0x55, 0x54, 0x53, 0x53, 0x52,
+    0x51, 0x50, 0x4F, 0x4E, 0x4D, 0x4D, 0x4C, 0x4B, 0x4A, 0x49, 0x48, 0x48,
+    0x47, 0x46, 0x45, 0x44, 0x43, 0x43, 0x42, 0x41, 0x40, 0x3F, 0x3F, 0x3E,
+    0x3D, 0x3C, 0x3C, 0x3B, 0x3A, 0x39, 0x39, 0x38, 0x37, 0x36, 0x36, 0x35,
+    0x34, 0x33, 0x33, 0x32, 0x31, 0x31, 0x30, 0x2F, 0x2E, 0x2E, 0x2D, 0x2C,
+    0x2C, 0x2B, 0x2A, 0x2A, 0x29, 0x28, 0x28, 0x27, 0x26, 0x26, 0x25, 0x24,
+    0x24, 0x23, 0x22, 0x22, 0x21, 0x20, 0x20, 0x1F, 0x1E, 0x1E, 0x1D, 0x1D,
+    0x1C, 0x1B, 0x1B, 0x1A, 0x19, 0x19, 0x18, 0x18, 0x17, 0x16, 0x16, 0x15,
+    0x15, 0x14, 0x14, 0x13, 0x12, 0x12, 0x11, 0x11, 0x10, 0x0F, 0x0F, 0x0E,
+    0x0E, 0x0D, 0x0D, 0x0C, 0x0C, 0x0B, 0x0A, 0x0A, 0x09, 0x09, 0x08, 0x08,
+    0x07, 0x07, 0x06, 0x06, 0x05, 0x05, 0x04, 0x04, 0x03, 0x03, 0x02, 0x02,
+    0x01, 0x01, 0x00, 0x00, 0x00};
 
-    // IR1,IR2,IR3 saturated to -8000h..+7FFFh
-    if (MAC1 < -0x8000 || MAC1 > 0x7FFF) {
-        FLAG |= FLAG_IR1_SAT;
+// PSX GTE divider: returns (H << 17) / SZ3 saturated to 1FFFFh, with the
+// hardware's specific Newton-Raphson algorithm. Used by RTPS family.
+static unsigned int gte_divide(unsigned short h, unsigned short sz3) {
+    if (h >= sz3 * 2) {
+        FLAG |= FLAG_DIV_OVF;
+        return 0x1FFFF;
     }
-    if (MAC2 < -0x8000 || MAC2 > 0x7FFF) {
-        FLAG |= FLAG_IR2_SAT;
+    // Count leading zeros of sz3 within a 16-bit window. The early
+    // h >= sz3*2 check above guarantees sz3 != 0 here
+#if defined(__GNUC__) || defined(__clang__)
+    unsigned z = (unsigned)__builtin_clz((unsigned)sz3) - 16u;
+#else
+    unsigned z = 0;
+    unsigned x = sz3;
+    while ((x & 0x8000) == 0) {
+        x <<= 1;
+        z++;
     }
-    if (MAC3 < -0x8000 || MAC3 > 0x7FFF) {
-        FLAG |= FLAG_IR3_SAT;
-    }
-    IR1 = (short)(CLAMP(MAC1, -0x8000, 0x7FFF));
-    IR2 = (short)(CLAMP(MAC2, -0x8000, 0x7FFF));
-    IR3 = (short)(CLAMP(MAC3, -0x8000, 0x7FFF));
+#endif
+    unsigned n = (unsigned)h << z;
+    unsigned d = (unsigned)sz3 << z;
+    unsigned u = unr_table[(d - 0x7FC0) >> 7] + 0x101;
+    d = (0x2000080u - d * u) >> 8;
+    d = (0x0000080u + d * u) >> 8;
+    unsigned long long r = ((unsigned long long)n * d + 0x8000ull) >> 16;
+    if (r > 0x1FFFFu)
+        r = 0x1FFFFu;
+    return (unsigned int)r;
+}
 
-    // Push SZ FIFO before writing SZ3
+// 44-bit MAC overflow check (MAC1..3). Real GTE has 44-bit accumulators;
+// values outside +-(1<<43) set FLAG bits regardless of clamping. The full
+// value still propagates into the SAR step (so >>sf is on the wrapped 44-bit).
+static inline long long mac_check_44(long long v, unsigned mac_idx) {
+    static const unsigned pos_bits[3] = {
+        FLAG_MAC1_OVF_POS, FLAG_MAC2_OVF_POS, FLAG_MAC3_OVF_POS};
+    static const unsigned neg_bits[3] = {
+        FLAG_MAC1_OVF_NEG, FLAG_MAC2_OVF_NEG, FLAG_MAC3_OVF_NEG};
+    if (v > 0x7FFFFFFFFFFLL)
+        FLAG |= pos_bits[mac_idx];
+    if (v < -0x80000000000LL)
+        FLAG |= neg_bits[mac_idx];
+    // Sign-extend from bit 43: cast to unsigned to make the left shift
+    // well-defined, then arithmetic right-shift back to sign-extend.
+    return (long long)((unsigned long long)v << 20) >> 20;
+}
+
+// MAC0 32-bit overflow check
+static inline int mac0_check(long long v) {
+    if (v > 0x7FFFFFFFLL)
+        FLAG |= FLAG_MAC0_OVF_POS;
+    if (v < -0x80000000LL)
+        FLAG |= FLAG_MAC0_OVF_NEG;
+    return (int)v;
+}
+
+// IR1..3 saturation. lm=1 clamps to 0..+7FFF, lm=0 clamps to -8000..+7FFF.
+static inline short ir_saturate(int v, int lm, unsigned sat_flag) {
+    int lo = lm ? 0 : -0x8000;
+    int hi = 0x7FFF;
+    if (v < lo || v > hi)
+        FLAG |= sat_flag;
+    if (v < lo)
+        v = lo;
+    if (v > hi)
+        v = hi;
+    return (short)v;
+}
+
+// Perspective Transformation helper.
+// sf=1 → MAC1..3 are >>12 after multiply (typical "fixed" mode)
+// sf=0 → MAC1..3 are >>0  (full-precision mode)
+// lm   → IR saturation lower bound (0 if lm=1, else -8000)
+// depth_cue: compute IR0 from DQA/DQB on the last vertex
+static void RTPS_vertex(SVECTOR* v, int sf, int lm, int depth_cue) {
+    int shift = sf ? 12 : 0;
+
+    // MAC1..3 = (TR<<12 + RT*V) >> sf, with 44-bit overflow detection.
+    long long m1 = ((long long)M.t[0] << 12) + (long long)M.m[0][0] * v->vx +
+                   (long long)M.m[0][1] * v->vy + (long long)M.m[0][2] * v->vz;
+    long long m2 = ((long long)M.t[1] << 12) + (long long)M.m[1][0] * v->vx +
+                   (long long)M.m[1][1] * v->vy + (long long)M.m[1][2] * v->vz;
+    long long m3 = ((long long)M.t[2] << 12) + (long long)M.m[2][0] * v->vx +
+                   (long long)M.m[2][1] * v->vy + (long long)M.m[2][2] * v->vz;
+    m1 = mac_check_44(m1, 0);
+    m2 = mac_check_44(m2, 1);
+    m3 = mac_check_44(m3, 2);
+    MAC1 = (int)(m1 >> shift);
+    MAC2 = (int)(m2 >> shift);
+    MAC3 = (int)(m3 >> shift);
+
+    IR1 = ir_saturate(MAC1, lm, FLAG_IR1_SAT);
+    IR2 = ir_saturate(MAC2, lm, FLAG_IR2_SAT);
+    // IR3 special: clamped to (-8000..7fff) or (0..7fff per lm), but the
+    // FLAG bit is set based on (MAC3 SAR 12) vs -8000..7fff (without lm).
+    {
+        int v = MAC3;
+        int sz_check = (int)(m3 >> 12);
+        if (sz_check < -0x8000 || sz_check > 0x7FFF)
+            FLAG |= FLAG_IR3_SAT;
+        int lo = lm ? 0 : -0x8000;
+        if (v < lo)
+            v = lo;
+        if (v > 0x7FFF)
+            v = 0x7FFF;
+        IR3 = (short)v;
+    }
+
+    // SZ FIFO push, then SZ3 = (m3 SAR 12) saturated to 0..ffff.
     SZ0 = SZ1;
     SZ1 = SZ2;
     SZ2 = SZ3;
-
-    // SZ3 = MAC3 (with sf=1, no additional shift), saturate to 0..FFFFh
-    if (MAC3 < 0 || MAC3 > 0xFFFF) {
+    int sz_val = (int)(m3 >> 12);
+    if (sz_val < 0 || sz_val > 0xFFFF)
         FLAG |= FLAG_SZ3_OTZ_SAT;
-    }
-    SZ3 = (unsigned short)(CLAMP(MAC3, 0, 0xFFFF));
+    if (sz_val < 0)
+        sz_val = 0;
+    if (sz_val > 0xFFFF)
+        sz_val = 0xFFFF;
+    SZ3 = (unsigned short)sz_val;
 
-    // Division: (H*20000h/SZ3+1)/2, saturate to 1FFFFh
-    int div_result;
-    if (SZ3 == 0) {
-        div_result = 0x1FFFF;
-        FLAG |= FLAG_DIV_OVF;
-    } else {
-        div_result = (((H * 0x20000) / SZ3) + 1) / 2;
-        if (div_result > 0x1FFFF) {
-            div_result = 0x1FFFF;
-            FLAG |= FLAG_DIV_OVF;
-        }
-    }
+    int div_result = (int)gte_divide(H, SZ3);
 
-    // Push SXY FIFO before writing SX2,SY2
+    // SXY FIFO push, then SX2/SY2 from MAC0/10000h saturated to -400h..+3FFh.
     SX0 = SX1;
     SY0 = SY1;
     SX1 = SX2;
     SY1 = SY2;
 
-    // MAC0=(div_result)*IR1+OFX, SX2=MAC0/10000h, saturate to -400h..+3FFh
-    MAC0 = div_result * IR1 + (OFX << 16);
-    int sx = MAC0 >> 16;
-    if (sx < -0x400 || sx > 0x3FF) {
+    // psx-spx: MAC0 = (div_result*IR1) + OFX, with OFX in 16.16 fixed point
+    // (so what's stored as integer pixels here gets shifted back up by 16).
+    long long mac0 = (long long)div_result * IR1 + ((long long)OFX << 16);
+    MAC0 = mac0_check(mac0);
+    // SX2/SY2 saturation works on the un-truncated 64-bit MAC0 SAR 16, not on
+    // the wrapped 32-bit MAC0 register. (psx-spx Lm_G1 acts before MAC0 wrap.)
+    long long sx_full = mac0 >> 16;
+    int sx = (sx_full < -0x400)  ? -0x400
+             : (sx_full > 0x3FF) ? 0x3FF
+                                 : (int)sx_full;
+    if (sx_full < -0x400 || sx_full > 0x3FF)
         FLAG |= FLAG_SX2_SAT;
-    }
-    SX2 = (short)(CLAMP(sx, -0x400, 0x3FF));
+    SX2 = (short)sx;
 
-    // MAC0=(div_result)*IR2+OFY, SY2=MAC0/10000h, saturate to -400h..+3FFh
-    MAC0 = div_result * IR2 + (OFY << 16);
-    int sy = MAC0 >> 16;
-    if (sy < -0x400 || sy > 0x3FF) {
+    mac0 = (long long)div_result * IR2 + ((long long)OFY << 16);
+    MAC0 = mac0_check(mac0);
+    long long sy_full = mac0 >> 16;
+    int sy = (sy_full < -0x400)  ? -0x400
+             : (sy_full > 0x3FF) ? 0x3FF
+                                 : (int)sy_full;
+    if (sy_full < -0x400 || sy_full > 0x3FF)
         FLAG |= FLAG_SY2_SAT;
-    }
-    SY2 = (short)(CLAMP(sy, -0x400, 0x3FF));
+    SY2 = (short)sy;
 
-    // Depth cueing only for the last vertex
+    // SXP/SYP mirror SXY2 — read of reg 15 (SXYP) returns SXY2 value.
+    SXP = SX2;
+    SYP = SY2;
+
     if (depth_cue) {
-        // MAC0=(div_result)*DQA+DQB, IR0=MAC0/1000h, saturate to 0..+1000h
-        MAC0 = div_result * DQA + DQB;
-        int ir0 = MAC0 >> 12;
-        if (ir0 < 0 || ir0 > 0x1000) {
+        // MAC0 = div_result*DQA + DQB; IR0 = MAC0 >> 12 saturated 0..1000.
+        long long m0 = (long long)div_result * DQA + (long long)DQB;
+        MAC0 = mac0_check(m0);
+        int ir0 = (int)(m0 >> 12);
+        if (ir0 < 0 || ir0 > 0x1000)
             FLAG |= FLAG_IR0_SAT;
-        }
-        IR0 = (short)(CLAMP(ir0, 0, 0x1000));
+        if (ir0 < 0)
+            ir0 = 0;
+        if (ir0 > 0x1000)
+            ir0 = 0x1000;
+        IR0 = (short)ir0;
     }
 }
 
-// Perspective Transformation (single)
-static void RTPS() {
+// Perspective Transformation (single). cmd25 is the full 25-bit cop2 imm.
+static void RTPS(unsigned int cmd25) {
+    int sf = (cmd25 >> 19) & 1;
+    int lm = (cmd25 >> 10) & 1;
     FLAG = 0;
-    RTPS_vertex(&V0, 1);
+    RTPS_vertex(&V0, sf, lm, 1);
     FLAG_update_error();
 }
 
-// Perspective Transformation (triple)
-static void RTPT() {
+// Perspective Transformation (triple).
+static void RTPT(unsigned int cmd25) {
+    int sf = (cmd25 >> 19) & 1;
+    int lm = (cmd25 >> 10) & 1;
     FLAG = 0;
-    RTPS_vertex(&V0, 0);
-    RTPS_vertex(&V1, 0);
-    RTPS_vertex(&V2, 1);
+    RTPS_vertex(&V0, sf, lm, 0);
+    RTPS_vertex(&V1, sf, lm, 0);
+    RTPS_vertex(&V2, sf, lm, 1);
     FLAG_update_error();
 }
 
-// Normal clipping
+static void color_fifo_push(void);
+
+// Matrix-vector multiply core used by MVMVA, NCS/NCT/NCDS/NCDT/NCCS/NCCT, etc.
+// Selects matrix (mx), vector (vx), and translation (cv) per psx-spx encoding.
+// Updates MAC1..3, IR1..3, and FLAG.
+static inline void matrix_vec_mul(int sf, int lm, int mx, int vx, int cv) {
+    int shift = sf ? 12 : 0;
+
+    short M_sel[3][3];
+    switch (mx) {
+    case 0:
+        M_sel[0][0] = M.m[0][0];
+        M_sel[0][1] = M.m[0][1];
+        M_sel[0][2] = M.m[0][2];
+        M_sel[1][0] = M.m[1][0];
+        M_sel[1][1] = M.m[1][1];
+        M_sel[1][2] = M.m[1][2];
+        M_sel[2][0] = M.m[2][0];
+        M_sel[2][1] = M.m[2][1];
+        M_sel[2][2] = M.m[2][2];
+        break;
+    case 1:
+        M_sel[0][0] = L1.m[0][0];
+        M_sel[0][1] = L1.m[0][1];
+        M_sel[0][2] = L1.m[0][2];
+        M_sel[1][0] = L1.m[1][0];
+        M_sel[1][1] = L1.m[1][1];
+        M_sel[1][2] = L1.m[1][2];
+        M_sel[2][0] = L1.m[2][0];
+        M_sel[2][1] = L1.m[2][1];
+        M_sel[2][2] = L1.m[2][2];
+        break;
+    case 2:
+        M_sel[0][0] = L2.m[0][0];
+        M_sel[0][1] = L2.m[0][1];
+        M_sel[0][2] = L2.m[0][2];
+        M_sel[1][0] = L2.m[1][0];
+        M_sel[1][1] = L2.m[1][1];
+        M_sel[1][2] = L2.m[1][2];
+        M_sel[2][0] = L2.m[2][0];
+        M_sel[2][1] = L2.m[2][1];
+        M_sel[2][2] = L2.m[2][2];
+        break;
+    default: {
+        // mx=3 "garbage matrix" per psx-spx:
+        //   row 0 = (-RGBC.R<<4,  RGBC.R<<4,  IR0)
+        //   row 1 = ( R13,         R13,        R13)
+        //   row 2 = ( R22,         R22,        R22)
+        short r = (short)(((unsigned char*)&RGBC)[0] << 4);
+        M_sel[0][0] = (short)-r;
+        M_sel[0][1] = r;
+        M_sel[0][2] = IR0;
+        M_sel[1][0] = M_sel[1][1] = M_sel[1][2] = M.m[0][2];
+        M_sel[2][0] = M_sel[2][1] = M_sel[2][2] = M.m[1][1];
+        break;
+    }
+    }
+
+    short Vx, Vy, Vz;
+    switch (vx) {
+    case 0:
+        Vx = V0.vx;
+        Vy = V0.vy;
+        Vz = V0.vz;
+        break;
+    case 1:
+        Vx = V1.vx;
+        Vy = V1.vy;
+        Vz = V1.vz;
+        break;
+    case 2:
+        Vx = V2.vx;
+        Vy = V2.vy;
+        Vz = V2.vz;
+        break;
+    default:
+        Vx = IR1;
+        Vy = IR2;
+        Vz = IR3;
+        break;
+    }
+
+    int t1, t2, t3;
+    switch (cv) {
+    case 0:
+        t1 = M.t[0];
+        t2 = M.t[1];
+        t3 = M.t[2];
+        break;
+    case 1:
+        t1 = L1.t[0];
+        t2 = L1.t[1];
+        t3 = L1.t[2];
+        break;
+    case 2:
+        t1 = L2.t[0];
+        t2 = L2.t[1];
+        t3 = L2.t[2];
+        break;
+    default:
+        t1 = 0;
+        t2 = 0;
+        t3 = 0;
+        break;
+    }
+
+    long long m1, m2, m3;
+    if (cv == 2) {
+        // FC bug: first multiplication FC<<12 + M[i][0]*V_x is computed, IR
+        // gets saturated but is then DISCARDED; the result keeps only the
+        // subsequent two M[i][1]*V_y + M[i][2]*V_z terms.
+        long long tmp1 = ((long long)t1 << 12) + (long long)M_sel[0][0] * Vx;
+        long long tmp2 = ((long long)t2 << 12) + (long long)M_sel[1][0] * Vx;
+        long long tmp3 = ((long long)t3 << 12) + (long long)M_sel[2][0] * Vx;
+        (void)mac_check_44(tmp1, 0);
+        (void)mac_check_44(tmp2, 1);
+        (void)mac_check_44(tmp3, 2);
+        m1 = (long long)M_sel[0][1] * Vy + (long long)M_sel[0][2] * Vz;
+        m2 = (long long)M_sel[1][1] * Vy + (long long)M_sel[1][2] * Vz;
+        m3 = (long long)M_sel[2][1] * Vy + (long long)M_sel[2][2] * Vz;
+    } else {
+        m1 = ((long long)t1 << 12) + (long long)M_sel[0][0] * Vx +
+             (long long)M_sel[0][1] * Vy + (long long)M_sel[0][2] * Vz;
+        m2 = ((long long)t2 << 12) + (long long)M_sel[1][0] * Vx +
+             (long long)M_sel[1][1] * Vy + (long long)M_sel[1][2] * Vz;
+        m3 = ((long long)t3 << 12) + (long long)M_sel[2][0] * Vx +
+             (long long)M_sel[2][1] * Vy + (long long)M_sel[2][2] * Vz;
+    }
+    m1 = mac_check_44(m1, 0);
+    m2 = mac_check_44(m2, 1);
+    m3 = mac_check_44(m3, 2);
+    MAC1 = (int)(m1 >> shift);
+    MAC2 = (int)(m2 >> shift);
+    MAC3 = (int)(m3 >> shift);
+    IR1 = ir_saturate(MAC1, lm, FLAG_IR1_SAT);
+    IR2 = ir_saturate(MAC2, lm, FLAG_IR2_SAT);
+    IR3 = ir_saturate(MAC3, lm, FLAG_IR3_SAT);
+}
+
+// Saturate to s16 (-8000..+7FFF) for the intermediate step of depth_cue.
+// Input always fits in s32 after the >>shift in the caller (FC<<12 is up to
+// s44 but >>12 brings it back to s32, and inN is already s32).
+static inline short sat_s16(int v) {
+    if (v < -0x8000)
+        return -0x8000;
+    if (v > 0x7FFF)
+        return 0x7FFF;
+    return (short)v;
+}
+
+// Depth-cue subroutine: MAC_n = inN + IR0 * sat_s16((FC_n<<12 - inN) >> sf*12),
+// shifted right by sf*12. Used by DPCS/DPCT/DCPL/INTPL/NCDS/NCDT/CDP.
+//
+// Callers pass inN that fits in s32 ((RGB<<4)*IR, IR<<12, or RGB<<16). FC<<12
+// is the only 44-bit-capable term; do that one step in s64, then drop back to
+// s32 once the diff has been saturated to s16.
+static inline void depth_cue(int sf, int lm, int inR, int inG, int inB) {
+    int shift = sf ? 12 : 0;
+    // sat_s16 of ((FC<<12 - inN) >> shift). Computed in s64 to handle the
+    // pre-shift overflow safely; result after >>12 always fits in s32.
+    short diff_r = sat_s16((int)((((long long)L2.t[0] << 12) - inR) >> shift));
+    short diff_g = sat_s16((int)((((long long)L2.t[1] << 12) - inG) >> shift));
+    short diff_b = sat_s16((int)((((long long)L2.t[2] << 12) - inB) >> shift));
+    // IR0 * diff_s16 is s16*s16 → s32. inN is s32. Sum stays in s32 here
+    // since (RGB<<16) + ((s16)0x7FFF*0x7FFF) is well within s32.
+    MAC1 = (inR + (int)IR0 * diff_r) >> shift;
+    MAC2 = (inG + (int)IR0 * diff_g) >> shift;
+    MAC3 = (inB + (int)IR0 * diff_b) >> shift;
+    IR1 = ir_saturate(MAC1, lm, FLAG_IR1_SAT);
+    IR2 = ir_saturate(MAC2, lm, FLAG_IR2_SAT);
+    IR3 = ir_saturate(MAC3, lm, FLAG_IR3_SAT);
+}
+
+// color_apply: MAC = (RGB << 4) * IR  >> sf*12. Used by CC, NCCS/NCCT.
+// (RGB byte)<<4 fits in s12; * s16 IR fits in s28 → s32 multiply suffices.
+static inline void color_apply(int sf, int lm) {
+    int shift = sf ? 12 : 0;
+    int r = ((unsigned char*)&RGBC)[0];
+    int g = ((unsigned char*)&RGBC)[1];
+    int b = ((unsigned char*)&RGBC)[2];
+    MAC1 = ((r << 4) * IR1) >> shift;
+    MAC2 = ((g << 4) * IR2) >> shift;
+    MAC3 = ((b << 4) * IR3) >> shift;
+    IR1 = ir_saturate(MAC1, lm, FLAG_IR1_SAT);
+    IR2 = ir_saturate(MAC2, lm, FLAG_IR2_SAT);
+    IR3 = ir_saturate(MAC3, lm, FLAG_IR3_SAT);
+}
+
+// depth_cue with (RGB<<4)*IR as input. Used by DCPL/NCDS/NCDT/CDP.
+// (RGB<<4) is s12, * s16 IR fits in s28 — s32 suffices.
+static inline void depth_cue_color(int sf, int lm) {
+    int r = ((unsigned char*)&RGBC)[0];
+    int g = ((unsigned char*)&RGBC)[1];
+    int b = ((unsigned char*)&RGBC)[2];
+    depth_cue(sf, lm, (r << 4) * IR1, (g << 4) * IR2, (b << 4) * IR3);
+}
+
+// SQR: square IR vector. MAC1..3 = IR1^2..IR3^2 (SAR sf*12), then IR=MAC.
+// IR is s16; IR*IR fits in s32 (worst case 0x40000000), so no 44-bit math.
+static void SQR(unsigned int cmd25) {
+    int sf = (cmd25 >> 19) & 1;
+    int lm = (cmd25 >> 10) & 1;
+    int shift = sf ? 12 : 0;
+    FLAG = 0;
+    MAC1 = ((int)IR1 * IR1) >> shift;
+    MAC2 = ((int)IR2 * IR2) >> shift;
+    MAC3 = ((int)IR3 * IR3) >> shift;
+    IR1 = ir_saturate(MAC1, lm, FLAG_IR1_SAT);
+    IR2 = ir_saturate(MAC2, lm, FLAG_IR2_SAT);
+    IR3 = ir_saturate(MAC3, lm, FLAG_IR3_SAT);
+    FLAG_update_error();
+}
+
+// OP: outer product (cross product) of D = (R11, R22, R33) and IR.
+// MAC1 = D2*IR3 - D3*IR2, MAC2 = D3*IR1 - D1*IR3, MAC3 = D1*IR2 - D2*IR1.
+static void OP(unsigned int cmd25) {
+    int sf = (cmd25 >> 19) & 1;
+    int lm = (cmd25 >> 10) & 1;
+    int shift = sf ? 12 : 0;
+    int d1 = M.m[0][0], d2 = M.m[1][1], d3 = M.m[2][2];
+    FLAG = 0;
+    long long m1 = (long long)d2 * IR3 - (long long)d3 * IR2;
+    long long m2 = (long long)d3 * IR1 - (long long)d1 * IR3;
+    long long m3 = (long long)d1 * IR2 - (long long)d2 * IR1;
+    m1 = mac_check_44(m1, 0);
+    m2 = mac_check_44(m2, 1);
+    m3 = mac_check_44(m3, 2);
+    MAC1 = (int)(m1 >> shift);
+    MAC2 = (int)(m2 >> shift);
+    MAC3 = (int)(m3 >> shift);
+    IR1 = ir_saturate(MAC1, lm, FLAG_IR1_SAT);
+    IR2 = ir_saturate(MAC2, lm, FLAG_IR2_SAT);
+    IR3 = ir_saturate(MAC3, lm, FLAG_IR3_SAT);
+    FLAG_update_error();
+}
+
+// MVMVA: configurable matrix*vector + cv. Encoding bits 13-18 in cmd25.
+static void MVMVA(unsigned int cmd25) {
+    int sf = (cmd25 >> 19) & 1;
+    int lm = (cmd25 >> 10) & 1;
+    int mx = (cmd25 >> 17) & 3;
+    int vx = (cmd25 >> 15) & 3;
+    int cv = (cmd25 >> 13) & 3;
+    FLAG = 0;
+    matrix_vec_mul(sf, lm, mx, vx, cv);
+    FLAG_update_error();
+}
+
+// NCS-style core: light_transform then color_matrix then push color.
+static inline void ncs_core(int sf, int lm, int v) {
+    matrix_vec_mul(sf, lm, 1, v, 3); // light transform: L1 * V_v + 0
+    matrix_vec_mul(sf, lm, 2, 3, 1); // color matrix: L2 * IR + BK
+    color_fifo_push();
+}
+
+// NCCS-style: light_transform + color_matrix + color_apply + push.
+static inline void nccs_core(int sf, int lm, int v) {
+    matrix_vec_mul(sf, lm, 1, v, 3);
+    matrix_vec_mul(sf, lm, 2, 3, 1);
+    color_apply(sf, lm);
+    color_fifo_push();
+}
+
+// NCDS-style: light_transform + color_matrix + depth_cue + push.
+static inline void ncds_core(int sf, int lm, int v) {
+    matrix_vec_mul(sf, lm, 1, v, 3);
+    matrix_vec_mul(sf, lm, 2, 3, 1);
+    depth_cue_color(sf, lm);
+    color_fifo_push();
+}
+
+static void NCS(unsigned int cmd) {
+    int sf = (cmd >> 19) & 1, lm = (cmd >> 10) & 1;
+    FLAG = 0;
+    ncs_core(sf, lm, 0);
+    FLAG_update_error();
+}
+static void NCT(unsigned int cmd) {
+    int sf = (cmd >> 19) & 1, lm = (cmd >> 10) & 1;
+    FLAG = 0;
+    ncs_core(sf, lm, 0);
+    ncs_core(sf, lm, 1);
+    ncs_core(sf, lm, 2);
+    FLAG_update_error();
+}
+static void NCCS(unsigned int cmd) {
+    int sf = (cmd >> 19) & 1, lm = (cmd >> 10) & 1;
+    FLAG = 0;
+    nccs_core(sf, lm, 0);
+    FLAG_update_error();
+}
+static void NCCT(unsigned int cmd) {
+    int sf = (cmd >> 19) & 1, lm = (cmd >> 10) & 1;
+    FLAG = 0;
+    nccs_core(sf, lm, 0);
+    nccs_core(sf, lm, 1);
+    nccs_core(sf, lm, 2);
+    FLAG_update_error();
+}
+static void NCDS(unsigned int cmd) {
+    int sf = (cmd >> 19) & 1, lm = (cmd >> 10) & 1;
+    FLAG = 0;
+    ncds_core(sf, lm, 0);
+    FLAG_update_error();
+}
+static void NCDT(unsigned int cmd) {
+    int sf = (cmd >> 19) & 1, lm = (cmd >> 10) & 1;
+    FLAG = 0;
+    ncds_core(sf, lm, 0);
+    ncds_core(sf, lm, 1);
+    ncds_core(sf, lm, 2);
+    FLAG_update_error();
+}
+
+// CC: color (no light transform). color_matrix + color_apply + push.
+static void CC(unsigned int cmd) {
+    int sf = (cmd >> 19) & 1, lm = (cmd >> 10) & 1;
+    FLAG = 0;
+    matrix_vec_mul(sf, lm, 2, 3, 1);
+    color_apply(sf, lm);
+    color_fifo_push();
+    FLAG_update_error();
+}
+
+// CDP: color depth cue (no light transform).
+static void CDP(unsigned int cmd) {
+    int sf = (cmd >> 19) & 1, lm = (cmd >> 10) & 1;
+    FLAG = 0;
+    matrix_vec_mul(sf, lm, 2, 3, 1);
+    depth_cue_color(sf, lm);
+    color_fifo_push();
+    FLAG_update_error();
+}
+
+// DPCS: depth cue single using RGBC<<16 as input.
+static void DPCS(unsigned int cmd) {
+    int sf = (cmd >> 19) & 1, lm = (cmd >> 10) & 1;
+    FLAG = 0;
+    unsigned char* c = (unsigned char*)&RGBC;
+    depth_cue(sf, lm, c[0] << 16, c[1] << 16, c[2] << 16);
+    color_fifo_push();
+    FLAG_update_error();
+}
+
+// DPCT: depth cue triple using RGB0<<16 as input (front of color FIFO).
+static void DPCT(unsigned int cmd) {
+    int sf = (cmd >> 19) & 1, lm = (cmd >> 10) & 1;
+    FLAG = 0;
+    for (int i = 0; i < 3; i++) {
+        int r = RGB0 & 0xFF;
+        int g = (RGB0 >> 8) & 0xFF;
+        int b = (RGB0 >> 16) & 0xFF;
+        depth_cue(sf, lm, r << 16, g << 16, b << 16);
+        color_fifo_push();
+    }
+    FLAG_update_error();
+}
+
+// DCPL: depth cue with pre-computed light (RGB<<4)*IR as input.
+static void DCPL(unsigned int cmd) {
+    int sf = (cmd >> 19) & 1, lm = (cmd >> 10) & 1;
+    FLAG = 0;
+    depth_cue_color(sf, lm);
+    color_fifo_push();
+    FLAG_update_error();
+}
+
+// INTPL: interpolate IR toward FC using IR0. IR<<12 fits in s28 → s32 ok.
+static void INTPL(unsigned int cmd) {
+    int sf = (cmd >> 19) & 1, lm = (cmd >> 10) & 1;
+    FLAG = 0;
+    depth_cue(sf, lm, IR1 << 12, IR2 << 12, IR3 << 12);
+    color_fifo_push();
+    FLAG_update_error();
+}
+
+// Push the color FIFO: shift RGB0←RGB1, RGB1←RGB2, then RGB2 = packed
+// (R,G,B,CODE) where R/G/B come from MAC1/MAC2/MAC3 >> 4 saturated to 0..0xFF,
+// CODE byte copied from RGBC (cop1.6).
+static void color_fifo_push(void) {
+    int r = MAC1 >> 4, g = MAC2 >> 4, b = MAC3 >> 4;
+    if (r < 0 || r > 0xFF)
+        FLAG |= FLAG_COL_R_SAT;
+    if (g < 0 || g > 0xFF)
+        FLAG |= FLAG_COL_G_SAT;
+    if (b < 0 || b > 0xFF)
+        FLAG |= FLAG_COL_B_SAT;
+    if (r < 0)
+        r = 0;
+    if (r > 0xFF)
+        r = 0xFF;
+    if (g < 0)
+        g = 0;
+    if (g > 0xFF)
+        g = 0xFF;
+    if (b < 0)
+        b = 0;
+    if (b > 0xFF)
+        b = 0xFF;
+    unsigned code = (*(unsigned int*)&RGBC >> 24) & 0xFF;
+    RGB0 = RGB1;
+    RGB1 = RGB2;
+    RGB2 = ((unsigned)r) | (((unsigned)g) << 8) | (((unsigned)b) << 16) |
+           (code << 24);
+}
+
+// GPF: general purpose interpolation (IR0 * IR -> MAC/IR, push color).
+// MACn = (IR0 * IRn) SAR sf*12; IRn saturates; push color FIFO using MAC1..3.
+// IR0 and IRn are s16 → s32 product (max 0x40000000), no 44-bit math.
+static void GPF(unsigned int cmd25) {
+    int sf = (cmd25 >> 19) & 1;
+    int lm = (cmd25 >> 10) & 1;
+    int shift = sf ? 12 : 0;
+    FLAG = 0;
+    MAC1 = ((int)IR0 * IR1) >> shift;
+    MAC2 = ((int)IR0 * IR2) >> shift;
+    MAC3 = ((int)IR0 * IR3) >> shift;
+    IR1 = ir_saturate(MAC1, lm, FLAG_IR1_SAT);
+    IR2 = ir_saturate(MAC2, lm, FLAG_IR2_SAT);
+    IR3 = ir_saturate(MAC3, lm, FLAG_IR3_SAT);
+    color_fifo_push();
+    FLAG_update_error();
+}
+
+// GPL: general purpose interpolation with base (MAC + IR0 * IR -> MAC/IR).
+// MACn = (MACn SHL sf*12 + IR0 * IRn) SAR sf*12; IRn saturates; push color.
+static void GPL(unsigned int cmd25) {
+    int sf = (cmd25 >> 19) & 1;
+    int lm = (cmd25 >> 10) & 1;
+    int shift = sf ? 12 : 0;
+    FLAG = 0;
+    long long m1 = ((long long)MAC1 << shift) + (long long)IR0 * IR1;
+    long long m2 = ((long long)MAC2 << shift) + (long long)IR0 * IR2;
+    long long m3 = ((long long)MAC3 << shift) + (long long)IR0 * IR3;
+    m1 = mac_check_44(m1, 0);
+    m2 = mac_check_44(m2, 1);
+    m3 = mac_check_44(m3, 2);
+    MAC1 = (int)(m1 >> shift);
+    MAC2 = (int)(m2 >> shift);
+    MAC3 = (int)(m3 >> shift);
+    IR1 = ir_saturate(MAC1, lm, FLAG_IR1_SAT);
+    IR2 = ir_saturate(MAC2, lm, FLAG_IR2_SAT);
+    IR3 = ir_saturate(MAC3, lm, FLAG_IR3_SAT);
+    color_fifo_push();
+    FLAG_update_error();
+}
+
+// Normal clipping. MAC0 = SX0*(SY1-SY2) + SX1*(SY2-SY0) + SX2*(SY0-SY1).
+// Each chained addition is checked at MAC0's 32-bit boundary.
 static void NCLIP() {
     FLAG = 0;
-    MAC0 = SX0 * (SY1 - SY2) + SX1 * (SY2 - SY0) + SX2 * (SY0 - SY1);
+    long long m = 0;
+    m += (long long)SX0 * (SY1 - SY2);
+    MAC0 = mac0_check(m);
+    m += (long long)SX1 * (SY2 - SY0);
+    MAC0 = mac0_check(m);
+    m += (long long)SX2 * (SY0 - SY1);
+    MAC0 = mac0_check(m);
+    FLAG_update_error();
 }
 
 // Average of three Z values
@@ -389,7 +987,7 @@ void RotTrans(SVECTOR* v0, VECTOR* v1, int* flag) { NOT_IMPLEMENTED; }
 
 long RotTransPers(SVECTOR* v0, int* sxy, int* p, int* flag) {
     V0 = *v0;
-    RTPS();
+    RTPS(0x080001);
     *(unsigned int*)sxy = SX2 | (SY2 << 16);
     *p = IR0;
     *flag = (int)FLAG;
@@ -401,7 +999,7 @@ long RotTransPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0, int* sxy1,
     V0 = *v0;
     V1 = *v1;
     V2 = *v2;
-    RTPT();
+    RTPT(0x080030);
     *(unsigned int*)sxy0 = SX0 | (SY0 << 16);
     *(unsigned int*)sxy1 = SX1 | (SY1 << 16);
     *(unsigned int*)sxy2 = SX2 | (SY2 << 16);
@@ -425,7 +1023,7 @@ long RotAverage3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0, int* sxy1,
     V0 = *v0;
     V1 = *v1;
     V2 = *v2;
-    RTPT();
+    RTPT(0x080030);
     *(unsigned int*)sxy0 = SX0 | (SY0 << 16);
     *(unsigned int*)sxy1 = SX1 | (SY1 << 16);
     *(unsigned int*)sxy2 = SX2 | (SY2 << 16);
@@ -440,13 +1038,13 @@ long RotAverage4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, int* sxy0,
     V0 = *v0;
     V1 = *v1;
     V2 = *v2;
-    RTPT();
+    RTPT(0x080030);
     *(unsigned int*)sxy0 = SX0 | (SY0 << 16);
     *(unsigned int*)sxy1 = SX1 | (SY1 << 16);
     *(unsigned int*)sxy2 = SX2 | (SY2 << 16);
     int flag1 = (int)FLAG;
     V0 = *v3;
-    RTPS();
+    RTPS(0x080001);
     *(unsigned int*)sxy3 = SX2 | (SY2 << 16);
     *p = IR0;
     *flag = flag1 | (int)FLAG;
@@ -459,7 +1057,7 @@ long RotAverageNclip3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0,
     V0 = *v0;
     V1 = *v1;
     V2 = *v2;
-    RTPT();
+    RTPT(0x080030);
     *flag = (int)FLAG;
     NCLIP();
     if (MAC0 > 0) {
@@ -479,7 +1077,7 @@ long RotAverageNclip4(
     V0 = *v0;
     V1 = *v1;
     V2 = *v2;
-    RTPT();
+    RTPT(0x080030);
     int flag1 = (int)FLAG;
     *flag = flag1;
     NCLIP();
@@ -488,7 +1086,7 @@ long RotAverageNclip4(
         *(unsigned int*)sxy1 = SX1 | (SY1 << 16);
         *(unsigned int*)sxy2 = SX2 | (SY2 << 16);
         V0 = *v3;
-        RTPS();
+        RTPS(0x080001);
         *(unsigned int*)sxy3 = SX2 | (SY2 << 16);
         *p = IR0;
         *flag = flag1 | (int)FLAG;
@@ -578,6 +1176,14 @@ unsigned int Psyz_GteDataRead(unsigned idx) {
         return (unsigned int)SZ2;
     case 19:
         return (unsigned int)SZ3;
+    case 20:
+        return RGB0;
+    case 21:
+        return RGB1;
+    case 22:
+        return RGB2;
+    case 23:
+        return RES1;
     case 24:
         return (unsigned int)MAC0;
     case 25:
@@ -655,6 +1261,18 @@ void Psyz_GteDataWrite(unsigned idx, unsigned int v) {
         break;
     case 19:
         SZ3 = (u16)(v & 0xFFFF);
+        break;
+    case 20:
+        RGB0 = v;
+        break;
+    case 21:
+        RGB1 = v;
+        break;
+    case 22:
+        RGB2 = v;
+        break;
+    case 23:
+        RES1 = v;
         break;
     case 24:
         MAC0 = (int)v;
@@ -880,10 +1498,52 @@ void Psyz_GteCommand(unsigned int cmd) {
     unsigned op = cmd & 0x3F;
     switch (op) {
     case 0x01:
-        RTPS();
+        RTPS(cmd);
         break;
     case 0x06:
         NCLIP();
+        break;
+    case 0x0C:
+        OP(cmd);
+        break;
+    case 0x10:
+        DPCS(cmd);
+        break;
+    case 0x11:
+        INTPL(cmd);
+        break;
+    case 0x12:
+        MVMVA(cmd);
+        break;
+    case 0x13:
+        NCDS(cmd);
+        break;
+    case 0x14:
+        CDP(cmd);
+        break;
+    case 0x16:
+        NCDT(cmd);
+        break;
+    case 0x1B:
+        NCCS(cmd);
+        break;
+    case 0x1C:
+        CC(cmd);
+        break;
+    case 0x1E:
+        NCS(cmd);
+        break;
+    case 0x20:
+        NCT(cmd);
+        break;
+    case 0x28:
+        SQR(cmd);
+        break;
+    case 0x29:
+        DCPL(cmd);
+        break;
+    case 0x2A:
+        DPCT(cmd);
         break;
     case 0x2D:
         AVSZ3();
@@ -892,7 +1552,16 @@ void Psyz_GteCommand(unsigned int cmd) {
         AVSZ4();
         break;
     case 0x30:
-        RTPT();
+        RTPT(cmd);
+        break;
+    case 0x3D:
+        GPF(cmd);
+        break;
+    case 0x3E:
+        GPL(cmd);
+        break;
+    case 0x3F:
+        NCCT(cmd);
         break;
     default:
         WARNF("unhandled GTE op:%02X", op);

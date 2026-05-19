@@ -181,14 +181,131 @@ TEST_F(gte_Test, square_root_12) {
     EXPECT_EQ(SquareRoot12(0x10000000), 0x100000);
 }
 
-TEST_F(gte_Test, average_z4) {
-    InitGeom();
+// Some GTE tests are ports from the PCSX Redux regression suite
+// https://github.com/grumpycoders/pcsx-redux/tree/main/src/mips/tests/gte
+
+TEST_F(gte_Test, avsz3_uses_sz123) {
+    EXPECT_EQ(AverageZ3(1000, 2000, 3000), 499);
+}
+
+TEST_F(gte_Test, avsz4_basic) {
     EXPECT_EQ(AverageZ4(0x1000, 0x2000, 0x3000, 0x4000), 0xA00);
 }
 
-TEST_F(gte_Test, normal_clip) {
-    InitGeom();
-    EXPECT_EQ(NormalClip(0x400010, 0x300020, 0x800030), 0x600);
+TEST_F(gte_Test, nclip_ccw) {
+    EXPECT_EQ(NormalClip(0x00000000, 0x00000064, 0x00640000), 10000);
+}
+
+TEST_F(gte_Test, nclip_cw) {
+    EXPECT_EQ(NormalClip(0x00000000, 0x00640000, 0x00000064), -10000);
+}
+
+TEST_F(gte_Test, nclip_collinear) {
+    EXPECT_EQ(NormalClip(0x00000000, 0x00320032, 0x00640064), 0);
+}
+
+TEST_F(gte_Test, nclip_large_coords) {
+    EXPECT_EQ(NormalClip(0xFC0003FF, 0x03FFFC00, 0x00000000), -2047);
+}
+
+TEST_F(gte_Test, nclip_overflow) {
+    EXPECT_EQ(NormalClip(0x7FFF7FFF, 0x7FFF8000, 0x80007FFF), -131071);
+}
+
+TEST_F(gte_Test, rtps_identity_center) {
+    RTPContext ctx;
+    ctx.SetRotM(0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000);
+    ctx.SetTransM(0, 0, 1000);
+    SetGeomOffset(160, 120);
+    SetGeomScreen(200);
+    ctx.svs[0].vx = 0;
+    ctx.svs[0].vy = 0;
+    ctx.svs[0].vz = 0;
+    long sz = ctx.RotTransPers();
+    EXPECT_EQ(sz, 1000 >> 2);
+    EXPECT_EQ((short)ctx.lgs[0], 160);
+    EXPECT_EQ((short)(ctx.lgs[0] >> 16), 120);
+}
+
+TEST_F(gte_Test, rtps_offset_vertex) {
+    RTPContext ctx;
+    ctx.SetRotM(0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000);
+    ctx.SetTransM(0, 0, 0);
+    SetGeomOffset(160, 120);
+    SetGeomScreen(200);
+    ctx.svs[0].vx = 100;
+    ctx.svs[0].vy = 50;
+    ctx.svs[0].vz = 500;
+    ctx.RotTransPers();
+    EXPECT_EQ((short)ctx.lgs[0], 199);
+    EXPECT_EQ((short)(ctx.lgs[0] >> 16), 139);
+}
+
+TEST_F(gte_Test, rtps_division_overflow) {
+    RTPContext ctx;
+    ctx.SetRotM(0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000);
+    ctx.SetTransM(0, 0, 0);
+    SetGeomOffset(0, 0);
+    SetGeomScreen(200);
+    ctx.svs[0].vx = 100;
+    ctx.svs[0].vy = 0;
+    ctx.svs[0].vz = 1;
+    ctx.RotTransPers();
+    EXPECT_EQ((ctx.flag >> 17) & 1u, 1u);
+}
+
+TEST_F(gte_Test, rtps_screen_saturation) {
+    RTPContext ctx;
+    ctx.SetRotM(0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000);
+    ctx.SetTransM(0, 0, 0);
+    SetGeomOffset(0, 0);
+    SetGeomScreen(200);
+    ctx.svs[0].vx = 0x7FFF;
+    ctx.svs[0].vy = 0;
+    ctx.svs[0].vz = 100;
+    ctx.RotTransPers();
+    EXPECT_EQ((short)ctx.lgs[0], 0x3FF);
+    EXPECT_EQ((ctx.flag >> 14) & 1u, 1u);
+}
+
+TEST_F(gte_Test, rtpt_three_vertices) {
+    RTPContext ctx;
+    ctx.SetRotM(0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000);
+    ctx.SetTransM(0, 0, 0);
+    SetGeomOffset(160, 120);
+    SetGeomScreen(200);
+    ctx.svs[0].vx = 0;
+    ctx.svs[0].vy = 0;
+    ctx.svs[0].vz = 1000;
+    ctx.svs[1].vx = 100;
+    ctx.svs[1].vy = 0;
+    ctx.svs[1].vz = 1000;
+    ctx.svs[2].vx = 0;
+    ctx.svs[2].vy = 100;
+    ctx.svs[2].vz = 1000;
+    ctx.RotTransPers3();
+    EXPECT_EQ((short)ctx.lgs[0], 160);
+    EXPECT_EQ((short)(ctx.lgs[0] >> 16), 120);
+    EXPECT_EQ((short)(ctx.lgs[1] >> 16), 120);
+}
+
+TEST_F(gte_Test, rtpt_sz_fifo) {
+    RTPContext ctx;
+    ctx.SetRotM(0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000);
+    ctx.SetTransM(0, 0, 0);
+    SetGeomOffset(160, 120);
+    SetGeomScreen(200);
+    ctx.svs[0].vx = 0;
+    ctx.svs[0].vy = 0;
+    ctx.svs[0].vz = 100;
+    ctx.svs[1].vx = 0;
+    ctx.svs[1].vy = 0;
+    ctx.svs[1].vz = 200;
+    ctx.svs[2].vx = 0;
+    ctx.svs[2].vy = 0;
+    ctx.svs[2].vz = 300;
+    long sz = ctx.RotTransPers3();
+    EXPECT_EQ(sz, 300 >> 2);
 }
 
 TEST_F(gte_Test, rot_trans_pers_trans_matrix) {
