@@ -88,11 +88,9 @@ void Psyz_SpuFifoWrite(unsigned short word) {
     spu.transfer_addr = (spu.transfer_addr + 2) & (PSYZ_SPU_RAM_SIZE - 1);
 }
 
-void Psyz_SpuWriteToRam(const unsigned char* src, unsigned int size) {
-    for (unsigned int i = 0; i < size; i++) {
-        spu.ram[spu.transfer_addr] = src[i];
-        spu.transfer_addr = (spu.transfer_addr + 1) & (PSYZ_SPU_RAM_SIZE - 1);
-    }
+void Psyz_SpuFifoWriteBulk(const unsigned char* src, unsigned int size) {
+    Psyz_SpuMemWrite(spu.transfer_addr, src, size);
+    spu.transfer_addr = (spu.transfer_addr + size) & (PSYZ_SPU_RAM_SIZE - 1);
 }
 
 void Psyz_SpuMemRead(unsigned int offset, void* dst, unsigned int size) {

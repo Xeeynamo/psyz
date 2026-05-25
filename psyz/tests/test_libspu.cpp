@@ -134,6 +134,14 @@ TEST_F(spu_Test, RegWriteBulkUploadViaFifoMatchesPayload) {
     EXPECT_EQ(Psyz_SpuGetTransferAddr(), 0x400u + sizeof(payload));
 }
 
+TEST_F(spu_Test, MemWriteBulkDepositsAndAdvancesCursor) {
+    Psyz_SpuSetTransferAddr(0x2000);
+    unsigned char payload[6] = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60};
+    Psyz_SpuFifoWriteBulk(payload, sizeof(payload));
+    EXPECT_EQ(Psyz_SpuGetTransferAddr(), 0x2000u + sizeof(payload));
+    EXPECT_EQ(0, memcmp(&Psyz_SpuGetRam()[0x2000], payload, sizeof(payload)));
+}
+
 TEST_F(spu_Test, BulkUploadViaFifoMatchesDirectMemWrite) {
     unsigned char payload[1024];
     for (size_t i = 0; i < sizeof(payload); i++) {

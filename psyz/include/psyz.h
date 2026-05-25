@@ -123,14 +123,16 @@ void Psyz_SpuSetTransferAddr(unsigned int addr);
 // current transfer address in SPU RAM and bumps transfer address by 2.
 void Psyz_SpuFifoWrite(unsigned short word);
 
-// Write `size` raw bytes to SPU RAM starting at the current transfer address.
-// The address auto-advances and wraps at 512 KB.
-void Psyz_SpuWriteToRam(const unsigned char* src, unsigned int size);
+// Faster version of Psyz_SpuFifoWrite bypassing individual writes. Unlike
+// Uses xfer_addr as destination address, updates it at the end of the call.
+void Psyz_SpuFifoWriteBulk(const unsigned char* src, unsigned int size);
 
 // Read `size` bytes from SPU RAM at byte `offset`. Wraps at 512 KB.
+// Does not affect xfer_addr. Useful for debugging.
 void Psyz_SpuMemRead(unsigned int offset, void* dst, unsigned int size);
 
 // Write `size` bytes into SPU RAM at byte `offset`. Wraps at 512 KB.
+// Does not affect xfer_addr. Useful for debugging.
 void Psyz_SpuMemWrite(unsigned int offset, const void* src, unsigned int size);
 
 // Direct pointer to the 512 KB SPU RAM (for tests and offline rendering).
