@@ -125,8 +125,7 @@ TEST_F(spu_Test, RegWriteBulkUploadViaFifoMatchesPayload) {
     Psyz_SpuWrite(0x1A6, 0x0080);
     for (size_t i = 0; i < sizeof(payload); i += 2) {
         Psyz_SpuWrite(
-            0x1A8,
-            (unsigned short)(payload[i] | (payload[i + 1] << 8)));
+            0x1A8, (unsigned short)(payload[i] | (payload[i + 1] << 8)));
     }
     unsigned char buf[256];
     Psyz_SpuMemRead(0x400, buf, sizeof(buf));
@@ -149,8 +148,7 @@ TEST_F(spu_Test, BulkUploadViaFifoMatchesDirectMemWrite) {
     }
     Psyz_SpuSetTransferAddr(0x10000);
     for (size_t i = 0; i < sizeof(payload); i += 2) {
-        unsigned short w =
-            (unsigned short)(payload[i] | (payload[i + 1] << 8));
+        unsigned short w = (unsigned short)(payload[i] | (payload[i + 1] << 8));
         Psyz_SpuFifoWrite(w);
     }
     Psyz_SpuMemWrite(0x20000, payload, sizeof(payload));

@@ -5,8 +5,8 @@
 #include "../../decomp/src/libspu/libspu_private.h"
 
 _Static_assert(sizeof(SPU_RXX) == 0x200, "SPU_RXX must be 0x200 bytes");
-_Static_assert(sizeof(union SpuUnion) == sizeof(SPU_RXX),
-               "SpuUnion must alias SPU_RXX");
+_Static_assert(
+    sizeof(union SpuUnion) == sizeof(SPU_RXX), "SpuUnion must alias SPU_RXX");
 
 static short clamp16(int v) {
     if (v < -32768)
@@ -82,7 +82,7 @@ void Psyz_SpuFifoWrite(unsigned short word) {
 #ifdef PLATFORM_LE
     *(unsigned short*)&spu.ram[spu.transfer_addr] = word;
 #else
-    spu.ram[spu.transfer_addr]     = (unsigned char)(word & 0xFF);
+    spu.ram[spu.transfer_addr] = (unsigned char)(word & 0xFF);
     spu.ram[spu.transfer_addr + 1] = (unsigned char)((word >> 8) & 0xFF);
 #endif
     spu.transfer_addr = (spu.transfer_addr + 2) & (PSYZ_SPU_RAM_SIZE - 1);
