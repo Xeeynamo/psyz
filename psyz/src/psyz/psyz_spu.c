@@ -4,9 +4,11 @@
 #include <string.h>
 #include "../../decomp/src/libspu/libspu_private.h"
 
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 _Static_assert(sizeof(SPU_RXX) == 0x200, "SPU_RXX must be 0x200 bytes");
 _Static_assert(
     sizeof(union SpuUnion) == sizeof(SPU_RXX), "SpuUnion must alias SPU_RXX");
+#endif
 
 static short clamp16(int v) {
     if (v < -32768)
