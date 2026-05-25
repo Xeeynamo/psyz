@@ -102,12 +102,38 @@ void Psyz_SpuInit(void);
 // the reset (mirrors the PSX-Q "hot init" semantics for libspu).
 void Psyz_SpuReset(int hot);
 
-// Set the SPU RAM transfer address (byte address into the 512 KB RAM).
+// Write one 16-bit value into the SPU register file at the given offset
+// relative to 0x1F801C00; valid range 0x000-0x1FF. Certain registers can
+// trigger a side-effect. Please refer to psxspx docs for SPU reference.
+void Psyz_SpuWrite(unsigned int reg_offset, unsigned short value);
+
+// Read back one 16-bit value from the SPU register file at the given register
+// relative to 0x1F801C00; valid range 0x000-0x1FF. Internally maps to SPU_RXX.
+unsigned short Psyz_SpuRead(unsigned int reg_offset);
+
+// Read back the current SPU transfer address. Maps to xfer_addr register.
+unsigned int Psyz_SpuGetTransferAddr(void);
+
+// Set the SPU RAM transfer address, aka destination offset to the 512KB RAM.
+// Maps to the PSX SPU register 0x1F801DA6 (xfer_addr) divided by 8.
 void Psyz_SpuSetTransferAddr(unsigned int addr);
 
-// Write `size` raw bytes to SPU RAM starting at the current transfer address.
-// The address auto-advances and wraps at 512 KB.
-void Psyz_SpuWriteToRam(const unsigned char* src, unsigned int size);
+// Push one 16-bit word into the SPU transfer FIFO. Maps to a write of SPU
+// register 0x1F801DA8 (xfer_fifo). Each call deposits the word at the
+// current transfer address in SPU RAM and bumps transfer address by 2.
+void Psyz_SpuFifoWrite(unsigned short word);
+
+// Faster version of Psyz_SpuFifoWrite bypassing individual writes. Unlike
+// Uses xfer_addr as destination address, updates it at the end of the call.
+void Psyz_SpuFifoWriteBulk(const unsigned char* src, unsigned int size);
+
+// Read `size` bytes from SPU RAM at byte `offset`. Wraps at 512 KB.
+// Does not affect xfer_addr. Useful for debugging.
+void Psyz_SpuMemRead(unsigned int offset, void* dst, unsigned int size);
+
+// Write `size` bytes into SPU RAM at byte `offset`. Wraps at 512 KB.
+// Does not affect xfer_addr. Useful for debugging.
+void Psyz_SpuMemWrite(unsigned int offset, const void* src, unsigned int size);
 
 // Direct pointer to the 512 KB SPU RAM (for tests and offline rendering).
 unsigned char* Psyz_SpuGetRam(void);

@@ -1,7 +1,14 @@
 #include <psyz.h>
 #include <psyz/log.h>
+#include <assert.h>
 #include <string.h>
 #include "../../decomp/src/libspu/libspu_private.h"
+
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+_Static_assert(sizeof(SPU_RXX) == 0x200, "SPU_RXX must be 0x200 bytes");
+_Static_assert(
+    sizeof(union SpuUnion) == sizeof(SPU_RXX), "SpuUnion must alias SPU_RXX");
+#endif
 
 static short clamp16(int v) {
     if (v < -32768)
@@ -71,10 +78,76 @@ void Psyz_SpuSetTransferAddr(unsigned int addr) {
     spu.transfer_addr = addr & (PSYZ_SPU_RAM_SIZE - 1);
 }
 
-void Psyz_SpuWriteToRam(const unsigned char* src, unsigned int size) {
-    for (unsigned int i = 0; i < size; i++) {
-        spu.ram[spu.transfer_addr] = src[i];
-        spu.transfer_addr = (spu.transfer_addr + 1) & (PSYZ_SPU_RAM_SIZE - 1);
+unsigned int Psyz_SpuGetTransferAddr(void) { return spu.transfer_addr; }
+
+void Psyz_SpuFifoWrite(unsigned short word) {
+#ifdef PLATFORM_LE
+    *(unsigned short*)&spu.ram[spu.transfer_addr] = word;
+#else
+    spu.ram[spu.transfer_addr] = (unsigned char)(word & 0xFF);
+    spu.ram[spu.transfer_addr + 1] = (unsigned char)((word >> 8) & 0xFF);
+#endif
+    spu.transfer_addr = (spu.transfer_addr + 2) & (PSYZ_SPU_RAM_SIZE - 1);
+}
+
+void Psyz_SpuFifoWriteBulk(const unsigned char* src, unsigned int size) {
+    Psyz_SpuMemWrite(spu.transfer_addr, src, size);
+    spu.transfer_addr = (spu.transfer_addr + size) & (PSYZ_SPU_RAM_SIZE - 1);
+}
+
+void Psyz_SpuMemRead(unsigned int offset, void* dst, unsigned int size) {
+    unsigned int start = offset & (PSYZ_SPU_RAM_SIZE - 1);
+    unsigned int head = PSYZ_SPU_RAM_SIZE - start;
+    if (size <= head) {
+        memcpy(dst, &spu.ram[start], size);
+    } else {
+        memcpy(dst, &spu.ram[start], head);
+        memcpy((unsigned char*)dst + head, &spu.ram[0], size - head);
+    }
+}
+
+void Psyz_SpuMemWrite(unsigned int offset, const void* src, unsigned int size) {
+    unsigned int start = offset & (PSYZ_SPU_RAM_SIZE - 1);
+    unsigned int head = PSYZ_SPU_RAM_SIZE - start;
+    if (size <= head) {
+        memcpy(&spu.ram[start], src, size);
+    } else {
+        memcpy(&spu.ram[start], src, head);
+        memcpy(&spu.ram[0], (const unsigned char*)src + head, size - head);
+    }
+}
+
+void Psyz_SpuWrite(unsigned int reg_offset, unsigned short value) {
+    if (reg_offset >= sizeof(SPU_RXX) || (reg_offset & 1)) {
+        WARNF("Psyz_SpuWrite: bad offset 0x%X", reg_offset);
+        return;
+    }
+    _spu_RXX->raw[reg_offset >> 1] = value;
+    switch (reg_offset) {
+    case 0x1A6: // xfer_addr
+        Psyz_SpuSetTransferAddr((unsigned int)value << 3);
+        break;
+    case 0x1A8: // xfer_fifo
+        Psyz_SpuFifoWrite(value);
+        break;
+    default:
+        break;
+    }
+}
+
+unsigned short Psyz_SpuRead(unsigned int reg_offset) {
+    if (reg_offset >= 0x200 || (reg_offset & 1)) {
+        WARNF("Psyz_SpuRead: bad offset 0x%X", reg_offset);
+        return 0;
+    }
+    switch (reg_offset) {
+    case 0x1A6: // xfer_addr
+        return (unsigned short)((spu.transfer_addr >> 3) & 0xFFFF);
+    case 0x1AE: // SPUSTAT
+        // lower 6 bits mirror SPUCNT's low bits
+        return (unsigned short)(_spu_RXX->raw[0x1AA >> 1] & 0x3F);
+    default:
+        return _spu_RXX->raw[reg_offset >> 1];
     }
 }
 
