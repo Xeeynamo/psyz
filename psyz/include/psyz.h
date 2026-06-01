@@ -90,10 +90,10 @@ struct PsyzDiskRead {
 typedef int (*DiskReadCB)(struct PsyzDiskRead* read);
 
 // PS1 SPU constants (the SPU emulator is platform-agnostic; SDL or any other
-// audio backend pulls 44100 Hz stereo s16 frames from Psyz_SpuPullSamples).
-#define PSYZ_SPU_RAM_SIZE (512 * 1024)
-#define PSYZ_SPU_NUM_VOICES 24
-#define PSYZ_SPU_SAMPLE_RATE 44100
+// audio backend pulls 44100 Hz stereo short frames from Psyz_SpuPullSamples).
+#define PSYZ_SPU_RAM_SIZE (512 * 1024) // must be a power of two
+#define PSYZ_SPU_NUM_VOICES 24         // match PS1 voice count
+#define PSYZ_SPU_SAMPLE_RATE 44100     // match fixed PS1 sample rate
 
 // Initialize SPU emulation state. Idempotent; safe to call multiple times.
 void Psyz_SpuInit(void);
