@@ -317,6 +317,10 @@ static int voice_decode_one_sample(VoiceState* vs) {
 static short voice_step(int v) {
     VoiceState* vs = &spu.voice[v];
 
+    // for pitch changes during voice on, enable vibrato or bends
+    unsigned pitch = _spu_RXX->rxx.voice[v].pitch & 0x3FFF;
+    vs->sinc = pitch ? pitch << 4 : 1;
+
     // consume decoded samples until the pitch counter is below 1.0
     while (vs->spos >= 0x10000) {
         if (!voice_decode_one_sample(vs)) {
