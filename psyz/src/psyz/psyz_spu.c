@@ -214,9 +214,11 @@ static void write_capture(unsigned int idx, short val) {
     }
 }
 
+static short voice_step(int v) { return 0; }
+
 // generate one frame at 44100hz with voices mix, cd playback and volume control
 static void spu_tick(short* out) {
-    SPU_RXX* rxx = (SPU_RXX*)_spu_RXX;
+    SPU_RXX* rxx = (SPU_RXX*)&_spu_RXX->rxx;
     unsigned short spucnt = rxx->spucnt;
 
     // accumulate frame to each separate channels
@@ -244,7 +246,12 @@ static void spu_tick(short* out) {
         spu.cd_ring_count--;
     }
 
-    // TODO: voice mixing, populate left_sum/right_sum before this branch.
+    // bare-bone voice mixer -- no envelope, no volume, no resampling
+    for (int v = 0; v < PSYZ_SPU_NUM_VOICES; v++) {
+        short s = voice_step(v);
+        left_sum += s;
+        right_sum += s;
+    }
 
     // Mute all voices. CD audio is mixed after, and not affected by mute.
     if (!(spucnt & SPU_CTRL_MASK_MUTE_SPU)) {
