@@ -222,39 +222,32 @@ void Psyz_SpuWrite(unsigned int reg_offset, unsigned short value) {
         return;
     }
     _spu_RXX->raw[reg_offset >> 1] = value;
-    switch (reg_offset) {
-    case offsetof(SPU_RXX, key_on[0]): // voices 0..15
+    // MSVC's C-mode offsetof is not an integer constant expression, so it
+    // cannot appear in a case label. Use an if-chain instead.
+    if (reg_offset == offsetof(SPU_RXX, key_on[0])) { // voices 0..15
         for (int v = 0; v < 16; v++) {
             if (value & (1u << v))
                 spu_key_on_voice(v);
         }
-        break;
-    case offsetof(SPU_RXX, key_on[1]): // voices 16..23
+    } else if (reg_offset == offsetof(SPU_RXX, key_on[1])) { // voices 16..23
         for (int v = 0; v < 8; v++) {
             if (value & (1u << v))
                 spu_key_on_voice(16 + v);
         }
-        break;
-    case offsetof(SPU_RXX, key_off[0]): // voices 0..15
+    } else if (reg_offset == offsetof(SPU_RXX, key_off[0])) { // voices 0..15
         for (int v = 0; v < 16; v++) {
             if (value & (1u << v))
                 spu.voice[v].active = 0;
         }
-        break;
-    case offsetof(SPU_RXX, key_off[1]): // voices 16..23
+    } else if (reg_offset == offsetof(SPU_RXX, key_off[1])) { // voices 16..23
         for (int v = 0; v < 8; v++) {
             if (value & (1u << v))
                 spu.voice[16 + v].active = 0;
         }
-        break;
-    case offsetof(SPU_RXX, trans_addr):
+    } else if (reg_offset == offsetof(SPU_RXX, trans_addr)) {
         Psyz_SpuSetTransferAddr((unsigned)value << 3);
-        break;
-    case offsetof(SPU_RXX, trans_fifo):
+    } else if (reg_offset == offsetof(SPU_RXX, trans_fifo)) {
         Psyz_SpuFifoWrite(value);
-        break;
-    default:
-        break;
     }
 }
 
@@ -263,17 +256,17 @@ unsigned short Psyz_SpuRead(unsigned int reg_offset) {
         WARNF("Psyz_SpuRead: bad offset 0x%X", reg_offset);
         return 0;
     }
-    switch (reg_offset) {
-    case offsetof(SPU_RXX, trans_addr):
+    // offsetof is not an ICE under MSVC C mode, so it cannot be a case label.
+    if (reg_offset == offsetof(SPU_RXX, trans_addr)) {
         return (unsigned short)((spu.transfer_addr >> 3) & 0xFFFF);
-    case offsetof(SPU_RXX, spustat):
+    }
+    if (reg_offset == offsetof(SPU_RXX, spustat)) {
         // lower 6 bits mirror SPUCNT's low bits
         // bit 11, capture-buffer half-pointer, flipped by spu_tick.
         return (_spu_RXX->rxx.spucnt & 0x3F) |
                (_spu_RXX->rxx.spustat & (1u << 11));
-    default:
-        return _spu_RXX->raw[reg_offset >> 1];
     }
+    return _spu_RXX->raw[reg_offset >> 1];
 }
 
 static void write_capture(unsigned int idx, short val) {
