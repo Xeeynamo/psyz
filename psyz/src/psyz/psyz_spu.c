@@ -75,6 +75,15 @@ static void spu_adpcm_decode_block(
 #define CD_RING_FRAMES 4096               // must be power of 2
 #define CD_RING_MASK (CD_RING_FRAMES - 1) // ring wrapper
 #define CD_RING_LOW_WATER 1024            // refill when short of N frames
+#define ENV_KEYON_DELAY_TICKS 6 // latency to simulate PS1 SPU latching a key-on
+
+typedef enum {
+    ADSR_ATTACK = 0,
+    ADSR_DECAY,
+    ADSR_SUSTAIN,
+    ADSR_RELEASE,
+    ADSR_OFF,
+} AdsrState;
 
 typedef struct {
     unsigned cur_addr;    // current 16-byte block address in SPU RAM
@@ -89,6 +98,13 @@ typedef struct {
     u8 gpos;        // index to next decoded sample in gwin
     u8 active;
     u8 needs_decode;
+    int env_vol;          // mirrors SPU_VOICE_REG::volumex
+    unsigned env_counter; // rate divider, increases by 1 for all voice duration
+    AdsrState env_state;  // voice phase, works like a state machine
+    u8 key_off;           // set by key-off; drives the release phase
+    u8 delay_ticks;       // key-on -> envelope-start pipeline latency
+    u16 adsr_lo;          // mirrors SPU_VOICE_REG::adsr[0]
+    u16 adsr_hi;          // mirrors SPU_VOICE_REG::adsr[1]
 } VoiceState;
 
 // Full SPU state
@@ -103,11 +119,10 @@ static struct {
 
     VoiceState voice[PSYZ_SPU_NUM_VOICES];
 
-    // CD audio ring buffer + pull callback
+    // CD audio ring buffer, refilled by Psyz_CdPullSamples
     short cd_ring[CD_RING_FRAMES * N_CHANNELS];
     unsigned cd_ring_read;
     unsigned cd_ring_count; // number of valid frames in ring
-    void* cd_audio_userdata;
 
     u8 initialized;
 } spu;
@@ -124,6 +139,9 @@ void Psyz_SpuInit(void) {
 
 static void spu_reset(void) {
     _spu_RXX->rxx.spustat = 0;
+    for (int v = 0; v < PSYZ_SPU_NUM_VOICES; v++) {
+        _spu_RXX->rxx.voice[v].volumex = 0;
+    }
     memset(&spu, 0, sizeof(spu));
 }
 
@@ -211,6 +229,16 @@ static void spu_key_on_voice(int v) {
     // We do not reset vs->gpos at key-on for accuracy. On real PS1 hardware,
     // a voice on will carry the residual state from prior voice activity
     vs->active = 1;
+
+    // reset the envelope to a fresh attack from zero
+    vs->adsr_lo = rxx->voice[v].adsr[0];
+    vs->adsr_hi = rxx->voice[v].adsr[1];
+    vs->env_vol = 0;
+    vs->env_counter = 0;
+    vs->env_state = ADSR_ATTACK;
+    vs->key_off = 0;
+    vs->delay_ticks = ENV_KEYON_DELAY_TICKS;
+    rxx->voice[v].volumex = 0;
 }
 
 void Psyz_SpuWrite(unsigned int reg_offset, unsigned short value) {
@@ -237,12 +265,12 @@ void Psyz_SpuWrite(unsigned int reg_offset, unsigned short value) {
     } else if (reg_offset == offsetof(SPU_RXX, key_off[0])) { // voices 0..15
         for (int v = 0; v < 16; v++) {
             if (value & (1u << v))
-                spu.voice[v].active = 0;
+                spu.voice[v].key_off = 1;
         }
     } else if (reg_offset == offsetof(SPU_RXX, key_off[1])) { // voices 16..23
         for (int v = 0; v < 8; v++) {
             if (value & (1u << v))
-                spu.voice[16 + v].active = 0;
+                spu.voice[16 + v].key_off = 1;
         }
     } else if (reg_offset == offsetof(SPU_RXX, trans_addr)) {
         Psyz_SpuSetTransferAddr((unsigned)value << 3);
@@ -252,7 +280,7 @@ void Psyz_SpuWrite(unsigned int reg_offset, unsigned short value) {
 }
 
 unsigned short Psyz_SpuRead(unsigned int reg_offset) {
-    if (reg_offset >= 0x200 || (reg_offset & 1)) {
+    if (reg_offset >= sizeof(SPU_RXX) || (reg_offset & 1)) {
         WARNF("Psyz_SpuRead: bad offset 0x%X", reg_offset);
         return 0;
     }
@@ -279,19 +307,16 @@ static void write_capture(unsigned int idx, short val) {
 static int voice_decode_one_sample(VoiceState* vs) {
     if (vs->sample_idx >= ADPCM_BLOCK_SAMPLES) {
         // end of block, and handle loop/end flags
-        if (vs->needs_decode == 0 && (vs->block_flags & 0x01)) {
-            if (vs->block_flags & 0x02) {
-                vs->cur_addr = vs->repeat_addr;
-                vs->needs_decode = 1;
-            } else {
+        if (!vs->needs_decode && (vs->block_flags & 0x01)) {
+            if (!(vs->block_flags & 0x02)) {
                 vs->active = 0;
                 vs->gwin[vs->gpos] = 0;
                 vs->gpos = (vs->gpos + 1) & 3;
                 return 0;
             }
+            vs->cur_addr = vs->repeat_addr;
         }
-        if (!vs->needs_decode)
-            vs->needs_decode = 1;
+        vs->needs_decode = 1;
         vs->sample_idx = 0;
     }
     if (vs->needs_decode) {
@@ -310,6 +335,121 @@ static int voice_decode_one_sample(VoiceState* vs) {
     vs->gwin[vs->gpos] = s;
     vs->gpos = (vs->gpos + 1) & 3;
     return 1;
+}
+
+static unsigned adsr_denominator(int rate) {
+    return rate < 48 ? 1u : (1u << ((rate >> 2) - 11));
+}
+
+static int adsr_num_increase(int rate) {
+    return rate < 48 ? (7 - (rate & 3)) << (11 - (rate >> 2))
+                     : (7 - (rate & 3));
+}
+
+static int adsr_num_decrease(int rate) {
+    return rate < 48 ? (-8 + (rate & 3)) << (11 - (rate >> 2))
+                     : (-8 + (rate & 3));
+}
+
+// process voice ADSR envelope by one sample, calculate ADSR envelope volume
+static void voice_envelope_step(VoiceState* vs) {
+    if (vs->delay_ticks) { // simulate PS1 SPU key on latency
+        vs->delay_ticks--;
+        return;
+    }
+    if (vs->key_off && vs->env_state != ADSR_OFF) {
+        vs->env_state = ADSR_RELEASE;
+    }
+
+    // the PS1 SPU has an internal counter, shared across all states, that
+    // allows to trigger a change based on the selected ADSR rate
+    unsigned ctr = ++vs->env_counter;
+#define ADSR_FIRES(rate) ((ctr % adsr_denominator(rate)) == 0)
+
+    switch (vs->env_state) {
+    case ADSR_ATTACK: {
+        int attack_rate = (vs->adsr_lo >> 8) & 0x7F;
+        int attack_exp = (vs->adsr_lo >> 15) & 1;
+        int rate = attack_rate;
+        if (attack_exp && vs->env_vol >= 0x6000) {
+            rate += 8;
+        }
+        if (ADSR_FIRES(rate)) {
+            vs->env_vol += adsr_num_increase(rate);
+            if (vs->env_vol >= 0x7FFF) {
+                vs->env_vol = 0x7FFF;
+                vs->env_state = ADSR_DECAY;
+            }
+        }
+        break;
+    }
+    case ADSR_DECAY: {
+        int decay_rate = (vs->adsr_lo >> 4) & 0x0F;
+        int rate = decay_rate * 4; // decay is always exponential decrease
+        if (ADSR_FIRES(rate)) {
+            vs->env_vol += (adsr_num_decrease(rate) * vs->env_vol) >> 15;
+            if (vs->env_vol < 0) {
+                vs->env_vol = 0;
+            }
+            int sustain_level = vs->adsr_lo & 0x0F;
+            if (((vs->env_vol >> 11) & 0xF) <= sustain_level) {
+                vs->env_state = ADSR_SUSTAIN;
+            }
+        }
+        break;
+    }
+    case ADSR_SUSTAIN: {
+        int sustain_rate = (vs->adsr_hi >> 6) & 0x7F;
+        int sustain_dec = (vs->adsr_hi >> 14) & 1;
+        int sustain_exp = (vs->adsr_hi >> 15) & 1;
+        int rate = sustain_rate;
+        if (!sustain_dec) {
+            if (sustain_exp && vs->env_vol >= 0x6000) {
+                rate += 8;
+            }
+            if (ADSR_FIRES(rate)) {
+                vs->env_vol += adsr_num_increase(rate);
+                if (vs->env_vol > 0x7FFF) {
+                    vs->env_vol = 0x7FFF;
+                }
+            }
+        } else {
+            if (ADSR_FIRES(rate)) {
+                if (sustain_exp) {
+                    vs->env_vol +=
+                        (adsr_num_decrease(rate) * vs->env_vol) >> 15;
+                } else {
+                    vs->env_vol += adsr_num_decrease(rate);
+                }
+                if (vs->env_vol < 0) {
+                    vs->env_vol = 0;
+                }
+            }
+        }
+        break;
+    }
+    case ADSR_RELEASE: {
+        int release_rate = vs->adsr_hi & 0x1F;
+        int rate = release_rate * 4;
+        if (ADSR_FIRES(rate)) {
+            int release_exp = (vs->adsr_hi >> 5) & 1;
+            if (release_exp) {
+                vs->env_vol += (adsr_num_decrease(rate) * vs->env_vol) >> 15;
+            } else {
+                vs->env_vol += adsr_num_decrease(rate);
+            }
+            if (vs->env_vol <= 0) {
+                vs->env_vol = 0;
+                vs->env_state = ADSR_OFF;
+                vs->active = 0;
+            }
+        }
+        break;
+    }
+    default:
+        break;
+    }
+#undef ADSR_FIRES
 }
 
 // Advance voice `v` by one output-rate tick (44.1 kHz) and return its
@@ -345,6 +485,19 @@ static short voice_step(int v) {
     return clamp16(acc >> 12);
 }
 
+static inline int voice_vol(unsigned short reg) {
+    if (reg & 0x8000) {
+        // https://problemkaputt.de/psxspx-spu-volume-and-adsr-generator.htm
+        LOG_ONCE("voice volume bit15 not implemented");
+        return 0;
+    }
+    int v = reg & 0x7FFF;
+    if (v & 0x4000) { // bit14 is sign for values -0x4000 to 0x3FFF
+        v -= 0x8000;
+    }
+    return v;
+}
+
 // generate one frame at 44100hz with voices mix, cd playback and volume control
 static void spu_tick(short* out) {
     SPU_RXX* rxx = (SPU_RXX*)&_spu_RXX->rxx;
@@ -375,18 +528,27 @@ static void spu_tick(short* out) {
         spu.cd_ring_count--;
     }
 
-    // bare-bone voice mixer -- no envelope, no volume, no resampling
+    // decode+resample, scale volume by ADSR envelope, then mix voices
     short v1_sample = 0, v3_sample = 0;
     for (int v = 0; v < PSYZ_SPU_NUM_VOICES; v++) {
         if (!spu.voice[v].active)
             continue;
         short s = voice_step(v);
-        if (v == 1)
+        voice_envelope_step(&spu.voice[v]);
+        if (spu.voice[v].env_state == ADSR_OFF) {
+            s = 0;
+        }
+        // capture buffer stores sample pre-envelope, weirdly only after
+        // processing the ADSR envelope -- this might need a re-test on real HW
+        if (v == 1) {
             v1_sample = s;
-        else if (v == 3)
+        } else if (v == 3) {
             v3_sample = s;
-        left_sum += s;
-        right_sum += s;
+        }
+        rxx->voice[v].volumex = (unsigned short)spu.voice[v].env_vol;
+        s = (short)(((int)s * spu.voice[v].env_vol) >> 15); // apply ADSR vol
+        left_sum += (s * voice_vol(rxx->voice[v].volume.left)) >> 15;
+        right_sum += (s * voice_vol(rxx->voice[v].volume.right)) >> 15;
     }
 
     // Mute all voices. CD audio is mixed after, and not affected by mute.

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -485,6 +486,76 @@ TEST_F(spu_Test, ChangePitchWhileVoiceIsOn) {
         << "mid-playback pitch write had no effect on voice output";
 }
 
+// Peak absolute amplitude of the left and right channels over `nframes` of the
+// final stereo mix that Psyz_SpuPullSamples produces (NOT the per-voice capture
+// buffer, which is pre-volume). out_l/out_r receive the per-channel peaks.
+static void mix_peak(int nframes, int* out_l, int* out_r) {
+    std::vector<short> buf(nframes * 2);
+    Psyz_SpuPullSamples(buf.data(), nframes);
+    int pl = 0, pr = 0;
+    for (int i = 0; i < nframes; i++) {
+        int l = std::abs((int)buf[i * 2]);
+        int r = std::abs((int)buf[i * 2 + 1]);
+        if (l > pl)
+            pl = l;
+        if (r > pr)
+            pr = r;
+    }
+    *out_l = pl;
+    *out_r = pr;
+}
+
+// given a sine wave and L/R volume, get out peak volume out for L/R capture
+static void voice1_volume_peak(
+    unsigned short vol_l, unsigned short vol_r, int* peak_l, int* peak_r) {
+    const unsigned int base = 1u << 4; // voice 1 register base
+    spu_reset_quiet();
+    Psyz_SpuMemWrite(kSampleAddr, kAdpcmSine, sizeof(kAdpcmSine));
+    Psyz_SpuWrite(0x1AA, 0x8000 | 0x4000); // SPU enable + unmute
+    Psyz_SpuWrite(0x180, 0x3FFF);          // main volume left = unity
+    Psyz_SpuWrite(0x182, 0x3FFF);          // main volume right = unity
+    Psyz_SpuWrite(base + 0x00, vol_l);     // voice 1 volume left
+    Psyz_SpuWrite(base + 0x02, vol_r);     // voice 1 volume right
+    spu_voice1_keyon(kSampleAddr, 0x1000);
+    // Skip the key-on envelope delay, then measure a steady window.
+    pull_samples_nop(32);
+    mix_peak(256, peak_l, peak_r);
+    Psyz_SpuWrite(0x18C, 0xFFFF);
+    Psyz_SpuWrite(0x18E, 0xFFFF);
+}
+
+TEST_F(spu_Test, VoiceVolumePansLeftAndRight) {
+    int l, r;
+
+    voice1_volume_peak(0x3FFF, 0x0000, &l, &r);
+    EXPECT_GT(l, 1000) << "hard-left voice produced no left output";
+    EXPECT_EQ(r, 0) << "hard-left voice leaked into the right channel";
+
+    voice1_volume_peak(0x0000, 0x3FFF, &l, &r);
+    EXPECT_GT(r, 1000) << "hard-right voice produced no right output";
+    EXPECT_EQ(l, 0) << "hard-right voice leaked into the left channel";
+}
+
+TEST_F(spu_Test, VoiceVolumeScalesAmplitude) {
+    int full_l, full_r, half_l, half_r;
+    voice1_volume_peak(0x3FFF, 0x3FFF, &full_l, &full_r);
+    voice1_volume_peak(0x2000, 0x2000, &half_l, &half_r);
+
+    ASSERT_GT(full_l, 0);
+    // 0x2000 / 0x3FFF ~= 0.5; allow a generous band for rounding and the
+    // gauss-interpolated sample peak landing on different frames.
+    double ratio = (double)half_l / (double)full_l;
+    EXPECT_GT(ratio, 0.35) << "half volume too quiet (ratio " << ratio << ")";
+    EXPECT_LT(ratio, 0.65) << "half volume too loud (ratio " << ratio << ")";
+}
+
+TEST_F(spu_Test, VoiceVolumeZeroIsSilent) {
+    int l, r;
+    voice1_volume_peak(0x0000, 0x0000, &l, &r);
+    EXPECT_EQ(l, 0);
+    EXPECT_EQ(r, 0);
+}
+
 TEST_F(spu_Test, KeyOnLatchesStartAddrAndActivates) {
     Psyz_SpuMemWrite(kSampleAddr, kAdpcmSine, sizeof(kAdpcmSine));
     setup_voice1(kSampleAddr);
@@ -511,6 +582,10 @@ TEST_F(spu_Test, KeyOnLatchesStartAddrAndActivates) {
 }
 
 TEST_F(spu_Test, KeyOffSilencesVoice) {
+    // TODO this test has the stange consequence where voice_envelope_step must
+    // be called before the samples are captured, despite the capture itself
+    // not being afected by the voice envelope. It seems to match the generated
+    // samples, but it needs to be double-checked on real hardware.
     Psyz_SpuMemWrite(kSampleAddr, kAdpcmSine, sizeof(kAdpcmSine));
     setup_voice1(kSampleAddr);
     Psyz_SpuWrite(0x188, 1u << 1);
@@ -576,4 +651,417 @@ TEST_F(spu_Test, AdpcmLoopRepeatJumpsToLoopAddr) {
         if (ring[i] != 0)
             still_running++;
     EXPECT_GT(still_running, 0) << "voice stopped instead of looping";
+}
+
+namespace {
+
+#define ADSR_ATTACK(step, shift, exp)                                          \
+    ((((step) & 3) << 8) | (((shift) & 31) << 10) | (!!(exp) << 15))
+#define ADSR_DECAY(shift) (((shift) & 15) << 4)
+#define ADSR_SUSTAIN(step, shift, level, direction, exp)                       \
+    ((((step) & 3) << 22) | (((shift) & 31) << 24) | (((level) & 15) << 0) |   \
+     (!!(direction) << 30) | (!!(exp) << 31))
+#define ADSR_RELEASE(shift, exp) ((((shift) & 31) << 16) | (!!(exp) << 21))
+
+constexpr unsigned int kAdsrSampleAddr = 0x1080;
+
+// A 2-block looping ADPCM payload so voice 1 never stops while the envelope
+// runs (block 1 loops back to block 0). The decoded samples are irrelevant;
+// the tests only read the envelope level.
+static void adsr_upload_loop_sample() {
+    unsigned char payload[32];
+    memset(payload, 0, sizeof(payload));
+    payload[1] = 0x04;  // block 0: loop-start
+    payload[17] = 0x03; // block 1: loop-end + repeat
+    for (int i = 0; i < 14; i++)
+        payload[18 + i] = 0x55;
+    Psyz_SpuMemWrite(kAdsrSampleAddr, payload, sizeof(payload));
+}
+
+static unsigned short adsr_status() { return Psyz_SpuRead(0x1AE); }
+static unsigned short adsr_envx1() { return Psyz_SpuRead(0x1C); }
+
+static void adsr_tick() {
+    short frame[2];
+    Psyz_SpuPullSamples(frame, 1);
+}
+
+static void adsr_wait_bit11_flip() {
+    for (int guard = 0; !(adsr_status() & 0x0800); guard++) {
+        adsr_tick();
+        ASSERT_LT(guard, 4096) << "bit11 never went high";
+    }
+    for (int guard = 0; adsr_status() & 0x0800; guard++) {
+        adsr_tick();
+        ASSERT_LT(guard, 4096) << "bit11 never went low";
+    }
+}
+
+// Capture n_samples ENVX readings for `adsr`, one per bit-11 flip.
+static void adsr_capture(uint32_t adsr, uint16_t* envx, unsigned n_samples) {
+    // Drain any previous envelope back to zero.
+    spu_reset_quiet();
+    Psyz_SpuWrite(0x1AA, 0x8000 | 0x4000);
+    Psyz_SpuWrite(0x180, 0);
+    Psyz_SpuWrite(0x182, 0);
+    Psyz_SpuWrite(0x18C, 0xFFFF);
+    Psyz_SpuWrite(0x18E, 0xFFFF);
+    adsr_wait_bit11_flip();
+    {
+        int guard = 0;
+        while (adsr_envx1() != 0) {
+            adsr_tick();
+            ASSERT_LT(++guard, 200000) << "previous envelope never drained";
+        }
+    }
+
+    // Prepare voice 1, wait for a flip, then fire it.
+    adsr_upload_loop_sample();
+    Psyz_SpuWrite(0x14, 0x1000);                                 // sampleRate
+    Psyz_SpuWrite(0x16, (unsigned short)(kAdsrSampleAddr >> 3)); // startAddr
+    Psyz_SpuWrite(0x1E, (unsigned short)(kAdsrSampleAddr >> 3)); // repeatAddr
+    Psyz_SpuWrite(0x10, 0);                                      // volumeLeft
+    Psyz_SpuWrite(0x12, 0);                                      // volumeRight
+    adsr_wait_bit11_flip();
+    Psyz_SpuWrite(0x18, (unsigned short)(adsr & 0xFFFF));
+    Psyz_SpuWrite(0x1A, (unsigned short)(adsr >> 16));
+    Psyz_SpuWrite(0x18C, 0);
+    Psyz_SpuWrite(0x18E, 0);
+    Psyz_SpuWrite(0x188, 1u << 1); // KEY_ON voice 1
+
+    for (int guard = 0; adsr_envx1() == 0; guard++) {
+        adsr_tick();
+        ASSERT_LT(guard, 100000) << "envelope never started after key-on";
+    }
+    envx[0] = adsr_envx1();
+    for (unsigned i = 1; i < n_samples; i++) {
+        adsr_wait_bit11_flip();
+        envx[i] = adsr_envx1();
+    }
+    Psyz_SpuWrite(0x18C, 0xFFFF);
+    Psyz_SpuWrite(0x18E, 0xFFFF);
+}
+
+static void adsr_capture_with_keyoff(
+    uint32_t adsr, uint16_t* envx, unsigned n_samples, unsigned keyoff_at) {
+    adsr_capture(adsr, envx, keyoff_at + 1);
+    for (unsigned i = keyoff_at + 1; i < n_samples; i++) {
+        adsr_wait_bit11_flip();
+        envx[i] = adsr_envx1();
+    }
+}
+
+#define EXPECT_ENVX_NEAR(nominal, step, got)                                   \
+    EXPECT_TRUE((got) >= (uint16_t)((nominal) - (step)) &&                     \
+                (got) <= (uint16_t)((nominal) + (step)))                       \
+        << "envx 0x" << std::hex << (got) << " not within " << std::dec        \
+        << (step) << " of 0x" << std::hex << (nominal)
+
+} // namespace
+
+TEST_F(spu_Test, adsr_attack_linear_step) {
+    uint16_t envx[0x40];
+    const uint32_t base =
+        ADSR_DECAY(0) | ADSR_SUSTAIN(3, 0x1f, 15, 0, 0) | ADSR_RELEASE(0, 0);
+
+    adsr_capture(ADSR_ATTACK(2, 12, 0) | base, envx, 4);
+    EXPECT_EQ(0x0005, envx[0]);
+    EXPECT_ENVX_NEAR(0x04f1, 5, envx[1]);
+    EXPECT_ENVX_NEAR(0x09f1, 5, envx[2]);
+    EXPECT_ENVX_NEAR(0x0ef1, 5, envx[3]);
+
+    adsr_capture(ADSR_ATTACK(3, 12, 0) | base, envx, 4);
+    EXPECT_EQ(0x0004, envx[0]);
+    EXPECT_ENVX_NEAR(0x03f4, 4, envx[1]);
+    EXPECT_ENVX_NEAR(0x07f4, 4, envx[2]);
+    EXPECT_ENVX_NEAR(0x0bf4, 4, envx[3]);
+
+    adsr_capture(ADSR_ATTACK(2, 24, 0) | base, envx, 48);
+    for (int i = 0; i < 17; i++)
+        EXPECT_EQ(0x0005, envx[i]);
+    for (int i = 17; i < 33; i++)
+        EXPECT_EQ(0x000a, envx[i]);
+    for (int i = 33; i < 48; i++)
+        EXPECT_EQ(0x000f, envx[i]);
+
+    adsr_capture(ADSR_ATTACK(3, 24, 0) | base, envx, 48);
+    for (int i = 0; i < 17; i++)
+        EXPECT_EQ(0x0004, envx[i]);
+    for (int i = 17; i < 33; i++)
+        EXPECT_EQ(0x0008, envx[i]);
+    for (int i = 33; i < 48; i++)
+        EXPECT_EQ(0x000c, envx[i]);
+}
+
+TEST_F(spu_Test, adsr_attack_linear_shift) {
+    uint16_t envx[0x40];
+    const uint32_t base =
+        ADSR_DECAY(0) | ADSR_SUSTAIN(3, 0x1f, 15, 0, 0) | ADSR_RELEASE(0, 0);
+
+    adsr_capture(ADSR_ATTACK(0, 0, 0) | base, envx, 1);
+    EXPECT_EQ(0x3800, envx[0]);
+    adsr_capture(ADSR_ATTACK(1, 0, 0) | base, envx, 1);
+    EXPECT_EQ(0x3000, envx[0]);
+
+    adsr_capture(ADSR_ATTACK(0, 11, 0) | base, envx, 4);
+    EXPECT_EQ(0x0007, envx[0]);
+    EXPECT_ENVX_NEAR(0x0dcf, 7, envx[1]);
+    EXPECT_ENVX_NEAR(0x1bcf, 7, envx[2]);
+    EXPECT_ENVX_NEAR(0x29cf, 7, envx[3]);
+
+    adsr_capture(ADSR_ATTACK(1, 11, 0) | base, envx, 4);
+    EXPECT_EQ(0x0006, envx[0]);
+    EXPECT_ENVX_NEAR(0x0bdc, 7, envx[1]);
+    EXPECT_ENVX_NEAR(0x17d6, 7, envx[2]);
+    EXPECT_ENVX_NEAR(0x23d6, 7, envx[3]);
+
+    adsr_capture(ADSR_ATTACK(0, 12, 0) | base, envx, 32);
+    EXPECT_EQ(0x0007, envx[0]);
+    static const uint16_t s012[] = {
+        0x06e4, 0x0de4, 0x14e4, 0x1be4, 0x22e4, 0x29e4, 0x30e4, 0x37e4, 0x3ee4,
+        0x45e4, 0x4ce4, 0x53e4, 0x5ae4, 0x61e4, 0x68e4, 0x6fe4, 0x76e4, 0x7de4};
+    for (int i = 0; i < 18; i++)
+        EXPECT_ENVX_NEAR(s012[i], 7, envx[i + 1]);
+
+    adsr_capture(ADSR_ATTACK(1, 12, 0) | base, envx, 4);
+    EXPECT_EQ(0x0006, envx[0]);
+    EXPECT_ENVX_NEAR(0x05ee, 6, envx[1]);
+    EXPECT_ENVX_NEAR(0x0bee, 6, envx[2]);
+    EXPECT_ENVX_NEAR(0x11ee, 6, envx[3]);
+
+    adsr_capture(ADSR_ATTACK(0, 23, 0) | base, envx, 48);
+    for (int i = 0; i < 9; i++)
+        EXPECT_EQ(0x0007, envx[i]);
+    for (int i = 9; i < 17; i++)
+        EXPECT_EQ(0x000e, envx[i]);
+    for (int i = 17; i < 25; i++)
+        EXPECT_EQ(0x0015, envx[i]);
+    for (int i = 25; i < 33; i++)
+        EXPECT_EQ(0x001c, envx[i]);
+    for (int i = 33; i < 41; i++)
+        EXPECT_EQ(0x0023, envx[i]);
+    for (int i = 41; i < 48; i++)
+        EXPECT_EQ(0x002a, envx[i]);
+
+    adsr_capture(ADSR_ATTACK(1, 23, 0) | base, envx, 48);
+    for (int i = 0; i < 9; i++)
+        EXPECT_EQ(0x0006, envx[i]);
+    for (int i = 9; i < 17; i++)
+        EXPECT_EQ(0x000c, envx[i]);
+    for (int i = 17; i < 25; i++)
+        EXPECT_EQ(0x0012, envx[i]);
+    for (int i = 25; i < 33; i++)
+        EXPECT_EQ(0x0018, envx[i]);
+    for (int i = 33; i < 41; i++)
+        EXPECT_EQ(0x001e, envx[i]);
+    for (int i = 41; i < 48; i++)
+        EXPECT_EQ(0x0024, envx[i]);
+
+    adsr_capture(ADSR_ATTACK(0, 24, 0) | base, envx, 48);
+    for (int i = 0; i < 17; i++)
+        EXPECT_EQ(0x0007, envx[i]);
+    for (int i = 17; i < 33; i++)
+        EXPECT_EQ(0x000e, envx[i]);
+    for (int i = 33; i < 48; i++)
+        EXPECT_EQ(0x0015, envx[i]);
+
+    adsr_capture(ADSR_ATTACK(1, 24, 0) | base, envx, 48);
+    for (int i = 0; i < 17; i++)
+        EXPECT_EQ(0x0006, envx[i]);
+    for (int i = 17; i < 33; i++)
+        EXPECT_EQ(0x000c, envx[i]);
+    for (int i = 33; i < 48; i++)
+        EXPECT_EQ(0x0012, envx[i]);
+}
+
+TEST_F(spu_Test, adsr_attack_exponential) {
+    uint16_t envx[0x40];
+    const uint32_t base =
+        ADSR_DECAY(0) | ADSR_SUSTAIN(3, 0x1f, 15, 0, 0) | ADSR_RELEASE(0, 0);
+
+    adsr_capture(ADSR_ATTACK(0, 12, 1) | base, envx, 32);
+    EXPECT_EQ(0x0007, envx[0]);
+    static const uint16_t e[] = {
+        0x06e4, 0x0de4, 0x14e4, 0x1be4, 0x22e4, 0x29e4, 0x30e4, 0x37e4,
+        0x3ee4, 0x45e4, 0x4ce4, 0x53e4, 0x5ae4, 0x607f, 0x623f, 0x63ff,
+        0x65bf, 0x677f, 0x693f, 0x6aff, 0x6cbf, 0x6e7f, 0x703f, 0x71ff,
+        0x73bf, 0x757f, 0x773f, 0x78ff, 0x7abf, 0x7c7f, 0x7e3f};
+    for (int i = 0; i < 31; i++)
+        EXPECT_ENVX_NEAR(e[i], 7, envx[i + 1]);
+}
+
+TEST_F(spu_Test, adsr_decay_shift) {
+    uint16_t envx[0x40];
+
+    adsr_capture(ADSR_ATTACK(0, 1, 0) | ADSR_DECAY(10) |
+                     ADSR_SUSTAIN(0, 0, 0, 1, 0) | ADSR_RELEASE(0, 1),
+                 envx, 16);
+    EXPECT_EQ(0x1c00, envx[0]);
+    EXPECT_ENVX_NEAR(0x6370, 0x07, envx[1]);
+    EXPECT_ENVX_NEAR(0x4c95, 0x05, envx[2]);
+    EXPECT_ENVX_NEAR(0x3ac6, 0x04, envx[3]);
+    EXPECT_ENVX_NEAR(0x2cef, 0x03, envx[4]);
+    EXPECT_ENVX_NEAR(0x221c, 0x03, envx[5]);
+    EXPECT_ENVX_NEAR(0x19b0, 0x02, envx[6]);
+    EXPECT_ENVX_NEAR(0x1343, 0x02, envx[7]);
+    EXPECT_ENVX_NEAR(0x0e2d, 0x01, envx[8]);
+    EXPECT_ENVX_NEAR(0x0a2d, 0x01, envx[9]);
+    for (int i = 10; i < 16; i++)
+        EXPECT_EQ(0x0000, envx[i]);
+
+    adsr_capture(ADSR_ATTACK(0, 1, 0) | ADSR_DECAY(14) |
+                     ADSR_SUSTAIN(0, 0, 0, 1, 0) | ADSR_RELEASE(0, 1),
+                 envx, 32);
+    EXPECT_EQ(0x1c00, envx[0]);
+    EXPECT_ENVX_NEAR(0x7e05, 0x02, envx[1]);
+    EXPECT_ENVX_NEAR(0x7c05, 0x02, envx[2]);
+    EXPECT_ENVX_NEAR(0x7805, 0x02, envx[4]);
+    EXPECT_ENVX_NEAR(0x7405, 0x02, envx[6]);
+    EXPECT_ENVX_NEAR(0x7005, 0x02, envx[8]);
+    EXPECT_ENVX_NEAR(0x6906, 0x02, envx[12]);
+    EXPECT_ENVX_NEAR(0x6206, 0x02, envx[16]);
+    EXPECT_ENVX_NEAR(0x5bba, 0x02, envx[20]);
+    EXPECT_ENVX_NEAR(0x55ba, 0x02, envx[24]);
+    EXPECT_ENVX_NEAR(0x4fc7, 0x02, envx[28]);
+    EXPECT_ENVX_NEAR(0x4c05, 0x02, envx[31]);
+}
+
+TEST_F(spu_Test, adsr_sustain_level) {
+    uint16_t envx[16];
+    static const struct {
+        int level;
+        uint16_t v;
+        int start;
+    } cases[] = {{0, 0x07ff, 10},
+                 {7, 0x3ffa, 3},
+                 {11, 0x5ff6, 2},
+                 {14, 0x77ff, 1},
+                 {15, 0x7fef, 1}};
+    for (const auto& c : cases) {
+        adsr_capture(
+            ADSR_ATTACK(0, 1, 0) | ADSR_DECAY(10) |
+                ADSR_SUSTAIN(3, 0x1f, c.level, 1, 0) | ADSR_RELEASE(0, 1),
+            envx, 16);
+        for (int i = c.start; i < 16; i++)
+            EXPECT_EQ(c.v, envx[i]) << "level " << c.level << " sample " << i;
+    }
+}
+
+TEST_F(spu_Test, adsr_sustain_up_linear) {
+    uint16_t envx[0x20];
+
+    adsr_capture(ADSR_ATTACK(0, 1, 0) | ADSR_DECAY(0) |
+                     ADSR_SUSTAIN(0, 10, 15, 0, 0) | ADSR_RELEASE(0, 1),
+                 envx, 8);
+    EXPECT_EQ(0x1c00, envx[0]);
+    EXPECT_ENVX_NEAR(0x5b50, 0x07, envx[1]);
+    EXPECT_ENVX_NEAR(0x7750, 0x07, envx[2]);
+    for (int i = 3; i < 8; i++)
+        EXPECT_EQ(0x7fff, envx[i]);
+
+    adsr_capture(ADSR_ATTACK(0, 1, 0) | ADSR_DECAY(0) |
+                     ADSR_SUSTAIN(0, 14, 15, 0, 0) | ADSR_RELEASE(0, 1),
+                 envx, 32);
+    EXPECT_EQ(0x1c00, envx[0]);
+    EXPECT_ENVX_NEAR(0x41b8, 0x02, envx[1]);
+    EXPECT_ENVX_NEAR(0x46f8, 0x02, envx[4]);
+    EXPECT_ENVX_NEAR(0x4df8, 0x02, envx[8]);
+    EXPECT_ENVX_NEAR(0x54f8, 0x02, envx[12]);
+    EXPECT_ENVX_NEAR(0x5bf8, 0x02, envx[16]);
+    EXPECT_ENVX_NEAR(0x70f8, 0x02, envx[28]);
+    EXPECT_ENVX_NEAR(0x7638, 0x02, envx[31]);
+}
+
+TEST_F(spu_Test, adsr_sustain_down_linear) {
+    uint16_t envx[0x20];
+
+    adsr_capture(ADSR_ATTACK(0, 1, 0) | ADSR_DECAY(0) |
+                     ADSR_SUSTAIN(3, 10, 15, 1, 0) | ADSR_RELEASE(0, 1),
+                 envx, 8);
+    EXPECT_EQ(0x1c00, envx[0]);
+    EXPECT_ENVX_NEAR(0x2c7c, 0x05, envx[1]);
+    EXPECT_ENVX_NEAR(0x187c, 0x05, envx[2]);
+    EXPECT_ENVX_NEAR(0x047c, 0x05, envx[3]);
+    for (int i = 4; i < 8; i++)
+        EXPECT_EQ(0x0000, envx[i]);
+
+    adsr_capture(ADSR_ATTACK(0, 1, 0) | ADSR_DECAY(0) |
+                     ADSR_SUSTAIN(0, 14, 15, 1, 0) | ADSR_RELEASE(0, 1),
+                 envx, 32);
+    EXPECT_EQ(0x1c00, envx[0]);
+    EXPECT_ENVX_NEAR(0x3e05, 0x02, envx[1]);
+    EXPECT_ENVX_NEAR(0x3805, 0x02, envx[4]);
+    EXPECT_ENVX_NEAR(0x3005, 0x02, envx[8]);
+    EXPECT_ENVX_NEAR(0x2005, 0x02, envx[16]);
+    EXPECT_ENVX_NEAR(0x1005, 0x02, envx[24]);
+    EXPECT_ENVX_NEAR(0x0205, 0x02, envx[31]);
+}
+
+TEST_F(spu_Test, adsr_sustain_up_exponential) {
+    uint16_t envx[0x20];
+
+    adsr_capture(ADSR_ATTACK(0, 1, 0) | ADSR_DECAY(0) |
+                     ADSR_SUSTAIN(0, 12, 15, 0, 1) | ADSR_RELEASE(0, 1),
+                 envx, 24);
+    EXPECT_EQ(0x1c00, envx[0]);
+    EXPECT_ENVX_NEAR(0x46d1, 0x04, envx[1]);
+    EXPECT_ENVX_NEAR(0x5bd1, 0x04, envx[4]);
+    EXPECT_ENVX_NEAR(0x60ba, 0x02, envx[5]);
+    EXPECT_ENVX_NEAR(0x67ba, 0x02, envx[9]);
+    EXPECT_ENVX_NEAR(0x73fa, 0x02, envx[16]);
+    EXPECT_ENVX_NEAR(0x7afa, 0x02, envx[20]);
+    EXPECT_EQ(0x7fff, envx[23]);
+}
+
+TEST_F(spu_Test, adsr_sustain_down_exponential) {
+    uint16_t envx[0x20];
+
+    adsr_capture(ADSR_ATTACK(0, 1, 0) | ADSR_DECAY(0) |
+                     ADSR_SUSTAIN(0, 12, 15, 1, 1) | ADSR_RELEASE(0, 1),
+                 envx, 32);
+    EXPECT_EQ(0x1c00, envx[0]);
+    EXPECT_ENVX_NEAR(0x3c19, 0x02, envx[1]);
+    EXPECT_ENVX_NEAR(0x3019, 0x02, envx[4]);
+    EXPECT_ENVX_NEAR(0x2112, 0x02, envx[9]);
+    EXPECT_ENVX_NEAR(0x1eb7, 0x01, envx[10]);
+    EXPECT_ENVX_NEAR(0x12b7, 0x01, envx[16]);
+    EXPECT_ENVX_NEAR(0x095b, 0x01, envx[24]);
+    EXPECT_ENVX_NEAR(0x035b, 0x01, envx[30]);
+}
+
+TEST_F(spu_Test, adsr_release_linear) {
+    uint16_t envx[0x20];
+
+    adsr_capture_with_keyoff(
+        ADSR_ATTACK(0, 1, 0) | ADSR_DECAY(15) |
+            ADSR_SUSTAIN(3, 0x1f, 15, 0, 0) | ADSR_RELEASE(12, 0),
+        envx, 24, 3);
+    EXPECT_EQ(0x1c00, envx[0]);
+    EXPECT_EQ(0x7ff7, envx[1]);
+    EXPECT_EQ(0x7ff7, envx[2]);
+    EXPECT_EQ(0x7ff7, envx[3]);
+    EXPECT_ENVX_NEAR(0x77fb, 0x04, envx[4]);
+    EXPECT_ENVX_NEAR(0x47fb, 0x04, envx[10]);
+    EXPECT_ENVX_NEAR(0x1ffb, 0x04, envx[15]);
+    EXPECT_ENVX_NEAR(0x07fb, 0x04, envx[18]);
+    for (int i = 19; i < 24; i++)
+        EXPECT_EQ(0x0000, envx[i]);
+}
+
+TEST_F(spu_Test, adsr_release_exponential) {
+    uint16_t envx[0x20];
+
+    adsr_capture_with_keyoff(
+        ADSR_ATTACK(0, 1, 0) | ADSR_DECAY(15) |
+            ADSR_SUSTAIN(3, 0x1f, 15, 0, 0) | ADSR_RELEASE(12, 1),
+        envx, 24, 2);
+    EXPECT_EQ(0x1c00, envx[0]);
+    EXPECT_EQ(0x7ff7, envx[1]);
+    EXPECT_EQ(0x7ff7, envx[2]);
+    EXPECT_ENVX_NEAR(0x77fb, 0x04, envx[3]);
+    EXPECT_ENVX_NEAR(0x61fb, 0x04, envx[6]);
+    EXPECT_ENVX_NEAR(0x45bf, 0x03, envx[11]);
+    EXPECT_ENVX_NEAR(0x3099, 0x02, envx[16]);
+    EXPECT_ENVX_NEAR(0x2172, 0x02, envx[21]);
+    EXPECT_ENVX_NEAR(0x1cf7, 0x01, envx[23]);
 }
