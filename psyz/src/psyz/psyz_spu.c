@@ -152,11 +152,13 @@ unsigned short Psyz_SpuRead(unsigned int reg_offset) {
         return 0;
     }
     switch (reg_offset) {
-    case 0x1A6: // xfer_addr
+    case offsetof(SPU_RXX, trans_addr):
         return (unsigned short)((spu.transfer_addr >> 3) & 0xFFFF);
-    case 0x1AE: // SPUSTAT
+    case offsetof(SPU_RXX, spustat):
         // lower 6 bits mirror SPUCNT's low bits
-        return (unsigned short)(_spu_RXX->raw[0x1AA >> 1] & 0x3F);
+        // bit 11, capture-buffer half-pointer, flipped by spu_tick.
+        return (_spu_RXX->rxx.spucnt & 0x3F) |
+               (_spu_RXX->rxx.spustat & (1u << 11));
     default:
         return _spu_RXX->raw[reg_offset >> 1];
     }
