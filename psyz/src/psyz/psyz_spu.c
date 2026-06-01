@@ -210,7 +210,7 @@ unsigned short Psyz_SpuRead(unsigned int reg_offset) {
 static void write_capture(unsigned int idx, short val) {
     unsigned int addr = (idx * 0x400) | spu.capture_pos;
     if (addr < PSYZ_SPU_RAM_SIZE) {
-        memcpy(&spu.ram[addr], &val, sizeof(val));
+        *(short*)&spu.ram[addr] = val;
     }
 }
 
