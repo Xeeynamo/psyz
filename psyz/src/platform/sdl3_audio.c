@@ -9,8 +9,8 @@
 static SDL_AudioStream* sdl_stream;
 static SDL_Mutex* mutex;
 
-// Audio callback: SDL pulls audio from us via this callback.
-// We generate SPU output (which includes CD audio mixed in via pull callback).
+// Audio callback: SDL pulls audio from the SPU via this callback.
+// The audio driver synchronizes the SPU based on the pulled samples.
 static void SDLCALL audio_callback(void* userdata, SDL_AudioStream* stream,
                                    int additional_amount, int total_amount) {
     (void)userdata;
@@ -20,6 +20,7 @@ static void SDLCALL audio_callback(void* userdata, SDL_AudioStream* stream,
 
     int num_frames = additional_amount / (N_CHANNELS * SAMPLE_SIZE);
     short buf[4096] = {0};
+    SDL_LockMutex(mutex);
     while (num_frames > 0) {
         int batch = num_frames;
         if (batch > 2048)
@@ -28,6 +29,7 @@ static void SDLCALL audio_callback(void* userdata, SDL_AudioStream* stream,
         SDL_PutAudioStreamData(stream, buf, batch * N_CHANNELS * SAMPLE_SIZE);
         num_frames -= batch;
     }
+    SDL_UnlockMutex(mutex);
 }
 
 static bool is_audio_init = false;
