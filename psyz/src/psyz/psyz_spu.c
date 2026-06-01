@@ -76,6 +76,8 @@ static void spu_adpcm_decode_block(
 #define CD_RING_LOW_WATER 1024            // refill when short of N frames
 
 typedef struct {
+    unsigned cur_addr;    // current 16-byte block address in SPU RAM
+    unsigned repeat_addr; // from voice loop_addr reg, or block flag bit 2
     u8 active;
 } VoiceState;
 
@@ -175,7 +177,12 @@ void Psyz_SpuMemWrite(unsigned int offset, const void* src, unsigned int size) {
 }
 
 static void spu_key_on_voice(int v) {
+    volatile SPU_RXX* rxx = &_spu_RXX->rxx;
     VoiceState* vs = &spu.voice[v];
+    vs->cur_addr =
+        ((unsigned)rxx->voice[v].addr << 3) & (PSYZ_SPU_RAM_SIZE - 1);
+    vs->repeat_addr =
+        ((unsigned)rxx->voice[v].loop_addr << 3) & (PSYZ_SPU_RAM_SIZE - 1);
     vs->active = 1;
 }
 
