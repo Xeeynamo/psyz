@@ -10,21 +10,22 @@ _Static_assert(
     sizeof(union SpuUnion) == sizeof(SPU_RXX), "SpuUnion must alias SPU_RXX");
 #endif
 
-static short clamp16(int v) {
+static inline short clamp16(int v) {
     if (v < -32768)
-        return (short)-32768;
+        return -32768;
     if (v > 32767)
-        return (short)32767;
-    return (short)v;
+        return 32767;
+    return v;
 }
 
-static short clamp15(int v) {
+static inline short clamp15(int v) {
     if (v < -16384)
-        return (short)-16384;
+        return -16384;
     if (v > 16383)
-        return (short)16383;
-    return (short)v;
+        return 16383;
+    return v;
 }
+
 
 #define N_CHANNELS 2                      // stereo interleaved
 #define CD_RING_FRAMES 4096               // must be power of 2
