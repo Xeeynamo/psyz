@@ -111,7 +111,7 @@ typedef struct tagSpuControl {
     /* 0x1F801DA8 0x1A8 */ u16 trans_fifo;
     /* 0x1F801DAA 0x1AA */ u16 spucnt;
     /* 0x1F801DAC 0x1AC */ u16 data_trans;
-    /* 0x1F801DAD 0x1AD */ u16 spustat;
+    /* 0x1F801DAE 0x1AE */ u16 spustat; // read-only on hardware
     /* 0x1F801DB0 0x1B0 */ SpuVolume cd_vol;
     /* 0x1F801DB4 0x1B4 */ SpuVolume ex_vol;
     /* 0x1F801DB8 0x1B8 */ SpuVolume main_volx;
