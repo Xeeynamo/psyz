@@ -435,6 +435,56 @@ TEST_F(spu_Test, adpcm_decode_with_loop) {
     Psyz_SpuWrite(0x18E, 0xFFFF);
 }
 
+// For pitch changes during voice on, enable vibrato or bends.
+// This is used during the first five notes on FF7 Main Theme intro
+TEST_F(spu_Test, ChangePitchWhileVoiceIsOn) {
+    // self-looping ADPCM on block 0
+    unsigned char payload[32];
+    memset(payload, 0, sizeof(payload));
+    payload[1] = 0x04;  // block 0: loop-start
+    payload[17] = 0x03; // block 1: loop-end + repeat
+    for (int i = 0; i < 14; i++)
+        payload[18 + i] = 0x77;
+
+    const unsigned int base = 1u << 4; // voice 1 register base
+
+    spu_reset_quiet();
+    Psyz_SpuWrite(0x1AA, 0x8000 | 0x4000);
+    Psyz_SpuWrite(0x180, 0x3FFF);
+    Psyz_SpuWrite(0x182, 0x3FFF);
+    Psyz_SpuMemWrite(kSampleAddr, payload, sizeof(payload));
+    spu_voice1_keyon(kSampleAddr, 0x0800); // set ADPCM pitch at 50%
+    pull_samples_nop(256);
+    unsigned char zeros[1024] = {0};
+    Psyz_SpuMemWrite(0x0800, zeros, sizeof(zeros));
+    pull_samples_nop(512);
+    unsigned char cap_const[1024];
+    Psyz_SpuMemRead(0x0800, cap_const, sizeof(cap_const));
+    Psyz_SpuWrite(0x18C, 0xFFFF);
+    Psyz_SpuWrite(0x18E, 0xFFFF);
+
+    // modify pitch without resetting the voice key
+    spu_reset_quiet();
+    Psyz_SpuWrite(0x1AA, 0x8000 | 0x4000);
+    Psyz_SpuWrite(0x180, 0x3FFF);
+    Psyz_SpuWrite(0x182, 0x3FFF);
+    Psyz_SpuMemWrite(kSampleAddr, payload, sizeof(payload));
+    spu_voice1_keyon(kSampleAddr, 0x0800);
+    pull_samples_nop(256);
+    Psyz_SpuWrite(base + 0x04, 0x2000); // set ADPCM pitch at 200%
+    Psyz_SpuMemWrite(0x0800, zeros, sizeof(zeros));
+    pull_samples_nop(512);
+    unsigned char cap_changed[1024];
+    Psyz_SpuMemRead(0x0800, cap_changed, sizeof(cap_changed));
+    Psyz_SpuWrite(0x18C, 0xFFFF);
+    Psyz_SpuWrite(0x18E, 0xFFFF);
+
+    // if done correctly, the two captures will differ; it's very hard to test
+    // byte-by-byte here due to how gauss interpolation works, a memcpy will do
+    EXPECT_NE(0, memcmp(cap_const, cap_changed, sizeof(cap_const)))
+        << "mid-playback pitch write had no effect on voice output";
+}
+
 TEST_F(spu_Test, KeyOnLatchesStartAddrAndActivates) {
     Psyz_SpuMemWrite(kSampleAddr, kAdpcmSine, sizeof(kAdpcmSine));
     setup_voice1(kSampleAddr);
