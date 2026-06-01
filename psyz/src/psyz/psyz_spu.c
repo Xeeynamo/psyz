@@ -61,18 +61,25 @@ void Psyz_SpuInit(void) {
     INFOF("SPU emulation initialized");
 }
 
-void Psyz_SpuReset(int hot) {
-    u8 saved_ram[PSYZ_SPU_RAM_SIZE];
-
-    if (hot) {
-        memcpy(saved_ram, spu.ram, PSYZ_SPU_RAM_SIZE);
-    }
+static void spu_reset(void) {
+    _spu_RXX->rxx.spustat = 0;
     memset(&spu, 0, sizeof(spu));
-    spu.initialized = 1;
+}
 
+static void spu_reset_hot(void) {
+    u8 saved_ram[PSYZ_SPU_RAM_SIZE];
+    memcpy(saved_ram, spu.ram, PSYZ_SPU_RAM_SIZE);
+    spu_reset();
+    memcpy(spu.ram, saved_ram, PSYZ_SPU_RAM_SIZE);
+}
+
+void Psyz_SpuReset(int hot) {
     if (hot) {
-        memcpy(spu.ram, saved_ram, PSYZ_SPU_RAM_SIZE);
+        spu_reset_hot();
+    } else {
+        spu_reset();
     }
+    spu.initialized = 1;
 }
 
 void Psyz_SpuSetTransferAddr(unsigned int addr) {
