@@ -247,8 +247,15 @@ static void spu_tick(short* out) {
     }
 
     // bare-bone voice mixer -- no envelope, no volume, no resampling
+    short v1_sample = 0, v3_sample = 0;
     for (int v = 0; v < PSYZ_SPU_NUM_VOICES; v++) {
+        if (!spu.voice[v].active)
+            continue;
         short s = voice_step(v);
+        if (v == 1)
+            v1_sample = s;
+        else if (v == 3)
+            v3_sample = s;
         left_sum += s;
         right_sum += s;
     }
@@ -267,10 +274,18 @@ static void spu_tick(short* out) {
     out[0] = clamp16((left_sum * clamp15(rxx->main_vol.left)) >> 14);
     out[1] = clamp16((right_sum * clamp15(rxx->main_vol.right)) >> 14);
 
-    // Capture buffers back to the SPU RAM
+    // Capture buffers back to SPU RAM, as per real hardware
     write_capture(0, (short)cd_left);
     write_capture(1, (short)cd_right);
-    spu.capture_pos = (spu.capture_pos + 2) % 0x400;
+    write_capture(2, v1_sample);
+    write_capture(3, v3_sample);
+
+    // SPUSTAT bit 11 flips when capture_pos crosses 0x200
+    unsigned prev_pos = spu.capture_pos;
+    spu.capture_pos = (prev_pos + 2) & 0x3FF;
+    if ((prev_pos ^ spu.capture_pos) & 0x200) {
+        rxx->spustat ^= 1u << 11;
+    }
 }
 
 void Psyz_SpuPullSamples(short* out, int num_frames) {
