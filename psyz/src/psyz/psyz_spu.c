@@ -485,6 +485,19 @@ static short voice_step(int v) {
     return clamp16(acc >> 12);
 }
 
+static inline int voice_vol(unsigned short reg) {
+    if (reg & 0x8000) {
+        // https://problemkaputt.de/psxspx-spu-volume-and-adsr-generator.htm
+        LOG_ONCE("voice volume bit15 not implemented");
+        return 0;
+    }
+    int v = reg & 0x7FFF;
+    if (v & 0x4000) { // bit14 is sign for values -0x4000 to 0x3FFF
+        v -= 0x8000;
+    }
+    return v;
+}
+
 // generate one frame at 44100hz with voices mix, cd playback and volume control
 static void spu_tick(short* out) {
     SPU_RXX* rxx = (SPU_RXX*)&_spu_RXX->rxx;
@@ -534,8 +547,8 @@ static void spu_tick(short* out) {
         }
         rxx->voice[v].volumex = (unsigned short)spu.voice[v].env_vol;
         s = (short)(((int)s * spu.voice[v].env_vol) >> 15); // apply ADSR vol
-        left_sum += s;
-        right_sum += s;
+        left_sum += (s * voice_vol(rxx->voice[v].volume.left)) >> 15;
+        right_sum += (s * voice_vol(rxx->voice[v].volume.right)) >> 15;
     }
 
     // Mute all voices. CD audio is mixed after, and not affected by mute.

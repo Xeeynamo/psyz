@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -483,6 +484,76 @@ TEST_F(spu_Test, ChangePitchWhileVoiceIsOn) {
     // byte-by-byte here due to how gauss interpolation works, a memcpy will do
     EXPECT_NE(0, memcmp(cap_const, cap_changed, sizeof(cap_const)))
         << "mid-playback pitch write had no effect on voice output";
+}
+
+// Peak absolute amplitude of the left and right channels over `nframes` of the
+// final stereo mix that Psyz_SpuPullSamples produces (NOT the per-voice capture
+// buffer, which is pre-volume). out_l/out_r receive the per-channel peaks.
+static void mix_peak(int nframes, int* out_l, int* out_r) {
+    std::vector<short> buf(nframes * 2);
+    Psyz_SpuPullSamples(buf.data(), nframes);
+    int pl = 0, pr = 0;
+    for (int i = 0; i < nframes; i++) {
+        int l = std::abs((int)buf[i * 2]);
+        int r = std::abs((int)buf[i * 2 + 1]);
+        if (l > pl)
+            pl = l;
+        if (r > pr)
+            pr = r;
+    }
+    *out_l = pl;
+    *out_r = pr;
+}
+
+// given a sine wave and L/R volume, get out peak volume out for L/R capture
+static void voice1_volume_peak(
+    unsigned short vol_l, unsigned short vol_r, int* peak_l, int* peak_r) {
+    const unsigned int base = 1u << 4; // voice 1 register base
+    spu_reset_quiet();
+    Psyz_SpuMemWrite(kSampleAddr, kAdpcmSine, sizeof(kAdpcmSine));
+    Psyz_SpuWrite(0x1AA, 0x8000 | 0x4000); // SPU enable + unmute
+    Psyz_SpuWrite(0x180, 0x3FFF);          // main volume left = unity
+    Psyz_SpuWrite(0x182, 0x3FFF);          // main volume right = unity
+    Psyz_SpuWrite(base + 0x00, vol_l);     // voice 1 volume left
+    Psyz_SpuWrite(base + 0x02, vol_r);     // voice 1 volume right
+    spu_voice1_keyon(kSampleAddr, 0x1000);
+    // Skip the key-on envelope delay, then measure a steady window.
+    pull_samples_nop(32);
+    mix_peak(256, peak_l, peak_r);
+    Psyz_SpuWrite(0x18C, 0xFFFF);
+    Psyz_SpuWrite(0x18E, 0xFFFF);
+}
+
+TEST_F(spu_Test, VoiceVolumePansLeftAndRight) {
+    int l, r;
+
+    voice1_volume_peak(0x3FFF, 0x0000, &l, &r);
+    EXPECT_GT(l, 1000) << "hard-left voice produced no left output";
+    EXPECT_EQ(r, 0) << "hard-left voice leaked into the right channel";
+
+    voice1_volume_peak(0x0000, 0x3FFF, &l, &r);
+    EXPECT_GT(r, 1000) << "hard-right voice produced no right output";
+    EXPECT_EQ(l, 0) << "hard-right voice leaked into the left channel";
+}
+
+TEST_F(spu_Test, VoiceVolumeScalesAmplitude) {
+    int full_l, full_r, half_l, half_r;
+    voice1_volume_peak(0x3FFF, 0x3FFF, &full_l, &full_r);
+    voice1_volume_peak(0x2000, 0x2000, &half_l, &half_r);
+
+    ASSERT_GT(full_l, 0);
+    // 0x2000 / 0x3FFF ~= 0.5; allow a generous band for rounding and the
+    // gauss-interpolated sample peak landing on different frames.
+    double ratio = (double)half_l / (double)full_l;
+    EXPECT_GT(ratio, 0.35) << "half volume too quiet (ratio " << ratio << ")";
+    EXPECT_LT(ratio, 0.65) << "half volume too loud (ratio " << ratio << ")";
+}
+
+TEST_F(spu_Test, VoiceVolumeZeroIsSilent) {
+    int l, r;
+    voice1_volume_peak(0x0000, 0x0000, &l, &r);
+    EXPECT_EQ(l, 0);
+    EXPECT_EQ(r, 0);
 }
 
 TEST_F(spu_Test, KeyOnLatchesStartAddrAndActivates) {
