@@ -10,6 +10,10 @@ _Static_assert(
     sizeof(union SpuUnion) == sizeof(SPU_RXX), "SpuUnion must alias SPU_RXX");
 #endif
 
+// One ADPCM block decodes to 28 samples
+#define ADPCM_BLOCK_BYTES 16
+#define ADPCM_BLOCK_SAMPLES 28
+
 static inline short clamp16(int v) {
     if (v < -32768)
         return -32768;
@@ -26,6 +30,45 @@ static inline short clamp15(int v) {
     return v;
 }
 
+static inline int sign4(int n) { return (n & 0x8) ? (n - 0x10) : n; }
+
+// Decode one 16-byte SPU ADPCM block into 28 short samples. PS1 SPU ADPCM:
+//   block[0]    = shift_filter: low nibble = shift (12-shift_in, or 9 if >12)
+//                               high nibble = filter index (clamped 0..4)
+//   block[1]    = flags: bit0 = loop-end, bit1 = repeat, bit2 = loop-start
+//   block[2..15]= 14 bytes of 4-bit nibbles (low nibble first)
+static void spu_adpcm_decode_block(
+    const unsigned char block[ADPCM_BLOCK_BYTES], short* hist1, short* hist2,
+    short out[ADPCM_BLOCK_SAMPLES], u8* flags_out) {
+    static const int pos[5] = {0, 60, 115, 98, 122};
+    static const int neg[5] = {0, 0, -52, -55, -60};
+
+    int shift_in = block[0] & 0x0F;
+    int shift = (shift_in > 12) ? 9 : (12 - shift_in);
+    int filter = (block[0] >> 4) & 0x07;
+    if (filter > 4)
+        filter = 4;
+    int f0 = pos[filter];
+    int f1 = neg[filter];
+    if (flags_out)
+        *flags_out = block[1];
+
+    short prev = *hist1;
+    short prev2 = *hist2;
+    for (int i = 0; i < 14; i++) {
+        unsigned short byte = block[2 + i];
+        for (int n = 0; n < 2; n++) {
+            int t = sign4((byte >> (n * 4)) & 0x0F);
+            int s = (t << shift) + ((prev * f0) >> 6) + ((prev2 * f1) >> 6);
+            short final = clamp16(s);
+            out[i * 2 + n] = final;
+            prev2 = prev;
+            prev = final;
+        }
+    }
+    *hist1 = prev;
+    *hist2 = prev2;
+}
 
 #define N_CHANNELS 2                      // stereo interleaved
 #define CD_RING_FRAMES 4096               // must be power of 2
