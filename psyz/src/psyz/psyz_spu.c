@@ -79,7 +79,16 @@ static void spu_adpcm_decode_block(
 typedef struct {
     unsigned cur_addr;    // current 16-byte block address in SPU RAM
     unsigned repeat_addr; // from voice loop_addr reg, or block flag bit 2
+    short hist1, hist2;
+    short samples[ADPCM_BLOCK_SAMPLES];
+    u8 block_flags; // flags byte of the most-recently-decoded block
+    u8 sample_idx;  // next sample to consume from samples[] (0..28)
+    unsigned spos;  // 16.16 fixed-point counter (1.0 = 0x10000)
+    unsigned sinc;  // pitch_reg << 4 is the per-output-tick increment
+    short gwin[4];  // GAUSS interpolation window
+    u8 gpos;        // index to next decoded sample in gwin
     u8 active;
+    u8 needs_decode;
 } VoiceState;
 
 // Full SPU state
@@ -184,6 +193,23 @@ static void spu_key_on_voice(int v) {
         ((unsigned)rxx->voice[v].addr << 3) & (PSYZ_SPU_RAM_SIZE - 1);
     vs->repeat_addr =
         ((unsigned)rxx->voice[v].loop_addr << 3) & (PSYZ_SPU_RAM_SIZE - 1);
+    vs->hist1 = vs->hist2 = 0;
+    vs->sample_idx = ADPCM_BLOCK_SAMPLES; // force decode on first consume
+    vs->block_flags = 0;
+    vs->needs_decode = 1;
+    // sinc = pitch << 4; pitch=0x1000 -> sinc=0x10000 (1.0 in 16.16)
+    unsigned pitch = rxx->voice[v].pitch;
+    vs->sinc = (pitch & 0x3FFF) << 4;
+    if (vs->sinc == 0)
+        vs->sinc = 1;
+
+    // Start spos at 1.0 so the first voice_step consumes exactly one sample.
+    // The gauss window stays mostly zero-padded for several ticks, producing
+    // the silent warmup-then-ringing pattern observed in PS1 captures
+    vs->spos = 0x10000;
+
+    // We do not reset vs->gpos at key-on for accuracy. On real PS1 hardware,
+    // a voice on will carry the residual state from prior voice activity
     vs->active = 1;
 }
 
@@ -257,7 +283,70 @@ static void write_capture(unsigned int idx, short val) {
     }
 }
 
-static short voice_step(int v) { return 0; }
+static int voice_decode_one_sample(VoiceState* vs) {
+    if (vs->sample_idx >= ADPCM_BLOCK_SAMPLES) {
+        // end of block, and handle loop/end flags
+        if (vs->needs_decode == 0 && (vs->block_flags & 0x01)) {
+            if (vs->block_flags & 0x02) {
+                vs->cur_addr = vs->repeat_addr;
+                vs->needs_decode = 1;
+            } else {
+                vs->active = 0;
+                vs->gwin[vs->gpos] = 0;
+                vs->gpos = (vs->gpos + 1) & 3;
+                return 0;
+            }
+        }
+        if (!vs->needs_decode)
+            vs->needs_decode = 1;
+        vs->sample_idx = 0;
+    }
+    if (vs->needs_decode) {
+        unsigned char block[ADPCM_BLOCK_BYTES];
+        Psyz_SpuMemRead(vs->cur_addr, block, ADPCM_BLOCK_BYTES);
+        spu_adpcm_decode_block(
+            block, &vs->hist1, &vs->hist2, vs->samples, &vs->block_flags);
+        if (vs->block_flags & 0x04) {
+            vs->repeat_addr = vs->cur_addr;
+        }
+        vs->cur_addr =
+            (vs->cur_addr + ADPCM_BLOCK_BYTES) & (PSYZ_SPU_RAM_SIZE - 1);
+        vs->needs_decode = 0;
+    }
+    short s = vs->samples[vs->sample_idx++];
+    vs->gwin[vs->gpos] = s;
+    vs->gpos = (vs->gpos + 1) & 3;
+    return 1;
+}
+
+// Advance voice `v` by one output-rate tick (44.1 kHz) and return its
+// pitch-resampled, gauss-interpolated short sample.
+static short voice_step(int v) {
+    VoiceState* vs = &spu.voice[v];
+
+    // consume decoded samples until the pitch counter is below 1.0
+    while (vs->spos >= 0x10000) {
+        if (!voice_decode_one_sample(vs)) {
+            // Voice stopped mid-decode; flush remaining ticks as zero.
+            vs->spos = 0;
+            break;
+        }
+        vs->spos -= 0x10000;
+    }
+
+    // GAUSS interpolation
+    int vl = (vs->spos >> 6) & ~3;
+    int g0 = vs->gwin[vs->gpos & 3];
+    int g1 = vs->gwin[(vs->gpos + 1) & 3];
+    int g2 = vs->gwin[(vs->gpos + 2) & 3];
+    int g3 = vs->gwin[(vs->gpos + 3) & 3];
+    int acc = (spu_gauss_tbl[vl + 0] * g0) & ~2047;
+    acc += (spu_gauss_tbl[vl + 1] * g1) & ~2047;
+    acc += (spu_gauss_tbl[vl + 2] * g2) & ~2047;
+    acc += (spu_gauss_tbl[vl + 3] * g3) & ~2047;
+    vs->spos += vs->sinc;
+    return clamp16(acc >> 12);
+}
 
 // generate one frame at 44100hz with voices mix, cd playback and volume control
 static void spu_tick(short* out) {
