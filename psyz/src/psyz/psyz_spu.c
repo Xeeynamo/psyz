@@ -130,6 +130,9 @@ void Psyz_SpuWrite(unsigned int reg_offset, unsigned short value) {
         WARNF("Psyz_SpuWrite: bad offset 0x%X", reg_offset);
         return;
     }
+    if (reg_offset == offsetof(SPU_RXX, spustat)) { // read-only
+        return;
+    }
     _spu_RXX->raw[reg_offset >> 1] = value;
     switch (reg_offset) {
     case 0x1A6: // xfer_addr
