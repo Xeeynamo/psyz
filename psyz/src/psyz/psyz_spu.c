@@ -75,20 +75,26 @@ static void spu_adpcm_decode_block(
 #define CD_RING_MASK (CD_RING_FRAMES - 1) // ring wrapper
 #define CD_RING_LOW_WATER 1024            // refill when short of N frames
 
+typedef struct {
+    u8 active;
+} VoiceState;
+
 // Full SPU state
 static struct {
     u8 ram[PSYZ_SPU_RAM_SIZE];
 
     // Transfer address (byte address into SPU RAM)
-    u32 transfer_addr;
+    unsigned transfer_addr;
 
     // Capture buffer position
     u16 capture_pos;
 
+    VoiceState voice[PSYZ_SPU_NUM_VOICES];
+
     // CD audio ring buffer + pull callback
-    s16 cd_ring[CD_RING_FRAMES * N_CHANNELS];
-    u32 cd_ring_read;
-    u32 cd_ring_count; // number of valid frames in ring
+    short cd_ring[CD_RING_FRAMES * N_CHANNELS];
+    unsigned cd_ring_read;
+    unsigned cd_ring_count; // number of valid frames in ring
     void* cd_audio_userdata;
 
     u8 initialized;
@@ -168,6 +174,11 @@ void Psyz_SpuMemWrite(unsigned int offset, const void* src, unsigned int size) {
     }
 }
 
+static void spu_key_on_voice(int v) {
+    VoiceState* vs = &spu.voice[v];
+    vs->active = 1;
+}
+
 void Psyz_SpuWrite(unsigned int reg_offset, unsigned short value) {
     if (reg_offset >= sizeof(SPU_RXX) || (reg_offset & 1)) {
         WARNF("Psyz_SpuWrite: bad offset 0x%X", reg_offset);
@@ -178,10 +189,34 @@ void Psyz_SpuWrite(unsigned int reg_offset, unsigned short value) {
     }
     _spu_RXX->raw[reg_offset >> 1] = value;
     switch (reg_offset) {
-    case 0x1A6: // xfer_addr
-        Psyz_SpuSetTransferAddr((unsigned int)value << 3);
+    case offsetof(SPU_RXX, key_on[0]): // voices 0..15
+        for (int v = 0; v < 16; v++) {
+            if (value & (1u << v))
+                spu_key_on_voice(v);
+        }
         break;
-    case 0x1A8: // xfer_fifo
+    case offsetof(SPU_RXX, key_on[1]): // voices 16..23
+        for (int v = 0; v < 8; v++) {
+            if (value & (1u << v))
+                spu_key_on_voice(16 + v);
+        }
+        break;
+    case offsetof(SPU_RXX, key_off[0]): // voices 0..15
+        for (int v = 0; v < 16; v++) {
+            if (value & (1u << v))
+                spu.voice[v].active = 0;
+        }
+        break;
+    case offsetof(SPU_RXX, key_off[1]): // voices 16..23
+        for (int v = 0; v < 8; v++) {
+            if (value & (1u << v))
+                spu.voice[16 + v].active = 0;
+        }
+        break;
+    case offsetof(SPU_RXX, trans_addr):
+        Psyz_SpuSetTransferAddr((unsigned)value << 3);
+        break;
+    case offsetof(SPU_RXX, trans_fifo):
         Psyz_SpuFifoWrite(value);
         break;
     default:
