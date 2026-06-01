@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <string.h>
 #include "../../decomp/src/libspu/libspu_private.h"
+#include "spu_gauss.h"
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 _Static_assert(sizeof(SPU_RXX) == 0x200, "SPU_RXX must be 0x200 bytes");
