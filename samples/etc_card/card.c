@@ -152,10 +152,9 @@ int main(void) {
         FntPrint("    %s\n\n", version);
         for (i = 0; i < FMAX; i++) {
             if (menu == i)
-                strcpy(buf, "* ");
+                snprintf(buf, sizeof(buf), "* %s", disp_msg[i]);
             else
-                strcpy(buf, "  ");
-            strcat(buf, disp_msg[i]);
+                snprintf(buf, sizeof(buf), "  %s", disp_msg[i]);
             FntPrint("  %s\n", buf);
         }
         FntPrint("\n    KEY : Up&Down&Start\n");
@@ -342,7 +341,7 @@ int main(void) {
                         _draw();
                     }
                     for (i = ret = 0; i < 15; i++) {
-                        strcpy(buf, "bu00:SCE");
+                        snprintf(buf, sizeof(buf), "bu00:SCE");
                         buf[8] = ((i + 1) > 9) ? '1' : '0';
                         buf[9] = '0' + (i + 1) % 10;
                         buf[10] = '\0';
@@ -367,7 +366,7 @@ int main(void) {
         } else if (exec == 8) {
             _pre_draw();
             _draw();
-            strcpy(buf, "\nMAKE CARD DATA OK? (SELECT/ELSE)\n");
+            snprintf(buf, sizeof(buf), "\nMAKE CARD DATA OK? (SELECT/ELSE)\n");
             FntPrint(buf);
             _pre_draw();
             _draw();
@@ -562,8 +561,7 @@ int dir_file(char* drv, struct DIRENTRY* d) {
     long i;
     char key[128];
 
-    strcpy(key, drv);
-    strcat(key, "*");
+    snprintf(key, sizeof(key), "%s*", drv);
 
     i = 0;
     if (firstfile(key, d) == d) {
