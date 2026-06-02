@@ -117,6 +117,21 @@ static const char gl33_fragment_shader[] = {
     "    uint a = uint(c.a + 0.5);\n"
     "    return r | (g << 5u) | (b << 10u) | (a << 15u);\n"
     "}\n"
+    "uniform int dither;\n"
+    "const mat4 ditherMatrix = mat4("
+    "    -4.0, +0.0, -3.0, +1.0,"
+    "    +2.0, -2.0, +3.0, -1.0,"
+    "    -3.0, +1.0, -4.0, +0.0,"
+    "    +3.0, -1.0, +2.0, -2.0);\n"
+    "vec3 applyDither(vec3 c) {\n"
+    "    if (dither == 0) return c;\n"
+    "    int dx = int(gl_FragCoord.x) & 3;\n"
+    "    int dy = int(gl_FragCoord.y) & 3;\n"
+    "    float off = ditherMatrix[dy][dx];\n"
+    "    vec3 c8 = floor(c * 255.0 + 0.5) + off;\n"
+    "    vec3 c5 = clamp(floor(c8 / 8.0), 0.0, 31.0);\n"
+    "    return c5 / 31.0;\n"
+    "}\n"
     "\n"
     "void main() {\n"
     "    vec4 texColor;\n"
@@ -157,6 +172,7 @@ static const char gl33_fragment_shader[] = {
     "        modColor = min(floor(tex5 * col8 / 128.0), vec3(31.0)) / "
     "31.0;\n"
     "    }\n"
+    "    modColor = applyDither(modColor);\n"
     // pre-multiplied alpha output for GL_ONE, GL_ONE_MINUS_SRC_ALPHA blending
     "    if (colorSemiTrans && isSemiTrans) {\n"
     "        uint abr = (tpage & 0x60u) >> 5u;\n"
@@ -207,6 +223,7 @@ static u_short cur_tpage = 0;
 static GLint uniform_resolution = 0;
 static GLint uniform_tex_vram = 0;
 static GLint uniform_draw_offset = 0;
+static GLint uniform_dither = 0;
 static GLuint vram_texture;
 static GLuint vram_fbo = 0;
 static GLuint scratch_texture = 0;
@@ -226,6 +243,7 @@ static Uint64 last_frame_time = 0;
 static Uint64 finish_time = 0;
 static double drift_compensation = 0.0;
 static PsyzVsyncMode vsync_mode = PSYZ_VSYNC_AUTO;
+static PsyzDitherMode dither_mode = PSYZ_DITHER_AUTO;
 static bool use_driver_vsync = false;
 static PsyzVideoStats gpu_stats = {0};
 
@@ -392,9 +410,11 @@ bool InitPlatform() {
     uniform_resolution = glGetUniformLocation(shader_program, "resolution");
     uniform_tex_vram = glGetUniformLocation(shader_program, "texVram");
     uniform_draw_offset = glGetUniformLocation(shader_program, "drawOffset");
+    uniform_dither = glGetUniformLocation(shader_program, "dither");
 
     glUniform1i(uniform_tex_vram, 0);
     glUniform2f(uniform_draw_offset, 0, 0);
+    glUniform1i(uniform_dither, 0);
     glGenTextures(1, &vram_texture);
 
     glActiveTexture(GL_TEXTURE0);
@@ -977,6 +997,35 @@ int Psyz_VideoSetVsyncMode(PsyzVsyncMode mode) {
     return 0;
 }
 
+static int s_dither = 0;
+static int GetCurrentDither(void) {
+    if (dither_mode == PSYZ_DITHER_OFF) {
+        return 0;
+    }
+    return s_dither;
+}
+static void SetDither(int dither) {
+    int prev = GetCurrentDither();
+    s_dither = dither;
+    if (GetCurrentDither() != prev) {
+        Draw_FlushBuffer();
+    }
+}
+int Psyz_VideoSetDitheringMode(PsyzDitherMode mode) {
+    if (mode != PSYZ_DITHER_AUTO && mode != PSYZ_DITHER_OFF) {
+        return -1;
+    }
+    if (dither_mode == mode) {
+        return 0;
+    }
+    int prev = GetCurrentDither();
+    dither_mode = mode;
+    if (GetCurrentDither() != prev) {
+        Draw_FlushBuffer();
+    }
+    return 0;
+}
+
 int Psyz_VideoStats(PsyzVideoStats* stats) {
     if (!stats || !is_platform_init_successful) {
         return -1;
@@ -1500,7 +1549,9 @@ int Draw_PushPrim(u_long* packets, int max_len) {
 
 void Draw_SetTexpageMode(ParamDrawTexpageMode* p) {
     // implements SetDrawMode, SetDrawEnv
-    cur_tpage = *(u_short*)p & 0x1FF;
+    unsigned short mode = *(u_short*)p;
+    SetDither((mode & 0x200) ? 1 : 0);
+    cur_tpage = mode & 0x1FF;
     if (p->tex_y_extra_vram) {
         DEBUGF("tex_y_extra_vram not implemented");
     }
@@ -1678,6 +1729,7 @@ void Draw_FlushBuffer(void) {
         Draw_InitBuffer();
     }
     glUseProgram(shader_program);
+    glUniform1i(uniform_dither, GetCurrentDither());
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferSubData(
