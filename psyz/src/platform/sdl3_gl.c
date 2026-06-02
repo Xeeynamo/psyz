@@ -1283,12 +1283,6 @@ int Draw_PushPrim(u_long* packets, int max_len) {
             clut = -1;
             tpage = cur_tpage | TPAGE_NOTEXTURE;
         }
-        if ((code & 0x24) == 0x20) {
-            // halve the brightness only for TILE
-            vertex_cur[0].r >>= 1;
-            vertex_cur[0].g >>= 1;
-            vertex_cur[0].b >>= 1;
-        }
         switch (code & ~3) {
         case 0x60: // TILE
         case 0x64: // SPRT
