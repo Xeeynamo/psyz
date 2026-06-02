@@ -48,8 +48,11 @@ class gpu_Test : public testing::Test {
         DRAWENV draw;
         DISPENV disp;
         OT_TYPE ot[OTSIZE];
+        POLY_F4 f4[8];
         POLY_FT4 ft4[8];
+        POLY_G4 g4[4];
         POLY_GT4 gt4[4];
+        LINE_G2 lineg2[4];
         SPRT sprt[4];
         TILE tile[4];
     } DB;
@@ -229,6 +232,43 @@ TEST_F(gpu_Test, draw_gt4) {
     VSync(0);
     PutDispEnv(&cdb->disp);
     AssertFrame("draw_gt4", 0.9875);
+}
+
+// Reproduces SOTN MenuDrawLine: a 1px rectangle border drawn as four
+// LINE_G2 (GP0 0x50) segments. Dumps the captured frame so the corners can
+// be inspected for endpoint gaps.
+static void SetBorderLine(LINE_G2* l, int x0, int y0, int x1, int y1, int c) {
+    SetLineG2(l);
+    setRGB0(l, c, c, c);
+    l->r1 = l->g1 = l->b1 = (u_char)c;
+    l->x0 = (short)x0;
+    l->y0 = (short)y0;
+    l->x1 = (short)x1;
+    l->y1 = (short)y1;
+}
+
+TEST_F(gpu_Test, gouraud_line_after_flush) {
+    SetPolyF4(&cdb->f4[0]);
+    setXYWH(&cdb->f4[0], 16, 16, 64, 64);
+    setRGB0(&cdb->f4[0], 0, 0, 255);
+    setSemiTrans(&cdb->f4[0], 0);
+
+    SetLineG2(&cdb->lineg2[0]);
+    setXY2(&cdb->lineg2[0], 16, 88, 80, 88);
+    setRGB0(&cdb->lineg2[0], 255, 0, 0);
+    setRGB1(&cdb->lineg2[0], 0, 255, 0);
+    setSemiTrans(&cdb->f4[0], 0);
+
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &db[0].lineg2[0]);
+    AddPrim(cdb->ot, &db[0].f4[0]);
+
+    ClearImage(&cdb->draw.clip, 0, 0, 0);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+    AssertFrame("gouraud_line_after_flush");
 }
 
 TEST_F(gpu_Test, set_draw_area) {
