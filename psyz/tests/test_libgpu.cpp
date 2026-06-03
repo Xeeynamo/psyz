@@ -679,3 +679,32 @@ TEST_F(gpu_Test, alpha_blend) {
 
     AssertFrame("alpha_blend", 0.9585);
 }
+
+TEST_F(gpu_Test, untextured_transp_poly_take_abr_from_drawenv) {
+    ClearImage(&cdb->draw.clip, 0x60, 0x60, 0x60);
+    DrawSync(0);
+
+    const int16_t bx[4] = {8, 88, 8, 88};
+    const int16_t by[4] = {8, 8, 88, 88};
+    for (int i = 0; i < 4; i++) {
+        Psyz_GpuWriteGP0(_get_mode(1, 0, getTPage(0, i, 0, 0)));
+
+        POLY_F4 poly;
+        SetPolyF4(&poly);
+        SetSemiTrans(&poly, 1);
+        setRGB0(&poly, 0x80, 0x40, 0xC0);
+        setXYWH(&poly, bx[i], by[i], 64, 64);
+
+        unsigned* words = (unsigned*)&poly + sizeof(OT_TYPE) / sizeof(unsigned);
+        Psyz_GpuWriteGP0(*words++);
+        Psyz_GpuWriteGP0(*words++);
+        Psyz_GpuWriteGP0(*words++);
+        Psyz_GpuWriteGP0(*words++);
+        Psyz_GpuWriteGP0(*words++);
+    }
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+
+    AssertFrame("abr_untextured", 0.99);
+}
