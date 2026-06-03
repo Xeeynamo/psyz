@@ -63,10 +63,11 @@ static const char gl33_vertex_shader[] = {
     "    vertexColor = color * vec4(2, 2, 2, 1);\n"
     // select the right texture coords based on the tpage
     "    clut = uint(tex.z);\n"
-    "    tpage = uint(tex.w);\n"
+    "    uint texWord = uint(tex.w);\n"
+    "    tpage = texWord & 0x1FFu;\n"
     "    texCoord = vec2(tex.x / 4096.0, tex.y / 512.0);\n"
     // Determine texture mode and pre-compute parameters
-    "    if (tpage == 0xFFFFu) {\n"
+    "    if ((texWord & 0x8000u) != 0u) {\n"
     "        textureMode = 0u;\n" // untextured
     "    } else if ((tpage & 0x180u) >= 0x100u) {\n"
     "        textureMode = 1u;\n" // 16-bit direct
@@ -185,6 +186,7 @@ typedef struct {
     GLint x, y;
 } GLposi; // this is custom
 
+#define TPAGE_NOTEXTURE 0x8000 // reuse reserved bit to flag untextured poly
 #define VRGBA(p) (*(unsigned int*)(&((p).r)))
 #define SET_TC(p, tpage, clut) (p)->t = (u16)(tpage), (p)->c = (u16)(clut);
 #define SET_TC_ALL(p, t, c)                                                    \
@@ -1195,7 +1197,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
                 FixupFlipUV(vertex_cur, code & EXTRA_VERTEX);
             } else {
                 clut = -1;
-                tpage = -1;
+                tpage = cur_tpage | TPAGE_NOTEXTURE;
             }
             if (!isGouraud || !isShadeTex) {
                 VRGBA(vertex_cur[1]) = VRGBA(vertex_cur[2]) =
@@ -1220,7 +1222,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
             vertex_cur[i].x = ((s16*)packets)[0];
             vertex_cur[i].y = ((s16*)packets)[1];
             vertex_cur[i].c = -1;
-            vertex_cur[i].t = -1;
+            vertex_cur[i].t = cur_tpage | TPAGE_NOTEXTURE;
             packets++;
             len--;
             if (len > 0 && i + 1 < nPoints) {
@@ -1264,7 +1266,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
             len--;
         } else {
             clut = -1;
-            tpage = -1;
+            tpage = cur_tpage | TPAGE_NOTEXTURE;
         }
         if ((code & 0x24) == 0x20) {
             // halve the brightness only for TILE
@@ -1481,6 +1483,11 @@ void Draw_ResetBuffer(void) {
     vertex_cur = vertex_buf;
     index_cur = index_buf;
 }
+
+static inline bool is_subtract_abr(const Vertex* v) {
+    return v->a == 0x80 && (v->t & 0x60) == 0x40;
+}
+
 void Draw_FlushBuffer(void) {
     if (n_vertices == 0) {
         return;
@@ -1504,13 +1511,11 @@ void Draw_FlushBuffer(void) {
     bool cur_subtract = false;
     while (start < n_indices) {
         Vertex* v = &vertex_buf[index_buf[start]];
-        bool need_subtract =
-            (v->a == 0x80) && (v->t != (u16)-1) && ((v->t & 0x60) == 0x40);
+        bool need_subtract = is_subtract_abr(v);
         int end = start + prim_size;
         while (end < n_indices) {
             v = &vertex_buf[index_buf[end]];
-            bool next_subtract =
-                (v->a == 0x80) && (v->t != (u16)-1) && ((v->t & 0x60) == 0x40);
+            bool next_subtract = is_subtract_abr(v);
             if (next_subtract != need_subtract) {
                 break;
             }
