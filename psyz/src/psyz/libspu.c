@@ -26,8 +26,6 @@ s32 _spu_t(s32 arg0, ...) {
     return 0;
 }
 
-void _spu_Fw(unsigned char* addr, unsigned long size) { NOT_IMPLEMENTED; }
-
 void _spu_FsetRXX(u32 offset, u32 value, u32 mode) { NOT_IMPLEMENTED; }
 
 u32 _spu_FsetRXXa(s32 arg0, u32 arg1) {

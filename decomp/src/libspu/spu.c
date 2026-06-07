@@ -122,7 +122,16 @@ INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_Fr_);
 
 INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_t);
 
-INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_Fw);
+u_long _spu_Fw(unsigned char* addr, u_long size) {
+    if (_spu_transMode) {
+        _spu_FwriteByIO(addr, size);
+        return size;
+    }
+    _spu_t(2, _spu_tsa << _spu_mem_mode_plus);
+    _spu_t(1);
+    _spu_t(3, addr, size);
+    return size;
+}
 
 INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_Fr);
 
