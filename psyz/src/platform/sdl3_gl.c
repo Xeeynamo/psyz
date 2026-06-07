@@ -1230,7 +1230,9 @@ int Draw_PushPrim(u_long* packets, int max_len) {
             padding = false;
             nPoints++; // don't ask, have faith
         }
+        Vertex first = *v; // save line before flushing previous geometry
         Draw_FlushBuffer();
+        vertex_cur[0] = first;
         for (int i = 0; len > 0 && i < nPoints; i++) {
             vertex_cur[i].x = s11(((short*)packets)[0]);
             vertex_cur[i].y = s11(((short*)packets)[1]);
