@@ -36,11 +36,6 @@ SpuIRQCallbackProc SpuSetIRQCallback(SpuIRQCallbackProc in) {
     return in;
 }
 
-long SpuSetTransferMode(long mode) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
 long* SpuMallocWithStartAddr(long* addr, long size) {
     NOT_IMPLEMENTED;
     return (long*)(uintptr_t)-1;

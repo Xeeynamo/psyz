@@ -179,7 +179,7 @@ extern s32 _spu_rev_reserve_wa;
 extern s32 _spu_rev_startaddr[];
 extern SpuReverbAttr _spu_rev_attr;
 extern s32 _spu_transMode;
-extern s32 _spu_trans_mode;
+extern int _spu_trans_mode;
 extern u16 _spu_tsa;
 extern u16 _spu_voice_centerNote[];
 extern void (* volatile _spu_transferCallback)();

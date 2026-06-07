@@ -1239,14 +1239,14 @@ SpuIRQCallbackProc SpuSetIRQCallback(SpuIRQCallbackProc func);
  * @param mode Transfer mode
  * @return Mode set
  */
-long SpuSetTransferMode(long mode);
+int SpuSetTransferMode(int mode);
 
 /**
  * @brief Get transfer mode
  *
  * @return Current transfer mode
  */
-long SpuGetTransferMode(void);
+int SpuGetTransferMode(void);
 
 /**
  * @brief Set transfer start address
