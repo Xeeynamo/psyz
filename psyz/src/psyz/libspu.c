@@ -30,6 +30,11 @@ void _spu_Fw(unsigned char* addr, unsigned long size) { NOT_IMPLEMENTED; }
 
 void _spu_FsetRXX(u32 offset, u32 value, u32 mode) { NOT_IMPLEMENTED; }
 
+u32 _spu_FsetRXXa(s32 arg0, u32 arg1) {
+    NOT_IMPLEMENTED;
+    return 0;
+}
+
 void _spu_FiDMA(void) { NOT_IMPLEMENTED; }
 
 void SpuSetVoiceAttr(SpuVoiceAttr* arg) { NOT_IMPLEMENTED; }
@@ -79,11 +84,6 @@ void SpuFree(long* addr) {
             break;
         }
     }
-}
-
-unsigned long SpuWritePartly(unsigned char* addr, unsigned long size) {
-    NOT_IMPLEMENTED;
-    return 0;
 }
 
 s32 _SpuIsInAllocateArea_(u32 arg0) { NOT_IMPLEMENTED; }
