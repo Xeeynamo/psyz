@@ -19,8 +19,6 @@ volatile u16 _spu_RQ[10] = {0};
 
 void _spu_Fw1ts(void) { Psyz_AudioInit(); }
 
-void _spu_FwriteByIO(void* addr, int len) { NOT_IMPLEMENTED; }
-
 s32 _spu_t(s32 arg0, ...) {
     NOT_IMPLEMENTED;
     return 0;

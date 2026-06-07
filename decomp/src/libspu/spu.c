@@ -37,7 +37,6 @@ static const char D_800B4D90[] = "wait (reset)";
 extern volatile u16 _spu_RQ[10];
 
 void _spu_Fw1ts(void);
-void _spu_FwriteByIO(void* addr, int len);
 int _spu_init(int bHot) {
     u32 dmaTimer;
     int i;
@@ -114,7 +113,56 @@ int _spu_init(int bHot) {
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FwriteByIO);
+int _spu_FwriteByIO(unsigned char* addr, u_long size) {
+    unsigned short spustat;
+    int num_to_trans;
+    unsigned short* cur_pos;
+    int spustat_cur;
+    int i;
+    unsigned short cnt;
+    unsigned timeout;
+
+    cur_pos = (unsigned short*)addr;
+    spustat = _spu_RXX->rxx.spustat & 0x7FF;
+    _spu_RXX->rxx.trans_addr = _spu_tsa;
+    _spu_Fw1ts();
+    while (size > 0) {
+        num_to_trans = (size > 0x40) ? 0x40 : size;
+        for (i = 0; i < num_to_trans; i += 2) {
+            _spu_RXX->rxx.trans_fifo = *cur_pos++;
+        }
+        cnt = _spu_RXX->rxx.spucnt;
+        cnt &= ~0x30;
+        cnt |= 0x10;
+        _spu_RXX->rxx.spucnt = cnt;
+        _spu_Fw1ts();
+        timeout = 0;
+        while (_spu_RXX->rxx.spustat & 0x400) {
+            timeout++;
+            if (timeout > 0xF00) {
+                printf("SPU:T/O [%s]\n", "wait (wrdy H -> L)");
+                break;
+            }
+        }
+        _spu_Fw1ts();
+        _spu_Fw1ts();
+        size -= num_to_trans;
+    }
+    cnt = _spu_RXX->rxx.spucnt;
+    cnt &= ~0x30;
+    _spu_RXX->rxx.spucnt = cnt;
+    timeout = 0;
+    spustat_cur = _spu_RXX->rxx.spustat & 0x7FF;
+    while (spustat_cur != spustat) {
+        timeout++;
+        if (timeout > 0xF00) {
+            printf("SPU:T/O [%s]\n", "wait (dmaf clear/W)");
+            return;
+        }
+        spustat_cur = _spu_RXX->rxx.spustat & 0x7FF;
+    }
+    return spustat_cur;
+}
 
 INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FiDMA);
 
