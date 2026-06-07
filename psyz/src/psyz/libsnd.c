@@ -18,12 +18,30 @@ extern struct SeqStruct* _ss_score[32];
 extern unsigned int VBLANK_MINUS;
 extern int _snd_openflag;
 
-static void SetVoiceData(int nVoice, short* data) { NOT_IMPLEMENTED; }
+static void SetVoiceData(int nVoice, unsigned short* data) {
+#if 0
+// TODO can we just do the following more performant version?
+// _spu_RXX->rxx.voice[nVoice] = *(SPU_VOICE_REG*)data;
+#else
+    Psyz_SpuWrite(nVoice * 0x10 + 0, data[0]);
+    Psyz_SpuWrite(nVoice * 0x10 + 2, data[1]);
+    Psyz_SpuWrite(nVoice * 0x10 + 4, data[2]);
+    Psyz_SpuWrite(nVoice * 0x10 + 6, data[3]);
+    Psyz_SpuWrite(nVoice * 0x10 + 8, data[4]);
+    Psyz_SpuWrite(nVoice * 0x10 + 10, data[5]);
+    Psyz_SpuWrite(nVoice * 0x10 + 12, data[6]);
+    Psyz_SpuWrite(nVoice * 0x10 + 14, data[7]);
+#endif
+}
 
-static void SetStateData(short* data) { NOT_IMPLEMENTED; }
+static void SetStateData(unsigned short* data, unsigned nWords) {
+    for (unsigned i = 0; i < nWords; i++) {
+        Psyz_SpuWrite(0x180 + i * 2, data[i]);
+    }
+}
 
-static short default_voice[] = {0, 0, 0x1000, 0x3000, 0x00BF, 0, 0, 0};
-static short default_state[] = {
+static unsigned short default_voice[] = {0, 0, 0x1000, 0x3000, 0x00BF, 0, 0, 0};
+static unsigned short default_state[] = {
     0x3FFF, 0x3FFF, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
     0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000};
 extern SPU_RXX* _svm_sreg;
@@ -35,7 +53,7 @@ void _SsInit(void) {
     for (i = 0; i < NUM_VOICES; i++) {
         SetVoiceData(i, default_voice);
     }
-    SetStateData(default_state);
+    SetStateData(default_state, LEN(default_state));
 
     _SsVmInit(NUM_VOICES);
     for (j = 0; j < LEN(_SsMarkCallback); j++) {
