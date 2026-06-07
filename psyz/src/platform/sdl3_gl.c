@@ -1072,13 +1072,16 @@ static void Draw_EnqueueBuffer(int vertices, int indices) {
 #define GOURAUD 0x10
 #define TRIANGLE 0x20
 
+// real hardware use XY coords as signed 11-bit
+static short s11(short v) { return (short)(((v & 0x7FF) ^ 1024) - 1024); }
+
 static int writePacket(Vertex* v, int code, int n, u_long* packet, u16* pOut) {
     int w;
     if (!n) {
         return 0;
     }
-    v->x = ((s16*)packet)[0];
-    v->y = ((s16*)packet)[1];
+    v->x = s11(((short*)packet)[0]);
+    v->y = s11(((short*)packet)[1]);
     packet++;
     n--;
     if (!n) {
@@ -1219,8 +1222,8 @@ int Draw_PushPrim(u_long* packets, int max_len) {
         }
         Draw_FlushBuffer();
         for (int i = 0; len > 0 && i < nPoints; i++) {
-            vertex_cur[i].x = ((s16*)packets)[0];
-            vertex_cur[i].y = ((s16*)packets)[1];
+            vertex_cur[i].x = s11(((short*)packets)[0]);
+            vertex_cur[i].y = s11(((short*)packets)[1]);
             vertex_cur[i].c = -1;
             vertex_cur[i].t = cur_tpage | TPAGE_NOTEXTURE;
             packets++;
@@ -1253,8 +1256,8 @@ int Draw_PushPrim(u_long* packets, int max_len) {
         flush_mode = GL_TRIANGLES;
     } else if (isTile) {
         int x, y, w, h, tu, tv;
-        x = ((s16*)packets)[0];
-        y = ((s16*)packets)[1];
+        x = s11(((short*)packets)[0]);
+        y = s11(((short*)packets)[1]);
         packets++;
         len--;
         if (isTextured) {
