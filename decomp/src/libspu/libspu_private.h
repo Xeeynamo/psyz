@@ -202,7 +202,7 @@ void _SpuDataCallback(SpuTransferCallbackProc func);
 void _SsVmKeyOffNow(int mode);
 int _spu_getInTransfer(void);
 u_long _spu_Fw(unsigned char* addr, u_long size);
-int _spu_FwriteByIO(unsigned char* addr, u_long size);
+void _spu_FwriteByIO(unsigned char* addr, u_long size);
 u_long _SpuSetAnyVoice(long on_off, u_long voice_bit, int arg2, int arg3);
 void _spu_Fw1ts(void);
 

@@ -109,7 +109,7 @@ int _spu_init(int bHot) {
     return 0;
 }
 
-int _spu_FwriteByIO(unsigned char* addr, u_long size) {
+void _spu_FwriteByIO(unsigned char* addr, u_long size) {
     unsigned short spustat;
     int num_to_trans;
     unsigned short* cur_pos;
@@ -157,7 +157,6 @@ int _spu_FwriteByIO(unsigned char* addr, u_long size) {
         }
         spustat_cur = _spu_RXX->rxx.spustat & 0x7FF;
     }
-    return spustat_cur;
 }
 
 INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FiDMA);
