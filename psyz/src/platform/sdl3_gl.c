@@ -1449,7 +1449,8 @@ static bool EnsureScratchFbo(void) {
     glBindFramebuffer(GL_FRAMEBUFFER, scratch_fbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
                            scratch_texture, 0);
-    bool ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    bool ok =
+        glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
     glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
     glBindTexture(GL_TEXTURE_2D, vram_texture);
     if (!ok) {
@@ -1497,14 +1498,12 @@ void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
     glDisable(GL_SCISSOR_TEST);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, vram_fbo);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, scratch_fbo);
-    glBlitFramebuffer(
-        src_x, src_y, src_x + copy_w, src_y + copy_h, 0, 0, copy_w, copy_h,
-        GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBlitFramebuffer(src_x, src_y, src_x + copy_w, src_y + copy_h, 0, 0,
+                      copy_w, copy_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, scratch_fbo);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, vram_fbo);
-    glBlitFramebuffer(
-        0, 0, copy_w, copy_h, dst_x, dst_y, dst_x + copy_w, dst_y + copy_h,
-        GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBlitFramebuffer(0, 0, copy_w, copy_h, dst_x, dst_y, dst_x + copy_w,
+                      dst_y + copy_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
     glEnable(GL_SCISSOR_TEST);
 }
