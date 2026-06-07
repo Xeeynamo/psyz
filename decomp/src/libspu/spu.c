@@ -31,14 +31,10 @@ s32 D_800D1058 = 0;
 s32 D_800D105C = 0;
 s32 D_800D1060 = 0;
 
-static const char D_800B4D80[] = "SPU:T/O [%s]\n";
-static const char D_800B4D90[] = "wait (reset)";
-
 extern volatile u16 _spu_RQ[10];
 
-void _spu_Fw1ts(void);
 int _spu_init(int bHot) {
-    u32 dmaTimer;
+    unsigned dmaTimer;
     int i;
 
     *dma_dpcr |= DMA_DPCR_SPU_PRIORITY_HIGH | DMA_DPCR_MASK_DMA4_ENABLE;
@@ -55,7 +51,7 @@ int _spu_init(int bHot) {
     dmaTimer = 0;
     while (_spu_RXX->rxx.spustat & 0x7FF) {
         if (++dmaTimer > DMA_TIMEOUT) {
-            printf(D_800B4D80, D_800B4D90);
+            printf("SPU:T/O [%s]\n", "wait (reset)");
             break;
         }
     }
@@ -183,7 +179,21 @@ u_long _spu_Fw(unsigned char* addr, u_long size) {
 
 INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_Fr);
 
-INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FsetRXX);
+void _spu_FsetRXX(unsigned offset, unsigned value, unsigned mode) {
+#ifdef VERSION_PC
+    if (mode == 0) {
+        Psyz_SpuWrite(offset, value);
+    } else {
+        Psyz_SpuWrite(offset, value >> _spu_mem_mode_plus);
+    }
+#else
+    if (mode == 0) {
+        _spu_RXX->raw[offset] = value;
+    } else {
+        _spu_RXX->raw[offset] = value >> _spu_mem_mode_plus;
+    }
+#endif
+}
 
 INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FsetRXXa);
 
