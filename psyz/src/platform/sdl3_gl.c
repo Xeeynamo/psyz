@@ -1264,13 +1264,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
         }
         flush_mode = GL_LINES;
         Draw_EnqueueBuffer(nPoints, (nPoints - 1) * 2);
-
-        // linux nvidia: the line seems to render a pixel early, +0.5 fixes it
-        glUniform2f(
-            uniform_draw_offset, draw_offset.x + 0.5f, draw_offset.y + 0.5f);
         Draw_FlushBuffer();
-        glUniform2f(
-            uniform_draw_offset, (float)draw_offset.x, (float)draw_offset.y);
         flush_mode = GL_TRIANGLES;
     } else if (isTile) {
         int x, y, w, h, tu, tv;

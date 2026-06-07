@@ -268,7 +268,20 @@ TEST_F(gpu_Test, gouraud_line_after_flush) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("gouraud_line_after_flush");
+
+    int w, h;
+    unsigned char* d = Psyz_AllocAndCaptureFrame(&w, &h);
+    ASSERT_NE(d, nullptr);
+
+    // Linux and Windows renders the line at y:87, macOS does it at y:88
+    const unsigned char* p87 = d + 3 * (87 * w + 48);
+    const unsigned char* p88 = d + 3 * (88 * w + 48);
+
+    const unsigned char* p = (p87[0] + p87[1] > p87[2]) ? p87 : p88;
+    EXPECT_GT(p[0] + p[1], p[2]) << "line should be red/green mix, not blue";
+    EXPECT_GT(p[0] + p[1], 128) << "line color lost after flush";
+    EXPECT_LT(p[2], 64) << "line B should be near zero";
+    free(d);
 }
 
 TEST_F(gpu_Test, set_draw_area) {
