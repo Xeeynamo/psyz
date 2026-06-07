@@ -680,6 +680,25 @@ TEST_F(gpu_Test, alpha_blend) {
     AssertFrame("alpha_blend", 0.9585);
 }
 
+TEST_F(gpu_Test, s11_coord_truncation) {
+    ClearImage(&cdb->draw.clip, 60, 120, 120);
+    DrawSync(0);
+
+    SetTile(&cdb->tile[0]);
+    setRGB0(&cdb->tile[0], 255, 0, 0);
+    setXY0(&cdb->tile[0], (short)0x8014, (short)0x8014);
+    setWH(&cdb->tile[0], 32, 32);
+
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &cdb->tile[0]);
+
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+    AssertFrame("s11_coord_truncation");
+}
+
 TEST_F(gpu_Test, untextured_transp_poly_take_abr_from_drawenv) {
     ClearImage(&cdb->draw.clip, 0x60, 0x60, 0x60);
     DrawSync(0);
