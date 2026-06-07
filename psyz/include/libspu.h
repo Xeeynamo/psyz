@@ -1251,10 +1251,10 @@ long SpuGetTransferMode(void);
 /**
  * @brief Set transfer start address
  *
- * @param addr Start address
- * @return Address set
+ * @param addr Start SPU address
+ * @return SPU address set
  */
-u_long SpuSetTransferStartAddr(u_long addr);
+unsigned SpuSetTransferStartAddr(unsigned addr);
 
 /**
  * @brief Get transfer start address

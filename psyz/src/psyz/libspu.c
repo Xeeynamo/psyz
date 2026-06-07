@@ -41,16 +41,6 @@ long SpuSetTransferMode(long mode) {
     return 0;
 }
 
-long SpuInitMalloc(long num, char* top) {
-    NOT_IMPLEMENTED; // can't use original implementation
-    return 0;
-}
-
-u_long SpuSetTransferStartAddr(u_long addr) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
 long* SpuMallocWithStartAddr(long* addr, long size) {
     NOT_IMPLEMENTED;
     return (long*)(uintptr_t)-1;
