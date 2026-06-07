@@ -15,7 +15,7 @@ short SsVabTransBodyPartly(
         vabid_transfer = vabid;
         vab_buffer = _svm_vab_total[vabid];
         SpuSetTransferMode(0);
-        SpuSetTransferStartAddr(_svm_vab_start[vabid]);
+        SpuSetTransferStartAddr((u_long)_svm_vab_start[vabid]);
     }
     if (vabid_transfer != vabid) {
         _spu_setInTransfer(0);
