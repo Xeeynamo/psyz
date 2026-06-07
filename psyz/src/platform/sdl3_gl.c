@@ -209,6 +209,8 @@ static GLint uniform_tex_vram = 0;
 static GLint uniform_draw_offset = 0;
 static GLuint vram_texture;
 static GLuint vram_fbo = 0;
+static GLuint scratch_texture = 0;
+static GLuint scratch_fbo = 0;
 static GLposi display_area = {0, 0};
 static GLposi display_size = {256, 240};
 static GLposi draw_offset = {0, 0};
@@ -404,7 +406,7 @@ bool InitPlatform() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_BLEND);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, VRAM_W, VRAM_H, 0, GL_RGBA,
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, VRAM_W, VRAM_H, 0, GL_RGBA,
                  GL_UNSIGNED_SHORT_1_5_5_5_REV, NULL);
 
     glGenFramebuffers(1, &vram_fbo);
@@ -507,6 +509,14 @@ void ResetPlatform(void) {
     if (vram_fbo) {
         glDeleteFramebuffers(1, &vram_fbo);
         vram_fbo = 0;
+    }
+    if (scratch_texture) {
+        glDeleteTextures(1, &scratch_texture);
+        scratch_texture = 0;
+    }
+    if (scratch_fbo) {
+        glDeleteFramebuffers(1, &scratch_fbo);
+        scratch_fbo = 0;
     }
     QuitPlatform();
 }
@@ -1409,33 +1419,55 @@ void Draw_LoadImage(PS1_RECT* rect, u_long* p) {
     glTexSubImage2D(GL_TEXTURE_2D, 0, rect->x, rect->y, rect->w, rect->h,
                     GL_RGBA, GL_UNSIGNED_SHORT_1_5_5_5_REV, p);
 }
-static u16 vram_buf[VRAM_W * VRAM_H];
 void Draw_StoreImage(PS1_RECT* rect, u_long* p) {
+    static GLint pack[4] = {8, 2, 4, 2};
     if (rect->w == 0 || rect->h == 0) {
         return;
     }
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, vram_texture);
-    glGetTexImage(
-        GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_SHORT_1_5_5_5_REV, vram_buf);
+    Draw_FlushBuffer(); // flush primitives before operating with the VRAM
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, vram_fbo);
+    glPixelStorei(GL_PACK_ALIGNMENT, pack[rect->w & 3]);
+    glReadPixels(rect->x, rect->y, rect->w, rect->h, GL_RGBA,
+                 GL_UNSIGNED_SHORT_1_5_5_5_REV, p);
 
-    u16* dst = (u16*)p;
-    u16* src = vram_buf + rect->x + rect->y * VRAM_W;
-    for (int i = 0; i < rect->h; i++) {
-        for (int j = 0; j < rect->w; j++) {
-            *dst++ = src[j];
-        }
-        src += VRAM_W;
+    glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
+}
+
+static bool EnsureScratchFbo(void) {
+    if (scratch_fbo) {
+        return true;
     }
+    glGenTextures(1, &scratch_texture);
+    glBindTexture(GL_TEXTURE_2D, scratch_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, VRAM_W, VRAM_H, 0, GL_RGBA,
+                 GL_UNSIGNED_SHORT_1_5_5_5_REV, NULL);
+    glGenFramebuffers(1, &scratch_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, scratch_fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                           scratch_texture, 0);
+    bool ok =
+        glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
+    glBindTexture(GL_TEXTURE_2D, vram_texture);
+    if (!ok) {
+        ERRORF("scratch FBO creation failed");
+        glDeleteTextures(1, &scratch_texture);
+        scratch_texture = 0;
+        glDeleteFramebuffers(1, &scratch_fbo);
+        scratch_fbo = 0;
+    }
+    return ok;
 }
 void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
     if (rect->x == x && rect->y == y) {
         return;
     }
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, vram_texture);
-    glGetTexImage(
-        GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_SHORT_1_5_5_5_REV, vram_buf);
+    Draw_FlushBuffer(); // flush primitives before operating with the VRAM
+
     int src_x = CLAMP(rect->x, 0, VRAM_W - 1);
     int src_y = CLAMP(rect->y, 0, VRAM_H - 1);
     int src_w = CLAMP(rect->w, 0, VRAM_W - src_x);
@@ -1458,27 +1490,22 @@ void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
         WARNF("nothing to copy");
         return;
     }
-    u16* src = vram_buf;
-    u16* dst = vram_buf;
-    if (src_y < dst_y) {
-        src += src_x + (src_y + copy_h - 1) * VRAM_W;
-        dst += dst_x + (dst_y + copy_h - 1) * VRAM_W;
-        for (int i = 0; i < copy_h; i++) {
-            memmove(dst, src, copy_w * sizeof(u16));
-            src -= VRAM_W;
-            dst -= VRAM_W;
-        }
-    } else {
-        src += src_x + src_y * VRAM_W;
-        dst += dst_x + dst_y * VRAM_W;
-        for (int i = 0; i < copy_h; i++) {
-            memmove(dst, src, copy_w * sizeof(u16));
-            src += VRAM_W;
-            dst += VRAM_W;
-        }
+
+    // same-FBO blit work-around for MESA and macOS
+    if (!EnsureScratchFbo()) {
+        return;
     }
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, VRAM_W, VRAM_H, 0, GL_RGBA,
-                 GL_UNSIGNED_SHORT_1_5_5_5_REV, vram_buf);
+    glDisable(GL_SCISSOR_TEST);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, vram_fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, scratch_fbo);
+    glBlitFramebuffer(src_x, src_y, src_x + copy_w, src_y + copy_h, 0, 0,
+                      copy_w, copy_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, scratch_fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, vram_fbo);
+    glBlitFramebuffer(0, 0, copy_w, copy_h, dst_x, dst_y, dst_x + copy_w,
+                      dst_y + copy_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
+    glEnable(GL_SCISSOR_TEST);
 }
 void Draw_ResetBuffer(void) {
     n_vertices = 0;
