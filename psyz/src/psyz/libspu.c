@@ -81,6 +81,11 @@ void SpuFree(long* addr) {
     }
 }
 
+unsigned long SpuWritePartly(unsigned char* addr, unsigned long size) {
+    NOT_IMPLEMENTED;
+    return 0;
+}
+
 s32 _SpuIsInAllocateArea_(u32 arg0) { NOT_IMPLEMENTED; }
 
 s32 _SpuIsInAllocateArea(u32 arg0) { NOT_IMPLEMENTED; }

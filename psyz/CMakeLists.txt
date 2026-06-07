@@ -109,6 +109,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/vs_vab.c
     ../decomp/src/libsnd/vs_vh.c
     ../decomp/src/libsnd/vs_vtb.c
+    ../decomp/src/libsnd/vs_vtbp.c
     ../decomp/src/libsnd/vs_vtc.c
     src/psyz/libsnd.c
     src/psyz/libsn.c
