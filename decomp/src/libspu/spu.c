@@ -195,4 +195,12 @@ INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FsetDelayW);
 
 INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FsetDelayR);
 
-INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_Fw1ts);
+void _spu_Fw1ts(void) {
+    volatile int i;
+    volatile int sp4;
+
+    sp4 = 13;
+    for (i = 0; i < 60; i++) {
+        sp4 *= 13;
+    }
+}

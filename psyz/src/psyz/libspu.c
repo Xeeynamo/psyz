@@ -17,8 +17,6 @@ u32* dma_dpcr = &_dma_dpcr;
 u32* spu_delay = &_spu_delay;
 volatile u16 _spu_RQ[10] = {0};
 
-void _spu_Fw1ts(void) { Psyz_AudioInit(); }
-
 s32 _spu_t(s32 arg0, ...) {
     NOT_IMPLEMENTED;
     return 0;
