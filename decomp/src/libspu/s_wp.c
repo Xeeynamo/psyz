@@ -1,4 +1,16 @@
-#include <common.h>
-#include <libspu.h>
+#include "libspu_private.h"
 
-INCLUDE_ASM("asm/nonmatchings/libspu/s_wp", SpuWritePartly);
+u_long SpuWritePartly(unsigned char* addr, u_long size) {
+    int temp_s0;
+
+    if (size > 0x7EFF0) {
+        size = 0x7EFF0;
+    }
+    temp_s0 = _spu_tsa << _spu_mem_mode_plus;
+    _spu_Fw(addr, size);
+    _spu_tsa = _spu_FsetRXXa(-1, temp_s0 + size);
+    if (_spu_transferCallback == NULL) {
+        _spu_inTransfer = 0;
+    }
+    return size;
+}

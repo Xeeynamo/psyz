@@ -1347,7 +1347,7 @@ segments:
       - [0xD09D0, .data, libsnd/ssstart]
       - [0xD09E8, .data, libsnd/vm_f]
       - [0xD09F0, data, libsnd/vm_n2p]
-      - [0xD0B78, data, libsnd/vs_vtbp]
+      - [0xD0B78, .data, libsnd/vs_vtbp]
       - [0xD0B80, .data, libspu/s_ini]
       - [0xD0FF8, .data, libspu/s_m]
       - [0xD1008, .data, libspu/spu]

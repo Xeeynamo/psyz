@@ -17,18 +17,10 @@ u32* dma_dpcr = &_dma_dpcr;
 u32* spu_delay = &_spu_delay;
 volatile u16 _spu_RQ[10] = {0};
 
-void _spu_Fw1ts(void) { Psyz_AudioInit(); }
-
-void _spu_FwriteByIO(void* addr, int len) { NOT_IMPLEMENTED; }
-
 s32 _spu_t(s32 arg0, ...) {
     NOT_IMPLEMENTED;
     return 0;
 }
-
-void _spu_Fw(unsigned char* addr, unsigned long size) { NOT_IMPLEMENTED; }
-
-void _spu_FsetRXX(u32 offset, u32 value, u32 mode) { NOT_IMPLEMENTED; }
 
 void _spu_FiDMA(void) { NOT_IMPLEMENTED; }
 
@@ -42,21 +34,6 @@ long SpuSetReverbModeParam(SpuReverbAttr* attr) {
 SpuIRQCallbackProc SpuSetIRQCallback(SpuIRQCallbackProc in) {
     NOT_IMPLEMENTED;
     return in;
-}
-
-long SpuSetTransferMode(long mode) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
-long SpuInitMalloc(long num, char* top) {
-    NOT_IMPLEMENTED; // can't use original implementation
-    return 0;
-}
-
-u_long SpuSetTransferStartAddr(u_long addr) {
-    NOT_IMPLEMENTED;
-    return 0;
 }
 
 long* SpuMallocWithStartAddr(long* addr, long size) {

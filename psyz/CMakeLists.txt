@@ -45,6 +45,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libspu/s_cb.c
     ../decomp/src/libspu/s_crwa.c
     ../decomp/src/libspu/s_dcb.c
+    ../decomp/src/libspu/s_gtm.c
     ../decomp/src/libspu/s_gva.c
     ../decomp/src/libspu/s_i.c
     ../decomp/src/libspu/s_ih.c
@@ -52,6 +53,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libspu/s_it.c
     ../decomp/src/libspu/s_itc.c
     ../decomp/src/libspu/s_m.c
+    ../decomp/src/libspu/s_m_init.c
     ../decomp/src/libspu/s_q.c
     ../decomp/src/libspu/s_r.c
     ../decomp/src/libspu/s_rmp.c
@@ -59,7 +61,10 @@ set(PSYZ_SOURCES
     ../decomp/src/libspu/s_sk.c
     ../decomp/src/libspu/s_snv.c
     ../decomp/src/libspu/s_sr.c
+    ../decomp/src/libspu/s_stm.c
+    ../decomp/src/libspu/s_stsa.c
     ../decomp/src/libspu/s_w.c
+    ../decomp/src/libspu/s_wp.c
     ../decomp/src/libspu/spu.c
     ../decomp/src/libspu/sr_gaks.c
     src/psyz/libspu.c
@@ -109,6 +114,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/vs_vab.c
     ../decomp/src/libsnd/vs_vh.c
     ../decomp/src/libsnd/vs_vtb.c
+    ../decomp/src/libsnd/vs_vtbp.c
     ../decomp/src/libsnd/vs_vtc.c
     src/psyz/libsnd.c
     src/psyz/libsn.c

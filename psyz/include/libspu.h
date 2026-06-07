@@ -1239,22 +1239,22 @@ SpuIRQCallbackProc SpuSetIRQCallback(SpuIRQCallbackProc func);
  * @param mode Transfer mode
  * @return Mode set
  */
-long SpuSetTransferMode(long mode);
+int SpuSetTransferMode(int mode);
 
 /**
  * @brief Get transfer mode
  *
  * @return Current transfer mode
  */
-long SpuGetTransferMode(void);
+int SpuGetTransferMode(void);
 
 /**
  * @brief Set transfer start address
  *
- * @param addr Start address
- * @return Address set
+ * @param addr Start SPU address
+ * @return SPU address set
  */
-u_long SpuSetTransferStartAddr(u_long addr);
+unsigned SpuSetTransferStartAddr(unsigned addr);
 
 /**
  * @brief Get transfer start address
