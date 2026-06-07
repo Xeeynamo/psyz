@@ -22,11 +22,6 @@ s32 _spu_t(s32 arg0, ...) {
     return 0;
 }
 
-u32 _spu_FsetRXXa(s32 arg0, u32 arg1) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
 void _spu_FiDMA(void) { NOT_IMPLEMENTED; }
 
 void SpuSetVoiceAttr(SpuVoiceAttr* arg) { NOT_IMPLEMENTED; }

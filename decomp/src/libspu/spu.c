@@ -195,7 +195,29 @@ void _spu_FsetRXX(unsigned offset, unsigned value, unsigned mode) {
 #endif
 }
 
-INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FsetRXXa);
+unsigned _spu_FsetRXXa(unsigned offset, unsigned unit) {
+    unsigned short value;
+
+    if (_spu_mem_mode && (unit % _spu_mem_mode_unit)) {
+        unit += _spu_mem_mode_unit;
+        unit &= ~_spu_mem_mode_unitM;
+    }
+    value = unit >> _spu_mem_mode_plus;
+
+    switch (offset) {
+    case -1:
+        return value & 0xFFFF;
+    case -2:
+        return unit;
+    default:
+#ifdef VERSION_PC
+        Psyz_SpuWrite(offset, value);
+#else
+        _spu_RXX->raw[offset] = value;
+#endif
+        return unit;
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FgetRXXa);
 
