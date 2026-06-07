@@ -3,8 +3,7 @@
 static int vab_buffer = 0;
 static short vabid_transfer = -1;
 
-short SsVabTransBodyPartly(
-    unsigned char* addr, unsigned long bufsize, short vabid) {
+short SsVabTransBodyPartly(u_char* addr, u_long bufsize, short vabid) {
     unsigned new_bufsize;
 
     if (vabid < 0 || vabid > 0x10 || _svm_vab_used[vabid] != 2) {
