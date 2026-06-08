@@ -201,7 +201,7 @@ void _spu_Fr(u_char* addr, u_long size);
 void _spu_FsetRXX(unsigned offset, unsigned value, unsigned mode);
 unsigned _spu_FsetRXXa(unsigned offset, unsigned unit);
 void _spu_gcSPU(void);
-s32 _spu_t(s32, ...);
+int _spu_t(int arg0, ...);
 s32 _spu_write(u8*, u32);
 void _SpuDataCallback(SpuTransferCallbackProc func);
 void _SsVmKeyOffNow(int mode);

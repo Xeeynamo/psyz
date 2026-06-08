@@ -19,6 +19,7 @@ set(PSYZ_SOURCES
     src/platform/log.c
     src/platform/common.c
     src/platform/psyz.c
+    src/psyz/dma.c
     src/psyz/libapi.c
     src/psyz/libetc.c
     src/psyz/libgpu.c

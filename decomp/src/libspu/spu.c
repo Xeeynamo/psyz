@@ -1,4 +1,5 @@
 #include <libapi.h>
+#include <stdarg.h>
 #include "libspu_private.h"
 
 #ifndef __psyz
@@ -9,28 +10,25 @@ static volatile unsigned* dma_spu_chcr = (unsigned*)0x1F8010C8;
 static volatile unsigned* dma_dpcr = (unsigned*)0x1F8010F0;
 static volatile unsigned* spu_delay = (unsigned*)0x1F801014;
 #else
-extern u32* dma_spu_madr;
-extern u32* dma_spu_bcr;
-extern u32* dma_spu_chcr;
-extern u32* dma_dpcr;
-extern u32* spu_delay;
+extern unsigned* dma_dpcr;
+extern unsigned* spu_delay;
 #endif
 
 u16 _spu_tsa = 0;
 static u16 dummy = 0;
-s32 _spu_transMode = 0;
-s32 _spu_addrMode = 0;
-s32 _spu_mem_mode = 2;
-s32 _spu_mem_mode_plus = 3;
-s32 _spu_mem_mode_unit = 8;
-s32 _spu_mem_mode_unitM = 7;
-s32 _spu_inTransfer = 1;
+int _spu_transMode = 0;
+int _spu_addrMode = 0;
+int _spu_mem_mode = 2;
+int _spu_mem_mode_plus = 3;
+int _spu_mem_mode_unit = 8;
+int _spu_mem_mode_unitM = 7;
+int _spu_inTransfer = 1;
 void (* volatile _spu_transferCallback)() = NULL;
 void (* volatile _spu_IRQCallback)() = NULL;
 s8 _spu_dummy[] = {7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7};
-s32 D_800D1058 = 0;
-s32 D_800D105C = 0;
-s32 D_800D1060 = 0;
+static int D_800D1058 = 0;
+static int spu_madr = 0;
+static int spu_bcr = 0;
 
 extern volatile u16 _spu_RQ[10];
 
@@ -191,9 +189,14 @@ u_long _spu_Fw(unsigned char* addr, u_long size) {
         _spu_FwriteByIO(addr, size);
         return size;
     }
+#ifdef __psyz
+    SPUW(trans_addr, _spu_tsa);
+    Psyz_SpuMemWrite(_spu_tsa << _spu_mem_mode_plus, addr, size);
+#else
     _spu_t(2, _spu_tsa << _spu_mem_mode_plus);
     _spu_t(1);
     _spu_t(3, addr, size);
+#endif
     return size;
 }
 
@@ -243,13 +246,15 @@ INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FgetRXXa);
 
 INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FsetPCR);
 
-static void _spu_FsetDelayW(void) {
+#ifndef __psyz
+static inline void _spu_FsetDelayW(void) {
     *spu_delay = (*spu_delay & 0xF0FFFFFF) | 0x20000000;
 }
 
 static void _spu_FsetDelayR(void) {
     *spu_delay = (*spu_delay & 0xF0FFFFFF) | 0x22000000;
 }
+#endif
 
 void _spu_Fw1ts(void) {
 #ifndef __psyz

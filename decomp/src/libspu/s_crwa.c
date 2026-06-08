@@ -7,11 +7,11 @@ extern s32 _spu_zerobuf[];
 long SpuClearReverbWorkArea(long rev_mode) {
     void (* volatile callback)();
     s32 oldTransmode;
-    s32 var_s2;
+    s32 dstAddr;
     s32 var_s3;
     s32 transmodeCleared;
-    u32 var_s0;
-    u32 var_s1;
+    unsigned size;
+    unsigned length;
 
     callback = 0;
     transmodeCleared = 0;
@@ -20,11 +20,11 @@ long SpuClearReverbWorkArea(long rev_mode) {
         return -1;
     }
     if (rev_mode == SPU_REV_MODE_OFF) {
-        var_s1 = 0x10 << _spu_mem_mode_plus;
-        var_s2 = 0xFFF0 << _spu_mem_mode_plus;
+        length = 0x10 << _spu_mem_mode_plus;
+        dstAddr = 0xFFF0 << _spu_mem_mode_plus;
     } else {
-        var_s1 = (0x10000 - _spu_rev_startaddr[rev_mode]) << _spu_mem_mode_plus;
-        var_s2 = _spu_rev_startaddr[rev_mode] << _spu_mem_mode_plus;
+        length = (0x10000 - _spu_rev_startaddr[rev_mode]) << _spu_mem_mode_plus;
+        dstAddr = _spu_rev_startaddr[rev_mode] << _spu_mem_mode_plus;
     }
     oldTransmode = _spu_transMode;
     if (_spu_transMode == 1) {
@@ -37,19 +37,24 @@ long SpuClearReverbWorkArea(long rev_mode) {
         _spu_transferCallback = 0;
     }
     while (var_s3 != 0) {
-        var_s0 = var_s1;
-        if (var_s1 > 0x400) {
-            var_s0 = 0x400;
+        size = length;
+        if (length > 0x400) {
+            size = 0x400;
         } else {
             var_s3 = 0;
         }
-
-        _spu_t(2, var_s2);
+#ifdef __psyz
+        SPUW(trans_addr, dstAddr >> _spu_mem_mode_plus);
+        Psyz_SpuMemWrite(
+            SPUR(trans_addr) << _spu_mem_mode_plus, _spu_zerobuf, size);
+#else
+        _spu_t(2, dstAddr);
         _spu_t(1);
-        _spu_t(3, &_spu_zerobuf[0], var_s0);
+        _spu_t(3, &_spu_zerobuf[0], size);
+#endif
         WaitEvent(_spu_EVdma);
-        var_s1 -= 0x400;
-        var_s2 += 0x400;
+        length -= 0x400;
+        dstAddr += 0x400;
     }
     if (transmodeCleared != 0) {
         _spu_transMode = oldTransmode;
