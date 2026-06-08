@@ -1,4 +1,12 @@
-#include <common.h>
-#include <libspu.h>
+#include "libspu_private.h"
 
-INCLUDE_ASM("asm/nonmatchings/libspu/s_sic", SpuSetIRQCallback);
+SpuIRQCallbackProc SpuSetIRQCallback(SpuIRQCallbackProc func) {
+    SpuIRQCallbackProc prev;
+
+    prev = _spu_IRQCallback;
+    if (func != prev) {
+        _spu_IRQCallback = func;
+        _SpuCallback(func);
+    }
+    return prev;
+}

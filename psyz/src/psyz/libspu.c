@@ -29,23 +29,6 @@ long SpuSetReverbModeParam(SpuReverbAttr* attr) {
     return 0;
 }
 
-SpuIRQCallbackProc SpuSetIRQCallback(SpuIRQCallbackProc in) {
-    NOT_IMPLEMENTED;
-    return in;
-}
-
-void SpuFree(int addr) {
-    for (int i = 0; i < _spu_AllocBlockNum; i++) {
-        if (!_spu_memList[i].addr) {
-            continue;
-        }
-        if (_spu_memList[i].addr == addr) {
-            NOT_IMPLEMENTED; // can't use original implementation
-            break;
-        }
-    }
-}
-
 u_long _SpuSetAnyVoice(long on_off, u_long voice_bit, int arg2, int arg3) {
     NOT_IMPLEMENTED;
     return 0;
