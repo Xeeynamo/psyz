@@ -34,17 +34,17 @@ SpuIRQCallbackProc SpuSetIRQCallback(SpuIRQCallbackProc in) {
     return in;
 }
 
-long* SpuMallocWithStartAddr(long* addr, long size) {
+int SpuMallocWithStartAddr(int addr, int size) {
     NOT_IMPLEMENTED;
-    return (long*)(uintptr_t)-1;
+    return -1;
 }
 
-long* SpuMalloc(long size) {
+int SpuMalloc(int size) {
     NOT_IMPLEMENTED;
-    return (long*)(uintptr_t)-1;
+    return -1;
 }
 
-void SpuFree(long* addr) {
+void SpuFree(int addr) {
     for (int i = 0; i < _spu_AllocBlockNum; i++) {
         if (!_spu_memList[i].addr) {
             continue;
@@ -55,10 +55,6 @@ void SpuFree(long* addr) {
         }
     }
 }
-
-s32 _SpuIsInAllocateArea_(u32 arg0) { NOT_IMPLEMENTED; }
-
-s32 _SpuIsInAllocateArea(u32 arg0) { NOT_IMPLEMENTED; }
 
 u_long _SpuSetAnyVoice(long on_off, u_long voice_bit, int arg2, int arg3) {
     NOT_IMPLEMENTED;

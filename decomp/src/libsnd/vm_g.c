@@ -18,7 +18,7 @@ static int padding_D1506_2;
 VabHdr* _svm_vab_vh[NUM_VAB];
 ProgAtr* _svm_vab_pg[NUM_VAB];
 VagAtr* _svm_vab_tn[NUM_VAB];
-u_long* _svm_vab_start[NUM_VAB];
+unsigned _svm_vab_start[NUM_VAB];
 s32 _svm_vab_total[NUM_VAB];
 VabHdr* _svm_vh;
 ProgAtr* _svm_pg;

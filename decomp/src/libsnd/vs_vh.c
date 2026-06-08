@@ -24,7 +24,7 @@ short SsVabOpenHeadWithMode(
     unsigned short vag_header_len;
     unsigned short* ptr_vag_off_table;
     unsigned int magic;
-    u_long spuAllocMem;
+    unsigned spuAllocMem;
     unsigned char num_vags;
     unsigned char* ptr;
     ProgAtr* progAtr;
@@ -119,7 +119,7 @@ short SsVabOpenHeadWithMode(
     }
 
     if (mode == 0) {
-        spuAllocMem = (u_long)SpuMalloc(size);
+        spuAllocMem = (unsigned)SpuMalloc(size);
         if (spuAllocMem == -1) {
             _svm_vab_used[vab_id] = 0;
             _spu_setInTransfer(0);
@@ -129,17 +129,13 @@ short SsVabOpenHeadWithMode(
     } else {
         spuAllocMem = sbaddr;
     }
-#ifdef __psyz
-    if (size > 0x80000) {
-#else
     if (spuAllocMem + size > 0x80000) {
-#endif
         _svm_vab_used[vab_id] = 0;
         _spu_setInTransfer(0);
         _svm_vab_count--;
         return -1;
     }
-    _svm_vab_start[vab_id] = (u_long*)spuAllocMem;
+    _svm_vab_start[vab_id] = spuAllocMem;
     size = 0;
     for (i = 0; i <= num_vags; i++) {
         size += vagLens[i];

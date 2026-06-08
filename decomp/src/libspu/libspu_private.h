@@ -76,17 +76,10 @@ struct rev_param_entry {
     u16 vRIN;
 };
 
-#ifdef __psyz
 typedef struct tagSpuMalloc {
-    u32 addr; // SPU RAM address with flag bits (always fits in 32 bits)
-    u32 size; // Block size in bytes (max 512KB)
+    unsigned addr; // SPU RAM address with flag bits (always fits in 32 bits)
+    unsigned size; // Block size in bytes (max 512KB)
 } SPU_MALLOC;
-#else
-typedef struct tagSpuMalloc {
-    long* addr;
-    long size;
-} SPU_MALLOC;
-#endif
 
 typedef struct tagSpuVoiceRegister {
     /* 0x00 */ SpuVolume volume;
@@ -202,7 +195,7 @@ s32 SpuSetAnyVoice(s32 on_off, u32 bits, s32 addr1, s32 addr2);
 void _SpuCallback(void (*cb)());
 void _SpuInit(int bHot);
 int _spu_init(int bHot);
-s32 _SpuIsInAllocateArea_(u32);
+int _SpuIsInAllocateArea_(unsigned);
 void _spu_FiDMA(void);
 void _spu_Fr(u_char* addr, u_long size);
 void _spu_FsetRXX(unsigned offset, unsigned value, unsigned mode);
