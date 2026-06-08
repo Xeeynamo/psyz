@@ -262,7 +262,7 @@ int _spu_t(int arg0, ...) {
 }
 #endif
 
-u_long _spu_Fw(unsigned char* addr, u_long size) {
+unsigned _spu_Fw(unsigned char* addr, unsigned size) {
     if (_spu_transMode) {
         _spu_FwriteByIO(addr, size);
         return size;
@@ -278,7 +278,17 @@ u_long _spu_Fw(unsigned char* addr, u_long size) {
     return size;
 }
 
-INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_Fr);
+unsigned _spu_Fr(unsigned char* addr, unsigned size) {
+#ifdef __psyz
+    SPUW(trans_addr, _spu_tsa);
+    Psyz_SpuMemRead(_spu_tsa << _spu_mem_mode_plus, addr, size);
+#else
+    _spu_t(2, _spu_tsa << _spu_mem_mode_plus);
+    _spu_t(0);
+    _spu_t(3, addr, size);
+#endif
+    return size;
+}
 
 void _spu_FsetRXX(unsigned offset, unsigned value, unsigned mode) {
 #ifdef __psyz
