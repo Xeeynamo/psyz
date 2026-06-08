@@ -16,6 +16,9 @@
 #define SPU_CTRL_MASK_EXT_AUDIO_ENABLE (1 << 1)
 #define SPU_CTRL_MASK_CD_AUDIO_REVERB (1 << 2)
 #define SPU_CTRL_MASK_EXT_AUDIO_REVERB (1 << 3)
+#define SPU_CTRL_MASK_TRANSFER_MANUAL_WRITE (1 << 4)
+#define SPU_CTRL_MASK_TRANSFER_DMA_WRITE (2 << 4)
+#define SPU_CTRL_MASK_TRANSFER_DMA_READ (3 << 4)
 #define SPU_CTRL_MASK_SRAM_TRANSFER_MODE ((1 << 4) | (1 << 5))
 #define SPU_CTRL_MASK_IRQ9_ENABLE (1 << 6)
 #define SPU_CTRL_MASK_REVERB_MASTER_ENABLE (1 << 7)
@@ -154,6 +157,15 @@ union SpuUnion {
     volatile SPU_RXX rxx;
     volatile u16 raw[0x100];
 };
+
+#ifndef __psyz
+#define SPUR(field) (_spu_RXX->rxx.field)
+#define SPUW(field, val) _spu_RXX->rxx.field = (val)
+#else
+#include <stddef.h>
+#define SPUR(field) Psyz_SpuRead(offsetof(SPU_RXX, field))
+#define SPUW(field, val) Psyz_SpuWrite(offsetof(SPU_RXX, field), val)
+#endif
 
 extern s32 D_80033098;
 extern s32 D_80033550;

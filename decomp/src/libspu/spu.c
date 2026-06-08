@@ -1,3 +1,4 @@
+#include <libapi.h>
 #include "libspu_private.h"
 
 #ifndef __psyz
@@ -38,18 +39,18 @@ int _spu_init(int bHot) {
     int i;
 
     *dma_dpcr |= DMA_DPCR_SPU_PRIORITY_HIGH | DMA_DPCR_MASK_DMA4_ENABLE;
-    _spu_RXX->rxx.main_vol.left = 0;
-    _spu_RXX->rxx.main_vol.right = 0;
-    _spu_RXX->rxx.spucnt = 0;
+    SPUW(main_vol.left, 0);
+    SPUW(main_vol.right, 0);
+    SPUW(spucnt, 0);
     _spu_transMode = 0;
     _spu_addrMode = 0;
     _spu_tsa = 0;
     _spu_Fw1ts();
-    _spu_RXX->rxx.main_vol.left = 0;
-    _spu_RXX->rxx.main_vol.right = 0;
+    SPUW(main_vol.left, 0);
+    SPUW(main_vol.right, 0);
 
     dmaTimer = 0;
-    while (_spu_RXX->rxx.spustat & 0x7FF) {
+    while (SPUR(spustat) & 0x7FF) {
         if (++dmaTimer > DMA_TIMEOUT) {
             printf("SPU:T/O [%s]\n", "wait (reset)");
             break;
@@ -60,49 +61,49 @@ int _spu_init(int bHot) {
     _spu_mem_mode_plus = 3;
     _spu_mem_mode_unit = 8;
     _spu_mem_mode_unitM = 7;
-    _spu_RXX->rxx.data_trans = 4;
-    _spu_RXX->rxx.rev_vol.left = 0;
-    _spu_RXX->rxx.rev_vol.right = 0;
-    _spu_RXX->rxx.key_off[0] = 0xFFFF;
-    _spu_RXX->rxx.key_off[1] = 0xFFFF;
-    _spu_RXX->rxx.rev_mode[0] = 0;
-    _spu_RXX->rxx.rev_mode[1] = 0;
+    SPUW(data_trans, 4);
+    SPUW(rev_vol.left, 0);
+    SPUW(rev_vol.right, 0);
+    SPUW(key_off[0], 0xFFFF);
+    SPUW(key_off[1], 0xFFFF);
+    SPUW(rev_mode[0], 0);
+    SPUW(rev_mode[1], 0);
     for (i = 0; i < 10; i++) {
         _spu_RQ[i] = 0;
     }
     if (!bHot) {
-        _spu_RXX->rxx.chan_fm[0] = 0;
-        _spu_RXX->rxx.chan_fm[1] = 0;
-        _spu_RXX->rxx.noise_mode[0] = 0;
-        _spu_RXX->rxx.noise_mode[1] = 0;
-        _spu_RXX->rxx.cd_vol.left = 0;
-        _spu_RXX->rxx.cd_vol.right = 0;
-        _spu_RXX->rxx.ex_vol.left = 0;
-        _spu_RXX->rxx.ex_vol.right = 0;
+        SPUW(chan_fm[0], 0);
+        SPUW(chan_fm[1], 0);
+        SPUW(noise_mode[0], 0);
+        SPUW(noise_mode[1], 0);
+        SPUW(cd_vol.left, 0);
+        SPUW(cd_vol.right, 0);
+        SPUW(ex_vol.left, 0);
+        SPUW(ex_vol.right, 0);
         _spu_tsa = 0x200;
-        _spu_FwriteByIO(&_spu_dummy, LEN(_spu_dummy));
+        _spu_FwriteByIO((unsigned char*)&_spu_dummy, LEN(_spu_dummy));
         for (i = 0; i < NUM_VOICES; i++) {
-            _spu_RXX->rxx.voice[i].volume.left = 0;
-            _spu_RXX->rxx.voice[i].volume.right = 0;
-            _spu_RXX->rxx.voice[i].pitch = 0x3fff;
-            _spu_RXX->rxx.voice[i].addr = 0x200;
-            _spu_RXX->rxx.voice[i].adsr[0] = 0;
-            _spu_RXX->rxx.voice[i].adsr[1] = 0;
+            SPUW(voice[i].volume.left, 0);
+            SPUW(voice[i].volume.right, 0);
+            SPUW(voice[i].pitch, 0x3fff);
+            SPUW(voice[i].addr, 0x200);
+            SPUW(voice[i].adsr[0], 0);
+            SPUW(voice[i].adsr[1], 0);
         }
-        _spu_RXX->rxx.key_on[0] = 0xFFFF;
-        _spu_RXX->rxx.key_on[1] = 0xFF;
+        SPUW(key_on[0], 0xFFFF);
+        SPUW(key_on[1], 0xFF);
         _spu_Fw1ts();
         _spu_Fw1ts();
         _spu_Fw1ts();
         _spu_Fw1ts();
-        _spu_RXX->rxx.key_off[0] = 0xFFFF;
-        _spu_RXX->rxx.key_off[1] = 0xFF;
+        SPUW(key_off[0], 0xFFFF);
+        SPUW(key_off[1], 0xFF);
         _spu_Fw1ts();
         _spu_Fw1ts();
         _spu_Fw1ts();
         _spu_Fw1ts();
     }
-    _spu_RXX->rxx.spucnt = SPU_CTRL_MASK_MUTE_SPU | SPU_CTRL_MASK_SPU_ENABLE;
+    SPUW(spucnt, SPU_CTRL_MASK_MUTE_SPU | SPU_CTRL_MASK_SPU_ENABLE);
     _spu_inTransfer = 1;
     _spu_transferCallback = NULL;
     _spu_IRQCallback = NULL;
@@ -119,21 +120,21 @@ void _spu_FwriteByIO(unsigned char* addr, u_long size) {
     unsigned timeout;
 
     cur_pos = (unsigned short*)addr;
-    spustat = _spu_RXX->rxx.spustat & 0x7FF;
-    _spu_RXX->rxx.trans_addr = _spu_tsa;
+    spustat = SPUR(spustat) & 0x7FF;
+    SPUW(trans_addr, _spu_tsa);
     _spu_Fw1ts();
     while (size > 0) {
         num_to_trans = (size > 0x40) ? 0x40 : size;
         for (i = 0; i < num_to_trans; i += 2) {
-            _spu_RXX->rxx.trans_fifo = *cur_pos++;
+            SPUW(trans_fifo, *cur_pos++);
         }
-        cnt = _spu_RXX->rxx.spucnt;
-        cnt &= ~0x30;
-        cnt |= 0x10;
-        _spu_RXX->rxx.spucnt = cnt;
+        cnt = SPUR(spucnt);
+        cnt &= ~SPU_CTRL_MASK_SRAM_TRANSFER_MODE;
+        cnt |= SPU_CTRL_MASK_TRANSFER_MANUAL_WRITE;
+        SPUW(spucnt, cnt);
         _spu_Fw1ts();
         timeout = 0;
-        while (_spu_RXX->rxx.spustat & 0x400) {
+        while (SPUR(spustat) & 0x400) {
             timeout++;
             if (timeout > 0xF00) {
                 printf("SPU:T/O [%s]\n", "wait (wrdy H -> L)");
@@ -144,22 +145,42 @@ void _spu_FwriteByIO(unsigned char* addr, u_long size) {
         _spu_Fw1ts();
         size -= num_to_trans;
     }
-    cnt = _spu_RXX->rxx.spucnt;
-    cnt &= ~0x30;
-    _spu_RXX->rxx.spucnt = cnt;
+    cnt = SPUR(spucnt);
+    cnt &= ~SPU_CTRL_MASK_SRAM_TRANSFER_MODE;
+    SPUW(spucnt, cnt);
     timeout = 0;
-    spustat_cur = _spu_RXX->rxx.spustat & 0x7FF;
+    spustat_cur = SPUR(spustat) & 0x7FF;
     while (spustat_cur != spustat) {
         timeout++;
         if (timeout > 0xF00) {
             printf("SPU:T/O [%s]\n", "wait (dmaf clear/W)");
             return;
         }
-        spustat_cur = _spu_RXX->rxx.spustat & 0x7FF;
+        spustat_cur = SPUR(spustat) & 0x7FF;
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FiDMA);
+void _spu_FiDMA(void) {
+    unsigned timeout;
+    unsigned short cnt;
+
+    if (D_800D1058 == 0) {
+        _spu_Fw1ts();
+    }
+    SPUW(spucnt, SPUR(spucnt) & ~SPU_CTRL_MASK_SRAM_TRANSFER_MODE);
+    timeout = 0;
+    while (SPUR(spucnt) & SPU_CTRL_MASK_SRAM_TRANSFER_MODE) {
+        timeout++;
+        if (timeout > 0xF00) {
+            break;
+        }
+    }
+    if (_spu_transferCallback) {
+        _spu_transferCallback();
+        return;
+    }
+    DeliverEvent(0xF0000009, 0x20);
+}
 
 INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_Fr_);
 
@@ -179,11 +200,11 @@ u_long _spu_Fw(unsigned char* addr, u_long size) {
 INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_Fr);
 
 void _spu_FsetRXX(unsigned offset, unsigned value, unsigned mode) {
-#ifdef VERSION_PC
+#ifdef __psyz
     if (mode == 0) {
-        Psyz_SpuWrite(offset, value);
+        Psyz_SpuWrite(offset * sizeof(short), value);
     } else {
-        Psyz_SpuWrite(offset, value >> _spu_mem_mode_plus);
+        Psyz_SpuWrite(offset * sizeof(short), value >> _spu_mem_mode_plus);
     }
 #else
     if (mode == 0) {
@@ -209,8 +230,8 @@ unsigned _spu_FsetRXXa(unsigned offset, unsigned unit) {
     case -2:
         return unit;
     default:
-#ifdef VERSION_PC
-        Psyz_SpuWrite(offset, value);
+#ifdef __psyz
+        Psyz_SpuWrite(offset * sizeof(short), value);
 #else
         _spu_RXX->raw[offset] = value;
 #endif
@@ -227,6 +248,7 @@ INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FsetDelayW);
 INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FsetDelayR);
 
 void _spu_Fw1ts(void) {
+#ifndef __psyz
     volatile int i;
     volatile int sp4;
 
@@ -234,4 +256,5 @@ void _spu_Fw1ts(void) {
     for (i = 0; i < 60; i++) {
         sp4 *= 13;
     }
+#endif
 }

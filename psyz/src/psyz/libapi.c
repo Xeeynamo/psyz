@@ -191,6 +191,10 @@ void EnterCriticalSection(void) { NOT_IMPLEMENTED; }
 
 void ExitCriticalSection(void) { NOT_IMPLEMENTED; }
 
+void DeliverEvent(unsigned ev1, unsigned ev2) { NOT_IMPLEMENTED; }
+
+void UnDeliverEvent(unsigned ev1, unsigned ev2) { NOT_IMPLEMENTED; }
+
 void SystemError(char c, long n) {
     NOT_IMPLEMENTED;
     ERRORF("SystemError('%c', 0x%X)", c, n);

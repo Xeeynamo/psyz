@@ -21,8 +21,12 @@ inline long SpuRGetAllKeysStatus(long min, long max, char* status) {
 
     max++;
     for (voice = min; voice < max; voice++) {
+#ifndef __psyz
         voices = _spu_RXX->rxx.voice;
         volumex = voices[voice].volumex;
+#else
+        volumex = SPUR(voice[voice].volumex);
+#endif
         voice_mask = 1 << voice;
         if (_spu_keystat & voice_mask) {
             if (volumex > 0) {

@@ -22,8 +22,6 @@ s32 _spu_t(s32 arg0, ...) {
     return 0;
 }
 
-void _spu_FiDMA(void) { NOT_IMPLEMENTED; }
-
 void SpuSetVoiceAttr(SpuVoiceAttr* arg) { NOT_IMPLEMENTED; }
 
 long SpuSetReverbModeParam(SpuReverbAttr* attr) {

@@ -31,9 +31,12 @@ short SsVabOpenHeadWithMode(
     VabHdr* vab_header;
 
     vab_id = NUM_VAB;
+#ifndef __psyz
+    // TODO this locks on Psy-Z
     if (_spu_getInTransfer() == 1) {
         return -1;
     }
+#endif
     _spu_setInTransfer(1);
     if (vabid >= NUM_VAB) {
         _spu_setInTransfer(0);
