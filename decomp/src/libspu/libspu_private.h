@@ -16,6 +16,9 @@
 #define SPU_CTRL_MASK_EXT_AUDIO_ENABLE (1 << 1)
 #define SPU_CTRL_MASK_CD_AUDIO_REVERB (1 << 2)
 #define SPU_CTRL_MASK_EXT_AUDIO_REVERB (1 << 3)
+#define SPU_CTRL_MASK_TRANSFER_MANUAL_WRITE (1 << 4)
+#define SPU_CTRL_MASK_TRANSFER_DMA_WRITE (2 << 4)
+#define SPU_CTRL_MASK_TRANSFER_DMA_READ (3 << 4)
 #define SPU_CTRL_MASK_SRAM_TRANSFER_MODE ((1 << 4) | (1 << 5))
 #define SPU_CTRL_MASK_IRQ9_ENABLE (1 << 6)
 #define SPU_CTRL_MASK_REVERB_MASTER_ENABLE (1 << 7)
@@ -73,17 +76,10 @@ struct rev_param_entry {
     u16 vRIN;
 };
 
-#ifdef __psyz
 typedef struct tagSpuMalloc {
-    u32 addr; // SPU RAM address with flag bits (always fits in 32 bits)
-    u32 size; // Block size in bytes (max 512KB)
+    unsigned addr; // SPU RAM address with flag bits (always fits in 32 bits)
+    unsigned size; // Block size in bytes (max 512KB)
 } SPU_MALLOC;
-#else
-typedef struct tagSpuMalloc {
-    long* addr;
-    long size;
-} SPU_MALLOC;
-#endif
 
 typedef struct tagSpuVoiceRegister {
     /* 0x00 */ SpuVolume volume;
@@ -155,6 +151,15 @@ union SpuUnion {
     volatile u16 raw[0x100];
 };
 
+#ifndef __psyz
+#define SPUR(field) (_spu_RXX->rxx.field)
+#define SPUW(field, val) _spu_RXX->rxx.field = (val)
+#else
+#include <stddef.h>
+#define SPUR(field) Psyz_SpuRead(offsetof(SPU_RXX, field))
+#define SPUW(field, val) Psyz_SpuWrite(offsetof(SPU_RXX, field), val)
+#endif
+
 extern s32 D_80033098;
 extern s32 D_80033550;
 extern s32 D_8003355C;
@@ -190,18 +195,18 @@ s32 SpuSetAnyVoice(s32 on_off, u32 bits, s32 addr1, s32 addr2);
 void _SpuCallback(void (*cb)());
 void _SpuInit(int bHot);
 int _spu_init(int bHot);
-s32 _SpuIsInAllocateArea_(u32);
+int _SpuIsInAllocateArea_(unsigned);
 void _spu_FiDMA(void);
-void _spu_Fr(u_char* addr, u_long size);
+unsigned _spu_Fw(unsigned char* addr, unsigned size);
+unsigned _spu_Fr(unsigned char* addr, unsigned size);
 void _spu_FsetRXX(unsigned offset, unsigned value, unsigned mode);
 unsigned _spu_FsetRXXa(unsigned offset, unsigned unit);
 void _spu_gcSPU(void);
-s32 _spu_t(s32, ...);
+int _spu_t(int arg0, ...);
 s32 _spu_write(u8*, u32);
 void _SpuDataCallback(SpuTransferCallbackProc func);
 void _SsVmKeyOffNow(int mode);
 int _spu_getInTransfer(void);
-u_long _spu_Fw(unsigned char* addr, u_long size);
 void _spu_FwriteByIO(unsigned char* addr, u_long size);
 u_long _SpuSetAnyVoice(long on_off, u_long voice_bit, int arg2, int arg3);
 void _spu_Fw1ts(void);

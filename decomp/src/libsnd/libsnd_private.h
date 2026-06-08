@@ -194,7 +194,7 @@ extern char _SsVmMaxVoice;
 extern VabHdr* _svm_vab_vh[NUM_VAB];
 extern ProgAtr* _svm_vab_pg[NUM_VAB];
 extern VagAtr* _svm_vab_tn[NUM_VAB];
-extern u_long* _svm_vab_start[NUM_VAB];
+extern unsigned _svm_vab_start[NUM_VAB];
 extern s32 _svm_vab_total[NUM_VAB];
 extern VabHdr* _svm_vh;
 extern ProgAtr* _svm_pg;

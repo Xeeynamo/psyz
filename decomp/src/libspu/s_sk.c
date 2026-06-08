@@ -32,8 +32,8 @@ void SpuSetKey(long on_off, u_long voice_bit) {
                 _spu_RQ.unk4 &= ~temp_a3;
             }
         } else {
-            _spu_RXX->rxx.key_on[0] = temp_a1;
-            _spu_RXX->rxx.key_on[1] = temp_a3;
+            SPUW(key_on[0], temp_a1);
+            SPUW(key_on[1], temp_a3);
             _spu_keystat |= temp_a1;
         }
         break;
@@ -50,8 +50,8 @@ void SpuSetKey(long on_off, u_long voice_bit) {
                 _spu_RQ.unk2 &= ~temp_a3;
             }
         } else {
-            _spu_RXX->rxx.key_off[0] = temp_a1;
-            _spu_RXX->rxx.key_off[1] = temp_a3;
+            SPUW(key_off[0], temp_a1);
+            SPUW(key_off[1], temp_a3);
             _spu_keystat &= ~temp_a1;
         }
         break;

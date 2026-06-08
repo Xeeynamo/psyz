@@ -598,7 +598,7 @@ long CloseEvent(long event);
  * @param ev1 Cause descriptor
  * @param ev2 Event class
  */
-void DeliverEvent(unsigned long ev1, unsigned long ev2);
+void DeliverEvent(unsigned ev1, unsigned ev2);
 
 /**
  * @brief Cancel an event
@@ -609,7 +609,7 @@ void DeliverEvent(unsigned long ev1, unsigned long ev2);
  * @param ev1 Cause descriptor
  * @param ev2 Event class
  */
-void UnDeliverEvent(unsigned long ev1, unsigned long ev2);
+void UnDeliverEvent(unsigned ev1, unsigned ev2);
 
 /**
  * @brief Test an event

@@ -242,6 +242,28 @@ int Psyz_SetVsyncMode(Psyz_VsyncMode mode);
  */
 int Psyz_VSync(int mode);
 
+typedef enum {
+    DMA_CHANNEL_MDEC_IN,
+    DMA_CHANNEL_MDEC_OUT,
+    DMA_CHANNEL_GPU,
+    DMA_CHANNEL_CD,
+    DMA_CHANNEL_SPU,
+    DMA_CHANNEL_PIO,
+    DMA_CHANNEL_OTC,
+} DmaChannel;
+
+/**
+ * @brief Emulate DMA
+ *
+ * Emulates registers between 0x1F801080 to 0x1F8010EC. The MMIO pointer is
+ * calculated with 0x1F801080 + ch * 0x10 + offset * 4
+ *
+ * @param ch Channel to write to
+ * @param offset can be either 0, 1 or 2
+ * @param value to write to; can be a raw pointer
+ */
+void Psyz_DmaWrite(DmaChannel ch, unsigned offset, u_long value);
+
 // Get frame timing statistics
 // Returns: 0 on success, -1 if stats is NULL or platform not initialized
 int Psyz_GetGpuStats(Psyz_GpuStats* stats);

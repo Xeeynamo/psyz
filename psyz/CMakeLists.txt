@@ -19,6 +19,7 @@ set(PSYZ_SOURCES
     src/platform/log.c
     src/platform/common.c
     src/platform/psyz.c
+    src/psyz/dma.c
     src/psyz/libapi.c
     src/psyz/libetc.c
     src/psyz/libgpu.c
@@ -53,11 +54,17 @@ set(PSYZ_SOURCES
     ../decomp/src/libspu/s_it.c
     ../decomp/src/libspu/s_itc.c
     ../decomp/src/libspu/s_m.c
+    ../decomp/src/libspu/s_m_f.c
     ../decomp/src/libspu/s_m_init.c
+    ../decomp/src/libspu/s_m_int.c
+    ../decomp/src/libspu/s_m_m.c
+    ../decomp/src/libspu/s_m_util.c
+    ../decomp/src/libspu/s_m_wsa.c
     ../decomp/src/libspu/s_q.c
     ../decomp/src/libspu/s_r.c
     ../decomp/src/libspu/s_rmp.c
     ../decomp/src/libspu/s_sca.c
+    ../decomp/src/libspu/s_sic.c
     ../decomp/src/libspu/s_sk.c
     ../decomp/src/libspu/s_snv.c
     ../decomp/src/libspu/s_sr.c

@@ -62,7 +62,7 @@ void SpuSetCommonAttr(SpuCommonAttr* attr) {
             }
         }
         vol_total_left &= ~SPU_VOL_MODE_MASK;
-        _spu_RXX->rxx.main_vol.left = (vol_total_left) | mvol_mode_left;
+        SPUW(main_vol.left, (vol_total_left) | mvol_mode_left);
     }
 
     if (bSetAll || mask & SPU_COMMON_MVOLR) {
@@ -113,70 +113,70 @@ void SpuSetCommonAttr(SpuCommonAttr* attr) {
             }
         }
         vol_total_right &= ~SPU_VOL_MODE_MASK;
-        _spu_RXX->rxx.main_vol.right = vol_total_right | mvol_mode_right;
+        SPUW(main_vol.right, vol_total_right | mvol_mode_right);
     }
 
     if (bSetAll || (mask & SPU_COMMON_CDVOLL)) {
-        _spu_RXX->rxx.cd_vol.left = attr->cd.volume.left;
+        SPUW(cd_vol.left, attr->cd.volume.left);
     }
 
     if (bSetAll || (mask & SPU_COMMON_CDVOLR)) {
-        _spu_RXX->rxx.cd_vol.right = attr->cd.volume.right;
+        SPUW(cd_vol.right, attr->cd.volume.right);
     }
 
     if (bSetAll || (mask & SPU_COMMON_EXTVOLL)) {
-        _spu_RXX->rxx.ex_vol.left = attr->ext.volume.left;
+        SPUW(ex_vol.left, attr->ext.volume.left);
     }
 
     if (bSetAll || (mask & SPU_COMMON_EXTVOLR)) {
-        _spu_RXX->rxx.ex_vol.right = attr->ext.volume.right;
+        SPUW(ex_vol.right, attr->ext.volume.right);
     }
 
     if (bSetAll || (mask & SPU_COMMON_CDREV)) {
         if (attr->cd.reverb == 0) {
-            cnt = _spu_RXX->rxx.spucnt;
+            cnt = SPUR(spucnt);
             cnt &= ~SPU_CTRL_MASK_CD_AUDIO_REVERB;
-            _spu_RXX->rxx.spucnt = cnt;
+            SPUW(spucnt, cnt);
         } else {
-            cnt = _spu_RXX->rxx.spucnt;
+            cnt = SPUR(spucnt);
             cnt |= SPU_CTRL_MASK_CD_AUDIO_REVERB;
-            _spu_RXX->rxx.spucnt = cnt;
+            SPUW(spucnt, cnt);
         }
     }
 
     if (bSetAll || (mask & SPU_COMMON_CDMIX)) {
         if (attr->cd.mix == 0) {
-            cnt = _spu_RXX->rxx.spucnt;
+            cnt = SPUR(spucnt);
             cnt &= ~SPU_CTRL_MASK_CD_AUDIO_ENABLE;
-            _spu_RXX->rxx.spucnt = cnt;
+            SPUW(spucnt, cnt);
         } else {
-            cnt = _spu_RXX->rxx.spucnt;
+            cnt = SPUR(spucnt);
             cnt |= SPU_CTRL_MASK_CD_AUDIO_ENABLE;
-            _spu_RXX->rxx.spucnt = cnt;
+            SPUW(spucnt, cnt);
         }
     }
 
     if (bSetAll || (mask & SPU_COMMON_EXTREV)) {
         if (attr->ext.reverb == 0) {
-            cnt = _spu_RXX->rxx.spucnt;
+            cnt = SPUR(spucnt);
             cnt &= ~SPU_CTRL_MASK_EXT_AUDIO_REVERB;
-            _spu_RXX->rxx.spucnt = cnt;
+            SPUW(spucnt, cnt);
         } else {
-            cnt = _spu_RXX->rxx.spucnt;
+            cnt = SPUR(spucnt);
             cnt |= SPU_CTRL_MASK_EXT_AUDIO_REVERB;
-            _spu_RXX->rxx.spucnt = cnt;
+            SPUW(spucnt, cnt);
         }
     }
 
     if (bSetAll || (mask & SPU_COMMON_EXTMIX)) {
         if (attr->ext.mix == 0) {
-            cnt = _spu_RXX->rxx.spucnt;
+            cnt = SPUR(spucnt);
             cnt &= ~SPU_CTRL_MASK_EXT_AUDIO_ENABLE;
-            _spu_RXX->rxx.spucnt = cnt;
+            SPUW(spucnt, cnt);
         } else {
-            cnt = _spu_RXX->rxx.spucnt;
+            cnt = SPUR(spucnt);
             cnt |= SPU_CTRL_MASK_EXT_AUDIO_ENABLE;
-            _spu_RXX->rxx.spucnt = cnt;
+            SPUW(spucnt, cnt);
         }
     }
 }
