@@ -3,11 +3,11 @@
 
 #ifndef __psyz
 union SpuUnion* _spu_RXX = (union SpuUnion*)0x1F801C00;
-static u32* dma_spu_madr = (u32*)0x1F8010C0;
-static u32* dma_spu_bcr = (u32*)0x1F8010C4;
-static u32* dma_spu_chcr = (u32*)0x1F8010C8;
-static u32* dma_dpcr = (u32*)0x1F8010F0;
-static u32* spu_delay = (u32*)0x1F801014;
+static volatile unsigned* dma_spu_madr = (unsigned*)0x1F8010C0;
+static volatile unsigned* dma_spu_bcr = (unsigned*)0x1F8010C4;
+static volatile unsigned* dma_spu_chcr = (unsigned*)0x1F8010C8;
+static volatile unsigned* dma_dpcr = (unsigned*)0x1F8010F0;
+static volatile unsigned* spu_delay = (unsigned*)0x1F801014;
 #else
 extern u32* dma_spu_madr;
 extern u32* dma_spu_bcr;
@@ -243,9 +243,13 @@ INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FgetRXXa);
 
 INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FsetPCR);
 
-INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FsetDelayW);
+static void _spu_FsetDelayW(void) {
+    *spu_delay = (*spu_delay & 0xF0FFFFFF) | 0x20000000;
+}
 
-INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_FsetDelayR);
+static void _spu_FsetDelayR(void) {
+    *spu_delay = (*spu_delay & 0xF0FFFFFF) | 0x22000000;
+}
 
 void _spu_Fw1ts(void) {
 #ifndef __psyz
