@@ -1351,7 +1351,7 @@ int SpuMalloc(int size);
  * @param size Size in bytes
  * @return Start address, or -1 on failure
  */
-int SpuMallocWithStartAddr(int addr, int size);
+int SpuMallocWithStartAddr(unsigned addr, int size);
 
 /**
  * @brief Free allocated area

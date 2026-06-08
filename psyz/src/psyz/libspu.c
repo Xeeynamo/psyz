@@ -34,11 +34,6 @@ SpuIRQCallbackProc SpuSetIRQCallback(SpuIRQCallbackProc in) {
     return in;
 }
 
-int SpuMallocWithStartAddr(int addr, int size) {
-    NOT_IMPLEMENTED;
-    return -1;
-}
-
 void SpuFree(int addr) {
     for (int i = 0; i < _spu_AllocBlockNum; i++) {
         if (!_spu_memList[i].addr) {
