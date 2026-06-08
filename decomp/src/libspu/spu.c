@@ -182,7 +182,85 @@ void _spu_FiDMA(void) {
 
 INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_Fr_);
 
-INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_t);
+#ifndef __psyz
+int _spu_t(int arg0, ...) {
+    unsigned channelControl;
+    unsigned i;
+    unsigned addr;
+    va_list args;
+    unsigned arg;
+    u16 mode;
+    u16 cnt;
+
+    va_start(args, arg0);
+    switch (arg0) {
+    case 2:
+        arg = va_arg(args, unsigned);
+        _spu_tsa = arg >> _spu_mem_mode_plus;
+        _spu_RXX->rxx.trans_addr = _spu_tsa;
+        break;
+    case 1:
+        D_800D1058 = 0;
+        i = 0;
+        while (_spu_RXX->rxx.trans_addr != _spu_tsa) {
+            if (++i > 0xF00) {
+                return -2;
+            }
+        }
+        cnt = _spu_RXX->rxx.spucnt;
+        cnt &= ~SPU_CTRL_MASK_SRAM_TRANSFER_MODE;
+        cnt |= SPU_CTRL_MASK_TRANSFER_DMA_WRITE;
+        _spu_RXX->rxx.spucnt = cnt;
+        break;
+    case 0:
+        D_800D1058 = 1;
+        i = 0;
+        while (_spu_RXX->rxx.trans_addr != _spu_tsa) {
+            if (++i > 0xF00) {
+                return -2;
+            }
+        }
+        cnt = _spu_RXX->rxx.spucnt;
+        cnt &= ~SPU_CTRL_MASK_SRAM_TRANSFER_MODE;
+        cnt |= SPU_CTRL_MASK_TRANSFER_DMA_READ;
+        _spu_RXX->rxx.spucnt = cnt;
+        break;
+    case 3:
+        if (D_800D1058 == 1) {
+            mode = SPU_CTRL_MASK_TRANSFER_DMA_READ;
+        } else {
+            mode = SPU_CTRL_MASK_TRANSFER_DMA_WRITE;
+        }
+        i = 0;
+        while (
+            (_spu_RXX->rxx.spucnt & SPU_CTRL_MASK_SRAM_TRANSFER_MODE) != mode) {
+            if (++i > 0xF00) {
+                return -2;
+            }
+        }
+        if (D_800D1058 == 1) {
+            _spu_FsetDelayR();
+        } else {
+            _spu_FsetDelayW();
+        }
+        arg = va_arg(args, unsigned);
+        spu_madr = arg;
+        arg = va_arg(args, unsigned);
+        spu_bcr = arg / 0x40;
+        spu_bcr += (arg % 0x40) ? 1 : 0;
+        *dma_spu_madr = spu_madr;
+        *dma_spu_bcr = (spu_bcr << 0x10) | 0x10;
+        if (D_800D1058 == 1) {
+            channelControl = 0x01000200;
+        } else {
+            channelControl = 0x01000201;
+        }
+        *dma_spu_chcr = channelControl;
+        break;
+    }
+    return 0;
+}
+#endif
 
 u_long _spu_Fw(unsigned char* addr, u_long size) {
     if (_spu_transMode) {
