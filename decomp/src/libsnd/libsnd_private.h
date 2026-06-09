@@ -248,7 +248,7 @@ int _SsInitSoundSep(short flag, short i, short vab_id, unsigned long* addr);
 char _SsVmAlloc(short voice);
 void vmNoiseOn(char voice);
 void vmNoiseOff(char voice);
-int note2pitch2(u16 note, u16 fine);
+unsigned short note2pitch2(unsigned short note, unsigned short fine);
 void _SsVmKeyOnNow(u16 vagCount, u16 pitch);
 int _SsVmVSetUp(short vabId, short prog);
 void _SsVmDoAllocate(void);

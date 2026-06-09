@@ -32,7 +32,7 @@ s16 SsUtKeyOn(
     _svm_cur.field_B_mpan = _svm_pg[prog].mpan;
     _svm_cur.field_0_sep_sep_no_tonecount = _svm_pg[prog].tones;
 
-    tone2 = _svm_cur.field_C_vag_idx + (_svm_cur.field_7_fake_program * 0x10);
+    tone2 = _svm_cur.field_C_vag_idx + (_svm_cur.field_7_fake_program * 16);
     _svm_cur.field_F_prior = _svm_tn[tone2].prior;
     _svm_cur.field_18_voice_idx = _svm_tn[tone2].vag;
     _svm_cur.field_D_vol = _svm_tn[tone2].vol;

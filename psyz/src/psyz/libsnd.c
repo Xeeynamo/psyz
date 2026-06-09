@@ -135,11 +135,6 @@ void _SsVmSeqKeyOff(s16 seq_sep_num) { NOT_IMPLEMENTED; }
 
 void vmNoiseOn(char voice) { NOT_IMPLEMENTED; }
 
-int note2pitch2(u16 note, u16 fine) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
 void _SsNoteOn(short a0, short a1, unsigned char a2, unsigned char a3) {
     NOT_IMPLEMENTED;
 }
