@@ -104,6 +104,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/ut_autop.c
     ../decomp/src/libsnd/ut_cadsr.c
     ../decomp/src/libsnd/ut_key.c
+    ../decomp/src/libsnd/ut_keyv.c
     ../decomp/src/libsnd/ut_rdel.c
     ../decomp/src/libsnd/ut_rdep.c
     ../decomp/src/libsnd/ut_rev.c

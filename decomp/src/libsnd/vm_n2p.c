@@ -37,8 +37,8 @@ unsigned short note2pitch(void) {
     unsigned short pitch;
     int noteIndex;
 
-    note = _svm_cur.field_2_note + (60 - _svm_cur.field_10_centre);
-    shiftVal = _svm_cur.field_11_shift;
+    note = _svm_cur.note + (60 - _svm_cur.tone_center);
+    shiftVal = _svm_cur.tone_shift;
     step = shiftVal / 8;
     semitones = (short)note;
     octave = semitones / 12;
@@ -69,7 +69,7 @@ unsigned short note2pitch2(unsigned short note, unsigned short fine) {
     unsigned short pitch;
     int tone;
 
-    tone = _svm_cur.field_C_vag_idx + (_svm_cur.field_7_fake_program * 16);
+    tone = _svm_cur.tone + (_svm_cur.field_7_fake_program * 16);
     step = (fine + _svm_tn[tone].shift) / 8;
     octaveBase = 0;
     if (step >= 16) {
