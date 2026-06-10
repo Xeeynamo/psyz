@@ -1,6 +1,7 @@
 #include <psyz.h>
 #include <psyz/log.h>
 #include <kernel.h>
+#include <libetc.h>
 #include "libgpu.h"
 #include "../draw.h"
 #include "../internal.h"
@@ -11,46 +12,121 @@
 int MyVSync(int mode);
 int VSync(int mode) { return MyVSync(mode); }
 
-// https://problemkaputt.de/psxspx-controllers-communication-sequence.htm
-typedef enum {
-    PAD_KIND_MOUSE = 0x12,
-    PAD_KIND_DIGITAL_PAD = 0x41,
-    PAD_KIND_ANALOG_STICK = 0x53,
-    PAD_KIND_ANALOG_PAD = 0x73,
-    PAD_KIND_KEYBOARD = 0x96,
-    PAD_KIND_DISCONNECTED = 0xFF,
-} PadKind;
+void MyPadPoll(void); // implemented by the platform layer
 
-long InitPAD(char* bufA, long lenA, char* bufB, long lenB) {
+typedef struct {
+    char frame[PSYZ_PAD_BUF_LEN];    // last frame published by the platform
+    Psyz_ControllerKind channels[4]; // only channel 0 until multitap lands
+} ControllerPort;
+
+static ControllerPort ports[2] = {
+    {{0},
+     {
+         PSYZ_CTRL_DIGITAL_PAD,
+         PSYZ_CTRL_DISCONNECTED,
+         PSYZ_CTRL_DISCONNECTED,
+         PSYZ_CTRL_DISCONNECTED,
+     }},
+    {{0},
+     {
+         PSYZ_CTRL_DIGITAL_PAD,
+         PSYZ_CTRL_DISCONNECTED,
+         PSYZ_CTRL_DISCONNECTED,
+         PSYZ_CTRL_DISCONNECTED,
+     }},
+};
+
+static int pads_sampled = 0; // avoid more than one input polling per frame
+static char* pad_buffers[2];
+static int pad_buffer_lens[2];
+
+Psyz_ControllerKind Psyz_SetController(
+    int port, int channel, Psyz_ControllerKind kind) {
+    if (port < 0 || port >= LEN(ports)) {
+        return PSYZ_CTRL_ERROR;
+    }
+    if (channel < 0 || channel >= LEN(ports->channels)) {
+        return PSYZ_CTRL_ERROR;
+    }
+    if (kind == PSYZ_CTRL_QUERY_KIND) {
+        return ports[port].channels[channel];
+    }
+    Psyz_ControllerKind prev = ports[port].channels[channel];
+    ports[port].channels[channel] = kind;
+    return prev;
+}
+
+void Psyz_PadsSet(int port, const char* src, int len) {
+    if (port < 0 || port >= LEN(ports) || !src || len <= 0) {
+        return;
+    }
+    if (len > PSYZ_PAD_BUF_LEN) {
+        len = PSYZ_PAD_BUF_LEN;
+    }
+    memcpy(ports[port].frame, src, len);
+}
+
+void Psyz_PadsGet(int port, char* dst, int len) {
+    if (port < 0 || port >= LEN(ports) || !dst || len <= 0) {
+        return;
+    }
+    if (!pads_sampled) {
+        pads_sampled = 1;
+        MyPadPoll();
+    }
+    if (len > PSYZ_PAD_BUF_LEN) {
+        len = PSYZ_PAD_BUF_LEN;
+    }
+    memcpy(dst, ports[port].frame, len);
+}
+
+void Psyz_PadsOnVSync(void) {
+    pads_sampled = 0;
+    for (int p = 0; p < LEN(ports); p++) {
+        if (pad_buffers[p]) {
+            Psyz_PadsGet(p, pad_buffers[p], pad_buffer_lens[p]);
+        }
+    }
+}
+
+int InitPAD(char* bufA, int lenA, char* bufB, int lenB) {
+    PadInit(0);
     if (bufA) {
         memset(bufA, 0, lenA);
-        if (lenA >= 2) {
-            bufA[0] = 0;
-            bufA[1] = PAD_KIND_DIGITAL_PAD;
-        } else {
-            WARNF("bufA len too small");
-        }
     } else {
         WARNF("bufA is NULL");
     }
     if (bufB) {
         memset(bufB, 0, lenB);
-        if (lenB >= 2) {
-            bufB[0] = 0;
-            bufB[1] = (char)PAD_KIND_DISCONNECTED;
-        } else {
-            WARNF("bufB len too small");
-        }
     } else {
         WARNF("bufB is NULL");
     }
+    pad_buffers[0] = bufA;
+    pad_buffer_lens[0] = lenA;
+    pad_buffers[1] = bufB;
+    pad_buffer_lens[1] = lenB;
     return 1;
 }
+
 long StartPAD(void) {
     NOT_IMPLEMENTED;
     return 1;
 }
+
 void StopPAD(void) { NOT_IMPLEMENTED; }
+
+int PAD_init(int type, void* unused) {
+    PadInit(0);
+    return 1;
+}
+
+int PAD_dr(int port, char* dst) {
+    if (port < 0 || port > 1 || !dst) {
+        return 0;
+    }
+    Psyz_PadsGet(port, dst, PSYZ_PAD_BUF_LEN);
+    return PSYZ_PAD_BUF_LEN;
+}
 
 void _96_remove(void) { NOT_IMPLEMENTED; }
 

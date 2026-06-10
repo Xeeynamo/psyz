@@ -506,7 +506,7 @@ long LoadTest(char* name, struct EXEC* exec);
  * @param lenB Length of incoming data buffer for port B (in bytes)
  * @return Always 1.
  */
-long InitPAD(char* bufA, long lenA, char* bufB, long lenB);
+int InitPAD(char* bufA, int lenA, char* bufB, int lenB);
 
 /**
  * @brief Start reading the controller
@@ -525,6 +525,27 @@ long StartPAD(void);
  * Stops reading the controller. Interrupts are not permitted.
  */
 void StopPAD(void);
+
+/**
+ * @brief Low-level PAD driver init (BIOS A-vector 0x13).
+ *
+ * Initializes the low-level controller driver state. Games sometimes invoke
+ * this directly via the BIOS A-vector; high-level code should prefer
+ * PadInit() or InitPAD().
+ */
+int PAD_init(int type, void* unused);
+
+/**
+ * @brief Low-level PAD read (BIOS A-vector 0x14).
+ *
+ * Samples one controller port into a caller-provided buffer using the
+ * canonical PSX SIO frame layout. Returns the number of bytes written.
+ *
+ * @param port Controller port (0 or 1)
+ * @param dst Caller buffer, expected to be at least 34 bytes
+ * @return Bytes written (34 on success, 0 on failure)
+ */
+int PAD_dr(int port, char* dst);
 
 /**
  * @brief Set the control driver

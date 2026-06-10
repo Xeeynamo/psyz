@@ -1,6 +1,8 @@
 #include <psyz.h>
 #include <libgpu.h>
 
+void Psyz_PadsOnVSync(void);
+
 void MyDrawSyncCallback(int mode) { NOT_IMPLEMENTED; }
 
 void (*g_VsyncCallback)() = NULL;
@@ -17,6 +19,7 @@ int MyVSync(int mode) {
     if (mode == 1) {
         return elapsed;
     }
+    Psyz_PadsOnVSync(); // this is done on vsync by the BIOS
     if (g_VsyncCallback) {
         g_VsyncCallback();
     }
