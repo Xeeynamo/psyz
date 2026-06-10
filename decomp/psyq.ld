@@ -10,6 +10,11 @@ SECTIONS
 
   . = ALIGN (0x100);
   .rodata         : { *(.rodata) }
+  /* .rel.dyn only holds dummy R_MIPS_NONE entries (all zero bytes) coming
+     from the converted objects, but its presence keeps the location counter
+     past the next 0x100 boundary. Merge it here instead of letting it float
+     as an orphan section: orphan placement differs across binutils versions. */
+  .rdata          : { *(.rdata) *(.rel.dyn) }
 
   . = ALIGN (0x100);
   .data           : { *(.data .data.* .gnu.linkonce.d.*) }

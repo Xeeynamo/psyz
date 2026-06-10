@@ -18,7 +18,7 @@ def apply(config, args):
         lib = args.overlay
     config["arch"] = "mipsel"
     config["objdump_executable"] = "mipsel-linux-gnu-objdump"
-    config["baseimg"] = "psyq400.elf"
+    config["baseimg"] = "build/psyq400_org.elf"
     config["myimg"] = "build/psyq400.elf"
     config["mapfile"] = "build/psyq400.map"
     config["source_directories"] = [

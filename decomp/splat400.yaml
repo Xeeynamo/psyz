@@ -3,15 +3,15 @@ options:
   basename:     psyq
   base_path:    ./
   build_path:   build/
-  target_path:  psyq400.elf
+  target_path:  build/psyq400_org.elf
   asm_path:     asm/
   src_path:     src/
   ld_script_path: build/psyq400.ld
   compiler:     GCC
   symbol_addrs_path:
     - symbols.400.txt
-  undefined_funcs_auto_path: undefined_funcs_auto.400.txt
-  undefined_syms_auto_path:  undefined_syms_auto.400.txt
+  undefined_funcs_auto_path: build/undefined_funcs_auto.400.txt
+  undefined_syms_auto_path:  build/undefined_syms_auto.400.txt
   find_file_boundaries: no
   use_legacy_include_asm: no
   migrate_rodata_to_functions: True
