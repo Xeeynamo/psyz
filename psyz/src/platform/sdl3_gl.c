@@ -623,6 +623,7 @@ static void WaitForNextFrame(void) {
     last_frame_time = frame_end_time;
 }
 
+static void PollEvents(void);
 int Psyz_VSync(int mode) {
     Uint32 cur;
     unsigned short ret;
@@ -635,6 +636,7 @@ int Psyz_VSync(int mode) {
     last_vsync = cur;
     if (mode == 0) {
         PresentBufferToScreen();
+        PollEvents();
         WaitForNextFrame();
     }
     return ret;
@@ -777,9 +779,7 @@ static unsigned int PadRead_Gamepad(struct Gamepad* g) {
     return r;
 }
 
-static void PollEvents(void);
-unsigned int MyPadRead(int id) {
-    PollEvents();
+static unsigned int SinglePadRead(int id) {
     if (!is_pads_init) {
         WARNF("PadInit not called");
         return 0;
@@ -794,6 +794,106 @@ unsigned int MyPadRead(int id) {
         pressed |= PadRead_Keyboard(keyb_p1, LEN(keyb_p1));
     }
     return pressed | PadRead_Gamepad(&gamepads[id]);
+}
+
+static unsigned char AxisToByte(short v) {
+    int u = ((int)v + 32768) >> 8;
+    if (u < 0) {
+        u = 0;
+    }
+    if (u > 0xFF) {
+        u = 0xFF;
+    }
+    return (unsigned char)u;
+}
+
+static bool PortHasHostInput(int port) {
+    if (port < 0 || port >= LEN(gamepads)) {
+        return false;
+    }
+    if (gamepads[port].dev) {
+        return true;
+    }
+    if (port == 0) {
+        // The keyboard always acts as a fallback for port 0.
+        return true;
+    }
+    return false;
+}
+
+static void BuildPadFrame(int port, Psyz_ControllerKind kind, char* buf) {
+    memset(buf, 0, PSYZ_PAD_BUF_LEN);
+    // No physical input for this port -> report as disconnected regardless of
+    // the requested kind. Games look at buf[0]=0xFF / buf[1]=0xFF to know.
+    if (kind != PSYZ_CTRL_DISCONNECTED && !PortHasHostInput(port)) {
+        kind = PSYZ_CTRL_DISCONNECTED;
+    }
+    buf[0] = 0x00;
+    buf[1] = (char)kind;
+
+    switch (kind) {
+    case PSYZ_CTRL_DIGITAL_PAD:
+    case PSYZ_CTRL_ANALOG_PAD:
+    case PSYZ_CTRL_ANALOG_STICK: {
+        // SinglePadRead returns PSY-Q's rotated convention (PADLxxx d-pad in
+        // the high byte, face buttons/L1..R2/Start/Select in the low byte). The
+        // PSX SIO frame stores Select/L3/R3/Start/d-pad in wire byte 0 and
+        // L2..R1/face buttons in wire byte 1 -- i.e. PSY-Q's high byte
+        // belongs in wire byte 0 and PSY-Q's low byte belongs in wire byte 1.
+        unsigned int pressed = SinglePadRead(port);
+        if (kind == PSYZ_CTRL_ANALOG_STICK) {
+            // The analog stick (SCPH-1110) has no L3/R3; on real hardware
+            // those bits always read as released.
+            pressed &= ~(PADi | PADj);
+        }
+        buf[2] = (char)(~(pressed >> 8) & 0xFF);
+        buf[3] = (char)(~pressed & 0xFF);
+
+        if (kind == PSYZ_CTRL_DIGITAL_PAD) {
+            break;
+        }
+        unsigned char rx = 0x80, ry = 0x80, lx = 0x80, ly = 0x80;
+        if (gamepads[port].dev) {
+            SDL_Gamepad* d = gamepads[port].dev;
+            rx = AxisToByte(SDL_GetGamepadAxis(d, SDL_GAMEPAD_AXIS_RIGHTX));
+            ry = AxisToByte(SDL_GetGamepadAxis(d, SDL_GAMEPAD_AXIS_RIGHTY));
+            lx = AxisToByte(SDL_GetGamepadAxis(d, SDL_GAMEPAD_AXIS_LEFTX));
+            ly = AxisToByte(SDL_GetGamepadAxis(d, SDL_GAMEPAD_AXIS_LEFTY));
+        }
+        buf[4] = (char)rx;
+        buf[5] = (char)ry;
+        buf[6] = (char)lx;
+        buf[7] = (char)ly;
+        break;
+    }
+    case PSYZ_CTRL_MOUSE:
+        // TODO: read SDL mouse state into buf[3] buttons and buf[4..5] motion
+        buf[2] = (char)0xFF;
+        buf[3] = (char)0xFC;
+        buf[4] = 0x00;
+        buf[5] = 0x00;
+        break;
+    case PSYZ_CTRL_KEYBOARD:
+        LOG_ONCE("keyboard controller kind not implemented");
+        break;
+    case PSYZ_CTRL_DISCONNECTED:
+        memset(buf, 0xFF, PSYZ_PAD_BUF_LEN);
+        break;
+    default:
+        WARNF("unknown controller kind 0x%02X", (unsigned)kind);
+        break;
+    }
+}
+
+void MyPadPoll(void) {
+    char frame[PSYZ_PAD_BUF_LEN];
+
+    PollEvents();
+    for (int port = 0; port < 2; port++) {
+        BuildPadFrame(
+            port, Psyz_SetController(port, 0, PSYZ_CTRL_QUERY_KIND), frame);
+        Psyz_PadsSet(port, frame, sizeof(frame));
+    }
 }
 
 static void PollEvents(void) {
@@ -1017,10 +1117,7 @@ void Draw_SetDisplayMode(DisplayMode* mode) {
     }
 }
 
-int Draw_ExequeSync() {
-    PollEvents();
-    return 0;
-}
+int Draw_ExequeSync() { return 0; }
 
 #define MAX_VERTEX_COUNT 4096
 #define MAX_INDEX_COUNT (MAX_VERTEX_COUNT / 4 * 6)

@@ -458,7 +458,7 @@ void PadRemoveGun(void);
  * @param bufB Pointer to receive data buffer
  * @param lenB Receive data buffer length (unit: byte)
  */
-void InitTAP(char* bufA, long lenA, char* bufB, long lenB);
+int InitTAP(char* bufA, long lenA, char* bufB, long lenB);
 
 /**
  * @brief Start controller reading.
