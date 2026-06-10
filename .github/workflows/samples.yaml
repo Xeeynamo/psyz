@@ -17,7 +17,7 @@ jobs:
       - name: Install requirements
         run: |
           sudo apt-get update
-          sudo apt-get install build-essential cmake ninja-build libsdl2-dev
+          sudo apt-get install build-essential cmake ninja-build libsdl2-dev libxtst-dev
       - name: Clone repo
         uses: actions/checkout@v4
         with:
