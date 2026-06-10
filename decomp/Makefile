@@ -5,6 +5,7 @@ CPP			:= mipsel-linux-gnu-cpp
 LD			:= mipsel-linux-gnu-ld
 OBJCOPY		:= mipsel-linux-gnu-objcopy
 MASPSX		:= python3 tools/maspsx/maspsx.py --expand-div --aspsx-version=2.56
+SPLAT		?= .venv/bin/splat
 
 ASFLAGS		:= -Iinclude -march=r3000 -mtune=r3000 -no-pad-sections -O1 -G0
 CPPFLAGS	:= -Iinclude -Iinclude/og -Wno-builtin-declaration-mismatch \
@@ -22,6 +23,8 @@ LIBS_400    += libgun libmath libmcrd libpress libsio libsnd libspu libtap
 LIBS_470	:= libapi libc2 libcd libcard libcomb libds libetc libgpu libgs libgte
 LIBS_470	+= libgun libhmd libmath libmcrd libmcx libpad libpress libsio libsnd libspu libtap
 LIBS		:= $(LIBS_$(PSYQ_VER))
+
+ORG_ELF		:= build/psyq$(PSYQ_VER)_org.elf
 
 SRCS := $(foreach lib,$(LIBS),$(wildcard src/$(lib)/*.c))
 OBJS := $(patsubst src/%.c,build/src/%.c.o,$(SRCS))
@@ -41,7 +44,8 @@ dependencies: tools/maspsx/maspsx.py bin/cc1-psx-272
 
 .PHONY: clean
 clean:
-	git clean -xfd obj/ build/ asm/ assets/
+	git clean -xfd build/ asm/ assets/
+	rm -rf obj/
 	rm -f *.elf* *.map undefined_*_auto*.txt
 
 CLANG_FORMAT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))../bin/clang-format
@@ -70,39 +74,37 @@ build/psyq$(PSYQ_VER).elf.link: $(ASM_OBJS)
 	@echo Link build/psyq$(PSYQ_VER).elf
 	@$(LD) -o build/psyq$(PSYQ_VER).elf.intermediate -Map=build/psyq$(PSYQ_VER).map \
 		-T symbols.$(PSYQ_VER).bss.txt \
-		-T undefined_funcs_auto.$(PSYQ_VER).txt undefined_syms_auto.$(PSYQ_VER).txt -T build/psyq$(PSYQ_VER).ld \
+		-T build/undefined_funcs_auto.$(PSYQ_VER).txt build/undefined_syms_auto.$(PSYQ_VER).txt -T build/psyq$(PSYQ_VER).ld \
 		$(OBJS) $(ASM_OBJS)
 	@$(OBJCOPY) -O binary build/psyq$(PSYQ_VER).elf.intermediate build/psyq$(PSYQ_VER).elf
 	@rm -f build/psyq$(PSYQ_VER).elf.intermediate
-	@sha256sum -c psyq$(PSYQ_VER).elf.sha256
+	@sha256sum -c build/psyq$(PSYQ_VER).elf.sha256
 build/src/%.c.o: src/%.c build/psyq$(PSYQ_VER).ld
 	@echo Compile $<
 	@mkdir -p $(dir $@)
-	@$(CPP) $(CPPFLAGS) -lang-c $< | $(CC) $(CFLAGS) -quiet | $(MASPSX) | $(AS) $(ASFLAGS) -o $@
+	@$(CPP) $(CPPFLAGS) -MMD -MF $@.d -MT $@ -lang-c $< | $(CC) $(CFLAGS) -quiet | $(MASPSX) | $(AS) $(ASFLAGS) -o $@
+-include $(OBJS:=.d)
 build/asm/%.s.o: asm/%.s
 	@echo Assemble $<
 	@mkdir -p $(dir $@)
 	@$(AS) $(ASFLAGS) -o $@ $<
 
-build/psyq$(PSYQ_VER).ld: splat$(PSYQ_VER).yaml psyq$(PSYQ_VER).elf.sha256 symbols.$(PSYQ_VER).txt
-	@rm -rf $@ asm/ build/asm build/src
-	.venv/bin/splat split $<
-psyq$(PSYQ_VER).elf.sha256: psyq$(PSYQ_VER).elf
-	mkdir -p build/
-	mv $< build/
-	sha256sum build/$< > $@
-	mv build/$< .
-psyq$(PSYQ_VER).elf: $(patsubst %,obj/$(PSYQ_VER)/%, $(LIBS))
+build/psyq$(PSYQ_VER).ld: splat$(PSYQ_VER).yaml $(ORG_ELF) symbols.$(PSYQ_VER).txt
+	@rm -rf $@ asm/* build/asm build/src
+	$(SPLAT) split $<
+$(ORG_ELF): $(patsubst %,build/obj/$(PSYQ_VER)/%, $(LIBS))
 	./rm-o-dups-$(PSYQ_VER).sh
 	./psyq-gen.sh $(PSYQ_VER)
-	sha256sum -c psyq$(PSYQ_VER).map.sha256
-obj/$(PSYQ_VER)/lib%: sdk/psyq$(PSYQ_VER) bin/psyqdump
+	$(OBJCOPY) -O binary $@ build/psyq$(PSYQ_VER)_org.bin
+	sha256sum -c psyq$(PSYQ_VER).bin.sha256
+	echo "$$(sha256sum $@ | cut -d' ' -f1)  build/psyq$(PSYQ_VER).elf" > build/psyq$(PSYQ_VER).elf.sha256
+build/obj/$(PSYQ_VER)/lib%: sdk/psyq$(PSYQ_VER) bin/psyqdump
 	@mkdir -p $@ && \
 		bin/psyqdump $</LIB/LIB$(shell echo $* | tr '[:lower:]' '[:upper:]').LIB $@ || \
 		rm -r $@
 	@for file in $@/*.OBJ; do \
 		output="$$(echo $${file%.OBJ}.o | tr '[:upper:]' '[:lower:]')"; \
-		bin/psyq-obj-parser "$$file" -o "$$output" > /dev/null; \
+		(cd build && ../bin/psyq-obj-parser "../$$file" -o "$${output#build/}") > /dev/null; \
 	done
 include/og/libgpu.h: sdk/psyq$(PSYQ_VER) bin/psyq2elf
 	@mkdir -p include/og

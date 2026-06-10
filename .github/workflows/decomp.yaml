@@ -1,0 +1,42 @@
+name: Decomp build
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '*.md'
+      - '**/*.md'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  decomp-build:
+    runs-on: ubuntu-latest
+    env:
+      CI: 1
+      OS: linux
+    steps:
+      - name: Install requirements
+        run: |
+          sudo apt-get update
+          sudo apt-get install build-essential binutils-mipsel-linux-gnu gcc-mipsel-linux-gnu
+      - name: Clone repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install Python dependencies
+        run: |
+          python3 -m venv decomp/.venv
+          decomp/.venv/bin/pip install -r requirements.txt
+      - name: Fetch psyq-obj-parser
+        run: make bin/psyq-obj-parser
+      - name: Check if PSY-Q 4.0 decomp matches
+        working-directory: decomp/
+        run: |
+          make dependencies
+          (make clean && make -j$(nproc) all) || cat psyq400.map

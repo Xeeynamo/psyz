@@ -20,23 +20,11 @@ jobs:
       - name: Install requirements
         run: |
           sudo apt-get update
-          sudo apt-get install build-essential gcc-mipsel-linux-gnu cmake ninja-build libsdl2-dev
+          sudo apt-get install build-essential cmake ninja-build libsdl2-dev
       - name: Clone repo
         uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      - run: pip install -r requirements.txt
-      - name: Generate PSY-Q 4.7 SDK
-        run: make -j
-      - name: Check if PSY-Q 4.0 decomp matches
-        working-directory: decomp/
-        run: |
-          make dependencies
-          (make clean && make all) || cat psyq400.map
       - name: Test PsyZ
         working-directory: psyz/
         run: make test
