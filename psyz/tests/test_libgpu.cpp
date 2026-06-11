@@ -53,6 +53,8 @@ class gpu_Test : public testing::Test {
         POLY_G4 g4[4];
         POLY_GT4 gt4[4];
         LINE_G2 lineg2[4];
+        LINE_G3 lineg3[2];
+        LINE_G4 lineg4[2];
         SPRT sprt[4];
         TILE tile[4];
     } DB;
@@ -282,6 +284,38 @@ TEST_F(gpu_Test, gouraud_line_after_flush) {
     EXPECT_GT(p[0] + p[1], 128) << "line color lost after flush";
     EXPECT_LT(p[2], 64) << "line B should be near zero";
     free(d);
+}
+
+TEST_F(gpu_Test, draw_lines) {
+    ClearImage(&cdb->draw.clip, 0, 0, 0);
+    ClearOTag(cdb->ot, OTSIZE);
+
+    SetLineG2(&cdb->lineg2[0]);
+    setXY2(&cdb->lineg2[0], 16, 40, 112, 40);
+    setRGB0(&cdb->lineg2[0], 255, 0, 0);
+    setRGB1(&cdb->lineg2[0], 0, 255, 0);
+    AddPrim(cdb->ot, &cdb->lineg2[0]);
+
+    SetLineG3(&cdb->lineg3[0]);
+    setXY3(&cdb->lineg3[0], 16, 80, 64, 120, 112, 80);
+    setRGB0(&cdb->lineg3[0], 255, 0, 0);
+    setRGB1(&cdb->lineg3[0], 0, 255, 0);
+    setRGB2(&cdb->lineg3[0], 0, 0, 255);
+    AddPrim(cdb->ot, &cdb->lineg3[0]);
+
+    SetLineG4(&cdb->lineg4[0]);
+    setXY4(&cdb->lineg4[0], 16, 150, 16, 200, 112, 200, 112, 150);
+    setRGB0(&cdb->lineg4[0], 255, 0, 0);
+    setRGB1(&cdb->lineg4[0], 0, 255, 0);
+    setRGB2(&cdb->lineg4[0], 0, 0, 255);
+    setRGB3(&cdb->lineg4[0], 255, 255, 0);
+    AddPrim(cdb->ot, &cdb->lineg4[0]);
+
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+    AssertFrame("draw_lines", 0.9999);
 }
 
 TEST_F(gpu_Test, set_draw_area) {

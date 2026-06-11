@@ -383,7 +383,6 @@ bool InitPlatform() {
     }
 
     INFOF("opengl %d.%d initialized", glVer_major, glVer_minor);
-    glLineWidth((GLfloat)cur_wnd_scale);
     shader_program = Init_SetupShader();
     if (!shader_program) {
         ERRORF("failed to compile shaders: %s", SDL_GetError());
@@ -1129,7 +1128,6 @@ static Vertex* vertex_cur;
 static unsigned short* index_cur;
 static unsigned short n_vertices;
 static int n_indices;
-static GLenum flush_mode = GL_TRIANGLES;
 
 static void Draw_InitBuffer() {
     glGenVertexArrays(1, &VAO);
@@ -1327,42 +1325,103 @@ int Draw_PushPrim(u_long* packets, int max_len) {
             padding = false;
             nPoints++; // don't ask, have faith
         }
-        Vertex first = *v; // save line before flushing previous geometry
-        Draw_FlushBuffer();
-        vertex_cur[0] = first;
+
+        // accumulate line points first, then convert them to triangles
+        short px[4], py[4];
+        unsigned char cr[4], cg[4], cb[4], ca[4];
+        int parsed = 0;
+        cr[0] = v->r;
+        cg[0] = v->g;
+        cb[0] = v->b;
+        ca[0] = v->a;
         for (int i = 0; len > 0 && i < nPoints; i++) {
-            vertex_cur[i].x = s11(((short*)packets)[0]);
-            vertex_cur[i].y = s11(((short*)packets)[1]);
-            vertex_cur[i].c = -1;
-            vertex_cur[i].t = cur_tpage | TPAGE_NOTEXTURE;
+            px[i] = s11(((short*)packets)[0]);
+            py[i] = s11(((short*)packets)[1]);
             packets++;
             len--;
-            if (len > 0 && i + 1 < nPoints) {
-                if (isGouraud) {
-                    vertex_cur[i + 1].r = ((u8*)packets)[0];
-                    vertex_cur[i + 1].g = ((u8*)packets)[1];
-                    vertex_cur[i + 1].b = ((u8*)packets)[2];
-                    vertex_cur[i + 1].a = code & SEMITRANSP ? 0x80 : 0xFF;
-                    packets++;
-                    len--;
-                }
+            parsed = i + 1;
+            if (len > 0 && i + 1 < nPoints && isGouraud) {
+                cr[i + 1] = ((u8*)packets)[0];
+                cg[i + 1] = ((u8*)packets)[1];
+                cb[i + 1] = ((u8*)packets)[2];
+                ca[i + 1] = code & SEMITRANSP ? 0x80 : 0xFF;
+                packets++;
+                len--;
             }
         }
         if (!isGouraud) {
-            VRGBA(vertex_cur[1]) = VRGBA(vertex_cur[2]) = VRGBA(vertex_cur[3]) =
-                VRGBA(vertex_cur[0]);
+            for (int i = 1; i < parsed; i++) {
+                cr[i] = cr[0];
+                cg[i] = cg[0];
+                cb[i] = cb[0];
+                ca[i] = ca[0];
+            }
         }
         if (padding) {
             len--;
         }
-        for (int i = 0; i < nPoints - 1; i++) {
-            index_cur[i * 2] = n_vertices + i;
-            index_cur[i * 2 + 1] = n_vertices + i + 1;
+
+        int nSegments = parsed - 1;
+        if (nSegments >= 1) {
+            // for LINE_*4: 12 verts, 18 indices
+            Draw_EnsureBufferWillNotOverflow(nSegments * 4, nSegments * 6);
+            for (int s = 0; s < nSegments; s++) {
+                short x0 = px[s];
+                short y0 = py[s];
+                short x1 = px[s + 1];
+                short y1 = py[s + 1];
+                int dx = x1 - x0;
+                int dy = y1 - y0;
+
+                // decides to thicken horizontally or vertically
+                short ox, oy;
+                if ((dx < 0 ? -dx : dx) >= (dy < 0 ? -dy : dy)) {
+                    ox = 0;
+                    oy = 1;
+                } else {
+                    ox = 1;
+                    oy = 0;
+                }
+
+                Vertex* q = vertex_cur;
+                unsigned short base = n_vertices;
+                q[0].x = x0;
+                q[0].y = y0;
+                q[1].x = x1;
+                q[1].y = y1;
+                q[2].x = (short)(x1 + ox);
+                q[2].y = (short)(y1 + oy);
+                q[3].x = (short)(x0 + ox);
+                q[3].y = (short)(y0 + oy);
+                q[0].r = cr[s];
+                q[0].g = cg[s];
+                q[0].b = cb[s];
+                q[0].a = ca[s];
+                q[3].r = cr[s];
+                q[3].g = cg[s];
+                q[3].b = cb[s];
+                q[3].a = ca[s];
+                q[1].r = cr[s + 1];
+                q[1].g = cg[s + 1];
+                q[1].b = cb[s + 1];
+                q[1].a = ca[s + 1];
+                q[2].r = cr[s + 1];
+                q[2].g = cg[s + 1];
+                q[2].b = cb[s + 1];
+                q[2].a = ca[s + 1];
+                for (int k = 0; k < 4; k++) {
+                    q[k].c = -1;
+                    q[k].t = cur_tpage | TPAGE_NOTEXTURE;
+                }
+                index_cur[0] = base + 0;
+                index_cur[1] = base + 1;
+                index_cur[2] = base + 2;
+                index_cur[3] = base + 0;
+                index_cur[4] = base + 2;
+                index_cur[5] = base + 3;
+                Draw_EnqueueBuffer(4, 6);
+            }
         }
-        flush_mode = GL_LINES;
-        Draw_EnqueueBuffer(nPoints, (nPoints - 1) * 2);
-        Draw_FlushBuffer();
-        flush_mode = GL_TRIANGLES;
     } else if (isTile) {
         int x, y, w, h, tu, tv;
         x = s11(((short*)packets)[0]);
@@ -1629,7 +1688,7 @@ void Draw_FlushBuffer(void) {
         GL_ELEMENT_ARRAY_BUFFER, 0,
         (GLsizeiptr)(sizeof(*index_buf) * (size_t)n_indices), index_buf);
     glBindVertexArray(VAO);
-    int prim_size = (flush_mode == GL_LINES) ? 2 : 3;
+    int prim_size = 3;
     int start = 0;
     bool cur_subtract = false;
     while (start < n_indices) {
@@ -1650,7 +1709,7 @@ void Draw_FlushBuffer(void) {
             cur_subtract = need_subtract;
         }
         glDrawElements(
-            flush_mode, end - start, GL_UNSIGNED_SHORT,
+            GL_TRIANGLES, end - start, GL_UNSIGNED_SHORT,
             (const GLvoid*)((uintptr_t)start * sizeof(unsigned short)));
         start = end;
     }
