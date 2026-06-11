@@ -110,6 +110,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/ut_rev.c
     ../decomp/src/libsnd/ut_roff.c
     ../decomp/src/libsnd/ut_ron.c
+    ../decomp/src/libsnd/ut_vvol.c
     ../decomp/src/libsnd/vol.c
     ../decomp/src/libsnd/vm_doff.c
     ../decomp/src/libsnd/vm_f.c

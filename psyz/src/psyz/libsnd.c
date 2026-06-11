@@ -73,11 +73,6 @@ void _SsSeqPlay(short arg0, short arg1) { NOT_IMPLEMENTED; }
 
 void _SsSndTempo(short arg0, short arg1) { NOT_IMPLEMENTED; }
 
-short SsUtSetVVol(short vc, short voll, short volr) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
 void Snd_SetPlayMode(
     short sep_access_num, short seq_num, char play_mode, short l_count) {
     NOT_IMPLEMENTED;
