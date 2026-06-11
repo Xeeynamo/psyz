@@ -55,16 +55,16 @@ typedef struct {
  * functions.
  */
 typedef struct {
-    short* src;      /**< 16-bit PCM data address */
-    short* dest;     /**< PlayStation original waveform data */
-    short* work;     /**< Work area when encode processing (168 bytes) */
-    int size;        /**< 16-bit PCM data size (in bytes) */
-    int loop_start;  /**< PCM data loop start point (in bytes) */
-    char loop;       /**< Loop waveform generation (ENCSPU_ENCODE_[NO_]LOOP) */
-    char byte_swap;  /**< PCM endian (ENCSPU_ENCODE_ENDIAN_BIG/LITTLE) */
-    char proceed;    /**< Whole/Divided encoding (ENCSPU_ENCODE_*) */
-    char quality;    /**< Encoding quality (EncSPU2 only) */
-    char pad4;       /**< System reserved */
+    short* src;     /**< 16-bit PCM data address */
+    short* dest;    /**< PlayStation original waveform data */
+    short* work;    /**< Work area when encode processing (168 bytes) */
+    int size;       /**< 16-bit PCM data size (in bytes) */
+    int loop_start; /**< PCM data loop start point (in bytes) */
+    char loop;      /**< Loop waveform generation (ENCSPU_ENCODE_[NO_]LOOP) */
+    char byte_swap; /**< PCM endian (ENCSPU_ENCODE_ENDIAN_BIG/LITTLE) */
+    char proceed;   /**< Whole/Divided encoding (ENCSPU_ENCODE_*) */
+    char quality;   /**< Encoding quality (EncSPU2 only) */
+    char pad4;      /**< System reserved */
 } ENCSPUENV;
 
 /**
@@ -90,7 +90,7 @@ typedef u_short DECDCTTAB[0x2000];
  * @param bs Pointer to bitstream
  * @return Length of uncompressed data in long words
  */
-long DecDCTBufSize(u_long* bs);
+int DecDCTBufSize(u_long* bs);
 
 /**
  * @brief Get current quantization tables and environment
@@ -118,7 +118,7 @@ DECDCTENV* DecDCTGetEnv(DECDCTENV* env);
  * @param runlevel Pointer to input runlevel
  * @param mode Decode mode (bit 0: depth, bit 1: STP)
  */
-void DecDCTin(unsigned long* runlevel, long mode);
+void DecDCTin(u_long* runlevel, int mode);
 
 /**
  * @brief Install callback for MDEC transmission termination
@@ -144,7 +144,7 @@ DecDCCb DecDCTinCallback(DecDCCb func);
  * @param mode 0: blocks until termination, 1: status notification only
  * @return 1 if transmission in process, 0 if not being performed
  */
-long DecDCTinSync(long mode);
+int DecDCTinSync(int mode);
 
 /**
  * @brief Receive decoded data from image processing subsystem
@@ -158,9 +158,9 @@ long DecDCTinSync(long mode);
  * previous operation finishes.
  *
  * @param cell Pointer to decoded image data buffer
- * @param size Received data size in long words
+ * @param size Received data size in int words
  */
-void DecDCTout(unsigned long* cell, long size);
+void DecDCTout(u_long* cell, int size);
 
 /**
  * @brief Install callback for MDEC reception termination
@@ -184,7 +184,7 @@ DecDCCb DecDCToutCallback(DecDCCb func);
  * @param mode 0: blocks until termination, 1: status notification only
  * @return 1 if reception in progress, 0 if not being performed
  */
-long DecDCToutSync(long mode);
+int DecDCToutSync(int mode);
 
 /**
  * @brief Set image-processing-subsystem environment
@@ -261,8 +261,8 @@ void DecDCTvlcBuild(u_short* table);
 /**
  * @brief Set maximum amount of data returned by DecDCTvlc()
  *
- * Sets the maximum number of long words that DecDCTvlc() can return.
- * Subsequent calls halt after decoding size long words. If size is zero,
+ * Sets the maximum number of int words that DecDCTvlc() can return.
+ * Subsequent calls halt after decoding size int words. If size is zero,
  * DecDCTvlc() decodes entire bitstream regardless of length.
  *
  * Allows multiple calls to decode bitstream in chunks using smaller buffer.
@@ -270,7 +270,7 @@ void DecDCTvlcBuild(u_short* table);
  * Blocking function. Bitstream must be converted to run-levels before
  * executing DecDCTin().
  *
- * @param size Maximum decoded runlevel in long words (0: unlimited)
+ * @param size Maximum decoded runlevel in int words (0: unlimited)
  * @return Previously set buffer size
  */
 int DecDCTvlcSize(int size);
@@ -285,7 +285,7 @@ int DecDCTvlcSize(int size);
  * Blocking function. Bitstream must be converted to run-level before
  * executing DecDCTin().
  *
- * @param size Maximum decoded runlevel in long words (0: unlimited)
+ * @param size Maximum decoded runlevel in int words (0: unlimited)
  * @return Maximum run level set immediately before
  */
 int DecDCTvlcSize2(int size);
@@ -314,7 +314,7 @@ int DecDCTvlcSize2(int size);
  * @param es_env SPU encode environment attribute structure
  * @return Encoded waveform data size (VAG), or ENC_ENCODE_ERROR on error
  */
-long EncSPU(ENCSPUENV* es_env);
+int EncSPU(ENCSPUENV* es_env);
 
 /**
  * @brief Encode 16-bit PCM (high quality version)
@@ -328,6 +328,6 @@ long EncSPU(ENCSPUENV* es_env);
  * @param es_env SPU encode environment attribute structure
  * @return Encoded waveform data size (VAG), or ENC_ENCODE_ERROR on error
  */
-long EncSPU2(ENCSPUENV* es_env);
+int EncSPU2(ENCSPUENV* es_env);
 
 #endif /* LIBPRESS_H */

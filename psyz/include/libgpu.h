@@ -1122,6 +1122,13 @@ extern int DrawSync(int mode);
 extern int FntOpen(int x, int y, int w, int h, int isbg, int n);
 
 /**
+ * @brief Get GPU hardware revision
+ *
+ * @return can be either 0, 1 or 2
+ */
+extern int GetGraphType(void);
+
+/**
  * @brief Get graphics debug level
  *
  * @return Current debug level
