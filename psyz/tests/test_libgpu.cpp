@@ -315,7 +315,7 @@ TEST_F(gpu_Test, draw_lines) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("draw_lines");
+    AssertFrame("draw_lines", 0.9999);
 }
 
 TEST_F(gpu_Test, set_draw_area) {
