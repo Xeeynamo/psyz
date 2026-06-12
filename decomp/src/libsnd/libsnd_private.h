@@ -18,6 +18,7 @@ extern "C" {
 #define SEQ_FLAG_10 0x10
 #define SEQ_FLAG_20 0x20
 #define SEQ_FLAG_100 0x100
+#define SEQ_FLAG_200 0x200
 #define SEQ_FLAG_400 0x400
 
 #define NUM_VAB 16
@@ -140,12 +141,12 @@ struct SpuVoice {
 
 struct struct_svm {
     char prog_tones;
-    char field_1_vabId;
+    char vabId;
     char note;
     char fine;
     char volume;
     char pan;
-    char field_6_program;
+    char prog;
     char field_7_fake_program;
     char field_8_unknown;
     char field_0x9;

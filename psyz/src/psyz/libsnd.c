@@ -73,11 +73,6 @@ void _SsSeqPlay(short arg0, short arg1) { NOT_IMPLEMENTED; }
 
 void _SsSndTempo(short arg0, short arg1) { NOT_IMPLEMENTED; }
 
-void Snd_SetPlayMode(
-    short sep_access_num, short seq_num, char play_mode, short l_count) {
-    NOT_IMPLEMENTED;
-}
-
 short SsSeqOpen(u_long* addr, short vab_id) {
     NOT_IMPLEMENTED;
     return 0;

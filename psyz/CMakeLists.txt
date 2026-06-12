@@ -79,6 +79,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/decres.c
     ../decomp/src/libsnd/pause.c
     ../decomp/src/libsnd/play.c
+    ../decomp/src/libsnd/playmode.c
     ../decomp/src/libsnd/replay.c
     ../decomp/src/libsnd/sscall.c
     ../decomp/src/libsnd/ssclose.c
