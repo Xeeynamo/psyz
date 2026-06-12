@@ -105,14 +105,9 @@ void _SsVmDoAllocate(void) { NOT_IMPLEMENTED; }
 
 void _SsVmKeyOnNow(u16 vagCount, u16 pitch) { NOT_IMPLEMENTED; }
 
-int _SsVmVSetUp(short vabId, short prog) {
+void _SsVmSetSeqVol(
+    short seq_sep_no, unsigned short voll, unsigned short volr, short arg3) {
     NOT_IMPLEMENTED;
-    return -1;
-}
-
-s32 _SsVmSetSeqVol(s16 seq_sep_no, u16 voll, u16 volr, s16 arg3) {
-    NOT_IMPLEMENTED;
-    return 0;
 }
 
 void _SsVmSeqKeyOff(s16 seq_sep_num) { NOT_IMPLEMENTED; }

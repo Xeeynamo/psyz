@@ -120,6 +120,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/vm_n2p.c
     ../decomp/src/libsnd/vm_noff.c
     ../decomp/src/libsnd/vm_nowof.c
+    ../decomp/src/libsnd/vm_vsu.c
     ../decomp/src/libsnd/vs_mono.c
     ../decomp/src/libsnd/vs_srv.c
     ../decomp/src/libsnd/vs_vab.c
