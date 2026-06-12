@@ -19,19 +19,9 @@ extern unsigned int VBLANK_MINUS;
 extern int _snd_openflag;
 
 static void SetVoiceData(int nVoice, unsigned short* data) {
-#if 0
-// TODO can we just do the following more performant version?
-// _spu_RXX->rxx.voice[nVoice] = *(SPU_VOICE_REG*)data;
-#else
-    Psyz_SpuWrite(nVoice * 0x10 + 0, data[0]);
-    Psyz_SpuWrite(nVoice * 0x10 + 2, data[1]);
-    Psyz_SpuWrite(nVoice * 0x10 + 4, data[2]);
-    Psyz_SpuWrite(nVoice * 0x10 + 6, data[3]);
-    Psyz_SpuWrite(nVoice * 0x10 + 8, data[4]);
-    Psyz_SpuWrite(nVoice * 0x10 + 10, data[5]);
-    Psyz_SpuWrite(nVoice * 0x10 + 12, data[6]);
-    Psyz_SpuWrite(nVoice * 0x10 + 14, data[7]);
-#endif
+    for (int i = 0; i < 8; i++) {
+        Psyz_SpuWrite(nVoice * 0x10 + i * 2, data[i]);
+    }
 }
 
 static void SetStateData(unsigned short* data, unsigned nWords) {

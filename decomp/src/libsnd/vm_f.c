@@ -32,7 +32,7 @@ void _SsVmFlush(void) {
     _svm_envx_ptr = (_svm_envx_ptr + 1) & 0xF;
     _svm_envx_hist[_svm_envx_ptr] = 0;
     for (i = 0; i < _SsVmMaxVoice; i++) {
-        _svm_voice[i].unk6 = _svm_sreg->voice[i].volumex;
+        _svm_voice[i].unk6 = SPUR(voice[i].volumex);
         if (!_svm_voice[i].unk6) {
             _svm_envx_hist[_svm_envx_ptr] |= 1 << i;
         }
@@ -63,18 +63,18 @@ void _SsVmFlush(void) {
     }
     for (i = 0; i < NUM_VOICES; i++) {
         if (_svm_sreg_dirty[i] & 1) {
-            _svm_sreg->voice[i].volume.left = _svm_sreg_buf[i].volume.left;
-            _svm_sreg->voice[i].volume.right = _svm_sreg_buf[i].volume.right;
+            SPUW(voice[i].volume.left, _svm_sreg_buf[i].volume.left);
+            SPUW(voice[i].volume.right, _svm_sreg_buf[i].volume.right);
         }
         if (_svm_sreg_dirty[i] & 4) {
-            _svm_sreg->voice[i].pitch = _svm_sreg_buf[i].pitch;
+            SPUW(voice[i].pitch, _svm_sreg_buf[i].pitch);
         }
         if (_svm_sreg_dirty[i] & 8) {
-            _svm_sreg->voice[i].addr = _svm_sreg_buf[i].addr;
+            SPUW(voice[i].addr, _svm_sreg_buf[i].addr);
         }
         if (_svm_sreg_dirty[i] & 0x10) {
-            _svm_sreg[i].voice->adsr[0] = _svm_sreg_buf[i].adsr[0];
-            _svm_sreg[i].voice->adsr[1] = _svm_sreg_buf[i].adsr[1];
+            SPUW(voice[i].adsr[0], _svm_sreg_buf[i].adsr[0]);
+            SPUW(voice[i].adsr[1], _svm_sreg_buf[i].adsr[1]);
         }
         _svm_sreg_dirty[i] = 0;
     }
@@ -86,11 +86,11 @@ void _SsVmFlush(void) {
     _svm_okof2 = 0;
     _svm_okon1 = 0;
     _svm_okon2 = 0;
-    _svm_sreg->key_off[0] = temp_v1;
-    _svm_sreg->key_off[1] = temp_a0;
-    _svm_sreg->key_on[0] = temp_a1;
-    _svm_sreg->key_on[1] = temp_a2;
-    _svm_sreg->rev_mode[0] = _svm_orev1;
-    _svm_sreg->rev_mode[1] = _svm_orev2;
+    SPUW(key_off[0], temp_v1);
+    SPUW(key_off[1], temp_a0);
+    SPUW(key_on[0], temp_a1);
+    SPUW(key_on[1], temp_a2);
+    SPUW(rev_mode[0], _svm_orev1);
+    SPUW(rev_mode[1], _svm_orev2);
 }
 #endif
