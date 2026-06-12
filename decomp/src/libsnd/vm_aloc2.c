@@ -12,7 +12,7 @@ void _SsVmDoAllocate(void) {
     _svm_cur.voiceOffset = _svm_cur.voice * sizeof(SPU_VOICE_REG) / 2;
     _svm_cur.field_0x1e = _svm_cur.field_7_fake_program * 16 + _svm_cur.tone;
     _svm_voice[_svm_cur.voice].unk6 = 0x7FFF;
-    for (i = 0; i < 16; i++) {
+    for (i = 0; i < NUM_VAB; i++) {
         _svm_envx_hist[i] &= ~(1 << _svm_cur.voice);
     }
     if ((_svm_cur.tone_vag_idx & 1) > 0) {

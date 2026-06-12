@@ -16,7 +16,7 @@ void SsUtAllKeyOff(short mode) {
         ((SPU_VOICE_REG*)_svm_sreg)[i << 19 >> 19].volume.left = 0;
         ((SPU_VOICE_REG*)_svm_sreg)[i << 19 >> 19].volume.right = 0;
         ((SPU_VOICE_REG*)_svm_sreg)[i << 19 >> 19].adsr[1] = 0x4000;
-        _svm_cur.field_0x1a = i;
+        _svm_cur.voice = i;
         _SsVmKeyOffNow(1);
     }
 }
