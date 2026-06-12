@@ -78,8 +78,8 @@ struct SeqStruct {
     /* 0x52 */ s16 unk52;
     /* 0x54 */ s16 unk54;
     /* 0x56 */ s16 unk56;
-    /* 0x58 */ short voll;
-    /* 0x5A */ short volr;
+    /* 0x58 */ short voll; // maybe unsigned?
+    /* 0x5A */ short volr; // maybe unsigned?
     /* 0x5C */ s16 unk5C;
     /* 0x5E */ s16 unk5E;
     /* 0x60 */ short vol[16];
@@ -251,7 +251,7 @@ char _SsVmAlloc(short voice);
 void vmNoiseOn(char voice);
 void vmNoiseOff(char voice);
 unsigned short note2pitch2(unsigned short note, unsigned short fine);
-void _SsVmKeyOnNow(u16 vagCount, u16 pitch);
+void _SsVmKeyOnNow(unsigned short vagCount, unsigned short pitch);
 int _SsVmVSetUp(short vabId, short prog);
 void _SsVmDoAllocate(void);
 

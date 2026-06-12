@@ -101,8 +101,6 @@ char _SsVmAlloc(short voice) {
     return -1;
 }
 
-void _SsVmKeyOnNow(u16 vagCount, u16 pitch) { NOT_IMPLEMENTED; }
-
 void _SsVmSetSeqVol(
     short seq_sep_no, unsigned short voll, unsigned short volr, short arg3) {
     NOT_IMPLEMENTED;
