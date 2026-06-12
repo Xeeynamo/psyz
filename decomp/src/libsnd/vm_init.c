@@ -69,7 +69,7 @@ void _SsVmInit(char numVoices) {
         _svm_sreg->voice[i].volume.left = 0;
         _svm_sreg->voice[i].volume.right = 0;
         _svm_sreg->voice[i].adsr[1] = 0x4000;
-        _svm_cur.field_0x1a = i;
+        _svm_cur.voice = i;
         _SsVmKeyOffNow(1);
     }
     _svm_rattr.depth.left = 0x3FFF;

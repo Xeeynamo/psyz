@@ -47,7 +47,7 @@ short SsUtKeyOnV(short voice, short vabId, short prog, short tone, short note,
         _snd_ev_flag = 0;
         return -1;
     }
-    _svm_cur.field_0x1a = voice;
+    _svm_cur.voice = voice;
     _svm_voice[voice].unke = 0x21;
     _svm_voice[voice].vabId = vabId;
     _svm_voice[voice].unk10 = _svm_cur.field_7_fake_program;

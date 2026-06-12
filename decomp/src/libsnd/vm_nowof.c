@@ -5,7 +5,7 @@ void _SsVmKeyOffNow(int mode) {
     int bitsLower;
     u16 voice;
 
-    voice = _svm_cur.field_0x1a;
+    voice = _svm_cur.voice;
     if (voice < 16) {
         bitsLower = 1 << voice;
         bitsUpper = 0;

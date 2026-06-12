@@ -164,8 +164,8 @@ struct struct_svm {
     u8 pad;
     /* 0x8011110E 0x16 */ short seq_sep_no;
     short tone_vag_idx;
-    u16 field_0x1a;
-    short field_0x1c;
+    short voice;
+    short voiceOffset;
     short field_0x1e;
 };
 
@@ -189,6 +189,7 @@ extern unsigned short _svm_okof2;
 extern unsigned short _svm_orev1;
 extern unsigned short _svm_orev2;
 extern struct SpuVoice _svm_voice[NUM_VOICES];
+extern int _svm_envx_hist[16];
 extern SpuReverbAttr _svm_rattr;
 extern u8 _svm_vab_used[NUM_VAB];
 extern char _SsVmMaxVoice;

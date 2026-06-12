@@ -53,7 +53,7 @@ short SsUtKeyOn(short vabId, short prog, short tone, short note, short fine,
         return -1;
     }
 
-    _svm_cur.field_0x1a = voice;
+    _svm_cur.voice = voice;
     _svm_voice[voice].unke = 0x21;
     _svm_voice[voice].vabId = vabId;
     _svm_voice[voice].unk10 = _svm_cur.field_7_fake_program;
@@ -85,7 +85,7 @@ short SsUtKeyOff(short voice, short vabId, short prog, short tone, short note) {
                 _svm_voice[voice].unk0 == 0xFF) {
                 vmNoiseOff(voice);
             } else {
-                _svm_cur.field_0x1a = voice;
+                _svm_cur.voice = voice;
                 _SsVmKeyOffNow(0);
             }
             _svm_voice[voice].auto_pan = 0;
