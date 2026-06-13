@@ -444,6 +444,7 @@ static struct {
     // Hermite ring: index [0]=oldest .. [3]=newest per channel
     short rh_l[4], rh_r[4];
     unsigned int phase; // 16.16 fractional position into the input stream
+    int cur_abs_sector; // absolute last sector used, for CdlGetlocL
 } xa;
 
 static void xa_reset_stream(void) {
@@ -543,6 +544,7 @@ static int xa_read_and_decode_sector(void) {
         if (n != SECTOR_SIZE) {
             return 0; // EOF or short read
         }
+        xa.cur_abs_sector++;
         const unsigned char file = sector[0x10];
         const unsigned char channel = sector[0x11];
         const unsigned char submode = sector[0x12];
@@ -767,6 +769,7 @@ static void psyz_xa_read(void) {
     }
     Psyz_AudioLock();
     xa_reset_stream();
+    xa.cur_abs_sector = CdPosToInt(&CD_pos) - 1;
     xa.active = 1;
     is_playing = 1;
     Psyz_AudioUnlock();
@@ -971,6 +974,30 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
         }
         CD_mode = *param;
         break;
+    case CdlGetlocL: {
+        if (!result) {
+            ERRORF("%s got NULL result", CD_comstr[com]);
+            return -2;
+        }
+        // always return XA sector if XA playback is active
+        int cur = xa.active ? xa.cur_abs_sector : CdPosToInt(&CD_pos);
+        if (cur < 0) {
+            cur = 0;
+        }
+        CdlLOC loc;
+        CdIntToPos(cur, &loc);
+        result[0] = loc.minute;
+        result[1] = loc.second;
+        result[2] = loc.sector;
+        result[3] = 0x01;
+        result[4] = xa.filter_file;
+        result[5] = xa.filter_channel;
+        result[6] = 0x00;
+        result[7] = 0x00;
+        u_char status_result[8] = {(u_char)CD_status, 0, 0, 0, 0, 0, 0, 0};
+        cache_last_result(status_result, CdlComplete);
+        break;
+    }
     case CdlGetlocP:
         LOG_ONCE("com %s not implemented", CD_comstr[com]);
         break;
