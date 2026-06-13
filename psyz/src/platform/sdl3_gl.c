@@ -630,7 +630,7 @@ int Psyz_VSync(int mode) {
     if (mode >= 0) {
         ret = (unsigned short)(cur - last_vsync);
     } else {
-        ret = (unsigned short)(cur - elapsed_from_beginning);
+        ret = (unsigned short)gpu_stats.total_frames;
     }
     last_vsync = cur;
     if (mode == 0) {
