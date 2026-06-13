@@ -26,7 +26,7 @@ void _SsVmDoAllocate(void) {
     }
     voice = _svm_cur.voice; // FAKE!
     _svm_sreg_dirty[_svm_cur.voice] |= 8;
-    _svm_sreg_buf[_svm_cur.voiceOffset].adsr[0] =
+    _svm_sreg_buf[_svm_cur.voice].adsr[0] =
         _svm_tn[_svm_cur.field_7_fake_program * 16 + _svm_cur.tone].adsr1;
     _svm_sreg_buf[_svm_cur.voice].adsr[1] =
         _svm_tn[_svm_cur.field_7_fake_program * 16 + _svm_cur.tone].adsr2 +
