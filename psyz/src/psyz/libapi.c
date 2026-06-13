@@ -130,7 +130,6 @@ int PAD_dr(int port, char* dst) {
 
 void _96_remove(void) { NOT_IMPLEMENTED; }
 
-long SetRCnt(unsigned long a, unsigned short b, long c) { NOT_IMPLEMENTED; }
 
 long ReadInitPadFlag(void) {
     NOT_IMPLEMENTED;
@@ -274,11 +273,6 @@ void UnDeliverEvent(unsigned ev1, unsigned ev2) { NOT_IMPLEMENTED; }
 void SystemError(char c, long n) {
     NOT_IMPLEMENTED;
     ERRORF("SystemError('%c', 0x%X)", c, n);
-}
-
-long ResetRCnt(long spec) {
-    NOT_IMPLEMENTED;
-    return 1;
 }
 
 struct DIRENTRY* my_firstfile(char* dirPath, struct DIRENTRY* firstEntry);

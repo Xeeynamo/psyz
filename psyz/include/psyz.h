@@ -95,6 +95,10 @@ typedef int (*DiskReadCB)(struct PsyzDiskRead* read);
 #define PSYZ_SPU_NUM_VOICES 24         // match PS1 voice count
 #define PSYZ_SPU_SAMPLE_RATE 44100     // match fixed PS1 sample rate
 
+// Reserved. Used by audio thread to emulate timer for SEQ playback in absence
+// of rcnt interrupt. Always assumes Audio driver plays at 44100Hz.
+void Psyz_RcntAdd(int n);
+
 // Initialize SPU emulation state. Idempotent; safe to call multiple times.
 void Psyz_SpuInit(void);
 
