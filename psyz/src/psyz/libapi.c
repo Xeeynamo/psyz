@@ -130,7 +130,6 @@ int PAD_dr(int port, char* dst) {
 
 void _96_remove(void) { NOT_IMPLEMENTED; }
 
-
 long ReadInitPadFlag(void) {
     NOT_IMPLEMENTED;
     return 0;
