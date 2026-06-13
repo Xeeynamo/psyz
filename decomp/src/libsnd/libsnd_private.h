@@ -177,6 +177,26 @@ extern s16 _snd_seq_s_max;
 extern s16 _snd_seq_t_max;
 extern struct SndSeqTickEnv _snd_seq_tick_env;
 extern SPU_RXX* _svm_sreg;
+
+/* libsnd accesses the SPU registers through its own _svm_sreg pointer, not
+ * libspu's _spu_RXX. Override the SPUR/SPUW macros from libspu_private.h so the
+ * decomp build relocates against _svm_sreg and matches the original library. */
+#undef SPUR
+#undef SPUW
+#ifndef __psyz
+#define SPUR(field) (_svm_sreg->field)
+#define SPUW(field, val) _svm_sreg->field = (val)
+/* Voice-register access via the SPU base treated as an array of voice regs.
+ * Matches the original ((SPU_VOICE_REG*)_svm_sreg)[n].field codegen. */
+#define SPURV(n, field) (((SPU_VOICE_REG*)_svm_sreg)[n].field)
+#define SPUWV(n, field, val) ((SPU_VOICE_REG*)_svm_sreg)[n].field = (val)
+#else
+#define SPUR(field) Psyz_SpuRead(offsetof(SPU_RXX, field))
+#define SPUW(field, val) Psyz_SpuWrite(offsetof(SPU_RXX, field), val)
+#define SPURV(n, field) Psyz_SpuRead(offsetof(SPU_RXX, voice[n].field))
+#define SPUWV(n, field, val) Psyz_SpuWrite(offsetof(SPU_RXX, voice[n].field), val)
+#endif
+
 extern struct SeqStruct* _ss_score[32];
 extern s32 _svm_brr_start_addr[];
 extern short kMaxPrograms;

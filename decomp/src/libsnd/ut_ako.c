@@ -10,12 +10,12 @@ void SsUtAllKeyOff(short mode) {
         _svm_voice[i].unk10 = 0;
         _svm_voice[i].prog = 0;
         _svm_voice[i].tone = 0xFF;
-        SPUW(voice[i << 19 >> 19].addr, 0x200);
-        SPUW(voice[i << 19 >> 19].pitch, 0x1000);
-        SPUW(voice[i << 19 >> 19].adsr[0], 0x80FF);
-        SPUW(voice[i << 19 >> 19].volume.left, 0);
-        SPUW(voice[i << 19 >> 19].volume.right, 0);
-        SPUW(voice[i << 19 >> 19].adsr[1], 0x4000);
+        SPUWV(i << 19 >> 19, addr, 0x200);
+        SPUWV(i << 19 >> 19, pitch, 0x1000);
+        SPUWV(i << 19 >> 19, adsr[0], 0x80FF);
+        SPUWV(i << 19 >> 19, volume.left, 0);
+        SPUWV(i << 19 >> 19, volume.right, 0);
+        SPUWV(i << 19 >> 19, adsr[1], 0x4000);
         _svm_cur.voice = i;
         _SsVmKeyOffNow(1);
     }

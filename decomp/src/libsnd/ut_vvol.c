@@ -15,7 +15,7 @@ short SsUtSetDetVVol(short voice, short voll, short volr) {
 
 short SsUtGetVVol(short voice, short* voll, short* volr) {
     if (voice >= 0 && voice < NUM_VOICES) {
-        int r = SPUR(voice[voice].volume.right);
+        int r = SPURV(voice, volume.right);
         *voll = SPUR(voice[voice].volume.left) / 129;
         *volr = r / 129;
         return 0;
