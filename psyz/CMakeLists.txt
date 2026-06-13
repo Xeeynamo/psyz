@@ -79,6 +79,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/decres.c
     ../decomp/src/libsnd/pause.c
     ../decomp/src/libsnd/play.c
+    ../decomp/src/libsnd/playmode.c
     ../decomp/src/libsnd/replay.c
     ../decomp/src/libsnd/sscall.c
     ../decomp/src/libsnd/ssclose.c
@@ -104,18 +105,24 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/ut_autop.c
     ../decomp/src/libsnd/ut_cadsr.c
     ../decomp/src/libsnd/ut_key.c
+    ../decomp/src/libsnd/ut_keyv.c
     ../decomp/src/libsnd/ut_rdel.c
     ../decomp/src/libsnd/ut_rdep.c
     ../decomp/src/libsnd/ut_rev.c
     ../decomp/src/libsnd/ut_roff.c
     ../decomp/src/libsnd/ut_ron.c
+    ../decomp/src/libsnd/ut_vvol.c
     ../decomp/src/libsnd/vol.c
+    ../decomp/src/libsnd/vm_aloc2.c
     ../decomp/src/libsnd/vm_doff.c
     ../decomp/src/libsnd/vm_f.c
     ../decomp/src/libsnd/vm_g.c
     ../decomp/src/libsnd/vm_init.c
+    ../decomp/src/libsnd/vm_n2p.c
     ../decomp/src/libsnd/vm_noff.c
     ../decomp/src/libsnd/vm_nowof.c
+    ../decomp/src/libsnd/vm_nowon.c
+    ../decomp/src/libsnd/vm_vsu.c
     ../decomp/src/libsnd/vs_mono.c
     ../decomp/src/libsnd/vs_srv.c
     ../decomp/src/libsnd/vs_vab.c

@@ -28,10 +28,10 @@
 #define SwCARD (DescSW | 0x01)   /* memory card */
 #define SwMATH (DescSW | 0x02)   /* libmath */
 
-#define RCntCNT0 (DescRC | 0x00) /* �\���s�N�Z�� */
-#define RCntCNT1 (DescRC | 0x01) /* �������� */
-#define RCntCNT2 (DescRC | 0x02) /* �V�X�e���N���b�N�W���� */
-#define RCntCNT3 (DescRC | 0x03) /* �������� �^�[�Q�b�g�l�͂P�ɌŒ� */
+#define RCntCNT0 (DescRC | 0x00) /* display pixel */
+#define RCntCNT1 (DescRC | 0x01) /* horizontal sync */
+#define RCntCNT2 (DescRC | 0x02) /* system clock divided by 8 */
+#define RCntCNT3 (DescRC | 0x03) /* vertical sync, target value fixed at 1 */
 
 #define RCntMdINTR 0x1000
 #define RCntMdNOINTR 0x2000

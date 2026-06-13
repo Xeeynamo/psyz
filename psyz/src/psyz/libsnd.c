@@ -19,19 +19,9 @@ extern unsigned int VBLANK_MINUS;
 extern int _snd_openflag;
 
 static void SetVoiceData(int nVoice, unsigned short* data) {
-#if 0
-// TODO can we just do the following more performant version?
-// _spu_RXX->rxx.voice[nVoice] = *(SPU_VOICE_REG*)data;
-#else
-    Psyz_SpuWrite(nVoice * 0x10 + 0, data[0]);
-    Psyz_SpuWrite(nVoice * 0x10 + 2, data[1]);
-    Psyz_SpuWrite(nVoice * 0x10 + 4, data[2]);
-    Psyz_SpuWrite(nVoice * 0x10 + 6, data[3]);
-    Psyz_SpuWrite(nVoice * 0x10 + 8, data[4]);
-    Psyz_SpuWrite(nVoice * 0x10 + 10, data[5]);
-    Psyz_SpuWrite(nVoice * 0x10 + 12, data[6]);
-    Psyz_SpuWrite(nVoice * 0x10 + 14, data[7]);
-#endif
+    for (int i = 0; i < 8; i++) {
+        Psyz_SpuWrite(nVoice * 0x10 + i * 2, data[i]);
+    }
 }
 
 static void SetStateData(unsigned short* data, unsigned nWords) {
@@ -73,23 +63,7 @@ void _SsSeqPlay(short arg0, short arg1) { NOT_IMPLEMENTED; }
 
 void _SsSndTempo(short arg0, short arg1) { NOT_IMPLEMENTED; }
 
-short SsUtSetVVol(short vc, short voll, short volr) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
-void Snd_SetPlayMode(
-    short sep_access_num, short seq_num, char play_mode, short l_count) {
-    NOT_IMPLEMENTED;
-}
-
 short SsSeqOpen(u_long* addr, short vab_id) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
-short SsUtKeyOnV(short voice, short vabId, short prog, short tone, short note,
-                 short fine, short voll, short volr) {
     NOT_IMPLEMENTED;
     return 0;
 }
@@ -117,28 +91,14 @@ char _SsVmAlloc(short voice) {
     return -1;
 }
 
-void _SsVmDoAllocate(void) { NOT_IMPLEMENTED; }
-
-void _SsVmKeyOnNow(u16 vagCount, u16 pitch) { NOT_IMPLEMENTED; }
-
-int _SsVmVSetUp(short vabId, short prog) {
+void _SsVmSetSeqVol(
+    short seq_sep_no, unsigned short voll, unsigned short volr, short arg3) {
     NOT_IMPLEMENTED;
-    return -1;
-}
-
-s32 _SsVmSetSeqVol(s16 seq_sep_no, u16 voll, u16 volr, s16 arg3) {
-    NOT_IMPLEMENTED;
-    return 0;
 }
 
 void _SsVmSeqKeyOff(s16 seq_sep_num) { NOT_IMPLEMENTED; }
 
 void vmNoiseOn(char voice) { NOT_IMPLEMENTED; }
-
-int note2pitch2(u16 note, u16 fine) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
 
 void _SsNoteOn(short a0, short a1, unsigned char a2, unsigned char a3) {
     NOT_IMPLEMENTED;

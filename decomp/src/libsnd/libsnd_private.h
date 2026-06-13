@@ -18,6 +18,7 @@ extern "C" {
 #define SEQ_FLAG_10 0x10
 #define SEQ_FLAG_20 0x20
 #define SEQ_FLAG_100 0x100
+#define SEQ_FLAG_200 0x200
 #define SEQ_FLAG_400 0x400
 
 #define NUM_VAB 16
@@ -77,8 +78,8 @@ struct SeqStruct {
     /* 0x52 */ s16 unk52;
     /* 0x54 */ s16 unk54;
     /* 0x56 */ s16 unk56;
-    /* 0x58 */ short voll;
-    /* 0x5A */ short volr;
+    /* 0x58 */ short voll; // maybe unsigned?
+    /* 0x5A */ short volr; // maybe unsigned?
     /* 0x5C */ s16 unk5C;
     /* 0x5E */ s16 unk5E;
     /* 0x60 */ short vol[16];
@@ -139,32 +140,32 @@ struct SpuVoice {
 };
 
 struct struct_svm {
-    char field_0_sep_sep_no_tonecount;
-    char field_1_vabId;
-    char field_2_note;
-    char field_0x3;
-    char field_4_voll;
-    char field_0x5;
-    char field_6_program;
+    char prog_tones;
+    char vabId;
+    char note;
+    char fine;
+    char volume;
+    char pan;
+    char prog;
     char field_7_fake_program;
     char field_8_unknown;
     char field_0x9;
-    char field_A_mvol;
-    char field_B_mpan;
-    char field_C_vag_idx;
-    char field_D_vol;
-    char field_E_pan;
-    char field_F_prior;
-    char field_10_centre;
-    unsigned char field_11_shift;
-    char field_12_mode;
-    char field_0x13;
-    u8 field_14_seq_sep_no;
+    char mvol;
+    char mpan;
+    char tone;
+    char tone_vol;
+    char tone_pan;
+    char tone_prior;
+    char tone_center;
+    unsigned char tone_shift;
+    char tone_min;
+    char tone_max;
+    u8 tone_mode;
     u8 pad;
     /* 0x8011110E 0x16 */ short seq_sep_no;
-    short field_18_voice_idx;
-    u16 field_0x1a;
-    short field_0x1c;
+    short tone_vag_idx;
+    short voice;
+    short voiceOffset;
     short field_0x1e;
 };
 
@@ -176,6 +177,26 @@ extern s16 _snd_seq_s_max;
 extern s16 _snd_seq_t_max;
 extern struct SndSeqTickEnv _snd_seq_tick_env;
 extern SPU_RXX* _svm_sreg;
+
+/* libsnd accesses the SPU registers through its own _svm_sreg pointer, not
+ * libspu's _spu_RXX. Override the SPUR/SPUW macros from libspu_private.h so the
+ * decomp build relocates against _svm_sreg and matches the original library. */
+#undef SPUR
+#undef SPUW
+#ifndef __psyz
+#define SPUR(field) (_svm_sreg->field)
+#define SPUW(field, val) _svm_sreg->field = (val)
+/* Voice-register access via the SPU base treated as an array of voice regs.
+ * Matches the original ((SPU_VOICE_REG*)_svm_sreg)[n].field codegen. */
+#define SPURV(n, field) (((SPU_VOICE_REG*)_svm_sreg)[n].field)
+#define SPUWV(n, field, val) ((SPU_VOICE_REG*)_svm_sreg)[n].field = (val)
+#else
+#define SPUR(field) Psyz_SpuRead(offsetof(SPU_RXX, field))
+#define SPUW(field, val) Psyz_SpuWrite(offsetof(SPU_RXX, field), val)
+#define SPURV(n, field) Psyz_SpuRead(offsetof(SPU_RXX, voice[n].field))
+#define SPUWV(n, field, val) Psyz_SpuWrite(offsetof(SPU_RXX, voice[n].field), val)
+#endif
+
 extern struct SeqStruct* _ss_score[32];
 extern s32 _svm_brr_start_addr[];
 extern short kMaxPrograms;
@@ -188,6 +209,7 @@ extern unsigned short _svm_okof2;
 extern unsigned short _svm_orev1;
 extern unsigned short _svm_orev2;
 extern struct SpuVoice _svm_voice[NUM_VOICES];
+extern int _svm_envx_hist[16];
 extern SpuReverbAttr _svm_rattr;
 extern u8 _svm_vab_used[NUM_VAB];
 extern char _SsVmMaxVoice;
@@ -248,8 +270,8 @@ int _SsInitSoundSep(short flag, short i, short vab_id, unsigned long* addr);
 char _SsVmAlloc(short voice);
 void vmNoiseOn(char voice);
 void vmNoiseOff(char voice);
-int note2pitch2(u16 note, u16 fine);
-void _SsVmKeyOnNow(u16 vagCount, u16 pitch);
+unsigned short note2pitch2(unsigned short note, unsigned short fine);
+void _SsVmKeyOnNow(unsigned short vagCount, unsigned short pitch);
 int _SsVmVSetUp(short vabId, short prog);
 void _SsVmDoAllocate(void);
 

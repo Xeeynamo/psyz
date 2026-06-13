@@ -854,15 +854,14 @@ void CD_datasync(int mode) { NOT_IMPLEMENTED; }
 
 int CD_initvol(void) {
     CdlATV vol = {128, 0, 128, 0};
-    if (_spu_RXX->rxx.main_volx.left == 0 &&
-        _spu_RXX->rxx.main_volx.right == 0) {
-        _spu_RXX->rxx.main_vol.left = 0x3FFF;
-        _spu_RXX->rxx.main_vol.right = 0x3FFF;
+    if (SPUR(main_volx.left) == 0 && SPUR(main_volx.right) == 0) {
+        SPUW(main_vol.left, 0x3FFF);
+        SPUW(main_vol.right, 0x3FFF);
     }
-    _spu_RXX->rxx.cd_vol.left = 0x3FFF;
-    _spu_RXX->rxx.cd_vol.right = 0x3FFF;
-    _spu_RXX->rxx.spucnt = SPU_CTRL_MASK_SPU_ENABLE | SPU_CTRL_MASK_MUTE_SPU |
-                           SPU_CTRL_MASK_CD_AUDIO_ENABLE;
+    SPUW(cd_vol.left, 0x3FFF);
+    SPUW(cd_vol.right, 0x3FFF);
+    SPUW(spucnt, SPU_CTRL_MASK_SPU_ENABLE | SPU_CTRL_MASK_MUTE_SPU |
+                     SPU_CTRL_MASK_CD_AUDIO_ENABLE);
     CD_vol(&vol);
     return 0;
 }

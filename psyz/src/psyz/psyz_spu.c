@@ -584,6 +584,7 @@ void Psyz_SpuPullSamples(short* out, int num_frames) {
         memset(out, 0, num_frames * 2 * sizeof(short));
         return;
     }
+    Psyz_RcntAdd(num_frames);
     for (int i = 0; i < num_frames; i++) {
         spu_tick(&out[i * 2]);
     }
