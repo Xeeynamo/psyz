@@ -5,6 +5,8 @@ project(psyz)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/strip_file_prefix.cmake)
+
 add_subdirectory(
         ${CMAKE_CURRENT_SOURCE_DIR}/../external/SDL
         ${CMAKE_CURRENT_BINARY_DIR}/sdl
@@ -180,3 +182,4 @@ add_library(psyz STATIC ${PSYZ_SOURCES})
 target_compile_definitions(psyz PUBLIC __psyz)
 target_include_directories(psyz PUBLIC ${PSYZ_INC})
 target_link_libraries(psyz PUBLIC SDL3::SDL3 ${PSYZ_LIBS})
+psyz_strip_file_prefix(psyz BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..)
