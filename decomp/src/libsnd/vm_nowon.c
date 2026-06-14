@@ -19,9 +19,16 @@ void _SsVmKeyOnNow(unsigned short vagCount, unsigned short pitch) {
     voice = _svm_cur.voice * 8;
     chL = seed;
     chR = seed;
+#ifndef __psyz
     ss = &_ss_score[_svm_cur.seq_sep_no & 0xFF]
                    [(_svm_cur.seq_sep_no >> 8) & 0xFF];
+#endif
     if (_svm_cur.seq_sep_no != 0x21) {
+#ifdef __psyz
+        // move code to avoid ASAN to trigger for OOB on seq_sep_no==0x21
+        ss = &_ss_score[_svm_cur.seq_sep_no & 0xFF]
+                       [(_svm_cur.seq_sep_no >> 8) & 0xFF];
+#endif
         chL = (seed * (u16)ss->voll) / 127;
         chR = (seed * (u16)ss->volr) / 127;
     }
