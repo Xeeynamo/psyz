@@ -1,32 +1,34 @@
 #ifndef PSYZ_H
 #define PSYZ_H
 
-// Main header to include when re-compiling a PS1 application targeting foreign
-// platforms. It contains all publicly exposed APIs from PsyZ.
-//
-// All public API of PsyZ use the prefix `Psyz_`.
-//
-// APIs that re-implement PSY-Q-specific behavior use the prefix `Psyz_{lib}`.
-// These are guaranteed to be platform-agnostic and exist for the sole purpose
-// of emulating certain PlayStation hardware characteristics. Typically this is
-// a lightweight layer that decodes hardware registers, manages state, and
-// ingests commands. Events are then dispatched to the relevant subsystem
-// backend. Examples: `Psyz_Cd`, `Psyz_Spu`, etc.
-//
-// APIs that implement the backend of a specific subsystem for the target
-// platform use the prefix `Psyz_{subsystem}`. These are the lowest layer of
-// abstraction of PsyZ, and they generally communicate with the platform
-// library or the hardware directly. When targeting a new platform, all the
-// subsystem endpoints are required to be implemented to guarantee full
-// functionality. All micro-optimizations and the use of hardware-specific
-// quirks live here. Examples: `Psyz_Audio`, `Psyz_Draw`, etc.
-//
-// A typical game running on PsyZ is structured as follows:
-//    Game ->
-//        PSY-Q decompiled APIs ->
-//            PsyZ platform agnostic PS1 hardware emulation ->
-//                PsyZ platform-specific subsystems ->
-//                    Hardware, Driver or Operating System
+/**
+ * @file psyz.h
+ * @brief Main header to include when re-compiling a PS1 application targeting
+ *        foreign platforms. It contains all publicly exposed APIs from PsyZ.
+ *
+ * All public API of PsyZ use the prefix `Psyz_`, while type use prefix `Psyz`.
+ *
+ * Functions are guaranteed to be platform-agnostic and exist for the sole
+ * purpose of emulating certain PlayStation hardware characteristics. Typically
+ * this is a lightweight layer that decodes hardware registers, manages state,
+ * and ingests commands. Events are then dispatched to the relevant subsystem
+ * backend. Examples: `Psyz_Cd`, `Psyz_Spu`, etc.
+ *
+ * APIs that implement the backend of a specific subsystem for the target
+ * platform use the prefix `Psyz_{subsystem}`. These are the lowest layer of
+ * abstraction of PsyZ, and they generally communicate with the platform
+ * library or the hardware directly. When targeting a new platform, all the
+ * subsystem endpoints are required to be implemented to guarantee full
+ * functionality. All micro-optimizations and the use of hardware-specific
+ * quirks live here. Examples: `Psyz_Audio`, `Psyz_Video`, etc.
+ *
+ * A typical game running on PsyZ is structured as follows:
+ *    Game ->
+ *        PSY-Q decompiled APIs ->
+ *            PsyZ platform agnostic PS1 hardware emulation ->
+ *                PsyZ platform-specific subsystems ->
+ *                    Hardware, Driver or Operating System
+ */
 
 #ifdef __cplusplus
 extern "C" {
@@ -73,164 +75,297 @@ long psyz_ioctl(long fd, long com, long arg);
 #define __builtin_memcpy memcpy
 #endif
 
-// Set the title of the game window
+/**
+ * @brief Set the title of the game window
+ *
+ * @param str Window title string
+ */
 void Psyz_SetTitle(const char* str);
 
 struct PsyzDiskRead {
-    // disk sector, can be used as a unique file identifier
-    unsigned int sector;
-
-    // byte count required to be read
-    unsigned int size;
-
-    // buffer to read the data into, max index is buffer[size-1]
-    void* buffer;
+    unsigned int sector;  /**< disk sector, can be used as a unique file id */
+    unsigned int size;    /**< byte count required to be read */
+    void* buffer;         /**< buffer to read into, max index is buffer[size-1] */
 };
 
-// returns byte read, -1 is not found, unsuccessful or not implemented
+/**
+ * @brief Callback invoked when a disk read is triggered
+ *
+ * @param read Read request describing sector, size and destination buffer
+ * @return Bytes read; -1 if not found, unsuccessful or not implemented
+ */
 typedef int (*PsyzDiskReadCB)(struct PsyzDiskRead* read);
 
-// PS1 SPU constants (the SPU emulator is platform-agnostic; SDL or any other
-// audio backend pulls 44100 Hz stereo short frames from Psyz_SpuPullSamples).
-#define PSYZ_SPU_RAM_SIZE (512 * 1024) // must be a power of two
-#define PSYZ_SPU_NUM_VOICES 24         // match PS1 voice count
-#define PSYZ_SPU_SAMPLE_RATE 44100     // match fixed PS1 sample rate
+/**
+ * PS1 SPU constants (the SPU emulator is platform-agnostic; SDL or any other
+ * audio backend pulls 44100 Hz stereo short frames from Psyz_SpuPullSamples).
+ */
+#define PSYZ_SPU_RAM_SIZE (512 * 1024) /**< must be a power of two */
+#define PSYZ_SPU_NUM_VOICES 24         /**< match PS1 voice count */
+#define PSYZ_SPU_SAMPLE_RATE 44100     /**< match fixed PS1 sample rate */
 
-// Reserved. Used by audio thread to emulate timer for SEQ playback in absence
-// of rcnt interrupt. Always assumes Audio driver plays at 44100Hz.
+/**
+ * @brief Advance the reserved SEQ playback timer
+ *
+ * Reserved. Used by the audio thread to emulate the timer for SEQ playback in
+ * absence of an rcnt interrupt. Always assumes the Audio driver plays at
+ * 44100Hz.
+ *
+ * @param n Number of ticks to advance
+ */
 void Psyz_RcntAdd(int n);
 
-// Initialize SPU emulation state. Idempotent; safe to call multiple times.
+/**
+ * @brief Initialize SPU emulation state
+ *
+ * Idempotent; safe to call multiple times.
+ */
 void Psyz_SpuInit(void);
 
-// Reset SPU state. When `hot` is non-zero, RAM contents are preserved across
-// the reset (mirrors the PSX-Q "hot init" semantics for libspu).
+/**
+ * @brief Reset SPU state
+ *
+ * @param hot When non-zero, RAM contents are preserved across the reset
+ *            (mirrors the PSX-Q "hot init" semantics for libspu).
+ */
 void Psyz_SpuReset(int hot);
 
-// Write one 16-bit value into the SPU register file at the given offset
-// relative to 0x1F801C00; valid range 0x000-0x1FF. Certain registers can
-// trigger a side-effect. Please refer to psxspx docs for SPU reference.
+/**
+ * @brief Write one 16-bit value into the SPU register file
+ *
+ * Certain registers can trigger a side-effect. Please refer to psxspx docs for
+ * SPU reference.
+ *
+ * @param reg_offset Offset relative to 0x1F801C00; valid range 0x000-0x1FF
+ * @param value 16-bit value to write
+ */
 void Psyz_SpuWrite(unsigned int reg_offset, unsigned short value);
 
-// Read back one 16-bit value from the SPU register file at the given register
-// relative to 0x1F801C00; valid range 0x000-0x1FF. Internally maps to SPU_RXX.
+/**
+ * @brief Read back one 16-bit value from the SPU register file
+ *
+ * Internally maps to SPU_RXX.
+ *
+ * @param reg_offset Offset relative to 0x1F801C00; valid range 0x000-0x1FF
+ * @return 16-bit register value
+ */
 unsigned short Psyz_SpuRead(unsigned int reg_offset);
 
-// Read back the current SPU transfer address. Maps to xfer_addr register.
+/**
+ * @brief Read back the current SPU transfer address
+ *
+ * Maps to the xfer_addr register.
+ *
+ * @return Current transfer address
+ */
 unsigned int Psyz_SpuGetTransferAddr(void);
 
-// Set the SPU RAM transfer address, aka destination offset to the 512KB RAM.
-// Maps to the PSX SPU register 0x1F801DA6 (xfer_addr) divided by 8.
+/**
+ * @brief Set the SPU RAM transfer address
+ *
+ * The destination offset into the 512KB RAM. Maps to the PSX SPU register
+ * 0x1F801DA6 (xfer_addr) divided by 8.
+ *
+ * @param addr Transfer address
+ */
 void Psyz_SpuSetTransferAddr(unsigned int addr);
 
-// Push one 16-bit word into the SPU transfer FIFO. Maps to a write of SPU
-// register 0x1F801DA8 (xfer_fifo). Each call deposits the word at the
-// current transfer address in SPU RAM and bumps transfer address by 2.
+/**
+ * @brief Push one 16-bit word into the SPU transfer FIFO
+ *
+ * Maps to a write of SPU register 0x1F801DA8 (xfer_fifo). Each call deposits
+ * the word at the current transfer address in SPU RAM and bumps the transfer
+ * address by 2.
+ *
+ * @param word 16-bit word to push
+ */
 void Psyz_SpuFifoWrite(unsigned short word);
 
-// Faster version of Psyz_SpuFifoWrite bypassing individual writes. Unlike
-// Uses xfer_addr as destination address, updates it at the end of the call.
+/**
+ * @brief Faster bulk version of Psyz_SpuFifoWrite
+ *
+ * Bypasses individual writes. Uses xfer_addr as the destination address and
+ * updates it at the end of the call.
+ *
+ * @param src Source buffer
+ * @param size Number of bytes to transfer
+ */
 void Psyz_SpuFifoWriteBulk(const unsigned char* src, unsigned int size);
 
-// Read `size` bytes from SPU RAM at byte `offset`. Wraps at 512 KB.
-// Does not affect xfer_addr. Useful for debugging.
+/**
+ * @brief Read bytes from SPU RAM
+ *
+ * Wraps at 512 KB. Does not affect xfer_addr. Useful for debugging.
+ *
+ * @param offset Byte offset into SPU RAM
+ * @param dst Destination buffer
+ * @param size Number of bytes to read
+ */
 void Psyz_SpuMemRead(unsigned int offset, void* dst, unsigned int size);
 
-// Write `size` bytes into SPU RAM at byte `offset`. Wraps at 512 KB.
-// Does not affect xfer_addr. Useful for debugging.
+/**
+ * @brief Write bytes into SPU RAM
+ *
+ * Wraps at 512 KB. Does not affect xfer_addr. Useful for debugging.
+ *
+ * @param offset Byte offset into SPU RAM
+ * @param src Source buffer
+ * @param size Number of bytes to write
+ */
 void Psyz_SpuMemWrite(unsigned int offset, const void* src, unsigned int size);
 
-// Direct pointer to the 512 KB SPU RAM (for tests and offline rendering).
+/**
+ * @brief Direct pointer to the 512 KB SPU RAM
+ *
+ * For tests and offline rendering.
+ *
+ * @return Pointer to SPU RAM
+ */
 unsigned char* Psyz_SpuGetRam(void);
 
-// Generate num_frames stereo 16-bit LE PCM frames into out (interleaved L, R).
-// Internally used by the PsyZ Audio subsystem, it can also be used for offline
-// rendering and unit tests.
+/**
+ * @brief Generate stereo 16-bit LE PCM frames into out (interleaved L, R)
+ *
+ * Internally used by the PsyZ Audio subsystem, it can also be used for offline
+ * rendering and unit tests.
+ *
+ * @param out Output buffer
+ * @param num_frames Number of stereo frames to generate
+ */
 void Psyz_SpuPullSamples(short* out, int num_frames);
 
-// Initialize the audio subsystem: open the host audio device and the SPU
-// mixer. Idempotent. Returns 0 on success, -1 on failure.
+/**
+ * @brief Initialize the audio subsystem
+ *
+ * Opens the host audio device and the SPU mixer. Idempotent.
+ *
+ * @return 0 on success, -1 on failure
+ */
 int Psyz_AudioInit(void);
 
-// Shut down the audio subsystem and release its resources.
-// Typically used to undo the audio subsystem init for audio offline rendering.
+/**
+ * @brief Shut down the audio subsystem and release its resources
+ *
+ * Typically used to undo the audio subsystem init for audio offline rendering.
+ */
 void Psyz_AudioDestroy(void);
 
-// Pause the host audio device so it stops pulling samples from the SPU.
-// Psyz_AudioUnpause must be called to resume.
+/**
+ * @brief Pause the host audio device so it stops pulling samples from the SPU
+ *
+ * Psyz_AudioUnpause must be called to resume.
+ */
 void Psyz_AudioPause(void);
 
-// Resume audio playback after Psyz_AudioPause.
+/**
+ * @brief Resume audio playback after Psyz_AudioPause
+ */
 void Psyz_AudioUnpause(void);
 
-// Acquire the audio mutex. Intended for tests and offline rendering that need
-// to suspend the SDL audio callback while pulling samples directly. Must be
-// paired with Psyz_AudioUnlock.
+/**
+ * @brief Acquire the audio mutex
+ *
+ * Intended for tests and offline rendering that need to suspend the SDL audio
+ * callback while pulling samples directly. Must be paired with
+ * Psyz_AudioUnlock.
+ */
 void Psyz_AudioLock(void);
 
-// Release the audio mutex acquired with Psyz_AudioLock.
+/**
+ * @brief Release the audio mutex acquired with Psyz_AudioLock
+ */
 void Psyz_AudioUnlock(void);
 
-// Set path to CUE file, simulating a CD loaded.
-// Passing a NULL will unset a previously set disk path.
-// Returns: 0 on success, otherwise CUE parsing failed
+/**
+ * @brief Set path to CUE file, simulating a CD loaded
+ *
+ * Passing a NULL will unset a previously set disk path.
+ *
+ * @param diskPath Path to the CUE file, or NULL to unset
+ * @return 0 on success, otherwise CUE parsing failed
+ */
 int Psyz_SetDiskPath(const char* diskPath);
 
-// Simulate CD-ROM drive shell (lid) opening or closing.
+/**
+ * @brief Simulate CD-ROM drive shell (lid) opening or closing
+ *
+ * @param is_open Non-zero to open the shell, zero to close it
+ */
 void Psyz_CdShellOpen(int is_open);
 
-// Pull PCM audio samples from the CD into the output buffer as interleaved
-// stereo frames. In XA mode, ADPCM sectors are decoded before being returned.
-// CdMix attenuation has already been applied to the output. Called internally
-// from libcd, and typically not used by the user. Returns the number of
-// frames read.
+/**
+ * @brief Pull PCM audio samples from the CD as interleaved stereo frames
+ *
+ * In XA mode, ADPCM sectors are decoded before being returned. CdMix
+ * attenuation has already been applied to the output. Called internally from
+ * libcd, and typically not used by the user.
+ *
+ * @param out Output buffer
+ * @param num_frames Number of stereo frames requested
+ * @return Number of frames read
+ */
 size_t Psyz_CdPullSamples(short* out, size_t num_frames);
 
-// Set callback when a disk read is triggered
-// if cb is NULL or returns a negative value, PSY-Z falls back to CD emulation
+/**
+ * @brief Set callback invoked when a disk read is triggered
+ *
+ * If cb is NULL or returns a negative value, PSY-Z falls back to CD emulation.
+ *
+ * @param cb Disk read callback, or NULL to clear
+ */
 void Psyz_SetDiskReadCB(PsyzDiskReadCB cb);
 
 typedef enum {
-    // Auto-detect use of driver VSync (default)
-    // - Tests monitor refresh rate on initialization (adds ~30ms startup time)
-    // - Uses driver VSync if monitor is detected between 57Hz-63Hz
-    // . (±5% tolerance). This covers both 59.94Hz (NTSC) and 60Hz
-    // - Uses manual limiter otherwise (144Hz, 165Hz, etc.)
-    // - Balances performance and accuracy automatically
+    /**
+     * Auto-detect use of driver VSync (default)
+     * - Tests monitor refresh rate on initialization (adds ~30ms startup time)
+     * - Uses driver VSync if monitor is detected between 57Hz-63Hz
+     *   (±5% tolerance). This covers both 59.94Hz (NTSC) and 60Hz
+     * - Uses manual limiter otherwise (144Hz, 165Hz, etc.)
+     * - Balances performance and accuracy automatically
+     */
     PSYZ_VSYNC_AUTO,
 
-    // Always use driver VSync
-    // Pros: Zero CPU overhead and no frame pacing on matching refresh rates
-    // Cons: Game will run faster on high refresh monitors
-    // Cons: Framerate always matches monitor exactly.
-    // . On 60Hz monitor: runs at 60fps instead of NTSC 59.94fps
-    // . causing ~1 second drift every ~16.7 minutes of gameplay
-    // Real NTSC PSX hardware runs at 59.94Hz (60/1.001)
-    // . PAL PSX hardware runs at exactly 50Hz
-    // Best when combined with driver control panel frame rate limit
-    // IMPORTANT: PAL games (50fps) will run at 60fps on 60Hz monitors without
-    // . driver-level limiting, which is incorrect
+    /**
+     * Always use driver VSync
+     * Pros: Zero CPU overhead and no frame pacing on matching refresh rates
+     * Cons: Game will run faster on high refresh monitors
+     * Cons: Framerate always matches monitor exactly.
+     *   On 60Hz monitor: runs at 60fps instead of NTSC 59.94fps
+     *   causing ~1 second drift every ~16.7 minutes of gameplay
+     * Real NTSC PSX hardware runs at 59.94Hz (60/1.001)
+     *   PAL PSX hardware runs at exactly 50Hz
+     * Best when combined with driver control panel frame rate limit
+     * IMPORTANT: PAL games (50fps) will run at 60fps on 60Hz monitors without
+     *   driver-level limiting, which is incorrect
+     */
     PSYZ_VSYNC_ON,
 
-    // Always use internal manual frame limiter
-    // Pros: Precise 59.94fps (NTSC) / 50fps (PAL) matching real hardware
-    // Pros: Safe for VRR displays
-    // Pros: Consistent timing across all monitor refresh rates
-    // Cons: ~6% CPU usage on one core (1ms busy-wait per frame for precision)
-    // Cons: May have minor frame pacing variance on non-VRR displays
+    /**
+     * Always use internal manual frame limiter
+     * Pros: Precise 59.94fps (NTSC) / 50fps (PAL) matching real hardware
+     * Pros: Safe for VRR displays
+     * Pros: Consistent timing across all monitor refresh rates
+     * Cons: ~6% CPU usage on one core (1ms busy-wait per frame for precision)
+     * Cons: May have minor frame pacing variance on non-VRR displays
+     */
     PSYZ_VSYNC_OFF,
 } PsyzVsyncMode;
 
 typedef struct {
-    double last_frame_time_us;       // duration of last frame
-    double last_draw_time_us;        // render time excluding vsync wait
-    double target_frame_time_us;     // target frame time
-    unsigned long long total_frames; // total frames rendered
-    int using_driver_vsync;          // 1 for VSync, 0 for limiter
+    double last_frame_time_us;       /**< duration of last frame */
+    double last_draw_time_us;        /**< render time excluding vsync wait */
+    double target_frame_time_us;     /**< target frame time */
+    unsigned long long total_frames; /**< total frames rendered */
+    int using_driver_vsync;          /**< 1 for VSync, 0 for limiter */
 } PsyzGpuStats;
 
-// Set VSync mode (default: AUTO)
-// Returns: 0 on success, -1 if invalid mode
+/**
+ * @brief Set VSync mode (default: AUTO)
+ *
+ * @param mode VSync mode to set
+ * @return 0 on success, -1 if invalid mode
+ */
 int Psyz_SetVsyncMode(PsyzVsyncMode mode);
 
 /**
@@ -247,14 +382,17 @@ int Psyz_SetVsyncMode(PsyzVsyncMode mode);
  */
 int Psyz_VSync(int mode);
 
+/**
+ * @brief DMA channel identifiers
+ */
 typedef enum {
-    DMA_CHANNEL_MDEC_IN,
-    DMA_CHANNEL_MDEC_OUT,
-    DMA_CHANNEL_GPU,
-    DMA_CHANNEL_CD,
-    DMA_CHANNEL_SPU,
-    DMA_CHANNEL_PIO,
-    DMA_CHANNEL_OTC,
+    DMA_CHANNEL_MDEC_IN,  /**< MDEC input */
+    DMA_CHANNEL_MDEC_OUT, /**< MDEC output */
+    DMA_CHANNEL_GPU,      /**< GPU */
+    DMA_CHANNEL_CD,       /**< CD-ROM */
+    DMA_CHANNEL_SPU,      /**< SPU */
+    DMA_CHANNEL_PIO,      /**< PIO (expansion port) */
+    DMA_CHANNEL_OTC,      /**< Ordering table clear */
 } PsyzDmaChannel;
 
 /**
@@ -269,51 +407,72 @@ typedef enum {
  */
 void Psyz_DmaWrite(PsyzDmaChannel ch, unsigned offset, u_long value);
 
-// Get frame timing statistics
-// Returns: 0 on success, -1 if stats is NULL or platform not initialized
+/**
+ * @brief Get frame timing statistics
+ *
+ * @param stats Output structure to fill
+ * @return 0 on success, -1 if stats is NULL or platform not initialized
+ */
 int Psyz_GetGpuStats(PsyzGpuStats* stats);
 
-// Get frame output as a byte array. This function is very slow.
-// Returns: NULL on failure, otherwise ptr to be destroyed with free(ptr)
+/**
+ * @brief Get frame output as a byte array
+ *
+ * This function is very slow.
+ *
+ * @param w Output frame width
+ * @param h Output frame height
+ * @return NULL on failure, otherwise ptr to be destroyed with free(ptr)
+ */
 unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h);
 
-// Adjust a PlayStation 1 path to the host filesystem
-// Handles memory card paths (bu00:, bu10:, etc.) and other special cases.
-// If a custom callback is set via Psyz_AdjustPathCB and returns >= 0,
-// the callback result is used; otherwise internal adjustment is applied.
-// The function is used internally when opening and creating files, or
-// when enumerating the list of files in the specified directory.
-//
-// IMPORTANT: The filename portion (after the last path separator) is
-// automatically truncated to 19 characters to match PS1 DIRENTRY.name[20]
-// which requires null-termination for compatibility with SDK string functions.
-// This truncation is applied regardless of whether callback or internal
-// adjustment is used.
-//
-// Parameters:
-//   dst: Destination buffer for adjusted path (must be valid)
-//   src: Source path to adjust (PlayStation 1 format)
-//   maxlen: Maximum length of destination buffer
+/**
+ * @brief Adjust a PlayStation 1 path to the host filesystem
+ *
+ * Handles memory card paths (bu00:, bu10:, etc.) and other special cases.
+ * If a custom callback is set via Psyz_AdjustPathCB and returns >= 0, the
+ * callback result is used; otherwise internal adjustment is applied. The
+ * function is used internally when opening and creating files, or when
+ * enumerating the list of files in the specified directory.
+ *
+ * @note The filename portion (after the last path separator) is automatically
+ *       truncated to 19 characters to match PS1 DIRENTRY.name[20] which
+ *       requires null-termination for compatibility with SDK string functions.
+ *       This truncation is applied regardless of whether callback or internal
+ *       adjustment is used.
+ *
+ * @param dst Destination buffer for adjusted path (must be valid)
+ * @param src Source path to adjust (PlayStation 1 format)
+ * @param maxlen Maximum length of destination buffer
+ */
 void Psyz_AdjustPath(char* dst, const char* src, int maxlen);
 
-// Set custom path adjustment callback
-// The callback is invoked before internal path adjustment
-// Return value from callback:
-//   < 0: No adjustment done, fall back to PSY-Z internal adjustment
-//   >= 0: Number of bytes written to dst (adjustment successful)
-// Parameters:
-//   dst: Destination buffer for adjusted path
-//   src: Source path to adjust
-//   maxlen: Maximum length of destination buffer
+/**
+ * @brief Set custom path adjustment callback
+ *
+ * The callback is invoked before internal path adjustment. Its return value:
+ * - < 0: No adjustment done, fall back to PSY-Z internal adjustment
+ * - >= 0: Number of bytes written to dst (adjustment successful)
+ *
+ * The callback receives:
+ * - dst: Destination buffer for adjusted path
+ * - src: Source path to adjust
+ * - maxlen: Maximum length of destination buffer
+ *
+ * @param callback Path adjustment callback
+ */
 void Psyz_AdjustPathCB(int (*callback)(char* dst, const char* src, int maxlen));
 
-// Join two path components with the platform's path separator
-// Automatically handles path separators to avoid double separators
-// Parameters:
-//   left: Left path component (modified in-place)
-//   right: Right path component to append
-//   maxlen: Maximum length of left buffer
-// Returns: Pointer to left on success, NULL if buffer too small
+/**
+ * @brief Join two path components with the platform's path separator
+ *
+ * Automatically handles path separators to avoid double separators.
+ *
+ * @param left Left path component (modified in-place)
+ * @param right Right path component to append
+ * @param maxlen Maximum length of left buffer
+ * @return Pointer to left on success, NULL if buffer too small
+ */
 char* Psyz_JoinPath(char* left, const char* right, int maxlen);
 
 /**
@@ -420,31 +579,20 @@ void Psyz_GteCtrlWrite(unsigned reg, unsigned int value);
  */
 void Psyz_GteCommand(unsigned int cmd);
 
-// https://problemkaputt.de/psxspx-controllers-communication-sequence.htm
+/**
+ * @brief Controller identifiers to emulate multiple PS1 controller kinds
+ *
+ * https://problemkaputt.de/psxspx-controllers-communication-sequence.htm
+ */
 typedef enum {
-    // Failed to set controller param
-    PSYZ_CTRL_ERROR = 0x00,
-
-    // Used to query current controller without changing its kind
-    PSYZ_CTRL_QUERY_KIND = 0x00,
-
-    // TODO document buffer format
-    PSYZ_CTRL_MOUSE = 0x12,
-
-    // TODO document buffer format
-    PSYZ_CTRL_DIGITAL_PAD = 0x41,
-
-    // TODO document buffer format
-    PSYZ_CTRL_ANALOG_STICK = 0x53,
-
-    // TODO document buffer format
-    PSYZ_CTRL_ANALOG_PAD = 0x73,
-
-    // TODO document buffer format
-    PSYZ_CTRL_KEYBOARD = 0x96,
-
-    // TODO
-    PSYZ_CTRL_DISCONNECTED = 0xFF,
+    PSYZ_CTRL_ERROR = 0x00,         /**< Failed to set controller param */
+    PSYZ_CTRL_QUERY_KIND = 0x00,    /**< Query current kind without changing it */
+    PSYZ_CTRL_MOUSE = 0x12,         /**< TODO document buffer format */
+    PSYZ_CTRL_DIGITAL_PAD = 0x41,   /**< TODO document buffer format */
+    PSYZ_CTRL_ANALOG_STICK = 0x53,  /**< TODO document buffer format */
+    PSYZ_CTRL_ANALOG_PAD = 0x73,    /**< TODO document buffer format */
+    PSYZ_CTRL_KEYBOARD = 0x96,      /**< TODO document buffer format */
+    PSYZ_CTRL_DISCONNECTED = 0xFF,  /**< TODO */
 } PsyzControllerKind;
 
 /**
@@ -463,9 +611,11 @@ typedef enum {
 PsyzControllerKind Psyz_SetController(
     int port, int channel, PsyzControllerKind kind);
 
-// Size of the controller receive buffer the BIOS fills on real hardware:
-// byte 0 = status, byte 1 = controller kind, then the per-kind payload.
-// https://problemkaputt.de/psxspx-controllers-and-memory-cards.htm
+/**
+ * Size of the controller receive buffer the BIOS fills on real hardware:
+ * byte 0 = status, byte 1 = controller kind, then the per-kind payload.
+ * https://problemkaputt.de/psxspx-controllers-and-memory-cards.htm
+ */
 #define PSYZ_PAD_BUF_LEN 34
 
 /**
