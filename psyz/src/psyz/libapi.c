@@ -15,7 +15,7 @@ int VSync(int mode) { return MyVSync(mode); }
 void MyPadPoll(void); // implemented by the platform layer
 
 typedef struct {
-    char frame[PSYZ_PAD_BUF_LEN];    // last frame published by the platform
+    char frame[PSYZ_PAD_BUF_LEN];   // last frame published by the platform
     PsyzControllerKind channels[4]; // only channel 0 until multitap lands
 } ControllerPort;
 
