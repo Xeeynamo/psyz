@@ -12,7 +12,11 @@
  */
 
 /* SEQ/SEP data attribute table size constant */
+#ifdef __psyz
+#define SS_SEQ_TABSIZ 192
+#else
 #define SS_SEQ_TABSIZ 176
+#endif
 
 /* Tick mode constants */
 #define SS_NOTICK 0x1000  /**< No automatic tick callback */
