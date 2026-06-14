@@ -225,9 +225,9 @@ static Uint64 perf_frequency = 0;
 static Uint64 last_frame_time = 0;
 static Uint64 finish_time = 0;
 static double drift_compensation = 0.0;
-static Psyz_VsyncMode vsync_mode = PSYZ_VSYNC_AUTO;
+static PsyzVsyncMode vsync_mode = PSYZ_VSYNC_AUTO;
 static bool use_driver_vsync = false;
-static Psyz_GpuStats gpu_stats = {0};
+static PsyzGpuStats gpu_stats = {0};
 
 static double GetElapsedMicroseconds(Uint64 start, Uint64 end);
 static void UpdateTargetFramerate(double fps);
@@ -820,7 +820,7 @@ static bool PortHasHostInput(int port) {
     return false;
 }
 
-static void BuildPadFrame(int port, Psyz_ControllerKind kind, char* buf) {
+static void BuildPadFrame(int port, PsyzControllerKind kind, char* buf) {
     memset(buf, 0, PSYZ_PAD_BUF_LEN);
     // No physical input for this port -> report as disconnected regardless of
     // the requested kind. Games look at buf[0]=0xFF / buf[1]=0xFF to know.
@@ -966,7 +966,7 @@ unsigned char* Psyz_AllocAndCaptureFrame(int* w, int* h) {
     return pixels;
 }
 
-int Psyz_SetVsyncMode(Psyz_VsyncMode mode) {
+int Psyz_SetVsyncMode(PsyzVsyncMode mode) {
     if (mode < 0 || mode > 2) {
         return -1;
     }
@@ -977,7 +977,7 @@ int Psyz_SetVsyncMode(Psyz_VsyncMode mode) {
     return 0;
 }
 
-int Psyz_GetGpuStats(Psyz_GpuStats* stats) {
+int Psyz_GetGpuStats(PsyzGpuStats* stats) {
     if (!stats || !is_platform_init_successful) {
         return -1;
     }

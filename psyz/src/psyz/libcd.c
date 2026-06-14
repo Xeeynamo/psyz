@@ -367,8 +367,8 @@ int Psyz_SetDiskPath(const char* diskPath) {
     return 0;
 }
 
-static DiskReadCB disk_read_cb = NULL;
-void Psyz_SetDiskCallback(DiskReadCB cb) { disk_read_cb = cb; }
+static PsyzDiskReadCB disk_read_cb = NULL;
+void Psyz_SetDiskCallback(PsyzDiskReadCB cb) { disk_read_cb = cb; }
 
 #define N_CHANNELS 2
 #define SAMPLE_SIZE sizeof(short)

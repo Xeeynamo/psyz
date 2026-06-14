@@ -35,7 +35,7 @@ static void DmaSpu(unsigned offset, u_long value) {
     }
 }
 
-void Psyz_DmaWrite(DmaChannel ch, unsigned offset, u_long value) {
+void Psyz_DmaWrite(PsyzDmaChannel ch, unsigned offset, u_long value) {
     if (offset > 2) {
         WARNF("offset %d invalid for DMA channel %d", offset, ch);
         return;

@@ -88,7 +88,7 @@ struct PsyzDiskRead {
 };
 
 // returns byte read, -1 is not found, unsuccessful or not implemented
-typedef int (*DiskReadCB)(struct PsyzDiskRead* read);
+typedef int (*PsyzDiskReadCB)(struct PsyzDiskRead* read);
 
 // PS1 SPU constants (the SPU emulator is platform-agnostic; SDL or any other
 // audio backend pulls 44100 Hz stereo short frames from Psyz_SpuPullSamples).
@@ -188,7 +188,7 @@ size_t Psyz_CdPullSamples(short* out, size_t num_frames);
 
 // Set callback when a disk read is triggered
 // if cb is NULL or returns a negative value, PSY-Z falls back to CD emulation
-void Psyz_SetDiskReadCB(DiskReadCB cb);
+void Psyz_SetDiskReadCB(PsyzDiskReadCB cb);
 
 typedef enum {
     // Auto-detect use of driver VSync (default)
@@ -219,7 +219,7 @@ typedef enum {
     // Cons: ~6% CPU usage on one core (1ms busy-wait per frame for precision)
     // Cons: May have minor frame pacing variance on non-VRR displays
     PSYZ_VSYNC_OFF,
-} Psyz_VsyncMode;
+} PsyzVsyncMode;
 
 typedef struct {
     double last_frame_time_us;       // duration of last frame
@@ -227,11 +227,11 @@ typedef struct {
     double target_frame_time_us;     // target frame time
     unsigned long long total_frames; // total frames rendered
     int using_driver_vsync;          // 1 for VSync, 0 for limiter
-} Psyz_GpuStats;
+} PsyzGpuStats;
 
 // Set VSync mode (default: AUTO)
 // Returns: 0 on success, -1 if invalid mode
-int Psyz_SetVsyncMode(Psyz_VsyncMode mode);
+int Psyz_SetVsyncMode(PsyzVsyncMode mode);
 
 /**
  * @brief Synchronize with vertical blank
@@ -255,7 +255,7 @@ typedef enum {
     DMA_CHANNEL_SPU,
     DMA_CHANNEL_PIO,
     DMA_CHANNEL_OTC,
-} DmaChannel;
+} PsyzDmaChannel;
 
 /**
  * @brief Emulate DMA
@@ -267,11 +267,11 @@ typedef enum {
  * @param offset can be either 0, 1 or 2
  * @param value to write to; can be a raw pointer
  */
-void Psyz_DmaWrite(DmaChannel ch, unsigned offset, u_long value);
+void Psyz_DmaWrite(PsyzDmaChannel ch, unsigned offset, u_long value);
 
 // Get frame timing statistics
 // Returns: 0 on success, -1 if stats is NULL or platform not initialized
-int Psyz_GetGpuStats(Psyz_GpuStats* stats);
+int Psyz_GetGpuStats(PsyzGpuStats* stats);
 
 // Get frame output as a byte array. This function is very slow.
 // Returns: NULL on failure, otherwise ptr to be destroyed with free(ptr)
@@ -445,7 +445,7 @@ typedef enum {
 
     // TODO
     PSYZ_CTRL_DISCONNECTED = 0xFF,
-} Psyz_ControllerKind;
+} PsyzControllerKind;
 
 /**
  * @brief Select which controller kind a port emulates
@@ -460,8 +460,8 @@ typedef enum {
  * @param kind Controller kind to emulate, or PSYZ_CTRL_QUERY_KIND
  * @return Previously selected kind, or PSYZ_CTRL_ERROR on invalid arguments
  */
-Psyz_ControllerKind Psyz_SetController(
-    int port, int channel, Psyz_ControllerKind kind);
+PsyzControllerKind Psyz_SetController(
+    int port, int channel, PsyzControllerKind kind);
 
 // Size of the controller receive buffer the BIOS fills on real hardware:
 // byte 0 = status, byte 1 = controller kind, then the per-kind payload.

@@ -21,7 +21,7 @@ static void ShowGpuStats(bool* show) {
     if (!show || !*show) {
         return;
     }
-    Psyz_GpuStats stats;
+    PsyzGpuStats stats;
     if (Psyz_GetGpuStats(&stats) < 0) {
         return;
     }
@@ -45,7 +45,7 @@ static void ShowGpuStats(bool* show) {
 
         const char* vsync_modes[] = {"Auto", "On", "Off"};
         if (ImGui::Combo("VSync Mode", &current_vsync_mode, vsync_modes, 3)) {
-            Psyz_SetVsyncMode((Psyz_VsyncMode)current_vsync_mode);
+            Psyz_SetVsyncMode((PsyzVsyncMode)current_vsync_mode);
         }
     }
     ImGui::End();
