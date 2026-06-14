@@ -96,6 +96,7 @@ struct SeqStruct {
     /* 0xA8 */ s32 unkA8;
     /* 0xAC */ s32 unkAC;
 };
+STATIC_ASSERT(sizeof(struct SeqStruct) == SS_SEQ_TABSIZ, "SS_SEQ_TABSIZ unaligned");
 
 struct SndSeqTickEnv {
     /* 0x00 */ s32 tick_mode;

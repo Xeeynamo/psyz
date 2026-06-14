@@ -34,6 +34,7 @@ extern "C" {
 
 #include <psyz/platform.h>
 #include <psyz/types.h>
+#include <psyz/assert.h>
 #include <psyz/log.h>
 
 #ifdef __psyz // exclude when targeting the PSX
