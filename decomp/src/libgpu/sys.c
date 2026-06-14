@@ -549,8 +549,8 @@ void SetDrawEnv(DR_ENV* dr_env, DRAWENV* env) {
         rect.x -= env->ofs[0];
         rect.y -= env->ofs[1];
         PUSH_CODE = 0x60000000 | (env->b0 << 16) | (env->g0 << 8) | env->r0;
-        PUSH_CODE = *(u_long*)&rect.x;
-        PUSH_CODE = *(u_long*)&rect.w;
+        PUSH_CODE = *(u32*)&rect.x;
+        PUSH_CODE = *(u32*)&rect.w;
         rect.x += env->ofs[0];
         rect.y += env->ofs[1];
     }
@@ -607,14 +607,14 @@ void SetDrawEnv2(DR_ENV* dr_env, DRAWENV* env) {
             rect.x -= env->ofs[0];
             rect.y -= env->ofs[1];
             PUSH_CODE = 0x60000000 | (env->b0 << 16) | (env->g0 << 8) | env->r0;
-            PUSH_CODE = *(u_long*)&rect.x;
-            PUSH_CODE = *(u_long*)&rect.w;
+            PUSH_CODE = *(u32*)&rect.x;
+            PUSH_CODE = *(u32*)&rect.w;
             rect.x += env->ofs[0];
             rect.y += env->ofs[1];
         } else {
             PUSH_CODE = 0x02000000 | (env->b0 << 16) | (env->g0 << 8) | env->r0;
-            PUSH_CODE = *(u_long*)&rect.x;
-            PUSH_CODE = *(u_long*)&rect.w;
+            PUSH_CODE = *(u32*)&rect.x;
+            PUSH_CODE = *(u32*)&rect.w;
         }
     }
     setlen(dr, len - 1);
