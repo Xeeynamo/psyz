@@ -15,8 +15,8 @@ int VSync(int mode) { return MyVSync(mode); }
 void MyPadPoll(void); // implemented by the platform layer
 
 typedef struct {
-    char frame[PSYZ_PAD_BUF_LEN];    // last frame published by the platform
-    Psyz_ControllerKind channels[4]; // only channel 0 until multitap lands
+    char frame[PSYZ_PAD_BUF_LEN];   // last frame published by the platform
+    PsyzControllerKind channels[4]; // only channel 0 until multitap lands
 } ControllerPort;
 
 static ControllerPort ports[2] = {
@@ -40,8 +40,8 @@ static int pads_sampled = 0; // avoid more than one input polling per frame
 static char* pad_buffers[2];
 static int pad_buffer_lens[2];
 
-Psyz_ControllerKind Psyz_SetController(
-    int port, int channel, Psyz_ControllerKind kind) {
+PsyzControllerKind Psyz_PadsSetKind(
+    int port, int channel, PsyzControllerKind kind) {
     if (port < 0 || port >= LEN(ports)) {
         return PSYZ_CTRL_ERROR;
     }
@@ -51,7 +51,7 @@ Psyz_ControllerKind Psyz_SetController(
     if (kind == PSYZ_CTRL_QUERY_KIND) {
         return ports[port].channels[channel];
     }
-    Psyz_ControllerKind prev = ports[port].channels[channel];
+    PsyzControllerKind prev = ports[port].channels[channel];
     ports[port].channels[channel] = kind;
     return prev;
 }
