@@ -8,10 +8,10 @@ void MyDrawSyncCallback(int mode) { NOT_IMPLEMENTED; }
 void (*g_VsyncCallback)() = NULL;
 int MyVSyncCallback(void (*f)()) { g_VsyncCallback = f; }
 
-int Psyz_VSync(int mode);
+int Psyz_VideoVSync(int mode);
 int MyVSync(int mode) {
     // TODO the implementation is most likely incorrect
-    int elapsed = (unsigned short)Psyz_VSync(mode);
+    int elapsed = (unsigned short)Psyz_VideoVSync(mode);
     if (mode < 0) {
         // TODO return vsync, not elapsed
         return elapsed;

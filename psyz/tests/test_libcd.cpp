@@ -51,12 +51,12 @@ class LibCdTest : public ::testing::Test {
         dir = std::string("psyz_libcd_test_") +
               std::to_string(std::time(nullptr));
         ASSERT_EQ(mkdir(dir.c_str(), 0755), 0) << dir;
-        Psyz_SetDiskPath(nullptr);
+        Psyz_CdSetDiskPath(nullptr);
         Psyz_CdShellOpen(0);
     }
 
     void TearDown() override {
-        Psyz_SetDiskPath(nullptr);
+        Psyz_CdSetDiskPath(nullptr);
         Psyz_CdShellOpen(0);
         for (const auto& b : bins) {
             std::remove(b.c_str());
@@ -89,8 +89,8 @@ class LibCdTest : public ::testing::Test {
 
         cue = dir + "/disc.cue";
         write_text(cue, body);
-        ASSERT_EQ(Psyz_SetDiskPath(cue.c_str()), 0)
-            << "Psyz_SetDiskPath failed for " << cue;
+        ASSERT_EQ(Psyz_CdSetDiskPath(cue.c_str()), 0)
+            << "Psyz_CdSetDiskPath failed for " << cue;
         Psyz_CdShellOpen(0);
     }
 
@@ -122,8 +122,8 @@ class LibCdTest : public ::testing::Test {
 
         cue = dir + "/disc.cue";
         write_text(cue, body);
-        ASSERT_EQ(Psyz_SetDiskPath(cue.c_str()), 0)
-            << "Psyz_SetDiskPath failed for " << cue;
+        ASSERT_EQ(Psyz_CdSetDiskPath(cue.c_str()), 0)
+            << "Psyz_CdSetDiskPath failed for " << cue;
         Psyz_CdShellOpen(0);
     }
 };
@@ -266,7 +266,7 @@ TEST_F(LibCdTest, ten_tracks_bcd_boundary) {
 
 TEST_F(LibCdTest, no_disk_loaded_returns_error_response) {
     // Don't call load(); explicitly detach disc.
-    Psyz_SetDiskPath(nullptr);
+    Psyz_CdSetDiskPath(nullptr);
 
     u_char r[8];
 
@@ -400,12 +400,12 @@ class LibCdPlaybackTest : public ::testing::Test {
         if (ret == -1) {
             ASSERT_EQ(errno, EEXIST) << "mkdir failed";
         }
-        Psyz_SetDiskPath(nullptr);
+        Psyz_CdSetDiskPath(nullptr);
         Psyz_CdShellOpen(0);
     }
 
     void TearDown() override {
-        Psyz_SetDiskPath(nullptr);
+        Psyz_CdSetDiskPath(nullptr);
         Psyz_CdShellOpen(0);
         for (const auto& b : bins) {
             std::remove(b.c_str());
@@ -429,8 +429,8 @@ class LibCdPlaybackTest : public ::testing::Test {
         write_text(cue, std::string("FILE \"cdda.bin\" BINARY\n") +
                             "  TRACK 01 " + std::string(track_type) + "\n" +
                             "    INDEX 01 00:00:00\n");
-        ASSERT_EQ(Psyz_SetDiskPath(cue.c_str()), 0)
-            << "Psyz_SetDiskPath failed for " << cue;
+        ASSERT_EQ(Psyz_CdSetDiskPath(cue.c_str()), 0)
+            << "Psyz_CdSetDiskPath failed for " << cue;
         Psyz_CdShellOpen(0);
     }
 

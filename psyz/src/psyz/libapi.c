@@ -40,7 +40,7 @@ static int pads_sampled = 0; // avoid more than one input polling per frame
 static char* pad_buffers[2];
 static int pad_buffer_lens[2];
 
-PsyzControllerKind Psyz_SetController(
+PsyzControllerKind Psyz_PadsSetKind(
     int port, int channel, PsyzControllerKind kind) {
     if (port < 0 || port >= LEN(ports)) {
         return PSYZ_CTRL_ERROR;

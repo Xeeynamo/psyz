@@ -351,7 +351,7 @@ void Psyz_CdShellOpen(int is_open) {
     }
 }
 
-int Psyz_SetDiskPath(const char* diskPath) {
+int Psyz_CdSetDiskPath(const char* diskPath) {
     is_disk_loaded = 0;
     g_track_count = 0;
     memset(g_tracks, 0, sizeof(g_tracks));
@@ -367,8 +367,8 @@ int Psyz_SetDiskPath(const char* diskPath) {
     return 0;
 }
 
-static PsyzDiskReadCB disk_read_cb = NULL;
-void Psyz_SetDiskCallback(PsyzDiskReadCB cb) { disk_read_cb = cb; }
+static PsyzCdReadCB disk_read_cb = NULL;
+void Psyz_CdSetReadCB(PsyzCdReadCB cb) { disk_read_cb = cb; }
 
 #define N_CHANNELS 2
 #define SAMPLE_SIZE sizeof(short)

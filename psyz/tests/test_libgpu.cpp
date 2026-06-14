@@ -97,7 +97,7 @@ class gpu_Test : public testing::Test {
         unsigned char* exp_d = stbi_load(filename, &exp_w, &exp_h, &ch, 3);
         ch = 3;
         ASSERT_NE(exp_d, nullptr) << "for " << png_path;
-        unsigned char* act_d = Psyz_AllocAndCaptureFrame(&act_w, &act_h);
+        unsigned char* act_d = Psyz_VideoAllocCapturedFrame(&act_w, &act_h);
         ASSERT_NE(act_d, nullptr) << "for " << png_path;
         ASSERT_EQ(exp_w, act_w) << "for " << png_path;
         ASSERT_EQ(exp_h, act_h) << "for " << png_path;
@@ -272,7 +272,7 @@ TEST_F(gpu_Test, gouraud_line_after_flush) {
     PutDispEnv(&cdb->disp);
 
     int w, h;
-    unsigned char* d = Psyz_AllocAndCaptureFrame(&w, &h);
+    unsigned char* d = Psyz_VideoAllocCapturedFrame(&w, &h);
     ASSERT_NE(d, nullptr);
 
     // Linux and Windows renders the line at y:87, macOS does it at y:88
