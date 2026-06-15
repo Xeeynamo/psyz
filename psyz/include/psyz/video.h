@@ -54,6 +54,11 @@ typedef enum {
     PSYZ_VSYNC_OFF,
 } PsyzVsyncMode;
 
+typedef enum {
+    PSYZ_DITHER_AUTO, /**< let the game decide whether to dither (default) */
+    PSYZ_DITHER_OFF,  /**< force dithering always off */
+} PsyzDitherMode;
+
 typedef struct {
     double last_frame_time_us;       /**< duration of last frame */
     double last_draw_time_us;        /**< render time excluding vsync wait */
@@ -69,6 +74,14 @@ typedef struct {
  * @return 0 on success, -1 if invalid mode
  */
 int Psyz_VideoSetVsyncMode(PsyzVsyncMode mode);
+
+/**
+ * @brief Set dithering mode (default: AUTO)
+ *
+ * @param mode Dithering mode to set
+ * @return 0 on success, -1 if invalid mode
+ */
+int Psyz_VideoSetDitheringMode(PsyzDitherMode mode);
 
 /**
  * @brief Synchronize with vertical blank

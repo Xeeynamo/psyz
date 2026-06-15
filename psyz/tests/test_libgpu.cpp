@@ -57,12 +57,14 @@ class gpu_Test : public testing::Test {
         LINE_G4 lineg4[2];
         SPRT sprt[4];
         TILE tile[4];
+        DR_MODE drmode[1];
     } DB;
     DB db[2];
     DB* cdb;
 
     void SetUp() override {
         Psyz_SetWindowScale(1);
+        Psyz_VideoSetDitheringMode(PSYZ_DITHER_OFF);
         SetDefDrawEnv(&db[0].draw, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
         SetDefDispEnv(&db[0].disp, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
         SetDefDrawEnv(
@@ -379,6 +381,33 @@ TEST_F(gpu_Test, swap_buffer) {
         VSync(0);
         AssertFrame((fbidx & 1) ? "swap_buffer_fb2" : "swap_buffer_fb1");
     }
+}
+
+TEST_F(gpu_Test, dithering) {
+    Psyz_VideoSetDitheringMode(PSYZ_DITHER_AUTO);
+    PutDrawEnv(&cdb->draw);
+    PutDispEnv(&cdb->disp);
+
+    SetPolyG4(&cdb->g4[0]);
+    setXYWH(&cdb->g4[0], 16, 16, 224, 208);
+    setRGB0(&cdb->g4[0], 8, 0, 0);
+    setRGB1(&cdb->g4[0], 56, 0, 0);
+    setRGB2(&cdb->g4[0], 8, 0, 0);
+    setRGB3(&cdb->g4[0], 56, 0, 0);
+    setSemiTrans(&cdb->g4[0], 0);
+
+    SetDrawMode(&cdb->drmode[0], 0, 1, 0, nullptr);
+
+    ClearImage(&cdb->draw.clip, 0, 0, 0);
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &cdb->g4[0]);
+    AddPrim(cdb->ot, &cdb->drmode[0]);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+
+    AssertFrame("dithering", 0.995);
 }
 
 TEST_F(gpu_Test, drawenv_clear_vram) {
