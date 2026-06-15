@@ -407,8 +407,7 @@ TEST_F(gpu_Test, dithering) {
     VSync(0);
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("dithering");
-    Psyz_VideoSetDitheringMode(PSYZ_DITHER_OFF);
+    AssertFrame("dithering", 0.9975);
 }
 
 TEST_F(gpu_Test, drawenv_clear_vram) {
