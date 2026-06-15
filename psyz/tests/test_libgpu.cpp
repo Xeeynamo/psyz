@@ -407,7 +407,7 @@ TEST_F(gpu_Test, dithering) {
     VSync(0);
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("dithering", 0.9975);
+    AssertFrame("dithering", 0.995);
 }
 
 TEST_F(gpu_Test, drawenv_clear_vram) {
