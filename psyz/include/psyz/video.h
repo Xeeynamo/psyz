@@ -59,6 +59,11 @@ typedef enum {
     PSYZ_DITHER_OFF,  /**< force dithering always off */
 } PsyzDitherMode;
 
+typedef enum {
+    PSYZ_ASPECT_DISPLAY, /**< aspect from PS1 H/V display ranges (default) */
+    PSYZ_ASPECT_SQUARE,  /**< 1:1 from framebuffer (pixel-perfect) */
+} PsyzAspectMode;
+
 typedef struct {
     double last_frame_time_us;       /**< duration of last frame */
     double last_draw_time_us;        /**< render time excluding vsync wait */
@@ -82,6 +87,21 @@ int Psyz_VideoSetVsyncMode(PsyzVsyncMode mode);
  * @return 0 on success, -1 if invalid mode
  */
 int Psyz_VideoSetDitheringMode(PsyzDitherMode mode);
+
+/**
+ * @brief Select how the presented aspect ratio is determined
+ *
+ * DISPLAY: use the game horizontal/vertical display (display sync) ranges,
+ *   so different game resolutions present at the intended physical proportions.
+ *   This is the accurate and default behaviour, originally intended to control
+ *   the beam range of a CRT display. This is not pixel-perfect.
+ * SQUARE: present framebuffer pixels 1:1, ignoring sync ranges. This presents
+ *   the game pixel-perfect to the display at the cost of intent-accuracy.
+ *
+ * @param mode Aspect mode to set
+ * @return 0 on success, -1 if invalid mode
+ */
+int Psyz_VideoSetAspectMode(PsyzAspectMode mode);
 
 /**
  * @brief Synchronize with vertical blank

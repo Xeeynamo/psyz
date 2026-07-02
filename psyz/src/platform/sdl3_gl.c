@@ -307,10 +307,12 @@ static int set_wnd_scale = 2;
 static int cur_wnd_width = -1;
 static int cur_wnd_height = -1;
 static int cur_wnd_scale = -1;
-static int set_disp_horiz = 320;
+static int set_disp_horiz = 256;
 static int set_disp_vert = 240;
 static int cur_disp_horiz = -1;
 static int cur_disp_vert = -1;
+static bool is_pal = false;
+static PsyzAspectMode aspect_mode = PSYZ_ASPECT_DISPLAY;
 
 static PsyzOverlayInitCB_SDL3GL overlay_init_cb;
 PsyzOverlayInitCB_SDL3GL Psyz_OverlayInit_SDL3GL(PsyzOverlayInitCB_SDL3GL cb) {
@@ -485,6 +487,11 @@ static void SetWindowSizeInPixels(int width, int height) {
 }
 
 static float GetCurrentGameAspectRatio(void) {
+    if (aspect_mode == PSYZ_ASPECT_DISPLAY) {
+        float vref = is_pal ? 288.0f : 240.0f;
+        return (4.0f / 3.0f) * ((float)set_disp_horiz / 256.0f) /
+               ((float)set_disp_vert / vref);
+    }
     if (display_size.y <= 0) {
         return 4.0f / 3.0f;
     }
@@ -1090,6 +1097,14 @@ int Psyz_VideoSetDitheringMode(PsyzDitherMode mode) {
     return 0;
 }
 
+int Psyz_VideoSetAspectMode(PsyzAspectMode mode) {
+    if (mode != PSYZ_ASPECT_DISPLAY && mode != PSYZ_ASPECT_SQUARE) {
+        return -1;
+    }
+    aspect_mode = mode;
+    return 0;
+}
+
 int Psyz_VideoStats(PsyzVideoStats* stats) {
     if (!stats || !is_platform_init_successful) {
         return -1;
@@ -1152,7 +1167,6 @@ static void ApplyDisplayPendingChanges() {
     if (cur_disp_horiz != set_disp_horiz || cur_disp_vert != set_disp_vert) {
         cur_disp_horiz = set_disp_horiz;
         cur_disp_vert = set_disp_vert;
-        WARNF("setting screen aspect ratio not supported");
     }
 }
 
@@ -1199,6 +1213,7 @@ void Draw_SetDisplayMode(DisplayMode* mode) {
     if (mode->reversed) {
         WARNF("reverse mode not supported");
     }
+    is_pal = mode->pal;
     if (mode->horizontal_resolution_368) {
         set_wnd_width = 368;
     } else {
