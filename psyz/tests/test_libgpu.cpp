@@ -7,7 +7,6 @@ extern "C" {
 #include <kernel.h>
 #include <libetc.h>
 #include <libgpu.h>
-void Psyz_SetWindowScale(int scale);
 }
 
 #include "res/4bpp.h"
@@ -63,7 +62,6 @@ class gpu_Test : public testing::Test {
     DB* cdb;
 
     void SetUp() override {
-        Psyz_SetWindowScale(1);
         Psyz_VideoSetDitheringMode(PSYZ_DITHER_OFF);
         SetDefDrawEnv(&db[0].draw, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
         SetDefDispEnv(&db[0].disp, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);

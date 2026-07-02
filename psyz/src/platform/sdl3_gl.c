@@ -28,6 +28,10 @@
 #define VSYNC_NTSC 59.94
 #define VSYNC_PAL 50.0
 
+// defaults to better support integer scaling
+#define DEFAULT_FRONT_W 1280
+#define DEFAULT_FRONT_H 960
+
 // HACK to avoid conflicting with RECT from windef.h
 // It renames the libgpu RECT into PS1_RECT, ensuring the windef struct RECT
 // does not conflict. The hack is applied to all platform for consistency.
@@ -233,6 +237,7 @@ static GLuint scratch_texture = 0;
 static GLuint scratch_fbo = 0;
 static GLposi display_area = {0, 0};
 static GLposi display_size = {256, 240};
+static GLposi cur_display_size = {-1, -1};
 static GLposi draw_offset = {0, 0};
 static GLposi draw_area_start = {0, 0};
 static GLposi draw_area_end = {0x10000, 0x10000};
@@ -301,16 +306,12 @@ static GLuint Init_SetupShader() {
 }
 
 static bool disp_on = false;
-static int set_wnd_width = 320;
-static int set_wnd_height = 240;
-static int set_wnd_scale = 2;
-static int cur_wnd_width = -1;
-static int cur_wnd_height = -1;
-static int cur_wnd_scale = -1;
-static int set_disp_horiz = 320;
+static int set_disp_horiz = 256;
 static int set_disp_vert = 240;
 static int cur_disp_horiz = -1;
 static int cur_disp_vert = -1;
+static bool is_pal = false;
+static PsyzAspectMode aspect_mode = PSYZ_ASPECT_DISPLAY;
 
 static PsyzOverlayInitCB_SDL3GL overlay_init_cb;
 PsyzOverlayInitCB_SDL3GL Psyz_OverlayInit_SDL3GL(PsyzOverlayInitCB_SDL3GL cb) {
@@ -363,12 +364,8 @@ bool InitPlatform() {
         SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 0);
     SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
-    cur_wnd_width = set_wnd_width;
-    cur_wnd_height = set_wnd_height;
-    cur_wnd_scale = set_wnd_scale;
     window = SDL_CreateWindow(
-        window_title, cur_wnd_width * cur_wnd_scale,
-        cur_wnd_height * cur_wnd_scale,
+        window_title, DEFAULT_FRONT_W, DEFAULT_FRONT_H,
         SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE |
             SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (!window) {
@@ -485,6 +482,11 @@ static void SetWindowSizeInPixels(int width, int height) {
 }
 
 static float GetCurrentGameAspectRatio(void) {
+    if (aspect_mode == PSYZ_ASPECT_DISPLAY) {
+        float vref = is_pal ? 288.0f : 240.0f;
+        return (4.0f / 3.0f) * ((float)set_disp_horiz / 256.0f) /
+               ((float)set_disp_vert / vref);
+    }
     if (display_size.y <= 0) {
         return 4.0f / 3.0f;
     }
@@ -1013,7 +1015,6 @@ static void PollEvents(void) {
     }
 }
 
-void Psyz_SetWindowScale(int scale) { set_wnd_scale = scale; }
 void Psyz_GetWindowSize(int* width, int* height) {
     SDL_GetWindowSize(window, width, height);
 }
@@ -1090,6 +1091,14 @@ int Psyz_VideoSetDitheringMode(PsyzDitherMode mode) {
     return 0;
 }
 
+int Psyz_VideoSetAspectMode(PsyzAspectMode mode) {
+    if (mode != PSYZ_ASPECT_DISPLAY && mode != PSYZ_ASPECT_SQUARE) {
+        return -1;
+    }
+    aspect_mode = mode;
+    return 0;
+}
+
 int Psyz_VideoStats(PsyzVideoStats* stats) {
     if (!stats || !is_platform_init_successful) {
         return -1;
@@ -1123,20 +1132,15 @@ static void ApplyDisplayPendingChanges() {
     if (!window && !InitPlatform()) {
         return;
     }
-    if (cur_wnd_width != set_wnd_width || cur_wnd_height != set_wnd_height ||
-        cur_wnd_scale != set_wnd_scale || !is_window_visible) {
-        cur_wnd_width = set_wnd_width;
-        cur_wnd_height = set_wnd_height;
-        cur_wnd_scale = set_wnd_scale;
+    if (cur_display_size.x != display_size.x ||
+        cur_display_size.y != display_size.y || !is_window_visible) {
         if (!is_window_visible) {
-            SetWindowSizeInPixels(
-                cur_wnd_width * cur_wnd_scale, cur_wnd_height * cur_wnd_scale);
+            SetWindowSizeInPixels(DEFAULT_FRONT_W, DEFAULT_FRONT_H);
         }
 
-        display_size.x = cur_wnd_width;
-        display_size.y = cur_wnd_height;
+        cur_display_size = display_size;
         glUniform2f(
-            uniform_resolution, (float)cur_wnd_width, (float)cur_wnd_height);
+            uniform_resolution, (float)display_size.x, (float)display_size.y);
         glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
     }
     if (!is_window_visible) {
@@ -1152,7 +1156,6 @@ static void ApplyDisplayPendingChanges() {
     if (cur_disp_horiz != set_disp_horiz || cur_disp_vert != set_disp_vert) {
         cur_disp_horiz = set_disp_horiz;
         cur_disp_vert = set_disp_vert;
-        WARNF("setting screen aspect ratio not supported");
     }
 }
 
@@ -1199,29 +1202,28 @@ void Draw_SetDisplayMode(DisplayMode* mode) {
     if (mode->reversed) {
         WARNF("reverse mode not supported");
     }
+    is_pal = mode->pal;
     if (mode->horizontal_resolution_368) {
-        set_wnd_width = 368;
+        display_size.x = 368;
     } else {
         switch (mode->horizontal_resolution) {
         case 0:
-            set_wnd_width = 256;
+            display_size.x = 256;
             break;
         case 1:
-            set_wnd_width = 320;
+            display_size.x = 320;
             break;
         case 2:
-            set_wnd_width = 512;
+            display_size.x = 512;
             break;
         case 3:
-            set_wnd_width = 640;
+            display_size.x = 640;
             break;
         default:
             break;
         }
     }
-    set_wnd_height = mode->vertical_resolution ? 480 : 240;
-    display_size.x = set_wnd_width;
-    display_size.y = set_wnd_height;
+    display_size.y = mode->vertical_resolution ? 480 : 240;
     ApplyDisplayPendingChanges();
 
     double new_target_fps = mode->pal ? VSYNC_PAL : VSYNC_NTSC;
