@@ -1139,8 +1139,8 @@ static void ApplyDisplayPendingChanges() {
         }
 
         cur_display_size = display_size;
-        glUniform2f(uniform_resolution, (float)display_size.x,
-                    (float)display_size.y);
+        glUniform2f(
+            uniform_resolution, (float)display_size.x, (float)display_size.y);
         glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
     }
     if (!is_window_visible) {
