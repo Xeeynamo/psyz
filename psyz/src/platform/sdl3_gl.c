@@ -201,6 +201,9 @@ typedef struct {
 typedef struct {
     GLint x, y;
 } GLposi; // this is custom
+typedef struct {
+    int w, h;
+} WndSize;
 
 #define TPAGE_NOTEXTURE 0x8000 // reuse reserved bit to flag untextured poly
 #define VRGBA(p) (*(unsigned int*)(&((p).r)))
@@ -308,7 +311,6 @@ static int set_disp_horiz = 320;
 static int set_disp_vert = 240;
 static int cur_disp_horiz = -1;
 static int cur_disp_vert = -1;
-static int fb_w = 0, fb_h = 0;
 
 static PsyzOverlayInitCB_SDL3GL overlay_init_cb;
 PsyzOverlayInitCB_SDL3GL Psyz_OverlayInit_SDL3GL(PsyzOverlayInitCB_SDL3GL cb) {
@@ -341,6 +343,7 @@ PsyzOverlayDestroyCB Psyz_OverlayDestroyCB(PsyzOverlayDestroyCB cb) {
 static bool is_window_visible = false;
 static bool is_platform_initialized = false;
 static bool is_platform_init_successful = false;
+static WndSize wnd_size_in_pixels = {0, 0};
 static char window_title[0x100] = {"PSY-Z"};
 bool InitPlatform() {
     if (is_platform_initialized) {
@@ -365,7 +368,9 @@ bool InitPlatform() {
     cur_wnd_scale = set_wnd_scale;
     window = SDL_CreateWindow(
         window_title, cur_wnd_width * cur_wnd_scale,
-        cur_wnd_height * cur_wnd_scale, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
+        cur_wnd_height * cur_wnd_scale,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE |
+            SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (!window) {
         ERRORF("SDL_CreateWindow: %s", SDL_GetError());
         return false;
@@ -464,6 +469,50 @@ void Psyz_SetTitle(const char* str) {
     }
 }
 
+static void SetWindowSizeInPixels(int width, int height) {
+    if (!window) {
+        return;
+    }
+    wnd_size_in_pixels.w = width;
+    wnd_size_in_pixels.h = height;
+    float density = SDL_GetWindowPixelDensity(window);
+    if (density <= 0.0f) {
+        density = 1.0f;
+    }
+    int actual_width = (int)(width / density + 0.5f);
+    int actual_height = (int)(height / density + 0.5f);
+    SDL_SetWindowSize(window, actual_width, actual_height);
+}
+
+static float GetCurrentGameAspectRatio(void) {
+    if (display_size.y <= 0) {
+        return 4.0f / 3.0f;
+    }
+    return (float)display_size.x / (float)display_size.y;
+}
+
+static SDL_Rect FitGameToWindow(float game_aspect, WndSize win) {
+    SDL_Rect r;
+    if (game_aspect <= 0.0 || win.w <= 0 || win.h <= 0) {
+        r.x = 0;
+        r.y = 0;
+        r.w = win.w;
+        r.h = win.h;
+        return r;
+    }
+    float window_aspect = (float)win.w / (float)win.h;
+    if (window_aspect > game_aspect) {
+        r.h = win.h;
+        r.w = (int)(win.h * game_aspect + 0.5f);
+    } else {
+        r.w = win.w;
+        r.h = (int)(win.w / game_aspect + 0.5f);
+    }
+    r.x = (win.w - r.w) / 2;
+    r.y = (win.h - r.h) / 2;
+    return r;
+}
+
 static void PresentBufferToScreen(void) {
     if (!window && !InitPlatform()) {
         return;
@@ -473,18 +522,25 @@ static void PresentBufferToScreen(void) {
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     glDisable(GL_SCISSOR_TEST);
 
-    int src_x = display_area.x;
-    int src_y = display_area.y;
-    int src_w = display_size.x;
-    int src_h = display_size.y;
+    SDL_Rect src = {display_area.x, display_area.y, display_size.x,
+                    display_size.y};
+    float game_aspect = GetCurrentGameAspectRatio();
     if (debug_show_vram) {
-        src_x = 0;
-        src_y = 0;
-        src_w = VRAM_W;
-        src_h = VRAM_H;
+        src = (SDL_Rect){0, 0, VRAM_W, VRAM_H};
+        game_aspect = (float)VRAM_W / (float)VRAM_H;
     }
-    glBlitFramebuffer(src_x, src_y + src_h, src_x + src_w, src_y, 0, 0, fb_w,
-                      fb_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+    WndSize win;
+    SDL_GetWindowSizeInPixels(window, &win.w, &win.h);
+    SDL_Rect dst = FitGameToWindow(game_aspect, win);
+
+    glViewport(0, 0, win.w, win.h);
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glBlitFramebuffer(
+        src.x, src.y + src.h, src.x + src.w, src.y, dst.x, dst.y, dst.x + dst.w,
+        dst.y + dst.h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     if (overlay_frame_cb) {
         overlay_frame_cb();
     }
@@ -494,6 +550,7 @@ static void PresentBufferToScreen(void) {
 
     glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
     glBindTexture(GL_TEXTURE_2D, vram_texture);
+    glViewport(0, 0, VRAM_W, VRAM_H);
     glEnable(GL_SCISSOR_TEST);
 }
 
@@ -931,6 +988,13 @@ static void PollEvents(void) {
         case SDL_EVENT_QUIT:
             quit_requested = true;
             break;
+        case SDL_EVENT_WINDOW_RESIZED:
+            SDL_GetWindowSizeInPixels(
+                window, &wnd_size_in_pixels.w, &wnd_size_in_pixels.h);
+            break;
+        case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
+            SetWindowSizeInPixels(wnd_size_in_pixels.w, wnd_size_in_pixels.h);
+            break;
         case SDL_EVENT_KEY_DOWN:
             if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
                 quit_requested = true;
@@ -1064,9 +1128,10 @@ static void ApplyDisplayPendingChanges() {
         cur_wnd_width = set_wnd_width;
         cur_wnd_height = set_wnd_height;
         cur_wnd_scale = set_wnd_scale;
-        fb_w = cur_wnd_width * cur_wnd_scale;
-        fb_h = cur_wnd_height * cur_wnd_scale;
-        SDL_SetWindowSize(window, fb_w, fb_h);
+        if (!is_window_visible) {
+            SetWindowSizeInPixels(
+                cur_wnd_width * cur_wnd_scale, cur_wnd_height * cur_wnd_scale);
+        }
 
         display_size.x = cur_wnd_width;
         display_size.y = cur_wnd_height;
