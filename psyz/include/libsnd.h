@@ -12,7 +12,7 @@
  */
 
 /* SEQ/SEP data attribute table size constant */
-#ifdef __psyz
+#if defined(__psyz) && defined(PLATFORM_64BIT)
 #define SS_SEQ_TABSIZ 192
 #else
 #define SS_SEQ_TABSIZ 176
