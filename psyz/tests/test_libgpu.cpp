@@ -63,6 +63,7 @@ class gpu_Test : public testing::Test {
 
     void SetUp() override {
         Psyz_VideoSetDitheringMode(PSYZ_DITHER_OFF);
+        Psyz_VideoSetInternalResolution(1);
         SetDefDrawEnv(&db[0].draw, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
         SetDefDispEnv(&db[0].disp, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
         SetDefDrawEnv(
@@ -482,6 +483,58 @@ TEST_F(gpu_Test, moveimage) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
+    AssertFrame("moveimage");
+}
+
+TEST_F(gpu_Test, moveimage_internal_res) {
+    ASSERT_EQ(Psyz_VideoSetInternalResolution(0), -1);
+    ASSERT_EQ(Psyz_VideoSetInternalResolution(2), 0);
+    ASSERT_EQ(Psyz_VideoGetInternalResolution(), 2);
+
+    u_short tpage, clut;
+    if (LoadTim(img_4bpp, &tpage, &clut)) {
+        return;
+    }
+
+    RECT rect = {960, 0, 16, 64};
+    MoveImage(&rect, 962, 8);
+    rect.x = 962;
+    rect.y = 8;
+    MoveImage(&rect, 960, 0);
+
+    SetPolyFT4(&cdb->ft4[0]);
+    setXYWH(&cdb->ft4[0], 16, 16, 64, 64);
+    setRGB0(&cdb->ft4[0], 128, 128, 128);
+    setUVWH(&cdb->ft4[0], 0, 0, 64, 64);
+    setSemiTrans(&cdb->ft4[0], 0);
+    cdb->ft4[0].tpage = tpage;
+    cdb->ft4[0].clut = clut;
+
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &db[0].ft4[0]);
+
+    ClearImage(&cdb->draw.clip, 60, 120, 120);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+    AssertFrame("moveimage");
+
+    u_short pattern[16 * 16];
+    u_short readback[16 * 16];
+    for (int i = 0; i < 16 * 16; i++) {
+        pattern[i] = (u_short)(i * 0x1235);
+    }
+    RECT rectStore = {704, 320, 16, 16};
+    LoadImage(&rectStore, (u_long*)pattern);
+    DrawSync(0);
+    StoreImage(&rectStore, (u_long*)readback);
+    DrawSync(0);
+    EXPECT_EQ(memcmp(pattern, readback, sizeof(pattern)), 0);
+
+    ASSERT_EQ(Psyz_VideoSetInternalResolution(1), 0);
+    ASSERT_EQ(Psyz_VideoGetInternalResolution(), 1);
+    VSync(0);
     AssertFrame("moveimage");
 }
 

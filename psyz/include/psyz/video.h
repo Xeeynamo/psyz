@@ -103,6 +103,29 @@ int Psyz_VideoSetDitheringMode(PsyzDitherMode mode);
  */
 int Psyz_VideoSetAspectMode(PsyzAspectMode mode);
 
+/** Maximum accepted internal resolution multiplier */
+#define PSYZ_INTERNAL_RES_MAX 8
+
+/**
+ * @brief Set the internal rendering resolution multiplier (default: 1)
+ *
+ * Internally multiplies horizontal and vertical resolution, giving 3D
+ * geometry more sub-pixel precision (smoother edges, less shimmer).
+ * Safe to call at runtime; the change applies on the next presented frame
+ * without needing to restart the game.
+ *
+ * @param multiplier Integer scale factor, between 1 to PSYZ_INTERNAL_RES_MAX
+ * @return 0 on success, -1 if multiplier < 1
+ */
+int Psyz_VideoSetInternalResolution(unsigned multiplier);
+
+/**
+ * @brief Get the current internal resolution multiplier
+ *
+ * @return current multiplier (>= 1)
+ */
+unsigned Psyz_VideoGetInternalResolution(void);
+
 /**
  * @brief Synchronize with vertical blank
  *
