@@ -162,15 +162,13 @@ struct DIRENTRY {
     char system[8];        /**< Reserved by system */
 };
 
-#ifdef _WIN32
-// Avoid conflict with Windows API on Windows builds
+// EnterCriticalSection/ExitCriticalSection collide with the Win32 API.
+// To avoid collision and inconsistency, the PS1_ prefix is added.
 void PS1_EnterCriticalSection(void);
 void PS1_ExitCriticalSection(void);
+#undef EnterCriticalSection
+#undef ExitCriticalSection
 #define EnterCriticalSection PS1_EnterCriticalSection
 #define ExitCriticalSection PS1_ExitCriticalSection
-#else
-void EnterCriticalSection(void);
-void ExitCriticalSection(void);
-#endif
 
 #endif
