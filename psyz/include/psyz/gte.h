@@ -1,5 +1,6 @@
 #ifndef PSYZ_GTE_H
 #define PSYZ_GTE_H
+#include <libgte.h>
 
 /**
  * @file gte.h
@@ -71,6 +72,27 @@ void Psyz_GteCtrlWrite(unsigned reg, unsigned int value);
  * @param cmd 25-bit GTE command word
  */
 void Psyz_GteCommand(unsigned int cmd);
+
+void Psyz_GteLdRgb(CVECTOR* v);
+void Psyz_GteStRgb(CVECTOR* v);
+void Psyz_GteLdClmv(void* p);
+void Psyz_GteStClmv(void* p);
+void Psyz_GteLdTr(long tx, long ty, long tz);
+void Psyz_GteLdTx(long v);
+void Psyz_GteLdTy(long v);
+void Psyz_GteLdTz(long v);
+void Psyz_GteAvsz3(void);
+void Psyz_GteDpcs(void);
+void Psyz_GteLcir(void);
+void Psyz_GteRtps(void);
+void Psyz_GteRtpt(void);
+void Psyz_GteNclip(void);
+void Psyz_GteLdv0(SVECTOR* v);
+void Psyz_GteLdv3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2);
+void Psyz_GteStsxy(unsigned int* out);
+void Psyz_GteStsxy3(unsigned int* out0, unsigned int* out1, unsigned int* out2);
+void Psyz_GteStszotz(unsigned int* out);
+void Psyz_GteStopz(int* out);
 
 #ifdef __cplusplus
 }
