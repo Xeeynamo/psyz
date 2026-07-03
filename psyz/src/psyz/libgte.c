@@ -1,6 +1,5 @@
 #include <assert.h>
 #include <psyz.h>
-#include <libgte.h>
 #include <psyz/log.h>
 #include "../internal.h"
 
@@ -53,6 +52,8 @@ static int DQB;            // cop2 28 depth queing parameter B (offset, s32)
 static short ZSF3;         // cop2 29 average Z scale factor
 static short ZSF4;         // cop2 30 average Z scale factor
 static unsigned int FLAG;  // cop2 31
+
+static unsigned int pack_xy(short x, short y);
 
 // FLAG register bits
 #define FLAG_MAC1_OVF_POS (1u << 30) // MAC1 overflow > +(1<<43)-1
@@ -119,6 +120,12 @@ void SetTransMatrix(MATRIX* m) {
     M.t[2] = m->t[2];
 }
 
+void SetTransVector(VECTOR* v) {
+    M.t[0] = v->vx;
+    M.t[1] = v->vy;
+    M.t[2] = v->vz;
+}
+
 void SetLightMatrix(MATRIX* m) {
     L1.m[0][0] = m->m[0][0];
     L1.m[0][1] = m->m[0][1];
@@ -154,6 +161,35 @@ void SetFarColor(long rfc, long gfc, long bfc) {
     L2.t[1] = (int)(gfc << 4);
     L2.t[2] = (int)(bfc << 4);
 }
+
+void SetFogNear(long a, long h) { NOT_IMPLEMENTED; }
+
+void Psyz_GteLdRgb(CVECTOR* v) { *(unsigned int*)&RGBC = *(unsigned int*)v; }
+void Psyz_GteStRgb(CVECTOR* v) { *(unsigned int*)v = RGB2; }
+
+void Psyz_GteLdClmv(void* p) {
+    short* s = (short*)p;
+    IR1 = s[0];
+    IR2 = s[3];
+    IR3 = s[6];
+}
+
+void Psyz_GteStClmv(void* p) {
+    short* s = (short*)p;
+    s[0] = IR1;
+    s[3] = IR2;
+    s[6] = IR3;
+}
+
+void Psyz_GteLdTr(long tx, long ty, long tz) {
+    M.t[0] = (int)tx;
+    M.t[1] = (int)ty;
+    M.t[2] = (int)tz;
+}
+
+void Psyz_GteLdTx(long v) { M.t[0] = (int)v; }
+void Psyz_GteLdTy(long v) { M.t[1] = (int)v; }
+void Psyz_GteLdTz(long v) { M.t[2] = (int)v; }
 
 long SquareRoot0_impl(long a);
 long SquareRoot0(long a) { return SquareRoot0_impl(a); }
@@ -970,6 +1006,45 @@ long AverageZ4(long sz0, long sz1, long sz2, long sz3) {
     AVSZ4();
     return MAC0 >> 12;
 }
+
+void Psyz_GteStsxy(unsigned int* out) { *out = pack_xy(SXP, SYP); }
+
+void Psyz_GteStsxy3(
+    unsigned int* out0, unsigned int* out1, unsigned int* out2) {
+    *out0 = pack_xy(SX0, SY0);
+    *out1 = pack_xy(SX1, SY1);
+    *out2 = pack_xy(SX2, SY2);
+}
+
+void Psyz_GteAvsz3(void) { AVSZ3(); }
+void Psyz_GteDpcs(void) { DPCS(0x0780010); }
+void Psyz_GteLcir(void) { MVMVA(0x04DE012); }
+void Psyz_GteRtps(void) { RTPS(0x4A180001); }
+void Psyz_GteRtpt(void) { RTPT(0x4A280030); }
+void Psyz_GteNclip(void) { NCLIP(); }
+
+void Psyz_GteLdv0(SVECTOR* v) {
+    V0.vx = v->vx;
+    V0.vy = v->vy;
+    V0.vz = v->vz;
+}
+
+void Psyz_GteLdv3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2) {
+    V0.vx = v0->vx;
+    V0.vy = v0->vy;
+    V0.vz = v0->vz;
+    V1.vx = v1->vx;
+    V1.vy = v1->vy;
+    V1.vz = v1->vz;
+    V2.vx = v2->vx;
+    V2.vy = v2->vy;
+    V2.vz = v2->vz;
+}
+
+void Psyz_GteStszotz(unsigned int* out) {
+    *out = (unsigned int)((int)SZ3 >> 2);
+}
+void Psyz_GteStopz(int* out) { *out = MAC0; }
 
 long NormalClip(long sxy0, long sxy1, long sxy2) {
     // TODO can this be simplified with an union?

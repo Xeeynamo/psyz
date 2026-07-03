@@ -420,6 +420,15 @@ void SetRotMatrix(MATRIX* m);
 void SetTransMatrix(MATRIX* m);
 
 /**
+ * @brief Set translation vector
+ *
+ * Sets the translation vector (TX, TY, TZ) from a VECTOR.
+ *
+ * @param v Pointer to translation vector
+ */
+void SetTransVector(VECTOR* v);
+
+/**
  * @brief Set light matrix
  *
  * Sets the light matrix for light source calculations.
@@ -1880,15 +1889,28 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
 #define gte_SetGeomScreen SetGeomScreen
 #define gte_SetRotMatrix SetRotMatrix
 #define gte_SetTransMatrix SetTransMatrix
-#define gte_rtps()
-#define gte_stsxy(x)
-#define gte_stszotz(x)
-#define gte_ldv3(x, y, z)
-#define gte_stsxy3(x, y, z)
-#define gte_rtpt(x)
-#define gte_nclip(x)
-#define gte_stopz(x)
-#define gte_ldv0(x)
+#define gte_SetColorMatrix SetColorMatrix
+#define gte_SetTransVector(r0) SetTransVector(r0)
+#define gte_rtps() Psyz_GteRtps()
+#define gte_stsxy(x) Psyz_GteStsxy((unsigned int*)(x))
+#define gte_stszotz(x) Psyz_GteStszotz((unsigned int*)(x))
+#define gte_ldv3(x, y, z) Psyz_GteLdv3(x, y, z)
+#define gte_stsxy3(x, y, z) Psyz_GteStsxy3((unsigned int*)(x), (unsigned int*)(y), (unsigned int*)(z))
+#define gte_rtpt() Psyz_GteRtpt()
+#define gte_nclip() Psyz_GteNclip()
+#define gte_stopz(x) Psyz_GteStopz((int*)(x))
+#define gte_ldv0(x) Psyz_GteLdv0(x)
+#define gte_avsz3() Psyz_GteAvsz3()
+#define gte_dpcs() Psyz_GteDpcs()
+#define gte_lcir() Psyz_GteLcir()
+#define gte_ldclmv(x) Psyz_GteLdClmv(x)
+#define gte_ldrgb(x) Psyz_GteLdRgb(x)
+#define gte_ldtr(x, y, z) Psyz_GteLdTr(x, y, z)
+#define gte_ldtx(x) Psyz_GteLdTx(x)
+#define gte_ldty(x) Psyz_GteLdTy(x)
+#define gte_ldtz(x) Psyz_GteLdTz(x)
+#define gte_stclmv(x) Psyz_GteStClmv(x)
+#define gte_strgb(x) Psyz_GteStRgb(x)
 #endif
 
 #endif
