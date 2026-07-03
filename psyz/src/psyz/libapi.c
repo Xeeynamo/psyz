@@ -261,9 +261,8 @@ long TestEvent(unsigned long event) {
     return events[event].status;
 }
 
-void EnterCriticalSection(void) { NOT_IMPLEMENTED; }
-
-void ExitCriticalSection(void) { NOT_IMPLEMENTED; }
+void PS1_EnterCriticalSection(void) { NOT_IMPLEMENTED; }
+void PS1_ExitCriticalSection(void) { NOT_IMPLEMENTED; }
 
 void DeliverEvent(unsigned ev1, unsigned ev2) { NOT_IMPLEMENTED; }
 
