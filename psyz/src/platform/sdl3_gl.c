@@ -348,6 +348,45 @@ PsyzOverlayDestroyCB Psyz_OverlayDestroyCB(PsyzOverlayDestroyCB cb) {
 static bool is_window_visible = false;
 static bool is_platform_initialized = false;
 static bool is_platform_init_successful = false;
+
+static void* vram_convert_buf = NULL;
+static size_t vram_convert_cap = 0;
+static void* GetVramConvertBuffer(size_t size) {
+    if (vram_convert_cap < size) {
+        void* p = realloc(vram_convert_buf, size);
+        if (!p) {
+            ERRORF("failed to allocate %zu bytes", size);
+            return NULL;
+        }
+        vram_convert_buf = p;
+        vram_convert_cap = size;
+    }
+    return vram_convert_buf;
+}
+static void ConvertPsx16ToRgba8(const void* src, u8* dst, size_t count) {
+    const u16* s = src;
+    for (size_t i = 0; i < count; i++) {
+        u16 v = s[i];
+        u8 r = v & 0x1F;
+        u8 g = (v >> 5) & 0x1F;
+        u8 b = (v >> 10) & 0x1F;
+        dst[i * 4 + 0] = (u8)((r << 3) | (r >> 2));
+        dst[i * 4 + 1] = (u8)((g << 3) | (g >> 2));
+        dst[i * 4 + 2] = (u8)((b << 3) | (b >> 2));
+        dst[i * 4 + 3] = (v & 0x8000) ? 0xFF : 0x00;
+    }
+}
+static void ConvertRgba8ToPsx16(const u8* src, void* dst, size_t count) {
+    u16* d = dst;
+    for (size_t i = 0; i < count; i++) {
+        u16 r = (u16)((src[i * 4 + 0] * 31 + 127) / 255);
+        u16 g = (u16)((src[i * 4 + 1] * 31 + 127) / 255);
+        u16 b = (u16)((src[i * 4 + 2] * 31 + 127) / 255);
+        u16 a = src[i * 4 + 3] >= 0x80 ? 0x8000 : 0;
+        d[i] = r | (g << 5) | (b << 10) | a;
+    }
+}
+
 static WndSize wnd_size_in_pixels = {0, 0};
 static char window_title[0x100] = {"PSY-Z"};
 bool InitPlatform() {
@@ -433,7 +472,7 @@ bool InitPlatform() {
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_BLEND);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, VRAM_W, VRAM_H, 0, GL_RGBA,
-                 GL_UNSIGNED_SHORT_1_5_5_5_REV, NULL);
+                 GL_UNSIGNED_BYTE, NULL);
 
     glGenFramebuffers(1, &vram_fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
@@ -584,7 +623,7 @@ static bool CreateScaledVramFbo(int n) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, VRAM_W * n, VRAM_H * n, 0, GL_RGBA,
-                 GL_UNSIGNED_SHORT_1_5_5_5_REV, NULL);
+                 GL_UNSIGNED_BYTE, NULL);
     glGenFramebuffers(1, &scaled_vram_fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, scaled_vram_fbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
@@ -746,6 +785,9 @@ void ResetPlatform(void) {
         scaled_vram_fbo = 0;
     }
     internal_res = 1;
+    free(vram_convert_buf);
+    vram_convert_buf = NULL;
+    vram_convert_cap = 0;
     QuitPlatform();
 }
 
@@ -1188,8 +1230,20 @@ unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, vram_fbo);
 
-    glReadPixels(display_area.x, display_area.y, *w, *h, GL_RGB,
-                 GL_UNSIGNED_BYTE, pixels);
+    // GL_RGB read-back is not guaranteed on GLES, read RGBA and repack
+    size_t count = (size_t)(*w) * (*h);
+    u8* rgba = GetVramConvertBuffer(count * 4);
+    if (!rgba) {
+        free(pixels);
+        return NULL;
+    }
+    glReadPixels(display_area.x, display_area.y, *w, *h, GL_RGBA,
+                 GL_UNSIGNED_BYTE, rgba);
+    for (size_t i = 0; i < count; i++) {
+        pixels[i * 3 + 0] = rgba[i * 4 + 0];
+        pixels[i * 3 + 1] = rgba[i * 4 + 1];
+        pixels[i * 3 + 2] = rgba[i * 4 + 2];
+    }
 
     GLenum err = glGetError();
     if (err != GL_NO_ERROR) {
@@ -1860,27 +1914,37 @@ void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
     UpdateScissor();
 }
 void Draw_LoadImage(PS1_RECT* rect, u_long* p) {
-    static GLint unpack[4] = {8, 2, 4, 2};
     if (rect->w == 0 || rect->h == 0) {
         return;
     }
+    size_t count = (size_t)rect->w * rect->h;
+    u8* buf = GetVramConvertBuffer(count * 4);
+    if (!buf) {
+        return;
+    }
+    ConvertPsx16ToRgba8(p, buf, count);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, vram_texture);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, unpack[rect->w & 3]);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
     glTexSubImage2D(GL_TEXTURE_2D, 0, rect->x, rect->y, rect->w, rect->h,
-                    GL_RGBA, GL_UNSIGNED_SHORT_1_5_5_5_REV, p);
+                    GL_RGBA, GL_UNSIGNED_BYTE, buf);
     SyncNativeVramToScaled(rect->x, rect->y, rect->w, rect->h);
 }
 void Draw_StoreImage(PS1_RECT* rect, u_long* p) {
-    static GLint pack[4] = {8, 2, 4, 2};
     if (rect->w == 0 || rect->h == 0) {
+        return;
+    }
+    size_t count = (size_t)rect->w * rect->h;
+    u8* buf = GetVramConvertBuffer(count * 4);
+    if (!buf) {
         return;
     }
     Draw_FlushBuffer(); // flush primitives before operating with the VRAM
     glBindFramebuffer(GL_READ_FRAMEBUFFER, vram_fbo);
-    glPixelStorei(GL_PACK_ALIGNMENT, pack[rect->w & 3]);
-    glReadPixels(rect->x, rect->y, rect->w, rect->h, GL_RGBA,
-                 GL_UNSIGNED_SHORT_1_5_5_5_REV, p);
+    glPixelStorei(GL_PACK_ALIGNMENT, 4);
+    glReadPixels(
+        rect->x, rect->y, rect->w, rect->h, GL_RGBA, GL_UNSIGNED_BYTE, buf);
+    ConvertRgba8ToPsx16(buf, p, count);
     BindDrawFbo();
 }
 
@@ -1895,7 +1959,7 @@ static bool EnsureScratchFbo(void) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, VRAM_W, VRAM_H, 0, GL_RGBA,
-                 GL_UNSIGNED_SHORT_1_5_5_5_REV, NULL);
+                 GL_UNSIGNED_BYTE, NULL);
     glGenFramebuffers(1, &scratch_fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, scratch_fbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
