@@ -40,8 +40,17 @@
 #include "../draw.h"
 #undef RECT
 
-static const char gl33_vertex_shader[] = {
-    "#version 330 core\n"
+// selected at runtime based on the active GL profile; the shader bodies are
+// shared and must stay legal in both GLSL 330 core and GLSL ES 3.00 (the
+// latter has no implicit int-to-float conversions)
+static const char shader_prologue_core[] = {"#version 330 core\n"};
+static const char shader_prologue_es[] = {
+    "#version 300 es\n"
+    "precision highp float;\n"
+    "precision highp int;\n"
+    "precision highp sampler2D;\n"};
+
+static const char vertex_shader_body[] = {
     "layout(location = 0) in vec2 pos;\n"
     "layout(location = 1) in vec4 tex;\n"
     "layout(location = 2) in vec4 color;\n"
@@ -75,11 +84,11 @@ static const char gl33_vertex_shader[] = {
     "        textureMode = 0u;\n" // untextured
     "    } else if ((tpage & 0x180u) >= 0x100u) {\n"
     "        textureMode = 1u;\n" // 16-bit direct
-    "        texCoord.x *= 4;\n"
+    "        texCoord.x *= 4.0;\n"
     "    } else {\n"
     "        textureMode = 2u;\n"            // indexed
     "        if ((tpage & 0x80u) != 0u) {\n" // 8-bit indexed
-    "            texCoord.x *= 2;\n"
+    "            texCoord.x *= 2.0;\n"
     "            vramScaleX = 2048.0;\n"
     "            subPixelMask = 1u;\n"
     "            texelShift = 1u;\n"
@@ -99,8 +108,7 @@ static const char gl33_vertex_shader[] = {
     "    texCoord += page;\n"
     "}\n"};
 
-static const char gl33_fragment_shader[] = {
-    "#version 330 core\n"
+static const char fragment_shader_body[] = {
     "in vec4 vertexColor;\n"
     "in vec2 texCoord;\n"
     "out vec4 FragColor;\n"
@@ -163,7 +171,7 @@ static const char gl33_fragment_shader[] = {
     // check for setSemiTrans(p, 1)
     "    bool isSemiTrans = vertexColor.a < 0.75;"
     // when a color has the 0x8000 bit left then it has the semitrans flag on
-    "    bool colorSemiTrans = texColor.a > 0;"
+    "    bool colorSemiTrans = texColor.a > 0.0;"
     // PS1-accurate texture-color modulation: (tex5 * col8) >> 7, clamp to 31
     "    vec3 modColor;\n"
     "    if (textureMode == 0u) {\n"
@@ -216,8 +224,9 @@ typedef struct {
     SET_TC(p, t, c)                                                            \
     SET_TC(&(p)[1], t, c) SET_TC(&(p)[2], t, c) SET_TC(&(p)[3], t, c)
 
-const int glVer_required_major = 3;
-const int glVer_required_minor = 3;
+static int glVer_required_major = 3;
+static int glVer_required_minor = 3;
+static bool use_gles = false;
 
 static SDL_Window* window = NULL;
 static SDL_GLContext glContext = NULL;
@@ -264,8 +273,10 @@ static void UpdateTargetFramerate(double fps);
 static void WaitForNextFrame(void);
 
 static GLuint Init_CompileShader(const char* source, GLenum kind) {
+    const char* sources[2] = {
+        use_gles ? shader_prologue_es : shader_prologue_core, source};
     GLuint shader = glCreateShader(kind);
-    glShaderSource(shader, 1, &source, NULL);
+    glShaderSource(shader, 2, sources, NULL);
     glCompileShader(shader);
 
     int success;
@@ -289,9 +300,9 @@ static GLuint Init_CompileShader(const char* source, GLenum kind) {
 
 static GLuint Init_SetupShader() {
     GLuint vertShader =
-        Init_CompileShader(gl33_vertex_shader, GL_VERTEX_SHADER);
+        Init_CompileShader(vertex_shader_body, GL_VERTEX_SHADER);
     GLuint fragShader =
-        Init_CompileShader(gl33_fragment_shader, GL_FRAGMENT_SHADER);
+        Init_CompileShader(fragment_shader_body, GL_FRAGMENT_SHADER);
     GLuint program = glCreateProgram();
     glAttachShader(program, vertShader);
     glAttachShader(program, fragShader);
@@ -387,6 +398,27 @@ static void ConvertRgba8ToPsx16(const u8* src, void* dst, size_t count) {
     }
 }
 
+static void ResolveGlProfile(void) {
+#if defined(__ANDROID__)
+    bool es = true;
+#elif defined(_WIN32)
+    bool es = false;
+#elif defined(__APPLE__)
+    bool es = false;
+#else
+    bool es = false;
+    const char* env = SDL_getenv("PSYZ_VIDEO_GLES");
+    if (env) {
+        if (!SDL_strcasecmp(env, "1")) {
+            es = true;
+        }
+    }
+#endif
+    use_gles = es;
+    glVer_required_major = 3;
+    glVer_required_minor = use_gles ? 0 : 3;
+}
+
 static WndSize wnd_size_in_pixels = {0, 0};
 static char window_title[0x100] = {"PSY-Z"};
 bool InitPlatform() {
@@ -401,10 +433,16 @@ bool InitPlatform() {
         return false;
     }
 
+    ResolveGlProfile();
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, glVer_required_major);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, glVer_required_minor);
-    SDL_GL_SetAttribute(
-        SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    if (use_gles) {
+        SDL_GL_SetAttribute(
+            SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    } else {
+        SDL_GL_SetAttribute(
+            SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    }
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 0);
     SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
     window = SDL_CreateWindow(
@@ -431,21 +469,27 @@ bool InitPlatform() {
 #endif
 
     const char* glStrVersion = (const char*)glGetString(GL_VERSION);
+    const char* glStrVersionNum = glStrVersion;
+    while (*glStrVersionNum &&
+           (*glStrVersionNum < '0' || *glStrVersionNum > '9')) {
+        glStrVersionNum++;
+    }
 #ifdef _MSC_VER
-    sscanf_s(glStrVersion, "%d.%d", &glVer_major, &glVer_minor);
+    sscanf_s(glStrVersionNum, "%d.%d", &glVer_major, &glVer_minor);
 #else
-    sscanf(glStrVersion, "%d.%d", &glVer_major, &glVer_minor);
+    sscanf(glStrVersionNum, "%d.%d", &glVer_major, &glVer_minor);
 #endif
+    const char* profile_name = use_gles ? "opengl es" : "opengl";
     if (glVer_major < glVer_required_major ||
         (glVer_major == glVer_required_major &&
          glVer_minor < glVer_required_minor)) {
-        ERRORF("opengl %d.%d not supported (%d.%d or above is required)",
-               glVer_major, glVer_minor, glVer_required_major,
+        ERRORF("%s %d.%d not supported (%d.%d or above is required)",
+               profile_name, glVer_major, glVer_minor, glVer_required_major,
                glVer_required_minor);
         return false;
     }
 
-    INFOF("opengl %d.%d initialized", glVer_major, glVer_minor);
+    INFOF("%s %d.%d initialized", profile_name, glVer_major, glVer_minor);
     INFOF("renderer: %s", (const char*)glGetString(GL_RENDERER));
     shader_program = Init_SetupShader();
     if (!shader_program) {
