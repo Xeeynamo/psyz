@@ -235,6 +235,10 @@ static GLuint vram_texture;
 static GLuint vram_fbo = 0;
 static GLuint scratch_texture = 0;
 static GLuint scratch_fbo = 0;
+static GLuint scaled_vram_texture = 0;
+static GLuint scaled_vram_fbo = 0; // it's vram_fbo * internal_res
+static unsigned internal_res = 1;
+static unsigned set_internal_res = 1;
 static GLposi display_area = {0, 0};
 static GLposi display_size = {256, 240};
 static GLposi cur_display_size = {-1, -1};
@@ -403,6 +407,7 @@ bool InitPlatform() {
     }
 
     INFOF("opengl %d.%d initialized", glVer_major, glVer_minor);
+    INFOF("renderer: %s", (const char*)glGetString(GL_RENDERER));
     shader_program = Init_SetupShader();
     if (!shader_program) {
         ERRORF("failed to compile shaders: %s", SDL_GetError());
@@ -515,12 +520,149 @@ static SDL_Rect FitGameToWindow(float game_aspect, WndSize win) {
     return r;
 }
 
+static void UpdateScissor(void);
+
+static GLuint GetDrawFbo(void) {
+    return internal_res <= 1 ? vram_fbo : scaled_vram_fbo;
+}
+
+static void BindDrawFbo(void) {
+    glBindFramebuffer(GL_FRAMEBUFFER, GetDrawFbo());
+    glViewport(0, 0, VRAM_W * internal_res, VRAM_H * internal_res);
+}
+
+// mirror a native VRAM region into the scaled draw target
+static void SyncNativeVramToScaled(int x, int y, int w, int h) {
+    if (internal_res <= 1 || w <= 0 || h <= 0) {
+        return;
+    }
+    glDisable(GL_SCISSOR_TEST);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, vram_fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, scaled_vram_fbo);
+    glBlitFramebuffer(x, y, x + w, y + h, x * internal_res, y * internal_res,
+                      (x + w) * internal_res, (y + h) * internal_res,
+                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_FRAMEBUFFER, scaled_vram_fbo);
+    glEnable(GL_SCISSOR_TEST);
+}
+
+static void SyncScaledVramToNative(void) {
+    if (internal_res <= 1) {
+        return;
+    }
+    int x0 = CLAMP(draw_area_start.x, 0, VRAM_W);
+    int y0 = CLAMP(draw_area_start.y, 0, VRAM_H);
+    int x1 = CLAMP(draw_area_end.x + 1, 0, VRAM_W);
+    int y1 = CLAMP(draw_area_end.y + 1, 0, VRAM_H);
+    if (x1 <= x0 || y1 <= y0) {
+        return;
+    }
+    glDisable(GL_SCISSOR_TEST);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, scaled_vram_fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, vram_fbo);
+    glBlitFramebuffer(
+        x0 * internal_res, y0 * internal_res, x1 * internal_res,
+        y1 * internal_res, x0, y0, x1, y1, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_FRAMEBUFFER, scaled_vram_fbo);
+    glEnable(GL_SCISSOR_TEST);
+}
+
+static bool CreateScaledVramFbo(int n) {
+    if (scaled_vram_texture) {
+        glDeleteTextures(1, &scaled_vram_texture);
+        scaled_vram_texture = 0;
+    }
+    if (scaled_vram_fbo) {
+        glDeleteFramebuffers(1, &scaled_vram_fbo);
+        scaled_vram_fbo = 0;
+    }
+    glGenTextures(1, &scaled_vram_texture);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, scaled_vram_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, VRAM_W * n, VRAM_H * n, 0, GL_RGBA,
+                 GL_UNSIGNED_SHORT_1_5_5_5_REV, NULL);
+    glGenFramebuffers(1, &scaled_vram_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, scaled_vram_fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                           scaled_vram_texture, 0);
+    bool ok =
+        glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    glBindTexture(GL_TEXTURE_2D, vram_texture);
+    if (!ok) {
+        ERRORF("scaled VRAM FBO creation failed (%dx)", n);
+        glDeleteTextures(1, &scaled_vram_texture);
+        scaled_vram_texture = 0;
+        glDeleteFramebuffers(1, &scaled_vram_fbo);
+        scaled_vram_fbo = 0;
+    }
+    return ok;
+}
+
+// ensure scaled VRAM does not exceed max allowed texture size
+static unsigned AdjustInternalRes(unsigned scale) {
+    unsigned n = scale;
+    GLint vram_size = VRAM_W > VRAM_H ? VRAM_W : VRAM_H;
+    GLint max_tex_size = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_tex_size);
+    while (n > 1 && (GLint)(vram_size * n) > max_tex_size) {
+        n--;
+    }
+    if (n != scale) {
+        WARNF("internal resolution %dx exceeds GL_MAX_TEXTURE_SIZE=%d, "
+              "fallback to internal resolution %dx",
+              scale, max_tex_size, n);
+    }
+    return n;
+}
+
+static void ApplyPendingInternalRes(void) {
+    if (set_internal_res == internal_res) {
+        return;
+    }
+    if (!window || !is_platform_init_successful) {
+        return;
+    }
+    unsigned n = AdjustInternalRes(set_internal_res);
+    if (n == internal_res) {
+        return;
+    }
+    Draw_FlushBuffer(); // render pending prims with the old multiplier
+    if (n > 1 && !CreateScaledVramFbo(n)) {
+        n = 1;
+        set_internal_res = 1;
+    }
+    if (n > 1) {
+        // scale native VRAM to scaled VRAM according to internal resolution
+        glDisable(GL_SCISSOR_TEST);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, vram_fbo);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, scaled_vram_fbo);
+        glBlitFramebuffer(0, 0, VRAM_W, VRAM_H, 0, 0, VRAM_W * n, VRAM_H * n,
+                          GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        glEnable(GL_SCISSOR_TEST);
+    } else if (scaled_vram_fbo || scaled_vram_texture) {
+        glDeleteTextures(1, &scaled_vram_texture);
+        scaled_vram_texture = 0;
+        glDeleteFramebuffers(1, &scaled_vram_fbo);
+        scaled_vram_fbo = 0;
+    }
+    internal_res = n;
+    BindDrawFbo();
+    UpdateScissor();
+    INFOF("internal resolution set to %dx (%dx%d)", n, VRAM_W * n, VRAM_H * n);
+}
+
 static void PresentBufferToScreen(void) {
     if (!window && !InitPlatform()) {
         return;
     }
+    ApplyPendingInternalRes();
 
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, vram_fbo);
+    const int n = (int)internal_res;
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, GetDrawFbo());
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     glDisable(GL_SCISSOR_TEST);
 
@@ -541,8 +683,8 @@ static void PresentBufferToScreen(void) {
     glClear(GL_COLOR_BUFFER_BIT);
 
     glBlitFramebuffer(
-        src.x, src.y + src.h, src.x + src.w, src.y, dst.x, dst.y, dst.x + dst.w,
-        dst.y + dst.h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        src.x * n, (src.y + src.h) * n, (src.x + src.w) * n, src.y * n, dst.x,
+        dst.y, dst.x + dst.w, dst.y + dst.h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     if (overlay_frame_cb) {
         overlay_frame_cb();
     }
@@ -550,9 +692,8 @@ static void PresentBufferToScreen(void) {
     finish_time = SDL_GetPerformanceCounter();
     SDL_GL_SwapWindow(window);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
+    BindDrawFbo();
     glBindTexture(GL_TEXTURE_2D, vram_texture);
-    glViewport(0, 0, VRAM_W, VRAM_H);
     glEnable(GL_SCISSOR_TEST);
 }
 
@@ -596,6 +737,15 @@ void ResetPlatform(void) {
         glDeleteFramebuffers(1, &scratch_fbo);
         scratch_fbo = 0;
     }
+    if (scaled_vram_texture) {
+        glDeleteTextures(1, &scaled_vram_texture);
+        scaled_vram_texture = 0;
+    }
+    if (scaled_vram_fbo) {
+        glDeleteFramebuffers(1, &scaled_vram_fbo);
+        scaled_vram_fbo = 0;
+    }
+    internal_res = 1;
     QuitPlatform();
 }
 
@@ -1099,6 +1249,24 @@ int Psyz_VideoSetAspectMode(PsyzAspectMode mode) {
     return 0;
 }
 
+unsigned Psyz_VideoGetInternalResolution(void) { return internal_res; }
+
+int Psyz_VideoSetInternalResolution(unsigned multiplier) {
+    if (multiplier < 1) {
+        return -1;
+    }
+    if (multiplier > PSYZ_INTERNAL_RES_MAX) {
+        WARNF("internal resolution %dx exceeds maximum value of %dx",
+              PSYZ_INTERNAL_RES_MAX);
+        return -1;
+    }
+    set_internal_res = multiplier;
+    if (window && is_platform_init_successful) {
+        ApplyPendingInternalRes();
+    }
+    return 0;
+}
+
 int Psyz_VideoStats(PsyzVideoStats* stats) {
     if (!stats || !is_platform_init_successful) {
         return -1;
@@ -1107,7 +1275,7 @@ int Psyz_VideoStats(PsyzVideoStats* stats) {
     return 0;
 }
 
-static void UpdateScissor() {
+static void UpdateScissor(void) {
     int width = draw_area_end.x - draw_area_start.x + 1;
     int height = draw_area_end.y - draw_area_start.y + 1;
     if (width <= 0 || height <= 0) {
@@ -1121,10 +1289,10 @@ static void UpdateScissor() {
     }
     Draw_FlushBuffer();
 
-    int sx = draw_area_start.x;
-    int sy = draw_area_start.y;
-    int sw = width;
-    int sh = height;
+    int sx = draw_area_start.x * internal_res;
+    int sy = draw_area_start.y * internal_res;
+    int sw = width * internal_res;
+    int sh = height * internal_res;
     glEnable(GL_SCISSOR_TEST);
     glScissor(sx, sy, sw, sh);
 }
@@ -1132,6 +1300,7 @@ static void ApplyDisplayPendingChanges() {
     if (!window && !InitPlatform()) {
         return;
     }
+    ApplyPendingInternalRes();
     if (cur_display_size.x != display_size.x ||
         cur_display_size.y != display_size.y || !is_window_visible) {
         if (!is_window_visible) {
@@ -1141,7 +1310,7 @@ static void ApplyDisplayPendingChanges() {
         cur_display_size = display_size;
         glUniform2f(
             uniform_resolution, (float)display_size.x, (float)display_size.y);
-        glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
+        BindDrawFbo();
     }
     if (!is_window_visible) {
         SDL_ShowWindow(window);
@@ -1167,10 +1336,15 @@ void Draw_DisplayEnable(unsigned int on) {
         if (!window && !InitPlatform()) {
             return;
         }
-        glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
         glClearColor(0, 0, 0, 1);
         glDisable(GL_SCISSOR_TEST);
+        glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
         glClear(GL_COLOR_BUFFER_BIT);
+        if (internal_res > 1) {
+            glBindFramebuffer(GL_FRAMEBUFFER, scaled_vram_fbo);
+            glClear(GL_COLOR_BUFFER_BIT);
+        }
+        BindDrawFbo();
         glEnable(GL_SCISSOR_TEST);
     } else {
         ApplyDisplayPendingChanges();
@@ -1183,7 +1357,7 @@ void Draw_DisplayArea(unsigned int x, unsigned int y) {
 
     Draw_FlushBuffer();
     ApplyDisplayPendingChanges();
-    glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
+    BindDrawFbo();
 }
 
 void Draw_DisplayHorizontalRange(unsigned int start, unsigned int end) {
@@ -1672,10 +1846,17 @@ void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
     if (rect->w == 0 || rect->h == 0) {
         return;
     }
+    glClearColor((float)r / 255.0f, (float)g / 255.0f, (float)b / 255.0f, 0.0f);
     glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
     glScissor(rect->x, rect->y, rect->w, rect->h);
-    glClearColor((float)r / 255.0f, (float)g / 255.0f, (float)b / 255.0f, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT);
+    if (internal_res > 1) {
+        glBindFramebuffer(GL_FRAMEBUFFER, scaled_vram_fbo);
+        glScissor(rect->x * internal_res, rect->y * internal_res,
+                  rect->w * internal_res, rect->h * internal_res);
+        glClear(GL_COLOR_BUFFER_BIT);
+    }
+    BindDrawFbo();
     UpdateScissor();
 }
 void Draw_LoadImage(PS1_RECT* rect, u_long* p) {
@@ -1688,6 +1869,7 @@ void Draw_LoadImage(PS1_RECT* rect, u_long* p) {
     glPixelStorei(GL_UNPACK_ALIGNMENT, unpack[rect->w & 3]);
     glTexSubImage2D(GL_TEXTURE_2D, 0, rect->x, rect->y, rect->w, rect->h,
                     GL_RGBA, GL_UNSIGNED_SHORT_1_5_5_5_REV, p);
+    SyncNativeVramToScaled(rect->x, rect->y, rect->w, rect->h);
 }
 void Draw_StoreImage(PS1_RECT* rect, u_long* p) {
     static GLint pack[4] = {8, 2, 4, 2};
@@ -1699,8 +1881,7 @@ void Draw_StoreImage(PS1_RECT* rect, u_long* p) {
     glPixelStorei(GL_PACK_ALIGNMENT, pack[rect->w & 3]);
     glReadPixels(rect->x, rect->y, rect->w, rect->h, GL_RGBA,
                  GL_UNSIGNED_SHORT_1_5_5_5_REV, p);
-
-    glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
+    BindDrawFbo();
 }
 
 static bool EnsureScratchFbo(void) {
@@ -1774,7 +1955,8 @@ void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, vram_fbo);
     glBlitFramebuffer(0, 0, copy_w, copy_h, dst_x, dst_y, dst_x + copy_w,
                       dst_y + copy_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-    glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
+    SyncNativeVramToScaled(dst_x, dst_y, copy_w, copy_h);
+    BindDrawFbo();
     glEnable(GL_SCISSOR_TEST);
 }
 void Draw_ResetBuffer(void) {
@@ -1835,5 +2017,6 @@ void Draw_FlushBuffer(void) {
     if (cur_subtract) {
         glBlendEquation(GL_FUNC_ADD);
     }
+    SyncScaledVramToNative();
     Draw_ResetBuffer();
 }
