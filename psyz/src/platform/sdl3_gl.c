@@ -1320,11 +1320,13 @@ static int GetCurrentDither(void) {
     return s_dither;
 }
 static void SetDither(int dither) {
-    int prev = GetCurrentDither();
-    s_dither = dither;
-    if (GetCurrentDither() != prev) {
+    if (dither == s_dither) {
+        return;
+    }
+    if (GetCurrentDither() != (dither_mode == PSYZ_DITHER_OFF ? 0 : dither)) {
         Draw_FlushBuffer();
     }
+    s_dither = dither;
 }
 int Psyz_VideoSetDitheringMode(PsyzDitherMode mode) {
     if (mode != PSYZ_DITHER_AUTO && mode != PSYZ_DITHER_OFF) {
@@ -1333,11 +1335,10 @@ int Psyz_VideoSetDitheringMode(PsyzDitherMode mode) {
     if (dither_mode == mode) {
         return 0;
     }
-    int prev = GetCurrentDither();
-    dither_mode = mode;
-    if (GetCurrentDither() != prev) {
+    if (GetCurrentDither() != (mode == PSYZ_DITHER_OFF ? 0 : s_dither)) {
         Draw_FlushBuffer();
     }
+    dither_mode = mode;
     return 0;
 }
 
