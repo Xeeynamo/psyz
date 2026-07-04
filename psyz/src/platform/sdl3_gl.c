@@ -1765,23 +1765,27 @@ int Draw_PushPrim(u_long* packets, int max_len) {
                 int dy = y1 - y0;
 
                 // decides to thicken horizontally or vertically
-                short ox, oy;
+                short ox, oy, ex, ey;
                 if ((dx < 0 ? -dx : dx) >= (dy < 0 ? -dy : dy)) {
                     ox = 0;
                     oy = 1;
+                    ex = dx >= 0 ? 1 : -1;
+                    ey = 0;
                 } else {
                     ox = 1;
                     oy = 0;
+                    ex = 0;
+                    ey = dy >= 0 ? 1 : -1;
                 }
 
                 Vertex* q = vertex_cur;
                 unsigned short base = n_vertices;
                 q[0].x = x0;
                 q[0].y = y0;
-                q[1].x = x1;
-                q[1].y = y1;
-                q[2].x = (short)(x1 + ox);
-                q[2].y = (short)(y1 + oy);
+                q[1].x = (short)(x1 + ex);
+                q[1].y = (short)(y1 + ey);
+                q[2].x = (short)(x1 + ex + ox);
+                q[2].y = (short)(y1 + ey + oy);
                 q[3].x = (short)(x0 + ox);
                 q[3].y = (short)(y0 + oy);
                 q[0].r = cr[s];
