@@ -388,25 +388,26 @@ TEST_F(gpu_Test, dithering) {
     PutDispEnv(&cdb->disp);
 
     SetPolyG4(&cdb->g4[0]);
-    setXYWH(&cdb->g4[0], 16, 16, 224, 208);
-    setRGB0(&cdb->g4[0], 8, 0, 0);
-    setRGB1(&cdb->g4[0], 56, 0, 0);
-    setRGB2(&cdb->g4[0], 8, 0, 0);
-    setRGB3(&cdb->g4[0], 56, 0, 0);
-    setSemiTrans(&cdb->g4[0], 0);
+    setXYWH(&cdb->g4[0], 0, 0, 256, 240);
+    setRGB0(&cdb->g4[0], 0, 0, 32);
+    setRGB1(&cdb->g4[0], 0, 0, 32);
+    setRGB2(&cdb->g4[0], 0, 0, 96);
+    setRGB3(&cdb->g4[0], 0, 0, 96);
 
-    SetDrawMode(&cdb->drmode[0], 0, 1, 0, nullptr);
+    RECT r = {0};
+    SetDrawMode(&cdb->drmode[0], 0, 1, 0, &r);
+    SetDrawMode(&cdb->drmode[1], 0, 0, 0, &r);
 
-    ClearImage(&cdb->draw.clip, 0, 0, 0);
-    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &cdb->drmode[1]);
     AddPrim(cdb->ot, &cdb->g4[0]);
     AddPrim(cdb->ot, &cdb->drmode[0]);
+
     DrawOTag(cdb->ot);
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("dithering", 0.995);
+    AssertFrame("dithering");
 }
 
 TEST_F(gpu_Test, drawenv_clear_vram) {
