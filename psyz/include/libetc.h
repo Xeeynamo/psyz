@@ -239,7 +239,7 @@ void PadStop(void);
  * @param pad1 Port 1 receive results buffer (34 bytes)
  * @param pad2 Port 2 receive results buffer (34 bytes)
  */
-void PadInitDirect(u_char* pad1, u_char* pad2);
+void PadInitDirect(unsigned char* pad1, unsigned char* pad2);
 
 /**
  * @brief Initialize controller environment (for Multi Taps).
@@ -254,7 +254,7 @@ void PadInitDirect(u_char* pad1, u_char* pad2);
  * @param pad1 Port 1 receive results buffer (34 bytes)
  * @param pad2 Port 2 receive results buffer (34 bytes)
  */
-void PadInitMtap(u_char* pad1, u_char* pad2);
+void PadInitMtap(unsigned char* pad1, unsigned char* pad2);
 
 /**
  * @brief Initialize controller environment (for guns using interrupts).
@@ -266,7 +266,7 @@ void PadInitMtap(u_char* pad1, u_char* pad2);
  * @param buff Horizontal/vertical position receive buffer (size*4+2 bytes)
  * @param size Maximum number of gun interrupts per 1Vsync (maximum 20)
  */
-void PadInitGun(u_char* buff, int size);
+void PadInitGun(unsigned char* buff, int size);
 
 /**
  * @brief Start reading from controller.
@@ -393,7 +393,7 @@ int PadInfoMode(int port, int term, int offs);
  * @param data Transmit data buffer
  * @param len Length of transmit data buffer (in bytes)
  */
-void PadSetAct(int port, u_char* data, int len);
+void PadSetAct(int port, unsigned char* data, int len);
 
 /**
  * @brief Set actuator parameter details.
@@ -434,7 +434,7 @@ int PadSetMainMode(int port, int offs, int lock);
  * @param mask Enable gun interrupts for specific ports (bit D0-D7 for ports
  *             0x00-0x03, 0x10-0x13)
  */
-void PadEnableGun(u_char mask);
+void PadEnableGun(unsigned char mask);
 
 /**
  * @brief Stop retrieval of horizontal/vertical gun position.
@@ -542,7 +542,7 @@ void StopGUN(void);
  * @param mask Interrupt mask setting (0: interrupts prohibited, 1: interrupts
  * permitted)
  */
-void SelectGUN(int ch, u_char mask);
+void SelectGUN(int ch, unsigned char mask);
 
 /**
  * @brief Remove gun driver.
