@@ -73,7 +73,7 @@ static const char vertex_shader_body[] = {
     "    float y = ((pos.y + drawOffset.y) / (512.0 / 2.0)) - 1.0;\n"
     "    gl_Position = vec4(x, y, 0.0, 1.0);\n"
     // gouraud colors
-    "    vertexColor = color * vec4(2, 2, 2, 1);\n"
+    "    vertexColor = color;\n"
     // select the right texture coords based on the tpage
     "    clut = uint(tex.z);\n"
     "    uint texWord = uint(tex.w);\n"
@@ -85,8 +85,10 @@ static const char vertex_shader_body[] = {
     "    } else if ((tpage & 0x180u) >= 0x100u) {\n"
     "        textureMode = 1u;\n" // 16-bit direct
     "        texCoord.x *= 4.0;\n"
+    "        vertexColor.rgb *= 2.0;\n"
     "    } else {\n"
-    "        textureMode = 2u;\n"            // indexed
+    "        textureMode = 2u;\n" // indexed
+    "        vertexColor.rgb *= 2.0;\n"
     "        if ((tpage & 0x80u) != 0u) {\n" // 8-bit indexed
     "            texCoord.x *= 2.0;\n"
     "            vramScaleX = 2048.0;\n"
