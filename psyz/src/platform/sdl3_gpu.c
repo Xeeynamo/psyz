@@ -1470,7 +1470,7 @@ void Draw_FlushBuffer(void) {
                                                  .y = (Uint32)vram_dirty.y};
         SDL_CopyGPUTextureToTexture(
             copy, &vram_src, &vram_dst, (Uint32)vram_dirty.w,
-            (Uint32)vram_dirty.h, 1, true);
+            (Uint32)vram_dirty.h, 1, false);
         ResetVramDirty();
     }
     SDL_EndGPUCopyPass(copy);
