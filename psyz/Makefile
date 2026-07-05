@@ -36,6 +36,7 @@ else
 	cd tests/build && ./native-hw/psyz_tests --gtest_filter='gte_Test.*'
 endif
 
+ifneq ($(UNAME_S),Darwin)
 	@mkdir -p tests/build/native-gl
 	cmake -G$(CMAKE_GEN) -DPSYZ_RENDERER=sdl3_gl -DGTE_USE_HW_SQRT=OFF -DCMAKE_BUILD_TYPE=Debug -S tests/ -B tests/build/native-gl
 	cmake --build tests/build/native-gl
@@ -43,6 +44,7 @@ ifeq ($(UNAME_S),Linux)
 	cd tests/build && SDL_VIDEODRIVER=offscreen ./native-gl/psyz_tests --gtest_filter='gpu_Test.*'
 else
 	cd tests/build && ./native-gl/psyz_tests --gtest_filter='gpu_Test.*'
+endif
 endif
 
 test-wine:
