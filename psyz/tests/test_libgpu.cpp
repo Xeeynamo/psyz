@@ -1,7 +1,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <gtest/gtest.h>
-#include <GLES2/gl2.h>
 extern "C" {
 #include <psyz.h>
 #include <kernel.h>

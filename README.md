@@ -11,9 +11,10 @@ PSY-Z adheres to the PSY-Q library contracts, focusing on compatibility rather t
 The platforms currently supported include:
 
 - **Linux** (x86_64)
+- **macOS** (ARM64)
 - **Windows** (x86, x64, ARM64) with support for MSVC, Clang, and MinGW
 
-Support for **macOS** is not currently available due to the lack of a Metal backend. Support for other platforms such as **Android** or **6th generation consoles** is planned once compatibility with the existing platforms is further extended.
+Support for other platforms such as **Android** or **6th generation consoles** is planned once compatibility with the existing platforms is further extended.
 
 PSY-Z is designed to be extensible, and support for additional platforms may be added in the future.
 

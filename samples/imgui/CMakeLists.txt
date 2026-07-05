@@ -12,6 +12,10 @@ add_compile_definitions(CIMGUI_USE_OPENGL3 CIMGUI_USE_SDL3)
 include_directories(../../external/cimgui/imgui/backends)
 include_directories(../../external/cimgui/imgui)
 
+# this sample integrates ImGui through its OpenGL 3 backend, so it requires
+# the sdl3_gl renderer regardless of the default
+set(PSYZ_RENDERER "sdl3_gl" CACHE STRING "" FORCE)
+
 add_subdirectory(../../psyz build)
 add_subdirectory(../../external/cimgui cimgui EXCLUDE_FROM_ALL)
 add_executable(${PROJECT_NAME}
