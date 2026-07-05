@@ -18,32 +18,23 @@ build/%/libpsyz.a: CMakeLists.txt cmake/%.cmake $(shell find src include -type f
 UNAME_S := $(shell uname)
 
 test:
-	@mkdir -p tests/build/native-sw
-	cmake -G$(CMAKE_GEN) -DGTE_USE_HW_SQRT=OFF -DCMAKE_BUILD_TYPE=Debug -S tests/ -B tests/build/native-sw
-	cmake --build tests/build/native-sw
+	@mkdir -p tests/build/sdl3-gpu-hw
+	cmake -G$(CMAKE_GEN) -DGTE_USE_HW_SQRT=ON -DCMAKE_BUILD_TYPE=Debug -S tests/ -B tests/build/sdl3-gpu-hw
+	cmake --build tests/build/sdl3-gpu-hw
 ifeq ($(UNAME_S),Linux)
-	cd tests/build && SDL_VIDEODRIVER=offscreen ./native-sw/psyz_tests
+	cd tests/build && SDL_VIDEODRIVER=offscreen ./sdl3-gpu-hw/psyz_tests
 else
-	cd tests/build && ./native-sw/psyz_tests
-endif
-
-	@mkdir -p tests/build/native-hw
-	cmake -G$(CMAKE_GEN) -DGTE_USE_HW_SQRT=ON -DCMAKE_BUILD_TYPE=Debug -S tests/ -B tests/build/native-hw
-	cmake --build tests/build/native-hw
-ifeq ($(UNAME_S),Linux)
-	cd tests/build && SDL_VIDEODRIVER=offscreen ./native-hw/psyz_tests --gtest_filter='gte_Test.*'
-else
-	cd tests/build && ./native-hw/psyz_tests --gtest_filter='gte_Test.*'
+	cd tests/build && ./sdl3-gpu-hw/psyz_tests
 endif
 
 ifneq ($(UNAME_S),Darwin)
-	@mkdir -p tests/build/native-gl
-	cmake -G$(CMAKE_GEN) -DPSYZ_RENDERER=sdl3_gl -DGTE_USE_HW_SQRT=OFF -DCMAKE_BUILD_TYPE=Debug -S tests/ -B tests/build/native-gl
-	cmake --build tests/build/native-gl
+	@mkdir -p tests/build/sdl3-gl-sw
+	cmake -G$(CMAKE_GEN) -DPSYZ_RENDERER=sdl3_gl -DGTE_USE_HW_SQRT=OFF -DCMAKE_BUILD_TYPE=Debug -S tests/ -B tests/build/sdl3-gl-sw
+	cmake --build tests/build/sdl3-gl-sw
 ifeq ($(UNAME_S),Linux)
-	cd tests/build && SDL_VIDEODRIVER=offscreen ./native-gl/psyz_tests --gtest_filter='gpu_Test.*'
+	cd tests/build && SDL_VIDEODRIVER=offscreen ./sdl3-gl-sw/psyz_tests --gtest_filter='gpu_Test.*'
 else
-	cd tests/build && ./native-gl/psyz_tests --gtest_filter='gpu_Test.*'
+	cd tests/build && ./sdl3-gl-sw/psyz_tests --gtest_filter='gpu_Test.*'
 endif
 endif
 
