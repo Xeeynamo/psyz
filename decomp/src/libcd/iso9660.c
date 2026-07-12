@@ -34,7 +34,7 @@ static unsigned char load_buf_[0x800]; // CD sector buffer
 int CD_cachefile(int);
 int CD_newmedia(void);
 int CD_searchdir(int parentNum, char* name);
-int _cmp(const char* str1, const char* str2);
+static int _cmp(const char* str1, const char* str2);
 int cd_read(int n_sectors, int sector_no, unsigned char* ptr);
 
 CdlFILE* CdSearchFile(CdlFILE* fp, char* name) {
@@ -121,7 +121,7 @@ out:
     return NULL;
 }
 
-int _cmp(const char* str1, const char* str2) {
+static int _cmp(const char* str1, const char* str2) {
     return strncmp(str1, str2, 12) < 1U;
 }
 
