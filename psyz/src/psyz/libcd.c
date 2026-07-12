@@ -1078,7 +1078,6 @@ int CdReading() {
 
 void ExecCd() { NOT_IMPLEMENTED; }
 
-
 int CdRead(int sectors, u_long* buf, int mode) {
     NOT_IMPLEMENTED;
     return 0;
