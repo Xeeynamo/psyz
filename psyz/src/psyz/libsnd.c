@@ -100,6 +100,9 @@ void _SsVmSeqKeyOff(s16 seq_sep_num) { NOT_IMPLEMENTED; }
 
 void vmNoiseOn(char voice) { NOT_IMPLEMENTED; }
 
+void SetAutoPan(int voices) { NOT_IMPLEMENTED; }
+void SetAutoVol(int voices) { NOT_IMPLEMENTED; }
+
 void _SsNoteOn(short a0, short a1, unsigned char a2, unsigned char a3) {
     NOT_IMPLEMENTED;
 }

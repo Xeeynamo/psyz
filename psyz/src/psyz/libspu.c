@@ -20,3 +20,5 @@ u_long _SpuSetAnyVoice(long on_off, u_long voice_bit, int arg2, int arg3) {
     NOT_IMPLEMENTED;
     return 0;
 }
+
+void SpuNGetVoiceAttr(int vNum, SpuVoiceAttr* arg) { NOT_IMPLEMENTED; }

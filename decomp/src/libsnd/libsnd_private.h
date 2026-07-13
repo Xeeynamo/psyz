@@ -96,7 +96,8 @@ struct SeqStruct {
     /* 0xA8 */ s32 unkA8;
     /* 0xAC */ s32 unkAC;
 };
-STATIC_ASSERT(sizeof(struct SeqStruct) == SS_SEQ_TABSIZ, "SS_SEQ_TABSIZ unaligned");
+STATIC_ASSERT(
+    sizeof(struct SeqStruct) == SS_SEQ_TABSIZ, "SS_SEQ_TABSIZ unaligned");
 
 struct SndSeqTickEnv {
     /* 0x00 */ s32 tick_mode;
@@ -195,7 +196,8 @@ extern SPU_RXX* _svm_sreg;
 #define SPUR(field) Psyz_SpuRead(offsetof(SPU_RXX, field))
 #define SPUW(field, val) Psyz_SpuWrite(offsetof(SPU_RXX, field), val)
 #define SPURV(n, field) Psyz_SpuRead(offsetof(SPU_RXX, voice[n].field))
-#define SPUWV(n, field, val) Psyz_SpuWrite(offsetof(SPU_RXX, voice[n].field), val)
+#define SPUWV(n, field, val)                                                   \
+    Psyz_SpuWrite(offsetof(SPU_RXX, voice[n].field), val)
 #endif
 
 extern struct SeqStruct* _ss_score[32];
