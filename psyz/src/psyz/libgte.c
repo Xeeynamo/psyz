@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <psyz.h>
 #include <psyz/log.h>
+#include <libgpu.h>
 #include "../internal.h"
 
 // This GTE implementation is mostly accurate to how the PS1 computes math.
@@ -1016,6 +1017,21 @@ void Psyz_GteStsxy3(
     *out2 = pack_xy(SX2, SY2);
 }
 
+void Psyz_GteStsxy01c(unsigned int* out) {
+    out[0] = pack_xy(SX0, SY0);
+    out[1] = pack_xy(SX1, SY1);
+}
+
+void Psyz_GteStsxy3Gt3(void* polyGte) {
+    POLY_GT3* poly = (POLY_GT3*)polyGte;
+    poly->x0 = SX0;
+    poly->y0 = SY0;
+    poly->x1 = SX1;
+    poly->y1 = SY1;
+    poly->x2 = SX2;
+    poly->y2 = SY2;
+}
+
 void Psyz_GteAvsz3(void) { AVSZ3(); }
 void Psyz_GteDpcs(void) { DPCS(0x0780010); }
 void Psyz_GteLcir(void) { MVMVA(0x04DE012); }
@@ -1039,6 +1055,27 @@ void Psyz_GteLdv3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2) {
     V2.vx = v2->vx;
     V2.vy = v2->vy;
     V2.vz = v2->vz;
+}
+
+void Psyz_GteLdv01c(SVECTOR* v) {
+    V0.vx = v[0].vx;
+    V0.vy = v[0].vy;
+    V0.vz = v[0].vz;
+    V1.vx = v[1].vx;
+    V1.vy = v[1].vy;
+    V1.vz = v[1].vz;
+}
+
+void Psyz_GteLdv3c(SVECTOR* v) {
+    V0.vx = v[0].vx;
+    V0.vy = v[0].vy;
+    V0.vz = v[0].vz;
+    V1.vx = v[1].vx;
+    V1.vy = v[1].vy;
+    V1.vz = v[1].vz;
+    V2.vx = v[2].vx;
+    V2.vy = v[2].vy;
+    V2.vz = v[2].vz;
 }
 
 void Psyz_GteStszotz(unsigned int* out) {
