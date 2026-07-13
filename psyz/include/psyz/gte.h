@@ -89,8 +89,12 @@ void Psyz_GteRtpt(void);
 void Psyz_GteNclip(void);
 void Psyz_GteLdv0(SVECTOR* v);
 void Psyz_GteLdv3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2);
+void Psyz_GteLdv01c(SVECTOR* v);
+void Psyz_GteLdv3c(SVECTOR* v);
 void Psyz_GteStsxy(unsigned int* out);
 void Psyz_GteStsxy3(unsigned int* out0, unsigned int* out1, unsigned int* out2);
+void Psyz_GteStsxy01c(unsigned int* out);
+void Psyz_GteStsxy3Gt3(void* polyGt3);
 void Psyz_GteStszotz(unsigned int* out);
 void Psyz_GteStopz(int* out);
 
