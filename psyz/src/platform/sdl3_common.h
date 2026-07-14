@@ -37,6 +37,7 @@ static bool is_platform_initialized = false;
 static bool is_platform_init_successful = false;
 static bool quit_requested = false;
 static bool debug_show_vram = false;
+static bool is_fullscreen = false;
 
 // defaults to better support integer scaling
 #define DEFAULT_FRONT_W 1280
@@ -634,6 +635,47 @@ void MyPadPoll(void) {
     }
 }
 
+// Prefers exclusive fullscreen mode, fallback on borderless fullscreen
+static void SetFullScreen(bool isFullscreen) {
+    if (!sdl3_window) {
+        return;
+    }
+    if (is_fullscreen == isFullscreen) {
+        return;
+    }
+    is_fullscreen = isFullscreen;
+    if (is_fullscreen) {
+        SDL_DisplayID display_id = SDL_GetDisplayForWindow(sdl3_window);
+        if (!display_id) {
+            display_id = SDL_GetPrimaryDisplay();
+        }
+        SDL_DisplayMode* mode = NULL;
+        SDL_DisplayMode closest;
+        const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(display_id);
+        if (desktop) {
+            if (SDL_GetClosestFullscreenDisplayMode(
+                    display_id, desktop->w, desktop->h, desktop->refresh_rate,
+                    false, &closest)) {
+                mode = &closest;
+            }
+        }
+        SDL_SetWindowFullscreenMode(sdl3_window, mode);
+        if (!SDL_SetWindowFullscreen(sdl3_window, true)) {
+            WARNF("failed to enter fullscreen: %s", SDL_GetError());
+            is_fullscreen = false;
+            return;
+        }
+        INFOF(
+            "entered %s fullscreen", mode ? "exclusive" : "borderless desktop");
+    } else {
+        SDL_SetWindowFullscreen(sdl3_window, false);
+        INFOF("returned to windowed mode");
+    }
+    SDL_SyncWindow(sdl3_window);
+    SDL_GetWindowSizeInPixels(
+        sdl3_window, &wnd_size_in_pixels.w, &wnd_size_in_pixels.h);
+}
+
 static void PollEvents(void) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -663,6 +705,9 @@ static void PollEvents(void) {
             }
             if (event.key.scancode == SDL_SCANCODE_F6) {
                 debug_show_vram ^= 1;
+            }
+            if (event.key.scancode == SDL_SCANCODE_F4 && !event.key.repeat) {
+                SetFullScreen(!is_fullscreen);
             }
             break;
         default:
