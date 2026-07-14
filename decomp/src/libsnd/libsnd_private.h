@@ -232,13 +232,13 @@ extern u8 spuVmMaxVoice;
 extern short _svm_stereo_mono;
 extern u32 VBLANK_MINUS;
 extern _SsFCALL SsFCALL;
-extern void (*_autovol)(int voice);
-extern void (*_autopan)(int voice);
+extern void (*_autovol)(short voice);
+extern void (*_autopan)(short voice);
 extern SPU_VOICE_REG _svm_sreg_buf[NUM_VOICES];
 extern char _svm_sreg_dirty[NUM_VOICES];
 
 void SetAutoPan(short voice);
-void SetAutoVol(int voice);
+void SetAutoVol(short voice);
 void SeAutoPan(short, short, short, short);
 void SeAutoVol(short, short, short, short);
 void Snd_SetPlayMode(s16, s16, u8, s16);

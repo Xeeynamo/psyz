@@ -13,8 +13,8 @@ struct SpuVoice _svm_voice[NUM_VOICES];
 unsigned int _svm_envx_ptr;
 static int _dummy;
 int _svm_envx_hist[16];
-void (*_autovol)(int voice);
-void (*_autopan)(int voice);
+void (*_autovol)(short voice);
+void (*_autopan)(short voice);
 
 extern unsigned char _svm_auto_kof_mode;
 
