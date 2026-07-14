@@ -96,8 +96,10 @@ struct SeqStruct {
     /* 0xA8 */ s32 unkA8;
     /* 0xAC */ s32 unkAC;
 };
+#ifdef __psyz
 STATIC_ASSERT(
     sizeof(struct SeqStruct) == SS_SEQ_TABSIZ, "SS_SEQ_TABSIZ unaligned");
+#endif
 
 struct SndSeqTickEnv {
     /* 0x00 */ s32 tick_mode;
@@ -235,8 +237,8 @@ extern void (*_autopan)(int voice);
 extern SPU_VOICE_REG _svm_sreg_buf[NUM_VOICES];
 extern char _svm_sreg_dirty[NUM_VOICES];
 
-void SetAutoPan(int voices);
-void SetAutoVol(int voices);
+void SetAutoPan(short voice);
+void SetAutoVol(int voice);
 void SeAutoPan(short, short, short, short);
 void SeAutoVol(short, short, short, short);
 void Snd_SetPlayMode(s16, s16, u8, s16);
