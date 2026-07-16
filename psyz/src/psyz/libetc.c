@@ -47,8 +47,12 @@ unsigned int PadRead(int id) {
 
 void PadStop(void) { NOT_IMPLEMENTED; }
 
-int MyVSyncCallback(void (*f)());
-int VSyncCallback(void (*f)()) { return MyVSyncCallback(f); }
+void (*g_VsyncCallback)() = NULL;
+
+int VSyncCallback(void (*f)()) {
+    NOT_IMPLEMENTED;
+    return 0;
+}
 
 int VSyncCallbacks(int ch, void (*f)()) { NOT_IMPLEMENTED; }
 

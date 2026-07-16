@@ -19,7 +19,6 @@ option(GTE_USE_HW_SQRT "Use hardware-accelerated sqrt (C math library)" OFF)
 
 set(PSYZ_SOURCES
     src/platform/sdl3_log.c
-    src/platform/common.c
     src/platform/psyz.c
     src/psyz/dma.c
     src/psyz/libapi.c

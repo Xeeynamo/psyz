@@ -9,11 +9,6 @@
 #undef _get_errno // Windows: avoid conflicts
 #undef undelete   // macOS: avoid conflicts
 
-int MyVSync(int mode);
-int VSync(int mode) { return MyVSync(mode); }
-
-void MyPadPoll(void); // implemented by the platform layer
-
 typedef struct {
     char frame[PSYZ_PAD_BUF_LEN];   // last frame published by the platform
     PsyzControllerKind channels[4]; // only channel 0 until multitap lands
@@ -39,6 +34,39 @@ static ControllerPort ports[2] = {
 static int pads_sampled = 0; // avoid more than one input polling per frame
 static char* pad_buffers[2];
 static int pad_buffer_lens[2];
+static void ReadPadsOnVsync(void) {
+    pads_sampled = 0;
+    for (int p = 0; p < LEN(ports); p++) {
+        if (pad_buffers[p]) {
+            Psyz_PadsGet(p, pad_buffers[p], pad_buffer_lens[p]);
+        }
+    }
+}
+
+static PsyzVSyncCb g_PsyzVsyncCb = NULL;
+void Psyz_SetVSyncCb(PsyzVSyncCb cb) { g_PsyzVsyncCb = cb; }
+
+extern void (*g_VsyncCallback)();
+int Psyz_VideoVSync(int mode);
+int VSync(int mode) {
+    // TODO the implementation is most likely incorrect
+    int elapsed = (unsigned short)Psyz_VideoVSync(mode);
+    if (mode < 0) {
+        // TODO return vsync, not elapsed
+        return elapsed;
+    }
+    if (mode == 1) {
+        return elapsed;
+    }
+    ReadPadsOnVsync(); // this is done on vsync by the BIOS
+    if (g_PsyzVsyncCb) {
+        g_PsyzVsyncCb();
+    }
+    if (g_VsyncCallback) {
+        g_VsyncCallback();
+    }
+    return elapsed;
+}
 
 PsyzControllerKind Psyz_PadsSetKind(
     int port, int channel, PsyzControllerKind kind) {
@@ -67,27 +95,19 @@ void Psyz_PadsSet(int port, const char* src, int len) {
     pads_sampled = 1;
 }
 
+void Psyz_PadsPoll(void); // implemented by the platform layer
 void Psyz_PadsGet(int port, char* dst, int len) {
     if (port < 0 || port >= LEN(ports) || !dst || len <= 0) {
         return;
     }
     if (!pads_sampled) {
         pads_sampled = 1;
-        MyPadPoll();
+        Psyz_PadsPoll();
     }
     if (len > PSYZ_PAD_BUF_LEN) {
         len = PSYZ_PAD_BUF_LEN;
     }
     memcpy(dst, ports[port].frame, len);
-}
-
-void Psyz_PadsOnVSync(void) {
-    pads_sampled = 0;
-    for (int p = 0; p < LEN(ports); p++) {
-        if (pad_buffers[p]) {
-            Psyz_PadsGet(p, pad_buffers[p], pad_buffer_lens[p]);
-        }
-    }
 }
 
 int InitPAD(char* bufA, int lenA, char* bufB, int lenB) {
