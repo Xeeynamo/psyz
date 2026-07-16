@@ -7,13 +7,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/strip_file_prefix.cmake)
 
+set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+set(SDL_STATIC ON CACHE BOOL "" FORCE)
+set(SDL_TEST OFF CACHE BOOL "" FORCE)
 add_subdirectory(
         ${CMAKE_CURRENT_SOURCE_DIR}/../external/SDL
         ${CMAKE_CURRENT_BINARY_DIR}/sdl
         EXCLUDE_FROM_ALL)
-set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-set(SDL_STATIC ON CACHE BOOL "" FORCE)
-set(SDL_TEST OFF CACHE BOOL "" FORCE)
 
 option(GTE_USE_HW_SQRT "Use hardware-accelerated sqrt (C math library)" OFF)
 
