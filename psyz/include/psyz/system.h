@@ -95,6 +95,22 @@ void Psyz_AdjustPathCB(int (*callback)(char* dst, const char* src, int maxlen));
  */
 char* Psyz_JoinPath(char* left, const char* right, int maxlen);
 
+/**
+ * @brief Callback fired once per emulated vsync.
+ */
+typedef void (*PsyzVSyncCb)(void);
+
+/**
+ * @brief Register a callback fired once per libapi VSync.
+ *
+ * Used to set custom VSync callbacks that do not replace the existing
+ * VSyncCallback set by the game. The registered callback will be executed
+ * right before the callback set with VSyncCallback.
+ *
+ * @param cb Callback to register, or NULL to unregister
+ */
+void Psyz_SetVSyncCb(PsyzVSyncCb cb);
+
 #ifdef __cplusplus
 }
 #endif

@@ -630,7 +630,7 @@ static void BuildPadFrame(int port, PsyzControllerKind kind, char* buf) {
     }
 }
 
-void MyPadPoll(void) {
+void Psyz_PadsPoll(void) {
     char frame[PSYZ_PAD_BUF_LEN];
 
     PollEvents();
