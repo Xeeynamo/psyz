@@ -1095,6 +1095,20 @@ long NormalClip(long sxy0, long sxy1, long sxy2) {
     return MAC0;
 }
 
+void NormalColorCol(SVECTOR* v0, CVECTOR* v1, CVECTOR* v2) {
+    Psyz_GteLdv0(v0);
+    Psyz_GteLdRgb(v1);
+    NCCS(0x1B04084B);
+    Psyz_GteStRgb(v2);
+}
+
+void DpqColor(CVECTOR* v0, long p, CVECTOR* v1) {
+    Psyz_GteLdRgb(v0);
+    IR0 = (short)p;
+    DPCS(0x1000784A);
+    Psyz_GteStRgb(v1);
+}
+
 void RotTrans(SVECTOR* v0, VECTOR* v1, int* flag) { NOT_IMPLEMENTED; }
 
 long RotTransPers(SVECTOR* v0, int* sxy, int* p, int* flag) {
