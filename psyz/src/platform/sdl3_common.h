@@ -225,6 +225,12 @@ static void ConfigureVSync(double target_fps) {
         INFOF("vsync forced OFF (frame limiter)");
         return;
     }
+    if (vsync_mode == PSYZ_VSYNC_LIMITLESS) {
+        PlatformBackend_SetDriverVsync(false);
+        use_driver_vsync = false;
+        INFOF("vsync forced OFF, internal frame limiter disabled");
+        return;
+    }
 
     SDL_DisplayID display_id = SDL_GetPrimaryDisplay();
     const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(display_id);
@@ -271,7 +277,7 @@ static void WaitForNextFrame(void) {
     Uint64 current_time = SDL_GetPerformanceCounter();
     double elapsed_us = GetElapsedMicroseconds(last_frame_time, current_time);
 
-    if (!use_driver_vsync) {
+    if (!use_driver_vsync && vsync_mode != PSYZ_VSYNC_LIMITLESS) {
         double time_to_wait_us =
             target_frame_time_us - elapsed_us + drift_compensation;
 
@@ -338,7 +344,7 @@ int Psyz_VideoVSync(int mode) {
 }
 
 int Psyz_VideoSetVsyncMode(PsyzVsyncMode mode) {
-    if (mode < 0 || mode > 2) {
+    if (mode < 0 || mode > 3) {
         return -1;
     }
     vsync_mode = mode;

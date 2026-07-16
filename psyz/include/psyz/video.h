@@ -52,6 +52,15 @@ typedef enum {
      * Cons: May have minor frame pacing variance on non-VRR displays
      */
     PSYZ_VSYNC_OFF,
+
+    /**
+     * Disable both driver VSync and the internal frame limiter.
+     * Most games will be unplayable with this option, but it's useful for:
+     *   - Adapting game on variable framerate using a deltaTime.
+     *   - Reproduce gameplay with simulatd input on CI at high speed.
+     *   - Measure frame time end-to-end and if game is CPU or GPU bound.
+     */
+    PSYZ_VSYNC_LIMITLESS,
 } PsyzVsyncMode;
 
 typedef enum {
