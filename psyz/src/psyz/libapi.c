@@ -64,6 +64,7 @@ void Psyz_PadsSet(int port, const char* src, int len) {
         len = PSYZ_PAD_BUF_LEN;
     }
     memcpy(ports[port].frame, src, len);
+    pads_sampled = 1;
 }
 
 void Psyz_PadsGet(int port, char* dst, int len) {
