@@ -1111,6 +1111,21 @@ void DpqColor(CVECTOR* v0, long p, CVECTOR* v1) {
 
 void RotTrans(SVECTOR* v0, VECTOR* v1, int* flag) { NOT_IMPLEMENTED; }
 
+void ApplyMatrix(MATRIX* m, SVECTOR* v0, VECTOR* v1) {
+    // TODO unoptimized for 32-bit targets
+    v1->vx = ((long long)m->m[0][0] * v0->vx + (long long)m->m[0][1] * v0->vy +
+              (long long)m->m[0][2] * v0->vz) >>
+             12;
+    v1->vy = ((long long)m->m[1][0] * v0->vx + (long long)m->m[1][1] * v0->vy +
+              (long long)m->m[1][2] * v0->vz) >>
+             12;
+    v1->vz = ((long long)m->m[2][0] * v0->vx + (long long)m->m[2][1] * v0->vy +
+              (long long)m->m[2][2] * v0->vz) >>
+             12;
+}
+
+void ApplyRotMatrix(SVECTOR* v0, VECTOR* v1) { ApplyMatrix(&M, v0, v1); }
+
 long RotTransPers(SVECTOR* v0, int* sxy, int* p, int* flag) {
     V0 = *v0;
     RTPS(0x080001);
