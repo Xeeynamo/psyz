@@ -55,6 +55,7 @@ static short ZSF4;         // cop2 30 average Z scale factor
 static unsigned int FLAG;  // cop2 31
 
 static unsigned int pack_xy(short x, short y);
+static void MVMVA(unsigned int cmd25);
 
 // FLAG register bits
 #define FLAG_MAC1_OVF_POS (1u << 30) // MAC1 overflow > +(1<<43)-1
@@ -249,22 +250,91 @@ MATRIX* RotMatrix(SVECTOR* r, MATRIX* m) {
 }
 
 MATRIX* RotMatrixY(long r, MATRIX* m) {
-    NOT_IMPLEMENTED;
+    int c = rcos((int)r);
+    int s = rsin((int)r);
+    int a0 = m->m[0][0], a1 = m->m[0][1], a2 = m->m[0][2];
+    int b0 = m->m[2][0], b1 = m->m[2][1], b2 = m->m[2][2];
+
+    m->m[0][0] = (short)((c * a0 + s * b0) >> 12);
+    m->m[0][1] = (short)((c * a1 + s * b1) >> 12);
+    m->m[0][2] = (short)((c * a2 + s * b2) >> 12);
+    m->m[2][0] = (short)((c * b0 - s * a0) >> 12);
+    m->m[2][1] = (short)((c * b1 - s * a1) >> 12);
+    m->m[2][2] = (short)((c * b2 - s * a2) >> 12);
     return m;
 }
 
 MATRIX* RotMatrixX(long r, MATRIX* m) {
-    NOT_IMPLEMENTED;
+    int c = rcos((int)r);
+    int s = rsin((int)r);
+    int a0 = m->m[1][0], a1 = m->m[1][1], a2 = m->m[1][2];
+    int b0 = m->m[2][0], b1 = m->m[2][1], b2 = m->m[2][2];
+
+    m->m[1][0] = (short)((c * a0 - s * b0) >> 12);
+    m->m[1][1] = (short)((c * a1 - s * b1) >> 12);
+    m->m[1][2] = (short)((c * a2 - s * b2) >> 12);
+    m->m[2][0] = (short)((s * a0 + c * b0) >> 12);
+    m->m[2][1] = (short)((s * a1 + c * b1) >> 12);
+    m->m[2][2] = (short)((s * a2 + c * b2) >> 12);
     return m;
 }
 
 MATRIX* RotMatrixZ(long r, MATRIX* m) {
-    NOT_IMPLEMENTED;
+    int c = rcos((int)r);
+    int s = rsin((int)r);
+    int a0 = m->m[0][0], a1 = m->m[0][1], a2 = m->m[0][2];
+    int b0 = m->m[1][0], b1 = m->m[1][1], b2 = m->m[1][2];
+
+    m->m[0][0] = (short)((c * a0 - s * b0) >> 12);
+    m->m[0][1] = (short)((c * a1 - s * b1) >> 12);
+    m->m[0][2] = (short)((c * a2 - s * b2) >> 12);
+    m->m[1][0] = (short)((s * a0 + c * b0) >> 12);
+    m->m[1][1] = (short)((s * a1 + c * b1) >> 12);
+    m->m[1][2] = (short)((s * a2 + c * b2) >> 12);
     return m;
 }
 
 MATRIX* RotMatrixYXZ(SVECTOR* r, MATRIX* m) {
-    NOT_IMPLEMENTED;
+#ifdef PLATFORM_64BIT
+    // 64-bit version, accurate with PS1 implementation
+    long long cx = rcos(r->vx);
+    long long sx = rsin(r->vx);
+    long long cy = rcos(r->vy);
+    long long sy = rsin(r->vy);
+    long long cz = rcos(r->vz);
+    long long sz = rsin(r->vz);
+
+    m->m[0][0] = (short)(((cy * cz << 12) + sy * sx * sz) >> 24);
+    m->m[0][1] = (short)(((-cy * sz << 12) + sy * sx * cz) >> 24);
+    m->m[0][2] = (short)((sy * cx) >> 12);
+    m->m[1][0] = (short)((cx * sz) >> 12);
+    m->m[1][1] = (short)((cx * cz) >> 12);
+    m->m[1][2] = (short)(-sx);
+    m->m[2][0] = (short)(((-sy * cz << 12) + cy * sx * sz) >> 24);
+    m->m[2][1] = (short)(((sy * sz << 12) + cy * sx * cz) >> 24);
+    m->m[2][2] = (short)((cy * cx) >> 12);
+#else
+    // 32-bit version, less accurate but much faster on non-64bit CPUs
+    int cx = rcos(r->vx);
+    int sx = rsin(r->vx);
+    int cy = rcos(r->vy);
+    int sy = rsin(r->vy);
+    int cz = rcos(r->vz);
+    int sz = rsin(r->vz);
+
+    m->m[0][0] = (short)((cy * cz + (((sy * sx) >> 12) * sz)) >> 12);
+    m->m[0][1] = (short)((-cy * sz + (((sy * sx) >> 12) * cz)) >> 12);
+    m->m[0][2] = (short)((sy * cx) >> 12);
+    m->m[1][0] = (short)((cx * sz) >> 12);
+    m->m[1][1] = (short)((cx * cz) >> 12);
+    m->m[1][2] = (short)(-sx);
+    m->m[2][0] = (short)((-sy * cz + (((cy * sx) >> 12) * sz)) >> 12);
+    m->m[2][1] = (short)((sy * sz + (((cy * sx) >> 12) * cz)) >> 12);
+    m->m[2][2] = (short)((cy * cx) >> 12);
+#endif
+    m->t[0] = 0;
+    m->t[1] = 0;
+    m->t[2] = 0;
     return m;
 }
 
@@ -276,12 +346,42 @@ MATRIX* TransMatrix(MATRIX* m, VECTOR* v) {
 }
 
 MATRIX* ScaleMatrix(MATRIX* m, VECTOR* v) {
-    NOT_IMPLEMENTED;
+    int sx = v->vx, sy = v->vy, sz = v->vz;
+    int i;
+    for (i = 0; i < 3; i++) {
+        m->m[i][0] = (short)(((int)m->m[i][0] * sx) >> 12);
+        m->m[i][1] = (short)(((int)m->m[i][1] * sy) >> 12);
+        m->m[i][2] = (short)(((int)m->m[i][2] * sz) >> 12);
+    }
     return m;
 }
 
 MATRIX* MulMatrix(MATRIX* m0, MATRIX* m1) {
-    NOT_IMPLEMENTED;
+    MATRIX saved = M;
+    MATRIX r;
+    int j;
+
+    M = *m0;
+    for (j = 0; j < 3; j++) {
+        V0.vx = m1->m[0][j];
+        V0.vy = m1->m[1][j];
+        V0.vz = m1->m[2][j];
+        MVMVA(0x0086012); // sf=1, mx=0 (RT), v=0 (V0), cv=3 (none), lm=0
+        r.m[0][j] = IR1;
+        r.m[1][j] = IR2;
+        r.m[2][j] = IR3;
+    }
+    M = saved;
+
+    m0->m[0][0] = r.m[0][0];
+    m0->m[0][1] = r.m[0][1];
+    m0->m[0][2] = r.m[0][2];
+    m0->m[1][0] = r.m[1][0];
+    m0->m[1][1] = r.m[1][1];
+    m0->m[1][2] = r.m[1][2];
+    m0->m[2][0] = r.m[2][0];
+    m0->m[2][1] = r.m[2][1];
+    m0->m[2][2] = r.m[2][2];
     return m0;
 }
 
@@ -1109,7 +1209,14 @@ void DpqColor(CVECTOR* v0, long p, CVECTOR* v1) {
     Psyz_GteStRgb(v1);
 }
 
-void RotTrans(SVECTOR* v0, VECTOR* v1, int* flag) { NOT_IMPLEMENTED; }
+void RotTrans(SVECTOR* v0, VECTOR* v1, int* flag) {
+    V0 = *v0;
+    MVMVA(0x0080012); // sf=1, mx=0 (RT), v=0 (V0), cv=0 (TR), lm=0
+    v1->vx = MAC1;
+    v1->vy = MAC2;
+    v1->vz = MAC3;
+    *flag = (int)FLAG;
+}
 
 void ApplyMatrix(MATRIX* m, SVECTOR* v0, VECTOR* v1) {
     // TODO unoptimized for 32-bit targets
