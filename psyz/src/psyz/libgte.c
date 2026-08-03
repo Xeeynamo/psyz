@@ -30,6 +30,12 @@ static short SX0, SY0;     // cop1 12
 static short SX1, SY1;     // cop1 13
 static short SX2, SY2;     // cop1 14
 static short SXP, SYP;     // cop1 15
+// Packs a screen XY register pair the way the GTE data registers hold it.
+// Both halves must be masked: SX/SY are signed, so promoting a negative SX to
+// int would sign-extend over the whole upper half and clobber SY.
+#define SXY(sx, sy)                                                            \
+    (((unsigned int)(unsigned short)(sx)) |                                    \
+     (((unsigned int)(unsigned short)(sy)) << 16))
 static unsigned short SZ0; // cop1 16 screen Z-coordinate FIFO
 static unsigned short SZ1; // cop1 17 screen Z-coordinate FIFO
 static unsigned short SZ2; // cop1 18 screen Z-coordinate FIFO
@@ -241,10 +247,6 @@ MATRIX* RotMatrix(SVECTOR* r, MATRIX* m) {
     m->m[2][1] = (short)((((cx * sy) >> 12) * sz + (sx * cz)) >> 12);
     m->m[2][2] = (short)((cx * cy) >> 12);
 #endif
-
-    m->t[0] = 0;
-    m->t[1] = 0;
-    m->t[2] = 0;
 
     return m;
 }
@@ -1236,7 +1238,7 @@ void ApplyRotMatrix(SVECTOR* v0, VECTOR* v1) { ApplyMatrix(&M, v0, v1); }
 long RotTransPers(SVECTOR* v0, int* sxy, int* p, int* flag) {
     V0 = *v0;
     RTPS(0x080001);
-    *(unsigned int*)sxy = SX2 | (SY2 << 16);
+    *(unsigned int*)sxy = SXY(SX2, SY2);
     *p = IR0;
     *flag = (int)FLAG;
     return SZ3 >> 2;
@@ -1248,9 +1250,9 @@ long RotTransPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0, int* sxy1,
     V1 = *v1;
     V2 = *v2;
     RTPT(0x080030);
-    *(unsigned int*)sxy0 = SX0 | (SY0 << 16);
-    *(unsigned int*)sxy1 = SX1 | (SY1 << 16);
-    *(unsigned int*)sxy2 = SX2 | (SY2 << 16);
+    *(unsigned int*)sxy0 = SXY(SX0, SY0);
+    *(unsigned int*)sxy1 = SXY(SX1, SY1);
+    *(unsigned int*)sxy2 = SXY(SX2, SY2);
     *p = IR0;
     *flag = (int)FLAG;
     return SZ3 >> 2;
@@ -1272,9 +1274,9 @@ long RotAverage3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0, int* sxy1,
     V1 = *v1;
     V2 = *v2;
     RTPT(0x080030);
-    *(unsigned int*)sxy0 = SX0 | (SY0 << 16);
-    *(unsigned int*)sxy1 = SX1 | (SY1 << 16);
-    *(unsigned int*)sxy2 = SX2 | (SY2 << 16);
+    *(unsigned int*)sxy0 = SXY(SX0, SY0);
+    *(unsigned int*)sxy1 = SXY(SX1, SY1);
+    *(unsigned int*)sxy2 = SXY(SX2, SY2);
     *flag = (int)FLAG;
     *p = IR0;
     AVSZ3();
@@ -1287,13 +1289,13 @@ long RotAverage4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, int* sxy0,
     V1 = *v1;
     V2 = *v2;
     RTPT(0x080030);
-    *(unsigned int*)sxy0 = SX0 | (SY0 << 16);
-    *(unsigned int*)sxy1 = SX1 | (SY1 << 16);
-    *(unsigned int*)sxy2 = SX2 | (SY2 << 16);
+    *(unsigned int*)sxy0 = SXY(SX0, SY0);
+    *(unsigned int*)sxy1 = SXY(SX1, SY1);
+    *(unsigned int*)sxy2 = SXY(SX2, SY2);
     int flag1 = (int)FLAG;
     V0 = *v3;
     RTPS(0x080001);
-    *(unsigned int*)sxy3 = SX2 | (SY2 << 16);
+    *(unsigned int*)sxy3 = SXY(SX2, SY2);
     *p = IR0;
     *flag = flag1 | (int)FLAG;
     AVSZ4();
@@ -1309,9 +1311,9 @@ long RotAverageNclip3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0,
     *flag = (int)FLAG;
     NCLIP();
     if (MAC0 > 0) {
-        *(unsigned int*)sxy0 = SX0 | (SY0 << 16);
-        *(unsigned int*)sxy1 = SX1 | (SY1 << 16);
-        *(unsigned int*)sxy2 = SX2 | (SY2 << 16);
+        *(unsigned int*)sxy0 = SXY(SX0, SY0);
+        *(unsigned int*)sxy1 = SXY(SX1, SY1);
+        *(unsigned int*)sxy2 = SXY(SX2, SY2);
         *p = IR0;
         AVSZ3();
         *otz = OTZ;
@@ -1330,12 +1332,12 @@ long RotAverageNclip4(
     *flag = flag1;
     NCLIP();
     if (MAC0 > 0) {
-        *(unsigned int*)sxy0 = SX0 | (SY0 << 16);
-        *(unsigned int*)sxy1 = SX1 | (SY1 << 16);
-        *(unsigned int*)sxy2 = SX2 | (SY2 << 16);
+        *(unsigned int*)sxy0 = SXY(SX0, SY0);
+        *(unsigned int*)sxy1 = SXY(SX1, SY1);
+        *(unsigned int*)sxy2 = SXY(SX2, SY2);
         V0 = *v3;
         RTPS(0x080001);
-        *(unsigned int*)sxy3 = SX2 | (SY2 << 16);
+        *(unsigned int*)sxy3 = SXY(SX2, SY2);
         *p = IR0;
         *flag = flag1 | (int)FLAG;
         AVSZ4();
