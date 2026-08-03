@@ -54,6 +54,7 @@ static const char vertex_shader_body[] = {
     "flat out uint texelShift;\n"   // Right shift for texel X
     "flat out uint indexShift;\n"   // Shift for index extraction
     "flat out uint indexMask;\n"    // Mask for color index
+    "flat out uint dither;\n"       // 1 when this primitive dithers
     "\n"
     "void main() {\n"
     "    float x = ((pos.x + drawOffset.x) / (1024.0 / 2.0)) - 1.0;\n"
@@ -65,6 +66,7 @@ static const char vertex_shader_body[] = {
     "    clut = uint(tex.z);\n"
     "    uint texWord = uint(tex.w);\n"
     "    tpage = texWord & 0x1FFu;\n"
+    "    dither = (texWord & 0x4000u) != 0u ? 1u : 0u;\n"
     "    texCoord = vec2(tex.x / 4096.0, tex.y / 512.0);\n"
     // Determine texture mode and pre-compute parameters
     "    if ((texWord & 0x8000u) != 0u) {\n"
@@ -109,6 +111,7 @@ static const char fragment_shader_body[] = {
     "flat in uint texelShift;\n"
     "flat in uint indexShift;\n"
     "flat in uint indexMask;\n"
+    "flat in uint dither;\n"
     "uniform sampler2D texVram;\n"
     "\n"
     "uint rgb5551ToU16(vec4 c) {\n"
@@ -118,14 +121,13 @@ static const char fragment_shader_body[] = {
     "    uint a = uint(c.a + 0.5);\n"
     "    return r | (g << 5u) | (b << 10u) | (a << 15u);\n"
     "}\n"
-    "uniform int dither;\n"
     "const mat4 ditherMatrix = mat4("
     "    -4.0, +0.0, -3.0, +1.0,"
     "    +2.0, -2.0, +3.0, -1.0,"
     "    -3.0, +1.0, -4.0, +0.0,"
     "    +3.0, -1.0, +2.0, -2.0);\n"
     "vec3 applyDither(vec3 c) {\n"
-    "    if (dither == 0) return c;\n"
+    "    if (dither == 0u) return c;\n"
     "    int dx = int(gl_FragCoord.x) & 3;\n"
     "    int dy = int(gl_FragCoord.y) & 3;\n"
     "    float off = ditherMatrix[dy][dx];\n"
@@ -209,7 +211,6 @@ static GLuint shader_program = 0;
 static GLint uniform_resolution = 0;
 static GLint uniform_tex_vram = 0;
 static GLint uniform_draw_offset = 0;
-static GLint uniform_dither = 0;
 static GLuint vram_texture;
 static GLuint vram_fbo = 0;
 static GLuint scratch_texture = 0;
@@ -380,11 +381,9 @@ bool InitPlatform() {
     uniform_resolution = glGetUniformLocation(shader_program, "resolution");
     uniform_tex_vram = glGetUniformLocation(shader_program, "texVram");
     uniform_draw_offset = glGetUniformLocation(shader_program, "drawOffset");
-    uniform_dither = glGetUniformLocation(shader_program, "dither");
 
     glUniform1i(uniform_tex_vram, 0);
     glUniform2f(uniform_draw_offset, 0, 0);
-    glUniform1i(uniform_dither, 0);
     glGenTextures(1, &vram_texture);
 
     glActiveTexture(GL_TEXTURE0);
@@ -950,6 +949,9 @@ int Draw_PushPrim(u_long* packets, int max_len) {
                 clut = -1;
                 tpage = cur_tpage | TPAGE_NOTEXTURE;
             }
+            if (isGouraud && GetCurrentDither()) {
+                tpage |= TPAGE_DITHER;
+            }
             if (!isGouraud || !isShadeTex) {
                 VRGBA(vertex_cur[1]) = VRGBA(vertex_cur[2]) =
                     VRGBA(vertex_cur[3]) = VRGBA(vertex_cur[0]);
@@ -1056,9 +1058,13 @@ int Draw_PushPrim(u_long* packets, int max_len) {
                 q[2].g = cg[s + 1];
                 q[2].b = cb[s + 1];
                 q[2].a = ca[s + 1];
+                u16 lt = cur_tpage | TPAGE_NOTEXTURE;
+                if (isGouraud && GetCurrentDither()) {
+                    lt |= TPAGE_DITHER;
+                }
                 for (int k = 0; k < 4; k++) {
                     q[k].c = -1;
-                    q[k].t = cur_tpage | TPAGE_NOTEXTURE;
+                    q[k].t = lt;
                 }
                 index_cur[0] = base + 0;
                 index_cur[1] = base + 1;
@@ -1329,7 +1335,6 @@ void Draw_FlushBuffer(void) {
         Draw_InitBuffer();
     }
     glUseProgram(shader_program);
-    glUniform1i(uniform_dither, GetCurrentDither());
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferSubData(

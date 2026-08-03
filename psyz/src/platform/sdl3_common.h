@@ -367,15 +367,8 @@ static int GetCurrentDither(void) {
     }
     return s_dither;
 }
-static void SetDither(int dither) {
-    if (dither == s_dither) {
-        return;
-    }
-    if (GetCurrentDither() != (dither_mode == PSYZ_DITHER_OFF ? 0 : dither)) {
-        Draw_FlushBuffer();
-    }
-    s_dither = dither;
-}
+
+static void SetDither(int dither) { s_dither = dither; }
 int Psyz_VideoSetDitheringMode(PsyzDitherMode mode) {
     if (mode != PSYZ_DITHER_AUTO && mode != PSYZ_DITHER_OFF) {
         return -1;
@@ -738,7 +731,10 @@ typedef struct {
     unsigned char r, g, b, a;
 } Vertex;
 
-#define TPAGE_NOTEXTURE 0x8000 // reuse reserved bit to flag untextured poly
+// ===== SDL3 reserved TPAGE flags, invalid on real hardware =====
+#define TPAGE_NOTEXTURE 0x8000 // flag untextured poly
+#define TPAGE_DITHER 0x4000    // flag a dithered primitive
+
 #define VRGBA(p) (*(unsigned int*)(&((p).r)))
 #define SET_TC(p, tpage, clut) (p)->t = (u16)(tpage), (p)->c = (u16)(clut);
 #define SET_TC_ALL(p, t, c)                                                    \
