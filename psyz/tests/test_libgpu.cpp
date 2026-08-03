@@ -454,8 +454,36 @@ TEST_F(gpu_Test, drawenv_clear_vram) {
     AssertFrame("drawenv_clear_vram");
 }
 
-// N.B. this test fails on pcsx-redux, I tested output accuracy with Duckstation
-TEST_F(gpu_Test, moveimage) {
+TEST_F(gpu_Test, move_image) {
+    u_short tpage, clut;
+    if (LoadTim(img_4bpp, &tpage, &clut)) {
+        return;
+    }
+
+    SetPolyFT4(&cdb->ft4[0]);
+    setXYWH(&cdb->ft4[0], 16, 16, 64, 64);
+    setRGB0(&cdb->ft4[0], 128, 128, 128);
+    setUVWH(&cdb->ft4[0], 0, 0, 64, 64);
+    setSemiTrans(&cdb->ft4[0], 0);
+    cdb->ft4[0].tpage = tpage;
+    cdb->ft4[0].clut = clut;
+
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &db[0].ft4[0]);
+
+    ClearImage(&cdb->draw.clip, 60, 120, 120);
+    DrawOTag(cdb->ot);
+
+    RECT rect = {16, 16, 64, 64};
+    MoveImage(&rect, 144, 144);
+    DrawSync(0);
+
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+    AssertFrame("move_image");
+}
+
+TEST_F(gpu_Test, move_image_overlap) {
     u_short tpage, clut;
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
@@ -483,10 +511,10 @@ TEST_F(gpu_Test, moveimage) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("moveimage");
+    AssertFrame("move_image_overlap");
 }
 
-TEST_F(gpu_Test, moveimage_internal_res) {
+TEST_F(gpu_Test, move_image_internal_res) {
     ASSERT_EQ(Psyz_VideoSetInternalResolution(0), -1);
     ASSERT_EQ(Psyz_VideoSetInternalResolution(2), 0);
     ASSERT_EQ(Psyz_VideoGetInternalResolution(), 2);
@@ -496,12 +524,6 @@ TEST_F(gpu_Test, moveimage_internal_res) {
         return;
     }
 
-    RECT rect = {960, 0, 16, 64};
-    MoveImage(&rect, 962, 8);
-    rect.x = 962;
-    rect.y = 8;
-    MoveImage(&rect, 960, 0);
-
     SetPolyFT4(&cdb->ft4[0]);
     setXYWH(&cdb->ft4[0], 16, 16, 64, 64);
     setRGB0(&cdb->ft4[0], 128, 128, 128);
@@ -515,10 +537,14 @@ TEST_F(gpu_Test, moveimage_internal_res) {
 
     ClearImage(&cdb->draw.clip, 60, 120, 120);
     DrawOTag(cdb->ot);
+
+    RECT rect = {16, 16, 64, 64};
+    MoveImage(&rect, 144, 144);
     DrawSync(0);
+
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("moveimage");
+    AssertFrame("move_image");
 
     u_short pattern[16 * 16];
     u_short readback[16 * 16];
@@ -535,7 +561,7 @@ TEST_F(gpu_Test, moveimage_internal_res) {
     ASSERT_EQ(Psyz_VideoSetInternalResolution(1), 0);
     ASSERT_EQ(Psyz_VideoGetInternalResolution(), 1);
     VSync(0);
-    AssertFrame("moveimage");
+    AssertFrame("move_image");
 }
 
 TEST_F(gpu_Test, blit) {

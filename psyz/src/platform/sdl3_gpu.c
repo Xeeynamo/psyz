@@ -1405,18 +1405,32 @@ void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
     if (!cmd) {
         return;
     }
-    // handles overlapping same-texture copies
     SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd);
-    const SDL_GPUTextureLocation src = {
-        .texture = vram_render, .x = (Uint32)src_x, .y = (Uint32)src_y};
-    const SDL_GPUTextureLocation bounce = {
-        .texture = vram_sample, .x = (Uint32)src_x, .y = (Uint32)src_y};
-    const SDL_GPUTextureLocation dst = {
-        .texture = vram_render, .x = (Uint32)dst_x, .y = (Uint32)dst_y};
-    SDL_CopyGPUTextureToTexture(
-        copy, &src, &bounce, (Uint32)copy_w, (Uint32)copy_h, 1, false);
-    SDL_CopyGPUTextureToTexture(
-        copy, &bounce, &dst, (Uint32)copy_w, (Uint32)copy_h, 1, false);
+    if (!RectsOverlap(src_x, src_y, dst_x, dst_y, copy_w, copy_h)) {
+        const SDL_GPUTextureLocation src = {
+            .texture = vram_render, .x = (Uint32)src_x, .y = (Uint32)src_y};
+        const SDL_GPUTextureLocation bounce = {
+            .texture = vram_sample, .x = (Uint32)src_x, .y = (Uint32)src_y};
+        const SDL_GPUTextureLocation dst = {
+            .texture = vram_render, .x = (Uint32)dst_x, .y = (Uint32)dst_y};
+        SDL_CopyGPUTextureToTexture(
+            copy, &src, &bounce, (Uint32)copy_w, (Uint32)copy_h, 1, false);
+        SDL_CopyGPUTextureToTexture(
+            copy, &bounce, &dst, (Uint32)copy_w, (Uint32)copy_h, 1, false);
+    } else {
+        // Slow-path, simulating real hardware behaviour
+        // This behaviour is tested via move_image_overlap
+        for (int row = 0; row < copy_h; row++) {
+            const SDL_GPUTextureLocation src = {.texture = vram_render,
+                                                .x = (Uint32)src_x,
+                                                .y = (Uint32)(src_y + row)};
+            const SDL_GPUTextureLocation dst = {.texture = vram_render,
+                                                .x = (Uint32)dst_x,
+                                                .y = (Uint32)(dst_y + row)};
+            SDL_CopyGPUTextureToTexture(
+                copy, &src, &dst, (Uint32)copy_w, 1, 1, false);
+        }
+    }
     SDL_EndGPUCopyPass(copy);
     MarkVramDirty((SDL_Rect){dst_x, dst_y, copy_w, copy_h});
     MarkVramDirty((SDL_Rect){src_x, src_y, copy_w, copy_h});

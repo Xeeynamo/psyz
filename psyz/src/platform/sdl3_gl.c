@@ -1285,14 +1285,31 @@ void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
         return;
     }
     glDisable(GL_SCISSOR_TEST);
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, vram_fbo);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, scratch_fbo);
-    glBlitFramebuffer(src_x, src_y, src_x + copy_w, src_y + copy_h, 0, 0,
-                      copy_w, copy_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, scratch_fbo);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, vram_fbo);
-    glBlitFramebuffer(0, 0, copy_w, copy_h, dst_x, dst_y, dst_x + copy_w,
-                      dst_y + copy_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    if (!RectsOverlap(src_x, src_y, dst_x, dst_y, copy_w, copy_h)) {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, vram_fbo);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, scratch_fbo);
+        glBlitFramebuffer(src_x, src_y, src_x + copy_w, src_y + copy_h, 0, 0,
+                          copy_w, copy_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, scratch_fbo);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, vram_fbo);
+        glBlitFramebuffer(0, 0, copy_w, copy_h, dst_x, dst_y, dst_x + copy_w,
+                          dst_y + copy_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    } else {
+        // Slow-path, simulating real hardware behaviour
+        // This behaviour is tested via move_image_overlap
+        for (int row = 0; row < copy_h; row++) {
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, vram_fbo);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, scratch_fbo);
+            glBlitFramebuffer(
+                src_x, src_y + row, src_x + copy_w, src_y + row + 1, 0, 0,
+                copy_w, 1, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, scratch_fbo);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, vram_fbo);
+            glBlitFramebuffer(
+                0, 0, copy_w, 1, dst_x, dst_y + row, dst_x + copy_w,
+                dst_y + row + 1, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        }
+    }
     SyncNativeVramToScaled(dst_x, dst_y, copy_w, copy_h);
     BindDrawFbo();
     glEnable(GL_SCISSOR_TEST);
