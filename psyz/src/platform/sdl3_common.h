@@ -733,7 +733,7 @@ typedef struct {
 
 // ===== SDL3 reserved TPAGE flags, invalid on real hardware =====
 #define TPAGE_NOTEXTURE 0x8000 // flag untextured poly
-#define TPAGE_DITHER 0x4000 // flag a dithered primitive
+#define TPAGE_DITHER 0x4000    // flag a dithered primitive
 
 #define VRGBA(p) (*(unsigned int*)(&((p).r)))
 #define SET_TC(p, tpage, clut) (p)->t = (u16)(tpage), (p)->c = (u16)(clut);
