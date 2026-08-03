@@ -69,7 +69,7 @@ class gpu_Test : public testing::Test {
             &db[1].draw, SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
         SetDefDispEnv(
             &db[1].disp, SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-        SetVideoMode(MODE_NTSC);
+        db[0].draw.dtd = db[1].draw.dtd = 0; // disable dithering by default
         ResetGraph(0);
         PutDrawEnv(&db[0].draw);
         PutDispEnv(&db[0].disp);
