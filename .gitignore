@@ -15,3 +15,8 @@ psyq2elf/psyqdump
 
 # auto-generated Visual Studio CMake projects
 out/
+
+# auto-generated from tests
+bu00/
+bu10/
+comport.txt

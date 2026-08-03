@@ -74,6 +74,12 @@ static void ConvertRgba8888ToRgb5551(const u8* src, u16* dst, size_t pixels) {
     }
 }
 
+static inline bool RectsOverlap(
+    int src_x, int src_y, int dst_x, int dst_y, int w, int h) {
+    return src_x < dst_x + w && dst_x < src_x + w && src_y < dst_y + h &&
+           dst_y < src_y + h;
+}
+
 static void* vram_convert_buf = NULL;
 static size_t vram_convert_cap = 0;
 static void* GetVramConvertBuffer(size_t size) {

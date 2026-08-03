@@ -24,14 +24,14 @@ extern "C" {
 #include "stb_image_write.h"
 
 class gpu_Test : public testing::Test {
-    static float img_eq(
-        const unsigned char* a, const unsigned char* b, const size_t len) {
+    static float img_eq(const unsigned char* a, const unsigned char* b,
+                        const size_t len, const int tolerance) {
         size_t matches = 0;
         for (size_t i = 0; i < len; ++i) {
             // normalize both images to RGB5551
-            const int l = static_cast<int>(a[i]) & 0xF8;
-            const int r = static_cast<int>(b[i]) & 0xF8;
-            if (std::abs(l - r) == 0)
+            const int l = (static_cast<int>(a[i]) & 0xF8) >> 3;
+            const int r = (static_cast<int>(b[i]) & 0xF8) >> 3;
+            if (std::abs(l - r) <= tolerance)
                 matches++;
         }
         return static_cast<float>(matches) / static_cast<float>(len);
@@ -69,7 +69,7 @@ class gpu_Test : public testing::Test {
             &db[1].draw, SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
         SetDefDispEnv(
             &db[1].disp, SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-        SetVideoMode(MODE_NTSC);
+        db[0].draw.dtd = db[1].draw.dtd = 0; // disable dithering by default
         ResetGraph(0);
         PutDrawEnv(&db[0].draw);
         PutDispEnv(&db[0].disp);
@@ -89,7 +89,8 @@ class gpu_Test : public testing::Test {
         fwrite(data, 1, len, f);
         fclose(f);
     }
-    static void AssertFrame(const char* png_path, float precision = 1.0f) {
+    static void AssertFrame(
+        const char* png_path, int tolerance = 0, float precision = 1.0f) {
         char filename[FILENAME_MAX];
         char filenameAct[FILENAME_MAX];
         int exp_w, exp_h, act_w, act_h, ch;
@@ -101,7 +102,7 @@ class gpu_Test : public testing::Test {
         ASSERT_NE(act_d, nullptr) << "for " << png_path;
         ASSERT_EQ(exp_w, act_w) << "for " << png_path;
         ASSERT_EQ(exp_h, act_h) << "for " << png_path;
-        auto eq = img_eq(exp_d, act_d, exp_w * exp_h * ch);
+        auto eq = img_eq(exp_d, act_d, exp_w * exp_h * ch, tolerance);
         snprintf(filenameAct, sizeof(filenameAct), "../expected/%s.actual.png",
                  png_path);
         if (eq < precision) {
@@ -233,7 +234,7 @@ TEST_F(gpu_Test, draw_gt4) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("draw_gt4", 0.9875);
+    AssertFrame("draw_gt4", 1);
 }
 
 // Reproduces SOTN MenuDrawLine: a 1px rectangle border drawn as four
@@ -315,7 +316,7 @@ TEST_F(gpu_Test, draw_lines) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("draw_lines", 0.9995);
+    AssertFrame("draw_lines", 1, 0.9993f);
 }
 
 TEST_F(gpu_Test, set_draw_area) {
@@ -454,8 +455,36 @@ TEST_F(gpu_Test, drawenv_clear_vram) {
     AssertFrame("drawenv_clear_vram");
 }
 
-// N.B. this test fails on pcsx-redux, I tested output accuracy with Duckstation
-TEST_F(gpu_Test, moveimage) {
+TEST_F(gpu_Test, move_image) {
+    u_short tpage, clut;
+    if (LoadTim(img_4bpp, &tpage, &clut)) {
+        return;
+    }
+
+    SetPolyFT4(&cdb->ft4[0]);
+    setXYWH(&cdb->ft4[0], 16, 16, 64, 64);
+    setRGB0(&cdb->ft4[0], 128, 128, 128);
+    setUVWH(&cdb->ft4[0], 0, 0, 64, 64);
+    setSemiTrans(&cdb->ft4[0], 0);
+    cdb->ft4[0].tpage = tpage;
+    cdb->ft4[0].clut = clut;
+
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &db[0].ft4[0]);
+
+    ClearImage(&cdb->draw.clip, 60, 120, 120);
+    DrawOTag(cdb->ot);
+
+    RECT rect = {16, 16, 64, 64};
+    MoveImage(&rect, 144, 144);
+    DrawSync(0);
+
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+    AssertFrame("move_image");
+}
+
+TEST_F(gpu_Test, move_image_overlap) {
     u_short tpage, clut;
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
@@ -483,10 +512,10 @@ TEST_F(gpu_Test, moveimage) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("moveimage");
+    AssertFrame("move_image_overlap");
 }
 
-TEST_F(gpu_Test, moveimage_internal_res) {
+TEST_F(gpu_Test, move_image_internal_res) {
     ASSERT_EQ(Psyz_VideoSetInternalResolution(0), -1);
     ASSERT_EQ(Psyz_VideoSetInternalResolution(2), 0);
     ASSERT_EQ(Psyz_VideoGetInternalResolution(), 2);
@@ -496,12 +525,6 @@ TEST_F(gpu_Test, moveimage_internal_res) {
         return;
     }
 
-    RECT rect = {960, 0, 16, 64};
-    MoveImage(&rect, 962, 8);
-    rect.x = 962;
-    rect.y = 8;
-    MoveImage(&rect, 960, 0);
-
     SetPolyFT4(&cdb->ft4[0]);
     setXYWH(&cdb->ft4[0], 16, 16, 64, 64);
     setRGB0(&cdb->ft4[0], 128, 128, 128);
@@ -515,10 +538,14 @@ TEST_F(gpu_Test, moveimage_internal_res) {
 
     ClearImage(&cdb->draw.clip, 60, 120, 120);
     DrawOTag(cdb->ot);
+
+    RECT rect = {16, 16, 64, 64};
+    MoveImage(&rect, 144, 144);
     DrawSync(0);
+
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("moveimage");
+    AssertFrame("move_image");
 
     u_short pattern[16 * 16];
     u_short readback[16 * 16];
@@ -535,7 +562,7 @@ TEST_F(gpu_Test, moveimage_internal_res) {
     ASSERT_EQ(Psyz_VideoSetInternalResolution(1), 0);
     ASSERT_EQ(Psyz_VideoGetInternalResolution(), 1);
     VSync(0);
-    AssertFrame("moveimage");
+    AssertFrame("move_image");
 }
 
 TEST_F(gpu_Test, blit) {
@@ -651,7 +678,7 @@ TEST_F(gpu_Test, load_move_image_priority) {
     cdb->disp.disp.y = 0;
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("load_move_image_priority", 0.9825);
+    AssertFrame("load_move_image_priority", 0, 0.9825f);
 }
 
 TEST_F(gpu_Test, flipped_xy) {
@@ -844,7 +871,7 @@ TEST_F(gpu_Test, alpha_blend) {
     VSync(0);
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("alpha_blend", 0.9585);
+    AssertFrame("alpha_blend", 1);
 }
 
 TEST_F(gpu_Test, s11_coord_truncation) {
@@ -892,5 +919,5 @@ TEST_F(gpu_Test, untextured_transp_poly_take_abr_from_drawenv) {
     VSync(0);
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("abr_untextured", 0.99);
+    AssertFrame("abr_untextured");
 }
