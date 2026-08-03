@@ -320,7 +320,7 @@ static bool CreateGpuResources(void) {
                      psx_vert_msl_len, SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
     SDL_GPUShader* psx_fs =
         CreateShader(psx_frag_spv, psx_frag_spv_len, psx_frag_msl,
-                     psx_frag_msl_len, SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
+                     psx_frag_msl_len, SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 0);
     SDL_GPUShader* clear_vs =
         CreateShader(clear_vert_spv, clear_vert_spv_len, clear_vert_msl,
                      clear_vert_msl_len, SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
@@ -1034,6 +1034,9 @@ int Draw_PushPrim(u_long* packets, int max_len) {
                 clut = -1;
                 tpage = cur_tpage | TPAGE_NOTEXTURE;
             }
+            if (isGouraud && GetCurrentDither()) {
+                tpage |= TPAGE_DITHER;
+            }
             if (!isGouraud || !isShadeTex) {
                 VRGBA(vertex_cur[1]) = VRGBA(vertex_cur[2]) =
                     VRGBA(vertex_cur[3]) = VRGBA(vertex_cur[0]);
@@ -1140,9 +1143,13 @@ int Draw_PushPrim(u_long* packets, int max_len) {
                 q[2].g = cg[s + 1];
                 q[2].b = cb[s + 1];
                 q[2].a = ca[s + 1];
+                u16 lt = cur_tpage | TPAGE_NOTEXTURE;
+                if (isGouraud && GetCurrentDither()) {
+                    lt |= TPAGE_DITHER;
+                }
                 for (int k = 0; k < 4; k++) {
                     q[k].c = -1;
-                    q[k].t = cur_tpage | TPAGE_NOTEXTURE;
+                    q[k].t = lt;
                 }
                 index_cur[0] = base + 0;
                 index_cur[1] = base + 1;
@@ -1509,8 +1516,6 @@ void Draw_FlushBuffer(void) {
     const float offset_ubo[4] = {
         (float)draw_offset.x, (float)draw_offset.y, 0, 0};
     SDL_PushGPUVertexUniformData(cmd, 0, offset_ubo, sizeof(offset_ubo));
-    const int dither_ubo[4] = {GetCurrentDither(), 0, 0, 0};
-    SDL_PushGPUFragmentUniformData(cmd, 0, dither_ubo, sizeof(dither_ubo));
 
     // every primitive (including lines, expanded to quads) is a triangle list
     const int prim_size = 3;

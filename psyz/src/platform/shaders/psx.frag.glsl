@@ -10,10 +10,9 @@ layout(location = 6) flat in uint subPixelMask;
 layout(location = 7) flat in uint texelShift;
 layout(location = 8) flat in uint indexShift;
 layout(location = 9) flat in uint indexMask;
+layout(location = 10) flat in uint dither;
 
 layout(set = 2, binding = 0) uniform sampler2D texVram;
-
-layout(set = 3, binding = 0) uniform FragUBO { int dither; };
 
 layout(location = 0) out vec4 FragColor;
 
@@ -31,7 +30,7 @@ const mat4 ditherMatrix = mat4(
     -3.0, +1.0, -4.0, +0.0,
     +3.0, -1.0, +2.0, -2.0);
 vec3 applyDither(vec3 c) {
-    if (dither == 0) return c;
+    if (dither == 0u) return c;
     int dx = int(gl_FragCoord.x) & 3;
     int dy = int(gl_FragCoord.y) & 3;
     float off = ditherMatrix[dy][dx];

@@ -17,6 +17,7 @@ layout(location = 6) flat out uint subPixelMask; // Sub-pixel mask (8-bit:1, 4-b
 layout(location = 7) flat out uint texelShift;   // Right shift for texel X
 layout(location = 8) flat out uint indexShift;   // Shift for index extraction
 layout(location = 9) flat out uint indexMask;    // Mask for color index
+layout(location = 10) flat out uint dither;      // 1 when this primitive dithers
 
 void main() {
     float x = ((float(pos.x) + drawOffset.x) / (1024.0 / 2.0)) - 1.0;
@@ -30,6 +31,7 @@ void main() {
     clut = tex.z;
     uint texWord = tex.w;
     tpage = texWord & 0x1FFu;
+    dither = (texWord & 0x4000u) != 0u ? 1u : 0u;
     texCoord = vec2(float(tex.x) / 4096.0, float(tex.y) / 512.0);
     // Determine texture mode and pre-compute parameters
     vramScaleX = 0.0;
