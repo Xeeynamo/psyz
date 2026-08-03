@@ -1,3 +1,5 @@
+#include <cstdio>
+#include <cstdlib>
 #include <gtest/gtest.h>
 extern "C" {
 #include <psyz.h>
@@ -102,7 +104,7 @@ TEST_F(bu_Test, create_and_write_file) {
     unsigned short expected = 1234, actual;
     int fd = open("bu00:BASLUS-00000PSYZ00", FCREAT);
     EXPECT_NE(fd, -1);
-    write(fd, &expected, sizeof(unsigned short));
+    write(fd, (char*)&expected, sizeof(unsigned short));
     close(fd);
 
     FILE* f = fopen("bu00/BASLUS-00000PSYZ00", "rb");
