@@ -55,7 +55,7 @@ class gpu_Test : public testing::Test {
         LINE_G4 lineg4[2];
         SPRT sprt[4];
         TILE tile[4];
-        DR_MODE drmode[1];
+        DR_MODE drmode[2];
     } DB;
     DB db[2];
     DB* cdb;
@@ -382,24 +382,66 @@ TEST_F(gpu_Test, swap_buffer) {
     }
 }
 
+// only gradient primitives dither, even if colors yield to a flat result
+// pattern is applied like an overlay on screen, not per primitive
 TEST_F(gpu_Test, dithering) {
     Psyz_VideoSetDitheringMode(PSYZ_DITHER_AUTO);
+    cdb->draw.dtd = 1;
     PutDrawEnv(&cdb->draw);
+    cdb->draw.dtd = 0;
     PutDispEnv(&cdb->disp);
 
+    const int QW = SCREEN_WIDTH / 2;
+    const int QH = SCREEN_HEIGHT / 2;
+
+    // top-left: flat-shaded, dithering do not apply
+    SetPolyF4(&cdb->f4[0]);
+    setXYWH(&cdb->f4[0], 0, 0, QW, QH);
+    setRGB0(&cdb->f4[0], 39, 111, 203);
+
+    // bottom-left: tile, dithering do not apply
+    SetTile(&cdb->tile[0]);
+    setXY0(&cdb->tile[0], 0, QH);
+    setWH(&cdb->tile[0], QW, QH);
+    setRGB0(&cdb->tile[0], 39, 111, 203);
+
+    // top-right: gouraud polygon, same color but dithering applies
     SetPolyG4(&cdb->g4[0]);
-    setXYWH(&cdb->g4[0], 0, 0, 256, 240);
-    setRGB0(&cdb->g4[0], 0, 0, 32);
-    setRGB1(&cdb->g4[0], 0, 0, 32);
-    setRGB2(&cdb->g4[0], 0, 0, 96);
-    setRGB3(&cdb->g4[0], 0, 0, 96);
+    setXYWH(&cdb->g4[0], QW, 0, QW, QH);
+    setRGB0(&cdb->g4[0], 39, 111, 203);
+    setRGB1(&cdb->g4[0], 39, 111, 203);
+    setRGB2(&cdb->g4[0], 39, 111, 203);
+    setRGB3(&cdb->g4[0], 39, 111, 203);
+
+    // bottom-right: test the 4x4 dithering pattern on 5x5 gouraud polygons
+    static const int CELL = 5; // size is CELLxCELL
+    static const int GRID_COLS = (SCREEN_WIDTH / 2 + CELL - 1) / CELL;
+    static const int GRID_ROWS = (SCREEN_HEIGHT / 2 + CELL - 1) / CELL;
+    POLY_G4 grid[GRID_COLS * GRID_ROWS];
 
     RECT r = {0};
     SetDrawMode(&cdb->drmode[0], 0, 1, 0, &r);
     SetDrawMode(&cdb->drmode[1], 0, 0, 0, &r);
 
     AddPrim(cdb->ot, &cdb->drmode[1]);
+    for (int i = GRID_COLS * GRID_ROWS - 1; i >= 0; i--) {
+        const int gx = QW + (i % GRID_COLS) * CELL;
+        const int gy = QH + (i / GRID_COLS) * CELL;
+        // clip the last row/column so the grid stays inside the quadrant
+        const int gw = (gx + CELL > SCREEN_WIDTH) ? SCREEN_WIDTH - gx : CELL;
+        const int gh = (gy + CELL > SCREEN_HEIGHT) ? SCREEN_HEIGHT - gy : CELL;
+        SetPolyG4(&grid[i]);
+        setXYWH(&grid[i], gx, gy, gw, gh);
+        setRGB0(&grid[i], 39, 111, 203);
+        setRGB1(&grid[i], 39, 111, 203);
+        setRGB2(&grid[i], 39, 111, 203);
+        setRGB3(&grid[i], 39, 111, 203);
+        AddPrim(cdb->ot, &grid[i]);
+    }
+
+    AddPrim(cdb->ot, &cdb->tile[0]);
     AddPrim(cdb->ot, &cdb->g4[0]);
+    AddPrim(cdb->ot, &cdb->f4[0]);
     AddPrim(cdb->ot, &cdb->drmode[0]);
 
     DrawOTag(cdb->ot);
