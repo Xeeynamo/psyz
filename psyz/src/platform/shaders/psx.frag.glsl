@@ -34,7 +34,7 @@ vec3 applyDither(vec3 c) {
     int dx = int(gl_FragCoord.x) & 3;
     int dy = int(gl_FragCoord.y) & 3;
     float off = ditherMatrix[dy][dx];
-    vec3 c8 = floor(c * 255.0 + 0.5) + off;
+    vec3 c8 = c * 255.0 + off;
     vec3 c5 = clamp(floor(c8 / 8.0), 0.0, 31.0);
     return c5 / 31.0;
 }
@@ -73,7 +73,9 @@ void main() {
     } else {
         vec3 tex5 = floor(texColor.rgb * 31.0 + 0.5);
         vec3 col8 = min(floor(vertexColor.rgb * 127.5 + 0.5), vec3(255.0));
-        modColor = min(floor(tex5 * col8 / 128.0), vec3(31.0)) / 31.0;
+        vec3 prod8 = min(tex5 * col8 / 16.0, vec3(255.0));
+        modColor = dither != 0u ? prod8 / 255.0
+                                : floor(prod8 / 8.0) / 31.0;
     }
     modColor = applyDither(modColor);
     // pre-multiplied alpha output for ONE, ONE_MINUS_SRC_ALPHA blending

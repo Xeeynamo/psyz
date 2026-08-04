@@ -4,6 +4,13 @@
 #include "../draw.h"
 #include "../internal.h"
 
+// The GPU is a FIFO: the register reflects what it has consumed by the GPU the
+// moment it's queried. The problem with the current PsyZ implementation is
+// the GPU emulation is synchronous. GPU packets are accumulated in GPU_Enqueue
+// then consumed by Psyz_GpuExeque on demand by the same thread. This means the
+// values of GPU_STATUS will be stale, especially when 0xE1xxxxxx gets enqueued
+// and then GPU_STATUS gets queried before Psyz_GpuExeque is called. But then
+// calling Psyz_GpuExeque implies synchronization, which slows down performance.
 static u32 GPU_STATUS = 0;
 
 typedef enum {
@@ -85,6 +92,7 @@ int Psyz_GpuExeque() {
             GPU_read_image();
             break;
         case 0xE1:
+            GPU_STATUS = (GPU_STATUS & ~0x7FF) | (u32)(op & 0x7FF);
             Draw_SetTexpageMode((ParamDrawTexpageMode*)&op);
             break;
         case 0xE2:
@@ -193,12 +201,23 @@ static int psyz_clr(RECT* rect, u32 color) {
     rect->w = CLAMP(rect->w, 0, w - 1);
     rect->h = CLAMP(rect->h, 0, h - 1);
 
+#if 1 // HACK: faster but more inaccurate path, doesn't need a Psyz_GpuExeque
+    setlen(&clear_cmd, 4);
+    clear_cmd.code[0] = 0xE6000000; // mask bit setting
+    clear_cmd.code[1] = (color & 0xFFFFFF) | 0x02000000;
+    clear_cmd.code[2] = (u_long) * (u32*)&rect->x;
+    clear_cmd.code[3] = (u_long) * (u32*)&rect->w;
+#else
+    // Needs a sync so 0xE1 CMDs can update GPU_STATUS before it gets used.
+    Psyz_GpuExeque();
     setlen(&clear_cmd, 5);
     clear_cmd.code[0] = 0xE6000000; // mask bit setting
     clear_cmd.code[1] = 0xE1000000 | GPU_STATUS & 0x7FF | (color >> 0x1F) << 10;
     clear_cmd.code[2] = (color & 0xFFFFFF) | 0x02000000;
     clear_cmd.code[3] = (u_long) * (u32*)&rect->x;
     clear_cmd.code[4] = (u_long) * (u32*)&rect->w;
+#endif
+
     termPrim(&clear_cmd);
     GPU_Enqueue((u_long)&clear_cmd, 0);
     return 0;
