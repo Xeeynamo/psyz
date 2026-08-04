@@ -57,7 +57,7 @@ jobs:
         working-directory: psyz/
         run: ./${{ matrix.compiler.script }}
         env:
-          GTEST_FILTER: "-gpu_Test.*"
+          GTEST_FILTER: "-gpu_Test.*:dither_Test.*"
       - name: Upload test failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4

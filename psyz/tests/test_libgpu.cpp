@@ -382,76 +382,6 @@ TEST_F(gpu_Test, swap_buffer) {
     }
 }
 
-// only gradient primitives dither, even if colors yield to a flat result
-// pattern is applied like an overlay on screen, not per primitive
-TEST_F(gpu_Test, dithering) {
-    Psyz_VideoSetDitheringMode(PSYZ_DITHER_AUTO);
-    cdb->draw.dtd = 1;
-    PutDrawEnv(&cdb->draw);
-    cdb->draw.dtd = 0;
-    PutDispEnv(&cdb->disp);
-
-    const int QW = SCREEN_WIDTH / 2;
-    const int QH = SCREEN_HEIGHT / 2;
-
-    // top-left: flat-shaded, dithering do not apply
-    SetPolyF4(&cdb->f4[0]);
-    setXYWH(&cdb->f4[0], 0, 0, QW, QH);
-    setRGB0(&cdb->f4[0], 39, 111, 203);
-
-    // bottom-left: tile, dithering do not apply
-    SetTile(&cdb->tile[0]);
-    setXY0(&cdb->tile[0], 0, QH);
-    setWH(&cdb->tile[0], QW, QH);
-    setRGB0(&cdb->tile[0], 39, 111, 203);
-
-    // top-right: gouraud polygon, same color but dithering applies
-    SetPolyG4(&cdb->g4[0]);
-    setXYWH(&cdb->g4[0], QW, 0, QW, QH);
-    setRGB0(&cdb->g4[0], 39, 111, 203);
-    setRGB1(&cdb->g4[0], 39, 111, 203);
-    setRGB2(&cdb->g4[0], 39, 111, 203);
-    setRGB3(&cdb->g4[0], 39, 111, 203);
-
-    // bottom-right: test the 4x4 dithering pattern on 5x5 gouraud polygons
-    static const int CELL = 5; // size is CELLxCELL
-    static const int GRID_COLS = (SCREEN_WIDTH / 2 + CELL - 1) / CELL;
-    static const int GRID_ROWS = (SCREEN_HEIGHT / 2 + CELL - 1) / CELL;
-    POLY_G4 grid[GRID_COLS * GRID_ROWS];
-
-    RECT r = {0};
-    SetDrawMode(&cdb->drmode[0], 0, 1, 0, &r);
-    SetDrawMode(&cdb->drmode[1], 0, 0, 0, &r);
-
-    AddPrim(cdb->ot, &cdb->drmode[1]);
-    for (int i = GRID_COLS * GRID_ROWS - 1; i >= 0; i--) {
-        const int gx = QW + (i % GRID_COLS) * CELL;
-        const int gy = QH + (i / GRID_COLS) * CELL;
-        // clip the last row/column so the grid stays inside the quadrant
-        const int gw = (gx + CELL > SCREEN_WIDTH) ? SCREEN_WIDTH - gx : CELL;
-        const int gh = (gy + CELL > SCREEN_HEIGHT) ? SCREEN_HEIGHT - gy : CELL;
-        SetPolyG4(&grid[i]);
-        setXYWH(&grid[i], gx, gy, gw, gh);
-        setRGB0(&grid[i], 39, 111, 203);
-        setRGB1(&grid[i], 39, 111, 203);
-        setRGB2(&grid[i], 39, 111, 203);
-        setRGB3(&grid[i], 39, 111, 203);
-        AddPrim(cdb->ot, &grid[i]);
-    }
-
-    AddPrim(cdb->ot, &cdb->tile[0]);
-    AddPrim(cdb->ot, &cdb->g4[0]);
-    AddPrim(cdb->ot, &cdb->f4[0]);
-    AddPrim(cdb->ot, &cdb->drmode[0]);
-
-    DrawOTag(cdb->ot);
-    DrawSync(0);
-    VSync(0);
-    PutDispEnv(&cdb->disp);
-
-    AssertFrame("dithering");
-}
-
 TEST_F(gpu_Test, drawenv_clear_vram) {
     const char* ci = getenv("CI");
     const char* os = getenv("OS");
@@ -962,4 +892,229 @@ TEST_F(gpu_Test, untextured_transp_poly_take_abr_from_drawenv) {
     PutDispEnv(&cdb->disp);
 
     AssertFrame("abr_untextured");
+}
+
+class dither_Test : public gpu_Test {
+  protected:
+    static const int DR = 47;
+    static const int DG = 123;
+    static const int DB = 239;
+    static const int DBG = 91;
+    static const int TEX_X = 512;
+    static const int TEX_Y = 256;
+    static const int TEX_SIZE = 64;
+
+    void SetUp() override {
+        gpu_Test::SetUp();
+        Psyz_VideoSetDitheringMode(PSYZ_DITHER_AUTO);
+        cdb->draw.dtd = 1;
+        PutDrawEnv(&cdb->draw);
+        ClearOTag(cdb->ot, OTSIZE);
+        ClearImage(&cdb->draw.clip, 0, 0, 0);
+    }
+    void TearDown() override { ResetGraph(0); }
+
+    static u_short MakeFlatTPage(void) {
+        RECT tex = {TEX_X, TEX_Y, TEX_SIZE, TEX_SIZE};
+        ClearImage(&tex, 255, 255, 255);
+        DrawSync(0);
+        return GetTPage(2, 0, TEX_X, TEX_Y);
+    }
+
+    static u_short MakeFlatTPageSemiTrans(void) {
+        static u_short texels[TEX_SIZE * TEX_SIZE];
+        for (int i = 0; i < TEX_SIZE * TEX_SIZE; i++) {
+            texels[i] = 0xFFFF; // STP | 31/31/31
+        }
+        RECT tex = {TEX_X, TEX_Y, TEX_SIZE, TEX_SIZE};
+        LoadImage(&tex, (u_long*)texels);
+        DrawSync(0);
+        return GetTPage(2, 0, TEX_X, TEX_Y);
+    }
+
+    void Present(const char* golden) {
+        DrawOTag(cdb->ot);
+        DrawSync(0);
+        VSync(0);
+        PutDispEnv(&cdb->disp);
+        AssertFrame(golden);
+    }
+};
+
+TEST_F(dither_Test, dithering_drawenv_disabled) {
+    cdb->draw.dtd = 0;
+    PutDrawEnv(&cdb->draw);
+
+    SetPolyG4(&cdb->g4[0]);
+    setXYWH(&cdb->g4[0], 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    setRGB0(&cdb->g4[0], DR, DG, DB);
+    setRGB1(&cdb->g4[0], DR, DG, DB);
+    setRGB2(&cdb->g4[0], DR, DG, DB);
+    setRGB3(&cdb->g4[0], DR, DG, DB);
+    AddPrim(cdb->ot, &cdb->g4[0]);
+    Present("dithering_drawenv_disabled");
+}
+
+TEST_F(dither_Test, dithering_gouraud_on) {
+    SetPolyG4(&cdb->g4[0]);
+    setXYWH(&cdb->g4[0], 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    setRGB0(&cdb->g4[0], DR, DG, DB);
+    setRGB1(&cdb->g4[0], DR, DG, DB);
+    setRGB2(&cdb->g4[0], DR, DG, DB);
+    setRGB3(&cdb->g4[0], DR, DG, DB);
+    AddPrim(cdb->ot, &cdb->g4[0]);
+    Present("dithering_gouraud_on");
+}
+
+TEST_F(dither_Test, dithering_flat_off) {
+    SetPolyF4(&cdb->f4[0]);
+    setXYWH(&cdb->f4[0], 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    setRGB0(&cdb->f4[0], DR, DG, DB);
+    AddPrim(cdb->ot, &cdb->f4[0]);
+    Present("dithering_flat_off");
+}
+
+TEST_F(dither_Test, dithering_flat_blending_on) {
+    u_short tpage = MakeFlatTPage();
+    SetPolyFT4(&cdb->ft4[0]);
+    setXYWH(&cdb->ft4[0], 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    setRGB0(&cdb->ft4[0], DR, DG, DB);
+    setUVWH(&cdb->ft4[0], 0, 0, TEX_SIZE - 1, TEX_SIZE - 1);
+    setSemiTrans(&cdb->ft4[0], 0);
+    cdb->ft4[0].tpage = tpage;
+    cdb->ft4[0].clut = 0;
+    AddPrim(cdb->ot, &cdb->ft4[0]);
+    Present("dithering_flat_blending_on");
+}
+
+TEST_F(dither_Test, dithering_lines_on) {
+    static LINE_F2 flat[SCREEN_HEIGHT / 2];
+    static LINE_G2 grad[SCREEN_HEIGHT / 2];
+    int nf = 0, ng = 0;
+
+    for (int y = 0; y < SCREEN_HEIGHT; y++) {
+        if ((y / 8) & 1) {
+            LINE_G2* l = &grad[ng++];
+            SetLineG2(l);
+            setXY2(l, 0, y, SCREEN_WIDTH, y);
+            setRGB0(l, DR, DG, DB);
+            setRGB1(l, DR, DG, DB);
+            AddPrim(cdb->ot, l);
+        } else {
+            LINE_F2* l = &flat[nf++];
+            SetLineF2(l);
+            setXY2(l, 0, y, SCREEN_WIDTH, y);
+            setRGB0(l, DR, DG, DB);
+            AddPrim(cdb->ot, l);
+        }
+    }
+    Present("dithering_lines_on");
+}
+
+TEST_F(dither_Test, dithering_tile_off) {
+    SetTile(&cdb->tile[0]);
+    setXY0(&cdb->tile[0], 0, 0);
+    setWH(&cdb->tile[0], SCREEN_WIDTH, SCREEN_HEIGHT);
+    setRGB0(&cdb->tile[0], DR, DG, DB);
+    AddPrim(cdb->ot, &cdb->tile[0]);
+    Present("dithering_tile_off");
+}
+
+TEST_F(dither_Test, dithering_tile_blending_off) {
+    RECT bg = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
+    ClearImage(&bg, DBG, DBG, DBG);
+    DrawSync(0);
+
+    SetTile(&cdb->tile[0]);
+    SetSemiTrans(&cdb->tile[0], 1);
+    setXY0(&cdb->tile[0], 0, 0);
+    setWH(&cdb->tile[0], SCREEN_WIDTH, SCREEN_HEIGHT);
+    setRGB0(&cdb->tile[0], DR, DG, DB);
+    AddPrim(cdb->ot, &cdb->tile[0]);
+
+    SetDrawMode(&cdb->drmode[0], 0, 1, (int)getTPage(0, 0, 0, 0), nullptr);
+    AddPrim(cdb->ot, &cdb->drmode[0]);
+
+    Present("dithering_tile_blending_off");
+}
+
+TEST_F(dither_Test, dithering_sprite_off) {
+    cdb->draw.tpage = MakeFlatTPage();
+    PutDrawEnv(&cdb->draw);
+
+    static const int COLS = (SCREEN_WIDTH + TEX_SIZE - 1) / TEX_SIZE;
+    static const int ROWS = (SCREEN_HEIGHT + TEX_SIZE - 1) / TEX_SIZE;
+    SPRT spr[COLS * ROWS];
+    for (int i = COLS * ROWS - 1; i >= 0; i--) {
+        SPRT* s = &spr[i];
+        SetSprt(s);
+        SetSemiTrans(s, 0);
+        SetShadeTex(s, 0); // modulated
+        setXY0(s, (i % COLS) * TEX_SIZE, (i / COLS) * TEX_SIZE);
+        setWH(s, TEX_SIZE, TEX_SIZE);
+        setUV0(s, 0, 0);
+        setRGB0(s, DR, DG, DB);
+        s->clut = 0;
+        AddPrim(cdb->ot, s);
+    }
+    Present("dithering_sprite_off");
+}
+
+TEST_F(dither_Test, dithering_sprite_blending_off) {
+    cdb->draw.tpage = MakeFlatTPageSemiTrans() | (0 << 5);
+    PutDrawEnv(&cdb->draw);
+
+    RECT bg = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
+    ClearImage(&bg, DBG, DBG, DBG);
+    DrawSync(0);
+
+    static const int COLS = (SCREEN_WIDTH + TEX_SIZE - 1) / TEX_SIZE;
+    static const int ROWS = (SCREEN_HEIGHT + TEX_SIZE - 1) / TEX_SIZE;
+    SPRT spr[COLS * ROWS];
+    for (int i = COLS * ROWS - 1; i >= 0; i--) {
+        SPRT* s = &spr[i];
+        SetSprt(s);
+        SetSemiTrans(s, 1); // blended
+        SetShadeTex(s, 0);  // modulated
+        setXY0(s, (i % COLS) * TEX_SIZE, (i / COLS) * TEX_SIZE);
+        setWH(s, TEX_SIZE, TEX_SIZE);
+        setUV0(s, 0, 0);
+        setRGB0(s, DR, DG, DB);
+        s->clut = 0;
+        AddPrim(cdb->ot, s);
+    }
+    Present("dithering_sprite_blending_off");
+}
+
+TEST_F(dither_Test, dithering_pattern_alignment) {
+    static const int SIZE = 5; // 5x5 tile
+    static const int BAND_H = 60;
+    static const int GRID_COLS = (SCREEN_WIDTH + SIZE - 1) / SIZE;
+    static const int GRID_ROWS = (BAND_H + SIZE - 1) / SIZE;
+    // static: primitive arrays this size do not fit on the PS1 stack
+    static POLY_G4 grid[GRID_COLS * GRID_ROWS];
+
+    SetPolyG4(&cdb->g4[0]);
+    setXYWH(&cdb->g4[0], 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    setRGB0(&cdb->g4[0], DR, DG, DB);
+    setRGB1(&cdb->g4[0], DR, DG, DB);
+    setRGB2(&cdb->g4[0], DR, DG, DB);
+    setRGB3(&cdb->g4[0], DR, DG, DB);
+
+    for (int i = GRID_COLS * GRID_ROWS - 1; i >= 0; i--) {
+        const int gx = (i % GRID_COLS) * SIZE;
+        const int gy = (i / GRID_COLS) * SIZE;
+        // clip the last row/column so the grid stays inside the band
+        const int gw = (gx + SIZE > SCREEN_WIDTH) ? SCREEN_WIDTH - gx : SIZE;
+        const int gh = (gy + SIZE > BAND_H) ? BAND_H - gy : SIZE;
+        SetPolyG4(&grid[i]);
+        setXYWH(&grid[i], gx, gy, gw, gh);
+        setRGB0(&grid[i], DR, DG, DB);
+        setRGB1(&grid[i], DR, DG, DB);
+        setRGB2(&grid[i], DR, DG, DB);
+        setRGB3(&grid[i], DR, DG, DB);
+        AddPrim(cdb->ot, &grid[i]);
+    }
+    AddPrim(cdb->ot, &cdb->g4[0]);
+    Present("dithering_pattern_alignment");
 }

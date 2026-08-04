@@ -131,7 +131,7 @@ static const char fragment_shader_body[] = {
     "    int dx = int(gl_FragCoord.x) & 3;\n"
     "    int dy = int(gl_FragCoord.y) & 3;\n"
     "    float off = ditherMatrix[dy][dx];\n"
-    "    vec3 c8 = floor(c * 255.0 + 0.5) + off;\n"
+    "    vec3 c8 = c * 255.0 + off;\n"
     "    vec3 c5 = clamp(floor(c8 / 8.0), 0.0, 31.0);\n"
     "    return c5 / 31.0;\n"
     "}\n"
@@ -163,7 +163,7 @@ static const char fragment_shader_body[] = {
     "    bool isSemiTrans = vertexColor.a < 0.75;"
     // when a color has the 0x8000 bit left then it has the semitrans flag on
     "    bool colorSemiTrans = texColor.a > 0.0;"
-    // PS1-accurate texture-color modulation: (tex5 * col8) >> 7, clamp to 31
+    // PS1-accurate texture-color modulation: (tex5 * col8) >> 7
     "    vec3 modColor;\n"
     "    if (textureMode == 0u) {\n"
     // untextured: PS1 uses color directly, no modulation
@@ -172,8 +172,9 @@ static const char fragment_shader_body[] = {
     "        vec3 tex5 = floor(texColor.rgb * 31.0 + 0.5);\n"
     "        vec3 col8 = min(floor(vertexColor.rgb * 127.5 + 0.5), "
     "vec3(255.0));\n"
-    "        modColor = min(floor(tex5 * col8 / 128.0), vec3(31.0)) / "
-    "31.0;\n"
+    "        vec3 prod8 = min(tex5 * col8 / 16.0, vec3(255.0));\n"
+    "        modColor = dither != 0u ? prod8 / 255.0\n"
+    "                                : floor(prod8 / 8.0) / 31.0;\n"
     "    }\n"
     "    modColor = applyDither(modColor);\n"
     // pre-multiplied alpha output for GL_ONE, GL_ONE_MINUS_SRC_ALPHA blending
@@ -949,7 +950,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
                 clut = -1;
                 tpage = cur_tpage | TPAGE_NOTEXTURE;
             }
-            if (isGouraud && GetCurrentDither()) {
+            if (CanPolyDither(isGouraud, isTextured, isShadeTex)) {
                 tpage |= TPAGE_DITHER;
             }
             if (!isGouraud || !isShadeTex) {
@@ -1059,7 +1060,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
                 q[2].b = cb[s + 1];
                 q[2].a = ca[s + 1];
                 u16 lt = cur_tpage | TPAGE_NOTEXTURE;
-                if (isGouraud && GetCurrentDither()) {
+                if (CanLineDither()) {
                     lt |= TPAGE_DITHER;
                 }
                 for (int k = 0; k < 4; k++) {

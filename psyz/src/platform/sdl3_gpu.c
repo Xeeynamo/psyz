@@ -1034,7 +1034,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
                 clut = -1;
                 tpage = cur_tpage | TPAGE_NOTEXTURE;
             }
-            if (isGouraud && GetCurrentDither()) {
+            if (CanPolyDither(isGouraud, isTextured, isShadeTex)) {
                 tpage |= TPAGE_DITHER;
             }
             if (!isGouraud || !isShadeTex) {
@@ -1144,7 +1144,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
                 q[2].b = cb[s + 1];
                 q[2].a = ca[s + 1];
                 u16 lt = cur_tpage | TPAGE_NOTEXTURE;
-                if (isGouraud && GetCurrentDither()) {
+                if (CanLineDither()) {
                     lt |= TPAGE_DITHER;
                 }
                 for (int k = 0; k < 4; k++) {

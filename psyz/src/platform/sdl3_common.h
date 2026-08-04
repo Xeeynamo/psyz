@@ -361,14 +361,21 @@ int Psyz_VideoSetVsyncMode(PsyzVsyncMode mode) {
 }
 
 static int s_dither = 0;
-static int GetCurrentDither(void) {
+static inline int GetCurrentDither(void) {
     if (dither_mode == PSYZ_DITHER_OFF) {
         return 0;
     }
     return s_dither;
 }
 
-static void SetDither(int dither) { s_dither = dither; }
+static inline void SetDither(int dither) { s_dither = dither; }
+
+static inline int CanPolyDither(int isGouraud, int isTextured, int isShadeTex) {
+    return GetCurrentDither() && (isGouraud || (isTextured && isShadeTex));
+}
+
+static int CanLineDither(void) { return GetCurrentDither(); }
+
 int Psyz_VideoSetDitheringMode(PsyzDitherMode mode) {
     if (mode != PSYZ_DITHER_AUTO && mode != PSYZ_DITHER_OFF) {
         return -1;
