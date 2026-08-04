@@ -1135,6 +1135,7 @@ void Psyz_GteStsxy3Gt3(void* polyGte) {
 }
 
 void Psyz_GteAvsz3(void) { AVSZ3(); }
+void Psyz_GteAvsz4(void) { AVSZ4(); }
 void Psyz_GteDpcs(void) { DPCS(0x0780010); }
 void Psyz_GteLcir(void) { MVMVA(0x04DE012); }
 void Psyz_GteRtps(void) { RTPS(0x4A180001); }

@@ -82,6 +82,7 @@ void Psyz_GteLdTx(long v);
 void Psyz_GteLdTy(long v);
 void Psyz_GteLdTz(long v);
 void Psyz_GteAvsz3(void);
+void Psyz_GteAvsz4(void);
 void Psyz_GteDpcs(void);
 void Psyz_GteLcir(void);
 void Psyz_GteRtps(void);
