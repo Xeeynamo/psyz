@@ -1019,7 +1019,7 @@ TEST_F(dither_Test, dithering_tile_off) {
     Present("dithering_tile_off");
 }
 
-TEST_F(dither_Test, dithering_tile_blending_on) {
+TEST_F(dither_Test, dithering_tile_blending_off) {
     RECT bg = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
     ClearImage(&bg, 96, 96, 96);
     DrawSync(0);
@@ -1034,7 +1034,7 @@ TEST_F(dither_Test, dithering_tile_blending_on) {
     SetDrawMode(&cdb->drmode[0], 0, 1, (int)getTPage(0, 0, 0, 0), nullptr);
     AddPrim(cdb->ot, &cdb->drmode[0]);
 
-    Present("dithering_tile_blending_on");
+    Present("dithering_tile_blending_off");
 }
 
 TEST_F(dither_Test, dithering_sprite_off) {
