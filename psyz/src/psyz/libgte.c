@@ -1204,6 +1204,14 @@ void NormalColorCol(SVECTOR* v0, CVECTOR* v1, CVECTOR* v2) {
     Psyz_GteStRgb(v2);
 }
 
+void NormalColorDpq(SVECTOR* v0, CVECTOR* v1, long p, CVECTOR* v2) {
+    Psyz_GteLdv0(v0);
+    Psyz_GteLdRgb(v1);
+    IR0 = (short)p;
+    NCDS(0x1304E84A);
+    Psyz_GteStRgb(v2);
+}
+
 void DpqColor(CVECTOR* v0, long p, CVECTOR* v1) {
     Psyz_GteLdRgb(v0);
     IR0 = (short)p;
