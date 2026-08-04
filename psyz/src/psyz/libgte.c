@@ -1184,6 +1184,7 @@ void Psyz_GteLdv3c(SVECTOR* v) {
 void Psyz_GteStszotz(unsigned int* out) {
     *out = (unsigned int)((int)SZ3 >> 2);
 }
+void Psyz_GteStotz(unsigned int* out) { *out = OTZ; }
 void Psyz_GteStopz(int* out) { *out = MAC0; }
 
 long NormalClip(long sxy0, long sxy1, long sxy2) {

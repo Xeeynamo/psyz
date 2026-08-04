@@ -97,6 +97,7 @@ void Psyz_GteStsxy3(unsigned int* out0, unsigned int* out1, unsigned int* out2);
 void Psyz_GteStsxy01c(unsigned int* out);
 void Psyz_GteStsxy3Gt3(void* polyGt3);
 void Psyz_GteStszotz(unsigned int* out);
+void Psyz_GteStotz(unsigned int* out);
 void Psyz_GteStopz(int* out);
 
 #ifdef __cplusplus
