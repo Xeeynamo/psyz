@@ -1135,6 +1135,7 @@ void Psyz_GteStsxy3Gt3(void* polyGte) {
 }
 
 void Psyz_GteAvsz3(void) { AVSZ3(); }
+void Psyz_GteAvsz4(void) { AVSZ4(); }
 void Psyz_GteDpcs(void) { DPCS(0x0780010); }
 void Psyz_GteLcir(void) { MVMVA(0x04DE012); }
 void Psyz_GteRtps(void) { RTPS(0x4A180001); }
@@ -1183,6 +1184,7 @@ void Psyz_GteLdv3c(SVECTOR* v) {
 void Psyz_GteStszotz(unsigned int* out) {
     *out = (unsigned int)((int)SZ3 >> 2);
 }
+void Psyz_GteStotz(unsigned int* out) { *out = OTZ; }
 void Psyz_GteStopz(int* out) { *out = MAC0; }
 
 long NormalClip(long sxy0, long sxy1, long sxy2) {
@@ -1201,6 +1203,14 @@ void NormalColorCol(SVECTOR* v0, CVECTOR* v1, CVECTOR* v2) {
     Psyz_GteLdv0(v0);
     Psyz_GteLdRgb(v1);
     NCCS(0x1B04084B);
+    Psyz_GteStRgb(v2);
+}
+
+void NormalColorDpq(SVECTOR* v0, CVECTOR* v1, long p, CVECTOR* v2) {
+    Psyz_GteLdv0(v0);
+    Psyz_GteLdRgb(v1);
+    IR0 = (short)p;
+    NCDS(0x1304E84A);
     Psyz_GteStRgb(v2);
 }
 

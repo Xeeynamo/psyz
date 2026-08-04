@@ -611,9 +611,10 @@ void NormalColorCol(SVECTOR* v0, CVECTOR* v1, CVECTOR* v2);
  *
  * @param v0 Pointer to normal vector (input)
  * @param v1 Pointer to primary color vector (input)
+ * @param p Interpolation value (input)
  * @param v2 Pointer to color vector (output)
  */
-void NormalColorDpq(SVECTOR* v0, CVECTOR* v1, CVECTOR* v2);
+void NormalColorDpq(SVECTOR* v0, CVECTOR* v1, long p, CVECTOR* v2);
 
 /**
  * @brief Normal color calculation (3 vertices)
@@ -1927,6 +1928,7 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
 #define gte_rtps() Psyz_GteRtps()
 #define gte_stsxy(x) Psyz_GteStsxy((unsigned int*)(x))
 #define gte_stszotz(x) Psyz_GteStszotz((unsigned int*)(x))
+#define gte_stotz(x) Psyz_GteStotz((unsigned int*)(x))
 #define gte_ldv3(x, y, z) Psyz_GteLdv3(x, y, z)
 #define gte_stsxy3(x, y, z) Psyz_GteStsxy3((unsigned int*)(x), (unsigned int*)(y), (unsigned int*)(z))
 #define gte_rtpt() Psyz_GteRtpt()
@@ -1938,6 +1940,7 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
 #define gte_stsxy01c(x) Psyz_GteStsxy01c((unsigned int*)(x))
 #define gte_stsxy3_gt3(x) Psyz_GteStsxy3Gt3((POLY_GT3*)(x))
 #define gte_avsz3() Psyz_GteAvsz3()
+#define gte_avsz4() Psyz_GteAvsz4()
 #define gte_dpcs() Psyz_GteDpcs()
 #define gte_lcir() Psyz_GteLcir()
 #define gte_ldclmv(x) Psyz_GteLdClmv(x)

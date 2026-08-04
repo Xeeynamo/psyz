@@ -193,6 +193,16 @@ TEST_F(gte_Test, avsz4_basic) {
     EXPECT_EQ(AverageZ4(0x1000, 0x2000, 0x3000, 0x4000), 0xA00);
 }
 
+TEST_F(gte_Test, avsz4_stotz_macros) {
+    long expected = AverageZ4(0x100, 0x200, 0x300, 0x400);
+    unsigned int otz;
+
+    gte_avsz4();
+    gte_stotz(&otz);
+
+    EXPECT_EQ(otz, expected);
+}
+
 TEST_F(gte_Test, nclip_ccw) {
     EXPECT_EQ(NormalClip(0x00000000, 0x00000064, 0x00640000), 10000);
 }
