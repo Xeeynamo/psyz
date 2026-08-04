@@ -896,9 +896,10 @@ TEST_F(gpu_Test, untextured_transp_poly_take_abr_from_drawenv) {
 
 class dither_Test : public gpu_Test {
   protected:
-    static const int DR = 39;
-    static const int DG = 111;
-    static const int DB = 203;
+    static const int DR = 47;
+    static const int DG = 123;
+    static const int DB = 239;
+    static const int DBG = 91;
     static const int TEX_X = 512;
     static const int TEX_Y = 256;
     static const int TEX_SIZE = 64;
@@ -1021,7 +1022,7 @@ TEST_F(dither_Test, dithering_tile_off) {
 
 TEST_F(dither_Test, dithering_tile_blending_off) {
     RECT bg = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
-    ClearImage(&bg, 96, 96, 96);
+    ClearImage(&bg, DBG, DBG, DBG);
     DrawSync(0);
 
     SetTile(&cdb->tile[0]);
@@ -1064,7 +1065,7 @@ TEST_F(dither_Test, dithering_sprite_blending_off) {
     PutDrawEnv(&cdb->draw);
 
     RECT bg = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
-    ClearImage(&bg, 96, 96, 96);
+    ClearImage(&bg, DBG, DBG, DBG);
     DrawSync(0);
 
     static const int COLS = (SCREEN_WIDTH + TEX_SIZE - 1) / TEX_SIZE;
