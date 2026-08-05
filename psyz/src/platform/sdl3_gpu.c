@@ -149,6 +149,10 @@ static SDL_GPUGraphicsPipeline* CreatePsxPipeline(
          .buffer_slot = 0,
          .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM,
          .offset = offsetof(Vertex, r)},
+        {.location = 3,
+         .buffer_slot = 0,
+         .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4,
+         .offset = offsetof(Vertex, twin)},
     };
     const SDL_GPUBlendOp op =
         subtract ? SDL_GPU_BLENDOP_REVERSE_SUBTRACT : SDL_GPU_BLENDOP_ADD;
@@ -1148,8 +1152,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
                     lt |= TPAGE_DITHER;
                 }
                 for (int k = 0; k < 4; k++) {
-                    q[k].c = -1;
-                    q[k].t = lt;
+                    SET_TC(&q[k], lt, -1);
                 }
                 index_cur[0] = base + 0;
                 index_cur[1] = base + 1;

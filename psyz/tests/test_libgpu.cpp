@@ -23,6 +23,10 @@ extern "C" {
 #include "stb_image.h"
 #include "stb_image_write.h"
 
+#ifndef LEN
+#define LEN(x) ((s32)(sizeof(x) / sizeof(*(x))))
+#endif
+
 class gpu_Test : public testing::Test {
     static float img_eq(const unsigned char* a, const unsigned char* b,
                         const size_t len, const int tolerance) {
@@ -56,6 +60,7 @@ class gpu_Test : public testing::Test {
         SPRT sprt[4];
         TILE tile[4];
         DR_MODE drmode[2];
+        DR_TWIN twin[4];
     } DB;
     DB db[2];
     DB* cdb;
@@ -892,6 +897,184 @@ TEST_F(gpu_Test, untextured_transp_poly_take_abr_from_drawenv) {
     PutDispEnv(&cdb->disp);
 
     AssertFrame("abr_untextured");
+}
+
+TEST_F(gpu_Test, uv_minification) {
+    u_short tpage, clut;
+    if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
+        return;
+    }
+
+    static const struct {
+        short x, y, w, h;
+    } cases[] = {
+        // 64 texels into 32 pixels: 2x minified
+        {8, 8, 32, 32},  
+        // 64 texels into 16 pixels: 4x minified
+        {88, 8, 16, 16}, 
+        // non-power-of-two step
+        {8, 88, 21, 21}, 
+        // 1:1 for reference
+        {88, 88, 64, 64} 
+    };
+
+    ClearOTag(cdb->ot, OTSIZE);
+    for (int i = 0; i < LEN(cases); i++) {
+        SetPolyFT4(&cdb->ft4[i]);
+        setXYWH(&cdb->ft4[i], cases[i].x, cases[i].y, cases[i].w, cases[i].h);
+        setRGB0(&cdb->ft4[i], 128, 128, 128);
+        setUVWH(&cdb->ft4[i], 0, 0, 64, 64);
+        setSemiTrans(&cdb->ft4[i], 0);
+        cdb->ft4[i].tpage = tpage;
+        cdb->ft4[i].clut = clut;
+        AddPrim(cdb->ot, &cdb->ft4[i]);
+    }
+
+    ClearImage(&cdb->draw.clip, 0, 0, 0);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+
+    AssertFrame("uv_minification", 0, 0.9995f);
+}
+
+TEST_F(gpu_Test, texture_window_tiling) {
+    u_short tpage, clut;
+    if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
+        return;
+    }
+
+    static const struct {
+        short x, y;
+        RECT win;
+    } cases[] = {
+        // full page: window disabled
+        {8, 8, {0, 0, 256, 256}}, 
+        // window matches the quad: still one copy
+        {88, 8, {0, 0, 64, 64}},  
+        // 32x32 window: 2x2 repeats
+        {8, 88, {0, 0, 32, 32}},  
+        // 16x16 window: 4x4 repeats
+        {88, 88, {0, 0, 16, 16}}, 
+    };
+
+    ClearOTag(cdb->ot, OTSIZE);
+    for (int i = 0; i < LEN(cases); i++) {
+        SetPolyFT4(&cdb->ft4[i]);
+        setXYWH(&cdb->ft4[i], cases[i].x, cases[i].y, 64, 64);
+        setRGB0(&cdb->ft4[i], 128, 128, 128);
+        setUVWH(&cdb->ft4[i], 0, 0, 64, 64);
+        setSemiTrans(&cdb->ft4[i], 0);
+        cdb->ft4[i].tpage = tpage;
+        cdb->ft4[i].clut = clut;
+
+        RECT win = cases[i].win;
+        SetTexWindow(&cdb->twin[i], &win);
+
+        AddPrim(cdb->ot, &cdb->ft4[i]);
+        AddPrim(cdb->ot, &cdb->twin[i]);
+    }
+
+    ClearImage(&cdb->draw.clip, 0, 0, 0);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+
+    AssertFrame("texture_window_tiling");
+}
+
+TEST_F(gpu_Test, texture_window_offset) {
+    // Same 32x32 window size in every quadrant, moved around the page. The
+    // offset bits replace the masked-off UV bits, so each quadrant tiles a
+    // different 32x32 patch of the texture.
+    u_short tpage, clut;
+    if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
+        return;
+    }
+
+    static const struct {
+        short x, y;
+        RECT win;
+    } cases[] = {
+        {8, 8, {0, 0, 32, 32}},
+        {88, 8, {32, 0, 32, 32}},
+        {8, 88, {0, 32, 32, 32}},
+        {88, 88, {32, 32, 32, 32}},
+    };
+
+    ClearOTag(cdb->ot, OTSIZE);
+    for (int i = 0; i < LEN(cases); i++) {
+        SetPolyFT4(&cdb->ft4[i]);
+        setXYWH(&cdb->ft4[i], cases[i].x, cases[i].y, 64, 64);
+        setRGB0(&cdb->ft4[i], 128, 128, 128);
+        setUVWH(&cdb->ft4[i], 0, 0, 64, 64);
+        setSemiTrans(&cdb->ft4[i], 0);
+        cdb->ft4[i].tpage = tpage;
+        cdb->ft4[i].clut = clut;
+
+        RECT win = cases[i].win;
+        SetTexWindow(&cdb->twin[i], &win);
+
+        AddPrim(cdb->ot, &cdb->ft4[i]);
+        AddPrim(cdb->ot, &cdb->twin[i]);
+    }
+
+    ClearImage(&cdb->draw.clip, 0, 0, 0);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+
+    AssertFrame("texture_window_offset");
+}
+
+TEST_F(gpu_Test, texture_window_non_square) {
+    u_short tpage, clut;
+    if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
+        return;
+    }
+
+    static const struct {
+        short x, y;
+        u_char u, v;
+        RECT win;
+    } cases[] = {
+        // wide and short
+        {8, 8, 0, 0, {0, 0, 64, 16}},  
+        // narrow and tall
+        {88, 8, 0, 0, {0, 0, 16, 64}}, 
+        // non-zero starting UV
+        {8, 88, 96, 96, {0, 0, 32, 32}},
+        // window offset not aligned to window size
+        {88, 88, 0, 0, {8, 8, 32, 32}},
+    };
+
+    ClearOTag(cdb->ot, OTSIZE);
+    for (int i = 0; i < LEN(cases); i++) {
+        SetPolyFT4(&cdb->ft4[i]);
+        setXYWH(&cdb->ft4[i], cases[i].x, cases[i].y, 64, 64);
+        setRGB0(&cdb->ft4[i], 128, 128, 128);
+        setUVWH(&cdb->ft4[i], cases[i].u, cases[i].v, 64, 64);
+        setSemiTrans(&cdb->ft4[i], 0);
+        cdb->ft4[i].tpage = tpage;
+        cdb->ft4[i].clut = clut;
+
+        RECT win = cases[i].win;
+        SetTexWindow(&cdb->twin[i], &win);
+
+        AddPrim(cdb->ot, &cdb->ft4[i]);
+        AddPrim(cdb->ot, &cdb->twin[i]);
+    }
+
+    ClearImage(&cdb->draw.clip, 0, 0, 0);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+
+    AssertFrame("texture_window_non_square");
 }
 
 class dither_Test : public gpu_Test {
