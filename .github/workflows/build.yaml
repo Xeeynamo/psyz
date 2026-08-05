@@ -88,3 +88,54 @@ jobs:
           name: test-failures-macos
           path: psyz/tests/expected/*.actual.png
           if-no-files-found: ignore
+
+  build-and-test-psp:
+    runs-on: ubuntu-26.04
+    env:
+      PPSSPP_PKG: ppsspp-1.20.4-4-x86_64.pkg.tar.zst
+    steps:
+      - name: Install requirements
+        run: |
+          sudo apt-get update
+          sudo apt-get install cmake ninja-build zstd \
+            libsnappy1v5 libglew2.2 libzip5 libpng16-16 \
+            libsdl2-ttf-2.0-0 libsdl2-2.0-0 libopengl0 libminiupnpc21 libzstd1
+      - name: Clone repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install PSP toolchain
+        run: |
+          curl -sSfL -o pspdev.tar.gz \
+            https://github.com/pspdev/pspdev/releases/latest/download/pspdev-ubuntu-latest-x86_64.tar.gz
+          tar xf pspdev.tar.gz -C "$HOME"
+          echo "PSPDEV=$HOME/pspdev" >> "$GITHUB_ENV"
+          echo "$HOME/pspdev/bin" >> "$GITHUB_PATH"
+      - name: Install PPSSPPHeadless
+        run: |
+          curl -sSfL -O "https://archive.archlinux.org/packages/p/ppsspp/$PPSSPP_PKG"
+          mkdir -p "$HOME/ppsspp-bin"
+          tar xf "$PPSSPP_PKG" -C "$HOME/ppsspp-bin" --strip-components=2 usr/bin/PPSSPPHeadless
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libGLEW.so.2.2 \
+                      /usr/lib/x86_64-linux-gnu/libGLEW.so.2.3
+          echo "$HOME/ppsspp-bin" >> "$GITHUB_PATH"
+          if ldd "$HOME/ppsspp-bin/PPSSPPHeadless" | grep -qi "not found"; then
+            ldd "$HOME/ppsspp-bin/PPSSPPHeadless"
+            exit 1
+          fi
+          status=0
+          "$HOME/ppsspp-bin/PPSSPPHeadless" --help > /dev/null || status=$?
+          if [ "$status" -gt 1 ]; then
+            echo "PPSSPPHeadless failed to start (exit $status)"
+            exit 1
+          fi
+      - name: Test PsyZ on PSP
+        working-directory: psyz/
+        run: make test-psp-emu
+      - name: Upload test failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-failures-psp
+          path: psyz/tests/expected/*.actual.png
+          if-no-files-found: ignore

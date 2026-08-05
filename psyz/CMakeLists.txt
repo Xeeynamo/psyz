@@ -2,24 +2,26 @@ cmake_minimum_required(VERSION 3.10..3.31)
 
 project(psyz)
 
+set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/strip_file_prefix.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/title.cmake)
 
-set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-set(SDL_STATIC ON CACHE BOOL "" FORCE)
-set(SDL_TEST OFF CACHE BOOL "" FORCE)
-add_subdirectory(
-        ${CMAKE_CURRENT_SOURCE_DIR}/../external/SDL
-        ${CMAKE_CURRENT_BINARY_DIR}/sdl
-        EXCLUDE_FROM_ALL)
+if(NOT PSP)
+    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+    set(SDL_TEST OFF CACHE BOOL "" FORCE)
+    add_subdirectory(
+            ${CMAKE_CURRENT_SOURCE_DIR}/../external/SDL
+            ${CMAKE_CURRENT_BINARY_DIR}/sdl
+            EXCLUDE_FROM_ALL)
+endif()
 
 option(GTE_USE_HW_SQRT "Use hardware-accelerated sqrt (C math library)" OFF)
 
 set(PSYZ_SOURCES
-    src/platform/sdl3_log.c
     src/platform/psyz.c
     src/psyz/dma.c
     src/psyz/libapi.c
@@ -159,6 +161,7 @@ set(PSYZ_LIBS)
 set(PSYZ_INC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     list(APPEND PSYZ_SOURCES src/platform/plat_win.c)
+    list(APPEND PSYZ_SOURCES src/platform/sdl3_log.c)
     list(APPEND PSYZ_SOURCES src/platform/sdl3_audio.c)
     list(APPEND PSYZ_SOURCES src/psyz/psyz_spu.c)
     if(PSYZ_RENDERER STREQUAL "sdl3_gl")
@@ -175,6 +178,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     endif()
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     list(APPEND PSYZ_SOURCES src/platform/plat_unix.c)
+    list(APPEND PSYZ_SOURCES src/platform/sdl3_log.c)
     list(APPEND PSYZ_SOURCES src/platform/sdl3_audio.c)
     list(APPEND PSYZ_SOURCES src/psyz/psyz_spu.c)
     if(PSYZ_RENDERER STREQUAL "sdl3_gl")
@@ -182,8 +186,36 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     else()
         list(APPEND PSYZ_SOURCES src/platform/sdl3_gpu.c)
     endif()
+elseif(PSP)
+    # The pspdev toolchain provides the SDK include/link paths; the GE, the
+    # display, the controller and the audio channel are driven directly, so
+    # there is no SDL. File I/O talks to the Sony I/O manager natively rather
+    # than through newlib (see src/psp/psp_file.c), so plat_unix.c is not used.
+    # The software SPU stays in: the PSP has 24MB of user RAM and its native
+    # output rate matches the 44100Hz the mixer produces.
+    list(APPEND PSYZ_SOURCES src/psp/psp_file.c)
+    list(APPEND PSYZ_SOURCES src/psp/psp_log.c)
+    list(APPEND PSYZ_SOURCES src/psp/psp_gpu.c)
+    list(APPEND PSYZ_SOURCES src/psp/psp_input.c)
+    list(APPEND PSYZ_SOURCES src/psp/psp_misc.c)
+    list(APPEND PSYZ_SOURCES src/psp/psp_audio.c)
+    list(APPEND PSYZ_SOURCES src/psyz/psyz_spu.c)
+    # pspdebug first: it depends on pspdisplay and pspge
+    list(APPEND PSYZ_LIBS pspdebug pspgu pspdisplay pspge pspctrl pspaudio
+         psppower)
+    if(PSYZ_PSP_PROFILE)
+        # gprof_start/gprof_stop (pspprof.h), used by -pg profiling builds;
+        # see psyz/src/psp/README.md's "Profiling" section. -pg is scoped to
+        # just this target (the engine/renderer) rather than the whole
+        # program: instrumenting sotn-decomp's game logic too multiplies the
+        # mcount call-site count (worse under -O3 inlining) and made a
+        # 120-frame run take 10+ minutes on real hardware instead of seconds.
+        list(APPEND PSYZ_LIBS pspprof)
+        set(PSYZ_PSP_PROFILE_CFLAGS -pg)
+    endif()
 else()
     list(APPEND PSYZ_SOURCES src/platform/plat_unix.c)
+    list(APPEND PSYZ_SOURCES src/platform/sdl3_log.c)
     list(APPEND PSYZ_SOURCES src/platform/sdl3_audio.c)
     list(APPEND PSYZ_SOURCES src/psyz/psyz_spu.c)
     if(PSYZ_RENDERER STREQUAL "sdl3_gl")
@@ -197,5 +229,9 @@ endif()
 add_library(psyz STATIC ${PSYZ_SOURCES})
 target_compile_definitions(psyz PUBLIC __psyz)
 target_include_directories(psyz PUBLIC ${PSYZ_INC})
-target_link_libraries(psyz PUBLIC SDL3::SDL3 ${PSYZ_LIBS})
+if(PSP)
+    target_link_libraries(psyz PUBLIC ${PSYZ_LIBS})
+else()
+    target_link_libraries(psyz PUBLIC SDL3::SDL3 ${PSYZ_LIBS})
+endif()
 psyz_strip_file_prefix(psyz BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..)

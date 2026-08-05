@@ -2,6 +2,7 @@
 #
 # Sets the user-visible name of a game, for every supported configuration:
 #   - SDL3: the initial window title, instead of "PSY-Z" as placeholder.
+#   - PSP: set the game title on the XBM
 
 function(psyz_title target title)
     set(max_len 255)
@@ -15,5 +16,9 @@ function(psyz_title target title)
 
     if(TARGET psyz)
         target_compile_definitions(psyz PRIVATE "PSYZ_TITLE=\"${title}\"")
+    endif()
+
+    if(PSP)
+        psyz_psp_title(${target} "${title}")
     endif()
 endfunction()

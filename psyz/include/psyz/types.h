@@ -31,13 +31,23 @@ typedef unsigned short u_short;
 typedef unsigned long u_long;
 #endif
 
-typedef int8_t s8;
-typedef int16_t s16;
-typedef int32_t s32;
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef int8_t byte;
+#if !defined(LIBNDS_NDS_NDSTYPES_H__) && !defined(_PSPTYPES_H_)
+typedef signed char s8;
+typedef signed short s16;
+typedef signed int s32;
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned int u32;
+typedef signed char byte;
+#endif
+
+typedef struct {
+    int w, h;
+} PsyzSize;
+
+typedef struct {
+    int x, y, w, h;
+} PsyzRect;
 
 #ifndef NULL
 #define NULL ((void*)0)
