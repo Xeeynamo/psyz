@@ -41,20 +41,22 @@ static const char vertex_shader_body[] = {
     "layout(location = 0) in vec2 pos;\n"
     "layout(location = 1) in vec4 tex;\n"
     "layout(location = 2) in vec4 color;\n"
+    "layout(location = 3) in vec4 twin;\n"
     "uniform vec2 resolution;\n"
     "uniform vec2 drawOffset;\n"
     "out vec4 vertexColor;\n"
-    "out vec2 texCoord;\n"
+    "out vec2 rawUV;\n"
     "flat out uint tpage;\n"
     "flat out uint clut;\n"
     // Pre-computed pixel shader parameters
     "flat out uint textureMode;\n"  // 0=untextured, 1=16-bit, 2=indexed
-    "flat out float vramScaleX;\n"  // X scale for indexed modes
     "flat out uint subPixelMask;\n" // Sub-pixel mask (8-bit:1, 4-bit:3)
     "flat out uint texelShift;\n"   // Right shift for texel X
     "flat out uint indexShift;\n"   // Shift for index extraction
     "flat out uint indexMask;\n"    // Mask for color index
     "flat out uint dither;\n"       // 1 when this primitive dithers
+    "flat out ivec2 pageBase;\n"    // texture page origin, in VRAM pixels
+    "flat out uvec4 texWindow;\n"   // GP0(E2h) as {and.xy, or.zw}
     "\n"
     "void main() {\n"
     "    float x = ((pos.x + drawOffset.x) / (1024.0 / 2.0)) - 1.0;\n"
@@ -67,52 +69,59 @@ static const char vertex_shader_body[] = {
     "    uint texWord = uint(tex.w);\n"
     "    tpage = texWord & 0x1FFu;\n"
     "    dither = (texWord & 0x4000u) != 0u ? 1u : 0u;\n"
-    "    texCoord = vec2(tex.x / 4096.0, tex.y / 512.0);\n"
+    "    rawUV = tex.xy;\n"
     // Determine texture mode and pre-compute parameters
+    "    subPixelMask = 0u;\n"
+    "    texelShift = 0u;\n"
+    "    indexShift = 0u;\n"
+    "    indexMask = 0u;\n"
     "    if ((texWord & 0x8000u) != 0u) {\n"
     "        textureMode = 0u;\n" // untextured
     "    } else if ((tpage & 0x180u) >= 0x100u) {\n"
     "        textureMode = 1u;\n" // 16-bit direct
-    "        texCoord.x *= 4.0;\n"
     "        vertexColor.rgb *= 2.0;\n"
     "    } else {\n"
     "        textureMode = 2u;\n" // indexed
     "        vertexColor.rgb *= 2.0;\n"
     "        if ((tpage & 0x80u) != 0u) {\n" // 8-bit indexed
-    "            texCoord.x *= 2.0;\n"
-    "            vramScaleX = 2048.0;\n"
     "            subPixelMask = 1u;\n"
     "            texelShift = 1u;\n"
     "            indexShift = 8u;\n"
     "            indexMask = 0xFFu;\n"
     "        } else {\n" // 4-bit indexed
-    "            vramScaleX = 4096.0;\n"
     "            subPixelMask = 3u;\n"
     "            texelShift = 2u;\n"
     "            indexShift = 4u;\n"
     "            indexMask = 0xFu;\n"
     "        }\n"
     "    }\n"
-    "    vec2 page = vec2(\n"
-    "        float((tpage % 32u) % 16u) / 16.0,\n"
-    "        float((tpage % 32u) / 16u) / 2.0);\n"
-    "    texCoord += page;\n"
+    "    pageBase = ivec2(int((tpage % 32u) % 16u) * 64,\n"
+    "                     int((tpage % 32u) / 16u) * 256);\n"
+    "    texWindow = uvec4(twin);\n"
     "}\n"};
 
 static const char fragment_shader_body[] = {
     "in vec4 vertexColor;\n"
-    "in vec2 texCoord;\n"
+    "in vec2 rawUV;\n"
     "out vec4 FragColor;\n"
     "flat in uint clut;\n"
     "flat in uint tpage;\n"
     "flat in uint textureMode;\n"
-    "flat in float vramScaleX;\n"
     "flat in uint subPixelMask;\n"
     "flat in uint texelShift;\n"
     "flat in uint indexShift;\n"
     "flat in uint indexMask;\n"
     "flat in uint dither;\n"
+    "flat in ivec2 pageBase;\n"
+    "flat in uvec4 texWindow;\n"
     "uniform sampler2D texVram;\n"
+    "\n"
+    "uvec2 resolveTexel() {\n"
+    "    vec2 texelStep = vec2(abs(dFdx(rawUV.x)), abs(dFdy(rawUV.y)));\n"
+    "    vec2 uv = rawUV - 0.5 * texelStep + 1.0 / 512.0;\n"
+    "    uvec2 texel = uvec2(clamp(floor(uv), vec2(0.0), vec2(255.0)));\n"
+    "    return (texel & texWindow.xy) | texWindow.zw;\n"
+    "}\n"
     "\n"
     "uint rgb5551ToU16(vec4 c) {\n"
     "    uint r = uint(c.r * 31.0 + 0.5);\n"
@@ -141,14 +150,14 @@ static const char fragment_shader_body[] = {
     "    if (textureMode == 0u) {\n" // untextured
     "        texColor = vec4(1, 1, 1, 2);\n"
     "    } else if (textureMode == 1u) {\n" // 16-bit bitmap
-    "        texColor = texture(texVram, texCoord);\n"
+    "        texColor =\n"
+    "            texelFetch(texVram, pageBase + ivec2(resolveTexel()), 0);\n"
     "    } else {\n" // indexed
-    "        vec2 vramCoord = texCoord * vec2(vramScaleX, 512.0);\n"
-    "        int pixelX = int(floor(vramCoord.x));\n"
-    "        uint subPixel = uint(pixelX) & subPixelMask;\n"
-    "        ivec2 texelPos = ivec2(pixelX >> texelShift, int(vramCoord.y));\n"
-    "        vec4 texel = texelFetch(texVram, texelPos, 0);\n"
-    "        uint word16 = rgb5551ToU16(texel);\n"
+    "        ivec2 texel = ivec2(resolveTexel());\n"
+    "        uint subPixel = uint(texel.x) & subPixelMask;\n"
+    "        ivec2 texelPos =\n"
+    "            pageBase + ivec2(texel.x >> texelShift, texel.y);\n"
+    "        uint word16 = rgb5551ToU16(texelFetch(texVram, texelPos, 0));\n"
     "        uint colorIdx = (word16 >> (subPixel * indexShift)) & indexMask;\n"
     "        ivec2 clutBase = ivec2((clut % 64u) * 16u, clut / 64u);\n"
     "        texColor = texelFetch(texVram, clutBase + ivec2(colorIdx, 0), "
@@ -881,6 +890,9 @@ static void Draw_InitBuffer() {
     glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex),
                           (void*)offsetof(Vertex, r));
     glEnableVertexAttribArray(1);
+    glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(Vertex),
+                          (void*)offsetof(Vertex, twin));
+    glEnableVertexAttribArray(3);
     glBindVertexArray(0);
 }
 
@@ -1064,8 +1076,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
                     lt |= TPAGE_DITHER;
                 }
                 for (int k = 0; k < 4; k++) {
-                    q[k].c = -1;
-                    q[k].t = lt;
+                    SET_TC(&q[k], lt, -1);
                 }
                 index_cur[0] = base + 0;
                 index_cur[1] = base + 1;

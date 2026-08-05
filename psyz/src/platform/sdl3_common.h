@@ -736,6 +736,7 @@ typedef struct {
     short x, y;
     unsigned short u, v, c, t;
     unsigned char r, g, b, a;
+    unsigned int twin;
 } Vertex;
 
 // ===== SDL3 reserved TPAGE flags, invalid on real hardware =====
@@ -743,7 +744,8 @@ typedef struct {
 #define TPAGE_DITHER 0x4000    // flag a dithered primitive
 
 #define VRGBA(p) (*(unsigned int*)(&((p).r)))
-#define SET_TC(p, tpage, clut) (p)->t = (u16)(tpage), (p)->c = (u16)(clut);
+#define SET_TC(p, tpage, clut)                                                 \
+    (p)->t = (u16)(tpage), (p)->c = (u16)(clut), (p)->twin = cur_twin;
 #define SET_TC_ALL(p, t, c)                                                    \
     SET_TC(p, t, c)                                                            \
     SET_TC(&(p)[1], t, c) SET_TC(&(p)[2], t, c) SET_TC(&(p)[3], t, c)
@@ -764,6 +766,12 @@ static Vertex* vertex_cur;
 static unsigned short* index_cur;
 static unsigned short n_vertices;
 static int n_indices;
+
+// represents a texture window as a 32-bit integer for fast aligned copies
+#define TWIN_PACK(and_x, and_y, or_x, or_y)                                    \
+    ((unsigned int)(and_x) | ((unsigned int)(and_y) << 8) |                    \
+     ((unsigned int)(or_x) << 16) | ((unsigned int)(or_y) << 24))
+static unsigned int cur_twin = TWIN_PACK(0xFF, 0xFF, 0x00, 0x00);
 
 static void Draw_EnsureBufferWillNotOverflow(int vertices, int indices) {
     bool bufferFull = n_vertices + vertices > MAX_VERTEX_COUNT ||
@@ -867,12 +875,12 @@ void Draw_SetTexpageMode(ParamDrawTexpageMode* p) {
 }
 void Draw_SetTextureWindow(unsigned int mask_x, unsigned int mask_y,
                            unsigned int off_x, unsigned int off_y) {
-    // implements SetTexWindow
-    // it seems it is some kind of texture clamp/repeat
-    if (off_x > 0 || off_y > 0 || mask_x != 0xFFFFFFFF ||
-        mask_y != 0xFFFFFFFF) {
-        NOT_IMPLEMENTED;
-    }
+    mask_x &= 0x1F;
+    mask_y &= 0x1F;
+    cur_twin = TWIN_PACK(
+        (unsigned char)~(mask_x * 8), (unsigned char)~(mask_y * 8),
+        (unsigned char)((off_x & mask_x) * 8),
+        (unsigned char)((off_y & mask_y) * 8));
 }
 void Draw_SetMask(int bit0, int bit1) {
     if (bit0 || bit1) {

@@ -1,18 +1,26 @@
 #version 450
 
 layout(location = 0) in vec4 vertexColor;
-layout(location = 1) in vec2 texCoord;
+layout(location = 1) in vec2 rawUV;
 layout(location = 2) flat in uint tpage;
 layout(location = 3) flat in uint clut;
 layout(location = 4) flat in uint textureMode;
-layout(location = 5) flat in float vramScaleX;
-layout(location = 6) flat in uint subPixelMask;
-layout(location = 7) flat in uint texelShift;
-layout(location = 8) flat in uint indexShift;
-layout(location = 9) flat in uint indexMask;
-layout(location = 10) flat in uint dither;
+layout(location = 5) flat in uint subPixelMask;
+layout(location = 6) flat in uint texelShift;
+layout(location = 7) flat in uint indexShift;
+layout(location = 8) flat in uint indexMask;
+layout(location = 9) flat in uint dither;
+layout(location = 10) flat in ivec2 pageBase;
+layout(location = 11) flat in uvec4 texWindow;
 
 layout(set = 2, binding = 0) uniform sampler2D texVram;
+
+uvec2 resolveTexel() {
+    vec2 texelStep = vec2(abs(dFdx(rawUV.x)), abs(dFdy(rawUV.y)));
+    vec2 uv = rawUV - 0.5 * texelStep + 1.0 / 512.0;
+    uvec2 texel = uvec2(clamp(floor(uv), vec2(0.0), vec2(255.0)));
+    return (texel & texWindow.xy) | texWindow.zw;
+}
 
 layout(location = 0) out vec4 FragColor;
 
@@ -44,14 +52,12 @@ void main() {
     if (textureMode == 0u) { // untextured
         texColor = vec4(1, 1, 1, 2);
     } else if (textureMode == 1u) { // 16-bit bitmap
-        texColor = texture(texVram, texCoord);
+        texColor = texelFetch(texVram, pageBase + ivec2(resolveTexel()), 0);
     } else { // indexed
-        vec2 vramCoord = texCoord * vec2(vramScaleX, 512.0);
-        int pixelX = int(floor(vramCoord.x));
-        uint subPixel = uint(pixelX) & subPixelMask;
-        ivec2 texelPos = ivec2(pixelX >> texelShift, int(vramCoord.y));
-        vec4 texel = texelFetch(texVram, texelPos, 0);
-        uint word16 = rgb5551ToU16(texel);
+        ivec2 texel = ivec2(resolveTexel());
+        uint subPixel = uint(texel.x) & subPixelMask;
+        ivec2 texelPos = ivec2(texel.x >> texelShift, texel.y);
+        uint word16 = rgb5551ToU16(texelFetch(texVram, pageBase + texelPos, 0));
         uint colorIdx = (word16 >> (subPixel * indexShift)) & indexMask;
         ivec2 clutBase = ivec2((clut % 64u) * 16u, clut / 64u);
         texColor = texelFetch(texVram, clutBase + ivec2(colorIdx, 0), 0);
