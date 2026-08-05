@@ -767,7 +767,6 @@ static unsigned short* index_cur;
 static unsigned short n_vertices;
 static int n_indices;
 
-
 // represents a texture window as a 32-bit integer for fast aligned copies
 #define TWIN_PACK(and_x, and_y, or_x, or_y)                                    \
     ((unsigned int)(and_x) | ((unsigned int)(and_y) << 8) |                    \

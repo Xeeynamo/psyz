@@ -907,16 +907,14 @@ TEST_F(gpu_Test, uv_minification) {
 
     static const struct {
         short x, y, w, h;
-    } cases[] = {
-        // 64 texels into 32 pixels: 2x minified
-        {8, 8, 32, 32},  
-        // 64 texels into 16 pixels: 4x minified
-        {88, 8, 16, 16}, 
-        // non-power-of-two step
-        {8, 88, 21, 21}, 
-        // 1:1 for reference
-        {88, 88, 64, 64} 
-    };
+    } cases[] = {// 64 texels into 32 pixels: 2x minified
+                 {8, 8, 32, 32},
+                 // 64 texels into 16 pixels: 4x minified
+                 {88, 8, 16, 16},
+                 // non-power-of-two step
+                 {8, 88, 21, 21},
+                 // 1:1 for reference
+                 {88, 88, 64, 64}};
 
     ClearOTag(cdb->ot, OTSIZE);
     for (int i = 0; i < LEN(cases); i++) {
@@ -950,13 +948,13 @@ TEST_F(gpu_Test, texture_window_tiling) {
         RECT win;
     } cases[] = {
         // full page: window disabled
-        {8, 8, {0, 0, 256, 256}}, 
+        {8, 8, {0, 0, 256, 256}},
         // window matches the quad: still one copy
-        {88, 8, {0, 0, 64, 64}},  
+        {88, 8, {0, 0, 64, 64}},
         // 32x32 window: 2x2 repeats
-        {8, 88, {0, 0, 32, 32}},  
+        {8, 88, {0, 0, 32, 32}},
         // 16x16 window: 4x4 repeats
-        {88, 88, {0, 0, 16, 16}}, 
+        {88, 88, {0, 0, 16, 16}},
     };
 
     ClearOTag(cdb->ot, OTSIZE);
@@ -1042,9 +1040,9 @@ TEST_F(gpu_Test, texture_window_non_square) {
         RECT win;
     } cases[] = {
         // wide and short
-        {8, 8, 0, 0, {0, 0, 64, 16}},  
+        {8, 8, 0, 0, {0, 0, 64, 16}},
         // narrow and tall
-        {88, 8, 0, 0, {0, 0, 16, 64}}, 
+        {88, 8, 0, 0, {0, 0, 16, 64}},
         // non-zero starting UV
         {8, 88, 96, 96, {0, 0, 32, 32}},
         // window offset not aligned to window size
