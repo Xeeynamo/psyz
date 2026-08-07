@@ -51,13 +51,12 @@ static void GPU_read_image() { NOT_IMPLEMENTED; }
 
 static int queue_len = 0;
 static u_long queue_buf[0x4000];
-int Psyz_GpuExeque() {
+static void DispatchPackets(u_long* buf, int len) {
     RECT rect;
     unsigned int x, y;
-    Draw_ResetBuffer();
-    for (int i = 0; i < queue_len; i++) {
-        u_long op = queue_buf[i];
-        int code = (int)(queue_buf[i] >> 24) & 0xFF;
+    for (int i = 0; i < len; i++) {
+        u_long op = buf[i];
+        int code = (int)(buf[i] >> 24) & 0xFF;
         // https://psx-spx.consoledev.net/graphicsprocessingunitgpu/#gpu-render-polygon-commands
         switch (code) {
         case 0x00:
@@ -67,22 +66,22 @@ int Psyz_GpuExeque() {
             GPU_clear_cache();
             break;
         case 0x02: // frame buffer rectangle draw
-            rect.x = (short)(queue_buf[i + 1] & 0xFFFF);
-            rect.y = (short)((queue_buf[i + 1] >> 16) & 0xFFFF);
-            rect.w = (short)(queue_buf[i + 2] & 0xFFFF);
-            rect.h = (short)((queue_buf[i + 2] >> 16) & 0xFFFF);
+            rect.x = (short)(buf[i + 1] & 0xFFFF);
+            rect.y = (short)((buf[i + 1] >> 16) & 0xFFFF);
+            rect.w = (short)(buf[i + 2] & 0xFFFF);
+            rect.h = (short)((buf[i + 2] >> 16) & 0xFFFF);
             Draw_ClearImage(
                 &rect, (u_char)(op & 0xFF), (u_char)((op >> 8) & 0xFF),
                 (u_char)((op >> 16) & 0xFF));
             i += 2;
             break;
         case 0x80: // move image
-            rect.x = (short)(queue_buf[i + 1] & 0xFFFF);
-            rect.y = (short)((queue_buf[i + 1] >> 16) & 0xFFFF);
-            rect.w = (short)(queue_buf[i + 3] & 0xFFFF);
-            rect.h = (short)((queue_buf[i + 3] >> 16) & 0xFFFF);
-            x = (short)(queue_buf[i + 2] & 0xFFFF);
-            y = (short)((queue_buf[i + 2] >> 16) & 0xFFFF);
+            rect.x = (short)(buf[i + 1] & 0xFFFF);
+            rect.y = (short)((buf[i + 1] >> 16) & 0xFFFF);
+            rect.w = (short)(buf[i + 3] & 0xFFFF);
+            rect.h = (short)((buf[i + 3] >> 16) & 0xFFFF);
+            x = (short)(buf[i + 2] & 0xFFFF);
+            y = (short)((buf[i + 2] >> 16) & 0xFFFF);
             Draw_MoveImage(&rect, x, y);
             break;
         case 0xA0: // write image
@@ -114,12 +113,17 @@ int Psyz_GpuExeque() {
             break;
         default:
             if (code >= 0x20 && code < 0x80) {
-                i += Draw_PushPrim(&queue_buf[i], queue_len - i) - 1;
+                i += Draw_PushPrim(&buf[i], len - i) - 1;
                 break;
             }
             WARNF("unsupported command %02X", code);
         }
     }
+}
+
+int Psyz_GpuExeque() {
+    Draw_ResetBuffer();
+    DispatchPackets(queue_buf, queue_len);
     Draw_FlushBuffer();
     Draw_ExequeSync();
     queue_len = 0;
@@ -132,6 +136,19 @@ static int GPU_Enqueue(u_long p1, u_long p2) {
         WARNF("mask not supported (mask:%08X)", mask);
     }
     DR_ENV* env = (DR_ENV*)(uintptr_t)p1;
+    if (sizeof(u_long) == 4) {
+        // fast path for 32-bit systems
+        while (1) {
+            if (env->len > 0) {
+                DispatchPackets((u_long*)env->code, (int)env->len);
+            }
+            if (isendprim(env)) {
+                break;
+            }
+            env = (DR_ENV*)nextPrim(env);
+        }
+        return 0;
+    }
     while (1) {
         if (queue_len + env->len > LEN(queue_buf)) {
             if (env->len > 0x100) {
@@ -139,9 +156,6 @@ static int GPU_Enqueue(u_long p1, u_long p2) {
             }
             INFOF("GPU queue full, calling exeque");
             Psyz_GpuExeque();
-        } else if (sizeof(u_long) == 4) {
-            // this is fine on 32-bit systems
-            memcpy(queue_buf + queue_len, env->code, env->len * sizeof(u_long));
         } else if (sizeof(u_long) == 8) {
             // Wow okay, this part is uuuugly...
             // Gpu code is usually written to a u_long array, which will work
