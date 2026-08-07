@@ -266,7 +266,21 @@ static int psyz_getctl(int _) {
     NOT_IMPLEMENTED;
     return 0;
 }
-static void psyz_otc(OT_TYPE* ot, s32 n) { NOT_IMPLEMENTED; }
+
+static void psyz_otc(OT_TYPE* ot, s32 n) {
+    s32 i;
+
+    if (n <= 0) {
+        return;
+    }
+    for (i = n - 1; i > 0; i--) {
+        setaddr(&ot[i], &ot[i - 1]);
+        setlen(&ot[i], 0);
+    }
+    setaddr(&ot[0], 0xFFFFFF);
+    setlen(&ot[0], 0);
+}
+
 static int psyz_param(int _) {
     NOT_IMPLEMENTED;
     return 0;
