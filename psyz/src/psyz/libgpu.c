@@ -125,7 +125,6 @@ int Psyz_GpuExeque() {
     Draw_ResetBuffer();
     DispatchPackets(queue_buf, queue_len);
     Draw_FlushBuffer();
-    Draw_ExequeSync();
     queue_len = 0;
     return queue_len;
 }
@@ -311,7 +310,10 @@ static int psyz_sync(int mode) {
     // return -1 if GPU has timed out
     // but on PC the implementation is much simpler as it's always synced
     Psyz_GpuExeque();
-    return 0;
+    if (mode != 0 && !Draw_ExequeIsSyncComplete()) {
+        return 1;
+    }
+    return Draw_ExequeSync();
 }
 
 int psyz_gpu_version(int mode) { return GPU_V0; }

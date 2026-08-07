@@ -43,6 +43,21 @@ static SDL_GPUGraphicsPipeline* pipe_tri_add = NULL;
 static SDL_GPUGraphicsPipeline* pipe_tri_sub = NULL;
 static SDL_GPUGraphicsPipeline* pipe_clear = NULL;
 static SDL_GPUCommandBuffer* pending_cmd = NULL;
+static SDL_GPUFence* sync_fence = NULL;
+
+// A StoreImage result belongs to the caller only after DrawSync. Keep the
+// native-GPU transfer and its fence alive until then, rather than making every
+// StoreImage synchronously wait for a GPU -> CPU readback.
+typedef struct PendingReadback {
+    SDL_GPUTransferBuffer* transfer;
+    SDL_GPUFence* fence;
+    u_long* output;
+    size_t pixels;
+    struct PendingReadback* next;
+} PendingReadback;
+
+static PendingReadback* pending_readbacks = NULL;
+static PendingReadback** pending_readbacks_tail = &pending_readbacks;
 
 static Posi display_area = {0, 0};
 static Posi display_size = {256, 240};
@@ -96,6 +111,34 @@ static void SubmitCmdAndWait(void) {
         SDL_WaitForGPUFences(device, true, &fence, 1);
         SDL_ReleaseGPUFence(device, fence);
     }
+}
+
+static void SubmitCmdForSync(void) {
+    if (!pending_cmd || sync_fence) {
+        return;
+    }
+    sync_fence = SDL_SubmitGPUCommandBufferAndAcquireFence(pending_cmd);
+    pending_cmd = NULL;
+    if (!sync_fence) {
+        ERRORF("SDL_SubmitGPUCommandBufferAndAcquireFence: %s", SDL_GetError());
+    }
+}
+
+static void DiscardPendingReadbacks(void) {
+    PendingReadback* request = pending_readbacks;
+    while (request) {
+        PendingReadback* next = request->next;
+        if (request->fence) {
+            SDL_ReleaseGPUFence(device, request->fence);
+        }
+        if (request->transfer) {
+            SDL_ReleaseGPUTransferBuffer(device, request->transfer);
+        }
+        free(request);
+        request = next;
+    }
+    pending_readbacks = NULL;
+    pending_readbacks_tail = &pending_readbacks;
 }
 
 static SDL_GPUShader* CreateShader(
@@ -673,6 +716,11 @@ static void QuitPlatform(void) {
     }
     if (device) {
         SDL_WaitForGPUIdle(device);
+        if (sync_fence) {
+            SDL_ReleaseGPUFence(device, sync_fence);
+            sync_fence = NULL;
+        }
+        DiscardPendingReadbacks();
         if (pipe_tri_add) {
             SDL_ReleaseGPUGraphicsPipeline(device, pipe_tri_add);
             pipe_tri_add = NULL;
@@ -968,7 +1016,61 @@ void Draw_SetDisplayMode(DisplayMode* mode) {
     }
 }
 
-int Draw_ExequeSync() { return 0; }
+int Draw_ExequeSync() {
+    // There is deliberately no wait in Draw_StoreImage(). This is the PS1
+    // synchronization point at which its VRAM-to-RAM DMA result becomes
+    // observable by the caller.
+    while (pending_cmd || sync_fence) {
+        SubmitCmdForSync();
+        if (!sync_fence) {
+            return -1;
+        }
+        if (!SDL_WaitForGPUFences(device, true, &sync_fence, 1)) {
+            ERRORF("SDL_WaitForGPUFences: %s", SDL_GetError());
+            return -1;
+        }
+        SDL_ReleaseGPUFence(device, sync_fence);
+        sync_fence = NULL;
+    }
+    for (PendingReadback* request = pending_readbacks; request;
+         request = request->next) {
+        if (!SDL_WaitForGPUFences(device, true, &request->fence, 1)) {
+            ERRORF("SDL_WaitForGPUFences: %s", SDL_GetError());
+            return -1;
+        }
+        const u8* rgba =
+            SDL_MapGPUTransferBuffer(device, request->transfer, false);
+        if (!rgba) {
+            ERRORF("SDL_MapGPUTransferBuffer: %s", SDL_GetError());
+            return -1;
+        }
+        ConvertRgba8888ToRgb5551(rgba, (u16*)request->output, request->pixels);
+        SDL_UnmapGPUTransferBuffer(device, request->transfer);
+    }
+    DiscardPendingReadbacks();
+    return 0;
+}
+
+int Draw_ExequeIsSyncComplete() {
+    if (sync_fence && pending_cmd) {
+        return 0;
+    }
+    SubmitCmdForSync();
+    if (sync_fence && !SDL_QueryGPUFence(device, sync_fence)) {
+        return 0;
+    }
+    if (sync_fence) {
+        SDL_ReleaseGPUFence(device, sync_fence);
+        sync_fence = NULL;
+    }
+    for (PendingReadback* request = pending_readbacks; request;
+         request = request->next) {
+        if (!SDL_QueryGPUFence(device, request->fence)) {
+            return 0;
+        }
+    }
+    return 1;
+}
 
 // optimization to avoid sampling the VRAM on an untextured batch draw
 static bool batch_has_texture = false;
@@ -1371,15 +1473,57 @@ void Draw_StoreImage(PS1_RECT* rect, u_long* p) {
     Draw_FlushBuffer(); // flush primitives before operating with the VRAM
 
     const size_t pixels = (size_t)rect->w * rect->h;
-    u8* rgba = malloc(pixels * 4);
-    if (!rgba) {
+    PendingReadback* request = calloc(1, sizeof(*request));
+    if (!request) {
         return;
     }
-    if (DownloadVramRegionAsRGBA8888(
-            rect->x, rect->y, rect->w, rect->h, rgba)) {
-        ConvertRgba8888ToRgb5551(rgba, (u16*)p, pixels);
+
+    const SDL_GPUTransferBufferCreateInfo transfer_info = {
+        .usage = SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD,
+        .size = (Uint32)(pixels * 4),
+    };
+    request->transfer = SDL_CreateGPUTransferBuffer(device, &transfer_info);
+    if (!request->transfer) {
+        ERRORF("SDL_CreateGPUTransferBuffer: %s", SDL_GetError());
+        free(request);
+        return;
     }
-    free(rgba);
+
+    SDL_GPUCommandBuffer* cmd = AcquireCmd();
+    if (!cmd) {
+        SDL_ReleaseGPUTransferBuffer(device, request->transfer);
+        free(request);
+        return;
+    }
+    SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd);
+    const SDL_GPUTextureRegion region = {
+        .texture = vram_render,
+        .x = (Uint32)rect->x,
+        .y = (Uint32)rect->y,
+        .w = rect->w,
+        .h = rect->h,
+        .d = 1,
+    };
+    const SDL_GPUTextureTransferInfo transfer = {
+        .transfer_buffer = request->transfer,
+        .pixels_per_row = rect->w,
+        .rows_per_layer = rect->h,
+    };
+    SDL_DownloadFromGPUTexture(copy, &region, &transfer);
+    SDL_EndGPUCopyPass(copy);
+
+    request->fence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmd);
+    pending_cmd = NULL;
+    if (!request->fence) {
+        ERRORF("SDL_SubmitGPUCommandBufferAndAcquireFence: %s", SDL_GetError());
+        SDL_ReleaseGPUTransferBuffer(device, request->transfer);
+        free(request);
+        return;
+    }
+    request->output = p;
+    request->pixels = pixels;
+    *pending_readbacks_tail = request;
+    pending_readbacks_tail = &request->next;
 }
 
 void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
