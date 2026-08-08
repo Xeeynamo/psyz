@@ -13,7 +13,9 @@ extern "C" {
 /**
  * @brief Set the title of the game window
  *
- * @param str Window title string
+ * Can also be set with psyz_title(<target> <str>) on CMakeLists
+ *
+ * @param str Window title string, truncated past 255 characters
  */
 void Psyz_SetTitle(const char* str);
 
