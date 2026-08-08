@@ -28,6 +28,7 @@ add_executable(psyz_tests
 )
 add_subdirectory(../ build)
 target_link_libraries(psyz_tests PRIVATE gtest_main psyz)
+psyz_title(psyz_tests "PsyZ Tests")
 include(GoogleTest)
 
 if(CMAKE_CROSSCOMPILING)

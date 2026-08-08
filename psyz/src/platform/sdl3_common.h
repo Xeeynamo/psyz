@@ -29,9 +29,15 @@ static void PlatformBackend_SetDriverVsync(bool enable);
 static void PlatformBackend_Present(void);
 static void QuitPlatform(void);
 
+#ifndef PSYZ_TITLE
+#define PSYZ_TITLE "PSY-Z"
+#endif
+static char window_title[0x100] = {PSYZ_TITLE};
+_Static_assert(sizeof(PSYZ_TITLE) <= sizeof(window_title),
+               "PSYZ_TITLE exceeds max allowed characters");
+
 // shared window/platform state
 static SDL_Window* sdl3_window = NULL;
-static char window_title[0x100] = {"PSY-Z"};
 static bool is_window_visible = false;
 static bool is_platform_initialized = false;
 static bool is_platform_init_successful = false;
