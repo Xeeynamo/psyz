@@ -83,6 +83,7 @@ static void DispatchPackets(u_long* buf, int len) {
             x = (short)(buf[i + 2] & 0xFFFF);
             y = (short)((buf[i + 2] >> 16) & 0xFFFF);
             Draw_MoveImage(&rect, x, y);
+            i += 3;
             break;
         case 0xA0: // write image
             GPU_write_image();
