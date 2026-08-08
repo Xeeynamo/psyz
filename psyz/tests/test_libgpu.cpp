@@ -99,7 +99,7 @@ class gpu_Test : public testing::Test {
         char filename[FILENAME_MAX];
         char filenameAct[FILENAME_MAX];
         int exp_w, exp_h, act_w, act_h, ch;
-        snprintf(filename, sizeof(filename), "../expected/%s.png", png_path);
+        snprintf(filename, sizeof(filename), "expected/%s.png", png_path);
         unsigned char* exp_d = stbi_load(filename, &exp_w, &exp_h, &ch, 3);
         ch = 3;
         ASSERT_NE(exp_d, nullptr) << "for " << png_path;
@@ -108,7 +108,7 @@ class gpu_Test : public testing::Test {
         ASSERT_EQ(exp_w, act_w) << "for " << png_path;
         ASSERT_EQ(exp_h, act_h) << "for " << png_path;
         auto eq = img_eq(exp_d, act_d, exp_w * exp_h * ch, tolerance);
-        snprintf(filenameAct, sizeof(filenameAct), "../expected/%s.actual.png",
+        snprintf(filenameAct, sizeof(filenameAct), "expected/%s.actual.png",
                  png_path);
         if (eq < precision) {
             stbi_write_png(filenameAct, act_w, act_h, ch, act_d, act_w * ch);
