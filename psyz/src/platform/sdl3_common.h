@@ -33,7 +33,7 @@ static void QuitPlatform(void);
 #define PSYZ_TITLE "PSY-Z"
 #endif
 static char window_title[0x100] = {PSYZ_TITLE};
-_Static_assert(sizeof(PSYZ_TITLE) <= sizeof(window_title),
+STATIC_ASSERT(sizeof(PSYZ_TITLE) <= sizeof(window_title),
                "PSYZ_TITLE exceeds max allowed characters");
 
 // shared window/platform state
