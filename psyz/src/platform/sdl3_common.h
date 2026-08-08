@@ -34,7 +34,7 @@ static void QuitPlatform(void);
 #endif
 static char window_title[0x100] = {PSYZ_TITLE};
 STATIC_ASSERT(sizeof(PSYZ_TITLE) <= sizeof(window_title),
-               "PSYZ_TITLE exceeds max allowed characters");
+              "PSYZ_TITLE exceeds max allowed characters");
 
 // shared window/platform state
 static SDL_Window* sdl3_window = NULL;
