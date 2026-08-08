@@ -11,6 +11,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 #endif
 
 #ifdef __cplusplus

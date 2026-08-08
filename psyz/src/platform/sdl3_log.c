@@ -1,3 +1,5 @@
+// TODO this and `psp_log.c` should eventually get merged.
+// SDL_LogMessage is required for the Android backend.
 #include <SDL3/SDL.h>
 #include <psyz.h>
 #include <stdarg.h>

@@ -171,6 +171,10 @@ Windows with MSVC does not favor GNU C extensions, which may present some challe
 
 If these limitations represent a significant obstacle for your project, consider using **clang-cl** instead, which provides better GNU C extension support while still using the MSVC ABI and Windows SDK.
 
+### Sony PlayStation Portable
+
+All PSP-specific code and guide is available in [`psyz/src/psp`](psyz/src/psp/README.md).
+
 ## Contributing to PSY-Z
 
 PSY-Z is not perfect or complete. Bugs or missing implementations are bound to happen. If any of those issues are spotted, the best way forward is to open an issue on the project repository or reach out to the maintainers. Ensuring PSY-Z works on your project will enable future ports more easily and help improve the SDK for the entire community.

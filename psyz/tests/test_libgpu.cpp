@@ -293,6 +293,13 @@ TEST_F(gpu_Test, gouraud_line_after_flush) {
 }
 
 TEST_F(gpu_Test, draw_lines) {
+#ifdef __PSP__
+// native line geometry has a different rasterization algorihm, and using
+// triangles to represent lines is too expensive for the Graphics Engine.
+#define VARIANT ".psp"
+#else
+#define VARIANT ""
+#endif
     ClearImage(&cdb->draw.clip, 0, 0, 0);
     ClearOTag(cdb->ot, OTSIZE);
 
@@ -321,7 +328,7 @@ TEST_F(gpu_Test, draw_lines) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("draw_lines", 1, 0.9993f);
+    AssertFrame("draw_lines" VARIANT, 1, 0.9993f);
 }
 
 TEST_F(gpu_Test, set_draw_area) {
@@ -462,6 +469,9 @@ TEST_F(gpu_Test, move_image) {
 }
 
 TEST_F(gpu_Test, move_image_overlap) {
+#ifdef __PSP__
+    GTEST_SKIP() << "move_image unimplemented on PSP";
+#endif
     u_short tpage, clut;
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
@@ -493,6 +503,10 @@ TEST_F(gpu_Test, move_image_overlap) {
 }
 
 TEST_F(gpu_Test, move_image_internal_res) {
+#ifdef __PSP__
+    GTEST_SKIP() << "no internal resolution scaling supported";
+    return;
+#endif
     ASSERT_EQ(Psyz_VideoSetInternalResolution(0), -1);
     ASSERT_EQ(Psyz_VideoSetInternalResolution(2), 0);
     ASSERT_EQ(Psyz_VideoGetInternalResolution(), 2);
@@ -553,6 +567,11 @@ TEST_F(gpu_Test, blit) {
 }
 
 TEST_F(gpu_Test, draw_disp_env) {
+#ifdef __PSP__
+    // Can't draw on the same buffer that is also displayed
+    GTEST_SKIP() << "Unsupported on PSP";
+    return;
+#endif
     // Set different buffers for draw and disp
     SetDefDrawEnv(&db[0].draw, 0, 0, 256, 240);
     SetDefDispEnv(&db[0].disp, 256, 0, 256, 240);
@@ -900,6 +919,15 @@ TEST_F(gpu_Test, untextured_transp_poly_take_abr_from_drawenv) {
 }
 
 TEST_F(gpu_Test, uv_minification) {
+#ifdef __PSP__
+#ifdef IS_PPSSPP_EMU
+    GTEST_SKIP() << "Known failure on PPSSPP";
+#endif
+    // Has a slightly different minification algorithm, but the feature works
+#define VARIANT ".psp"
+#else
+#define VARIANT ""
+#endif
     u_short tpage, clut;
     if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
         return;
@@ -934,10 +962,13 @@ TEST_F(gpu_Test, uv_minification) {
     VSync(0);
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("uv_minification", 0, 0.9995f);
+    AssertFrame("uv_minification" VARIANT, 0, 0.9995f);
 }
 
 TEST_F(gpu_Test, texture_window_tiling) {
+#ifdef __PSP__
+    GTEST_SKIP() << "texture window unimplemented on PSP";
+#endif
     u_short tpage, clut;
     if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
         return;
@@ -984,6 +1015,9 @@ TEST_F(gpu_Test, texture_window_tiling) {
 }
 
 TEST_F(gpu_Test, texture_window_offset) {
+#ifdef __PSP__
+    GTEST_SKIP() << "texture window unimplemented on PSP";
+#endif
     // Same 32x32 window size in every quadrant, moved around the page. The
     // offset bits replace the masked-off UV bits, so each quadrant tiles a
     // different 32x32 patch of the texture.
@@ -1029,6 +1063,9 @@ TEST_F(gpu_Test, texture_window_offset) {
 }
 
 TEST_F(gpu_Test, texture_window_non_square) {
+#ifdef __PSP__
+    GTEST_SKIP() << "texture window unimplemented on PSP";
+#endif
     u_short tpage, clut;
     if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
         return;
@@ -1156,6 +1193,13 @@ TEST_F(dither_Test, dithering_flat_off) {
 }
 
 TEST_F(dither_Test, dithering_flat_blending_on) {
+#ifdef __PSP__
+    // Dithering matrix is fixed in the GPU pipeline, it can't be changed to
+    // reflect the exact identical look on PS1. Current implementation is good.
+#define VARIANT ".psp"
+#else
+#define VARIANT ""
+#endif
     u_short tpage = MakeFlatTPage();
     SetPolyFT4(&cdb->ft4[0]);
     setXYWH(&cdb->ft4[0], 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -1165,7 +1209,7 @@ TEST_F(dither_Test, dithering_flat_blending_on) {
     cdb->ft4[0].tpage = tpage;
     cdb->ft4[0].clut = 0;
     AddPrim(cdb->ot, &cdb->ft4[0]);
-    Present("dithering_flat_blending_on");
+    Present("dithering_flat_blending_on" VARIANT);
 }
 
 TEST_F(dither_Test, dithering_lines_on) {
