@@ -287,7 +287,7 @@ static void run_voice1_with_sample(
 }
 
 static std::vector<unsigned char> load_expected_pcm(const char* name) {
-    std::string path = std::string("../expected/spu/") + name + ".test.pcm";
+    std::string path = std::string("expected/spu/") + name + ".test.pcm";
     FILE* f = std::fopen(path.c_str(), "rb");
     if (!f) {
         ADD_FAILURE() << "cannot open expected PCM file: " << path;
