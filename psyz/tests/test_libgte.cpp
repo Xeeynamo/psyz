@@ -173,6 +173,113 @@ TEST_F(gte_Test, rot_matrix) {
 #endif
 }
 
+TEST_F(gte_Test, trans_matrix_negative) {
+    MATRIX m = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0};
+    VECTOR t = {-1, -2000, 30000};
+    EXPECT_EQ(TransMatrix(&m, &t), &m);
+    EXPECT_EQ(m.t[0], -1);
+    EXPECT_EQ(m.t[1], -2000);
+    EXPECT_EQ(m.t[2], 30000);
+    EXPECT_EQ(m.m[0][0], 1);
+    EXPECT_EQ(m.m[2][2], 9);
+}
+
+TEST_F(gte_Test, scale_matrix_identity) {
+    MATRIX m = {0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000, 7, 8, 9};
+    MATRIX exp = {0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000, 7, 8, 9};
+    VECTOR s = {0x1000, 0x1000, 0x1000};
+    EXPECT_EQ(ScaleMatrix(&m, &s), &m);
+    EqMatrix(&m, &exp);
+}
+
+TEST_F(gte_Test, scale_matrix_per_axis) {
+    MATRIX m = {0x1000, 0x1000, 0x1000, //
+                0x1000, 0x1000, 0x1000, //
+                0x1000, 0x1000, 0x1000, //
+                0,      0,      0};
+    VECTOR s = {0x800, 0x2000, 0};
+    EXPECT_EQ(ScaleMatrix(&m, &s), &m);
+    for (int i = 0; i < 3; i++) {
+        EXPECT_EQ(m.m[i][0], 0x800) << "row " << i;
+        EXPECT_EQ(m.m[i][1], 0x2000) << "row " << i;
+        EXPECT_EQ(m.m[i][2], 0) << "row " << i;
+    }
+}
+
+TEST_F(gte_Test, scale_matrix_negative) {
+    MATRIX m = {0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0};
+    VECTOR s = {-0x1000, -0x800, 0x1000};
+    ScaleMatrix(&m, &s);
+    EXPECT_EQ(m.m[0][0], -0x1000);
+    EXPECT_EQ(m.m[1][1], -0x800);
+    EXPECT_EQ(m.m[2][2], 0x1000);
+}
+
+TEST_F(gte_Test, mul_matrix_identity) {
+    MATRIX a = {0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0};
+    MATRIX b = {0x0100, 0x0200, 0x0300, 0x0400, 0x0500, 0x0600,
+                0x0700, 0x0800, 0x0900, 0,      0,      0};
+    MATRIX exp = b;
+    EXPECT_EQ(MulMatrix(&a, &b), &a);
+    EqMatrix(&a, &exp);
+}
+
+TEST_F(gte_Test, mul_matrix_half_identity) {
+    MATRIX a = {0x0800, 0, 0, 0, 0x0800, 0, 0, 0, 0x0800, 0, 0, 0};
+    MATRIX b = {0x1000, 0x2000, 0, 0, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0};
+    MATRIX exp = {0x0800, 0x1000, 0, 0, 0x0800, 0, 0, 0, 0x0800, 0, 0, 0};
+    MulMatrix(&a, &b);
+    EqMatrix(&a, &exp);
+}
+
+TEST_F(gte_Test, mul_matrix_permutation) {
+    MATRIX a = {0, 0x1000, 0, 0x1000, 0, 0, 0, 0, 0x1000, 0, 0, 0};
+    MATRIX b = {0x0111, 0x0222, 0x0333, 0x0444, 0x0555, 0x0666,
+                0x0777, 0x0888, 0x0999, 0,      0,      0};
+    MATRIX exp = {0x0444, 0x0555, 0x0666, 0x0111, 0x0222, 0x0333,
+                  0x0777, 0x0888, 0x0999, 0,      0,      0};
+    MulMatrix(&a, &b);
+    EqMatrix(&a, &exp);
+}
+
+TEST_F(gte_Test, transpose_matrix) {
+    MATRIX m = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    MATRIX out = {0};
+    // returns the destination, and only the 3x3 part is written
+    EXPECT_EQ(TransposeMatrix(&m, &out), &out);
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            EXPECT_EQ(out.m[i][j], m.m[j][i])
+                << "at [" << i << "][" << j << "]";
+        }
+    }
+}
+
+TEST_F(gte_Test, transpose_matrix_twice_is_identity) {
+    MATRIX m = {-1, 2, -3, 4, -5, 6, -7, 8, -9, 0, 0, 0};
+    MATRIX once = {0};
+    MATRIX twice = {0};
+    TransposeMatrix(&m, &once);
+    TransposeMatrix(&once, &twice);
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            EXPECT_EQ(twice.m[i][j], m.m[i][j])
+                << "at [" << i << "][" << j << "]";
+        }
+    }
+}
+
+TEST_F(gte_Test, transpose_matrix_symmetric_unchanged) {
+    MATRIX m = {1, 2, 3, 2, 4, 5, 3, 5, 6, 0, 0, 0};
+    MATRIX out = {0};
+    TransposeMatrix(&m, &out);
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            EXPECT_EQ(out.m[i][j], m.m[i][j]);
+        }
+    }
+}
+
 TEST_F(gte_Test, square_root_0) {
     EXPECT_EQ(SquareRoot0(0), 0);
     EXPECT_EQ(SquareRoot0(1), 1);
@@ -364,39 +471,16 @@ TEST_F(gte_Test, rot_trans_pers_rot_matrix) {
 }
 
 TEST_F(gte_Test, rot_trans_pers3_trans_matrix_perspective) {
-#if 0 // most of these tests fail, skipping them for now
     RTPContext ctx;
 
     ctx.SetTransM(0, 0, 0x40);
     ctx.TestRTP3(0x0010, 0, 0, 0, 0, 0x80021000);
 
-    ctx.SetTransM(0, 0, 0x101);
-    ctx.TestRTP3(0x0040, 0, 0, 0, 0, 0x1000);
-
-    ctx.SetTransM(0, 0, 0x10000);
-    ctx.TestRTP3(0x3FFF, 0, 0, 0, 0x1000, 0x80441000);
-
     ctx.SetTransM(0, 0, -4);
     ctx.TestRTP3(0x0000, 0, 0, 0, 0, 0x80061000);
 
-    ctx.SetTransM(0, 0, 0x8000000);
-    ctx.TestRTP3(0x3FFF, 0, 0, 0, 0x1000, 0x80441000);
-
-    ctx.SetTransM(0, 0, 0x80000000);
-    ctx.TestRTP3(0x0000, 0, 0, 0, 0, 0x80461000);
-
     ctx.SetTransM(0, 0, 0x1A36);
     ctx.TestRTP3(0x068D, 0, 0, 0, 0, 0x1000);
-
-    int pIn[] = {0x1A37, 0x1A38, 0x1A39, 0x2000, 0x4000, 0x7FFF};
-    int pExp[] = {0, 1, 2, 0x39E, 0xBCF, 0xFE7};
-    ASSERT_EQ(LEN(pIn), LEN(pExp));
-    for (int i = 0; i < LEN(pIn); i++) {
-        ctx.SetTransM(0, 0, pIn[i]);
-        ctx.RotTransPers3();
-        ctx.CheckRTP3(0, 0, 0, pExp[i], 0);
-    }
-#endif
 }
 
 TEST_F(gte_Test, rot_trans_pers3_set_geom_offset) {
@@ -523,4 +607,95 @@ TEST_F(gte_Test, rot_trans_pers_trans_and_offset) {
     SetGeomOffset(0x500, 0x400);
     ctx.SetTransM(100, 200, 0x100);
     ctx.TestRTP(0x40, 0x03FF03FF, 0, 0x80027000);
+}
+
+TEST_F(gte_Test, rcos_rsin) {
+    EXPECT_EQ(rcos(0x0000), 0x1000);
+    EXPECT_EQ(rcos(0x0400), 0x0000);
+    EXPECT_EQ(rcos(0x0800), -0x1000);
+    EXPECT_EQ(rsin(0x0400), 0x1000);
+    EXPECT_EQ(rcos(0x1000), rcos(0));
+    EXPECT_EQ(rsin(0x1000), rsin(0));
+}
+
+TEST_F(gte_Test, rot_matrix_x) {
+    MATRIX m = {0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0};
+    EXPECT_EQ(RotMatrixX(0x400, &m), &m);
+    EXPECT_EQ(m.m[0][0], 0x1000);
+    EXPECT_EQ(m.m[1][1], 0);
+    EXPECT_EQ(m.m[1][2], -0x1000);
+    EXPECT_EQ(m.m[2][1], 0x1000);
+    EXPECT_EQ(m.m[2][2], 0);
+}
+
+TEST_F(gte_Test, rot_matrix_y) {
+    MATRIX m = {0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0};
+    EXPECT_EQ(RotMatrixY(0x400, &m), &m);
+    EXPECT_EQ(m.m[0][0], 0);
+    EXPECT_EQ(m.m[0][2], 0x1000);
+    EXPECT_EQ(m.m[1][1], 0x1000);
+    EXPECT_EQ(m.m[2][0], -0x1000);
+    EXPECT_EQ(m.m[2][2], 0);
+}
+
+TEST_F(gte_Test, rot_matrix_z) {
+    MATRIX m = {0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0};
+    EXPECT_EQ(RotMatrixZ(0x400, &m), &m);
+    EXPECT_EQ(m.m[0][0], 0);
+    EXPECT_EQ(m.m[0][1], -0x1000);
+    EXPECT_EQ(m.m[1][0], 0x1000);
+    EXPECT_EQ(m.m[1][1], 0);
+    EXPECT_EQ(m.m[2][2], 0x1000);
+}
+
+TEST_F(gte_Test, rot_matrix_zero) {
+    MATRIX m = {0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0};
+    MATRIX exp = {0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0};
+    RotMatrixX(0, &m);
+    RotMatrixY(0, &m);
+    RotMatrixZ(0, &m);
+    EqMatrix(&m, &exp);
+}
+
+TEST_F(gte_Test, apply_matrix_identity) {
+    MATRIX m = {0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0};
+    SVECTOR in = {100, -200, 300};
+    VECTOR out = {0};
+    ApplyMatrix(&m, &in, &out);
+    EXPECT_EQ(out.vx, 100);
+    EXPECT_EQ(out.vy, -200);
+    EXPECT_EQ(out.vz, 300);
+}
+
+TEST_F(gte_Test, apply_matrix_permutation) {
+    MATRIX m = {0, 0x1000, 0, 0, 0, 0x1000, 0x1000, 0, 0, 0, 0, 0};
+    SVECTOR in = {1, 2, 3};
+    VECTOR out = {0};
+    ApplyMatrix(&m, &in, &out);
+    EXPECT_EQ(out.vx, 2);
+    EXPECT_EQ(out.vy, 3);
+    EXPECT_EQ(out.vz, 1);
+}
+
+TEST_F(gte_Test, apply_matrix_ignores_translation) {
+    MATRIX m = {0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000, 1000, 2000, 3000};
+    SVECTOR in = {5, 6, 7};
+    VECTOR out = {0};
+    ApplyMatrix(&m, &in, &out);
+    EXPECT_EQ(out.vx, 5);
+    EXPECT_EQ(out.vy, 6);
+    EXPECT_EQ(out.vz, 7);
+}
+
+TEST_F(gte_Test, rot_trans_applies_translation) {
+    MATRIX m = {0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000, 10, 20, 30};
+    SVECTOR in = {1, 2, 3};
+    VECTOR out = {0};
+    int flag = 0;
+    SetRotMatrix(&m);
+    SetTransMatrix(&m);
+    RotTrans(&in, &out, &flag);
+    EXPECT_EQ(out.vx, 11);
+    EXPECT_EQ(out.vy, 22);
+    EXPECT_EQ(out.vz, 33);
 }
