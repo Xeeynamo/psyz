@@ -1372,8 +1372,17 @@ long VectorNormalSS(SVECTOR* v0, SVECTOR* v1) {
 }
 
 MATRIX* TransposeMatrix(MATRIX* m0, MATRIX* m1) {
-    NOT_IMPLEMENTED;
-    return m0;
+    short t01 = m0->m[0][1], t02 = m0->m[0][2], t12 = m0->m[1][2];
+    m1->m[0][0] = m0->m[0][0];
+    m1->m[1][1] = m0->m[1][1];
+    m1->m[2][2] = m0->m[2][2];
+    m1->m[0][1] = m0->m[1][0];
+    m1->m[1][0] = t01;
+    m1->m[0][2] = m0->m[2][0];
+    m1->m[2][0] = t02;
+    m1->m[1][2] = m0->m[2][1];
+    m1->m[2][1] = t12;
+    return m1;
 }
 
 // External-emulator COP2/GTE bridge.
