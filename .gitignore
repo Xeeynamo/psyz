@@ -9,6 +9,7 @@ cmake-build-*/
 *.map
 *.o
 *.ps-exe
+*.pyc
 
 psyq2elf/psyq2elf
 psyq2elf/psyqdump

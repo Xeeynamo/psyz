@@ -216,8 +216,15 @@ void Psyz_SetTitle(const char* str) {
     }
 }
 
-void Psyz_GetWindowSize(int* width, int* height) {
-    SDL_GetWindowSize(sdl3_window, width, height);
+PsyzSize Psyz_VideoGetDisplaySize(void) {
+    PsyzSize s = {0, 0};
+    SDL_GetWindowSize(sdl3_window, &s.w, &s.h);
+    return s;
+}
+
+void Psyz_VideoSetDrawArea(PsyzRect rect) {
+    // not usable on SDL3, consoles only
+    (void)rect;
 }
 
 static double GetElapsedMicroseconds(Uint64 start, Uint64 end) {

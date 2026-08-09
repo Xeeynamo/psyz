@@ -1,7 +1,7 @@
 CMAKE_GEN ?= Ninja
 CMAKE_BUILD_TYPE ?= Release
 
-.PHONY: all clean format test test-wine help
+.PHONY: all clean format test test-psp-emu test-psp-hw test-wine help
 
 all: build/native/libpsyz.a
 
@@ -37,6 +37,17 @@ else
 	cd tests && ./build/sdl3-gl-sw/psyz_tests --gtest_filter='gpu_Test.*'
 endif
 endif
+
+PSP_TEST_CMAKE = cmake -G$(CMAKE_GEN) -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/src/psp/psp.cmake -DCMAKE_BUILD_TYPE=Debug -S tests/ -B tests/build/psp
+test-psp-emu:
+	$(PSP_TEST_CMAKE) -DBUILD_PRX=OFF -DIS_PPSSPP_EMU=1
+	cmake --build tests/build/psp
+	tests/target/runner_psp.py emu
+
+test-psp-hw:
+	$(PSP_TEST_CMAKE) -DBUILD_PRX=ON
+	cmake --build tests/build/psp
+	tests/target/runner_psp.py hw
 
 test-wine:
 	@mkdir -p tests/build/wine

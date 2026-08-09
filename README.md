@@ -1,20 +1,21 @@
 # PSY-Z
 
-PSY-Z SDK is a drop-in replacement for the PlayStation 1 Runtime Library called PSY-Q, allowing games designed for the PlayStation 1 to be compiled and run natively on modern platforms.
+PSY-Z SDK is a drop-in replacement for the PlayStation 1 Runtime Library called PSY-Q, allowing games designed for the PlayStation 1 to be compiled and run natively on any other platform.
 
 PSY-Z is not an emulator or a static recompiler. It is a porting library written in C that replaces as many API calls as possible with counterparts on other platforms. Currently, it targets multiple platforms, supporting both 32-bit and 64-bit architectures out of the box. The same applications and games will work on all platforms, including the PlayStation 1, with minimal changes.
 
 PSY-Z adheres to the PSY-Q library contracts, focusing on compatibility rather than accuracy. It does not aim to produce 1:1 output compared to real hardware and does not reproduce game bugs that rely on misuse of the PlayStation 1 hardware. The goal is to help port games and run them as native applications.
 
+PSY-Z offers a highly accurate GPU and SPU emulation, accessible through a list of public endpoints. It is theoretically possible to use PSY-Z as a backend for new emulators and static recompilers.
+
 ## Supported platforms
 
 The platforms currently supported include:
 
-- **Linux** (x86_64)
+- **Linux** (i686, x86_64)
 - **macOS** (ARM64)
 - **Windows** (x86, x64, ARM64) with support for MSVC, Clang, and MinGW
-
-Support for other platforms such as **Android** or **6th generation consoles** is planned once compatibility with the existing platforms is further extended.
+- **PlayStation Portable** via its [dedicated backend](psyz/src/psp/README.md)
 
 PSY-Z is designed to be extensible, and support for additional platforms may be added in the future.
 

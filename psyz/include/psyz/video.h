@@ -6,6 +6,8 @@
  * @brief Window, display timing and frame presentation endpoints.
  */
 
+#include <psyz/types.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -114,8 +116,46 @@ int Psyz_VideoSetDitheringMode(PsyzDitherMode mode);
  */
 int Psyz_VideoSetAspectMode(PsyzAspectMode mode);
 
+/**
+ * @brief Get the resolution a game should target to render pixel-perfect
+ *
+ * Fixed-display targets (PSP, and future NDS/Saturn) return a physical size
+ * the ported game can adopt to fully use the screen:
+ * - PSYZ_ASPECT_SQUARE: the full physical resolution (PSP: 480x272), 1:1.
+ * - PSYZ_ASPECT_DISPLAY: the largest 4:3 area at full height (PSP: 362x272);
+ *   adopting it keeps output pixel-perfect while preserving the intended
+ *   aspect ratio.
+ * PC targets return the current window size in pixels.
+ *
+ * @return display size in pixels
+ */
+PsyzSize Psyz_VideoGetDisplaySize(void);
+
+/**
+ * @brief Choose where on the screen the presented output lands
+ *
+ * Only meaningful on fixed-display targets (PSP); ignored on PC.
+ * The default rect {0,0,0,0} centers the output according to the aspect
+ * mode. A non-empty rect places the output's top-left at (x, y) and scales
+ * it to fit w x h, overriding the aspect mode's own sizing. The result is
+ * still clipped to the physical screen, so a rect that extends past the
+ * edge is cropped.
+ *
+ * @param rect target area on the display, or {0,0,0,0} to center
+ */
+void Psyz_VideoSetDrawArea(PsyzRect rect);
+
 /** Maximum accepted internal resolution multiplier */
 #define PSYZ_INTERNAL_RES_MAX 8
+
+#ifndef __PSP__
+/**
+ * Targets without this capability must:
+ *   - Implement Psyz_VideoSetInternalResolution as no-op
+ *   - Always return 1 for Psyz_VideoGetInternalResolution
+ */
+#define PSYZ_HAS_INTERNAL_RESOLUTION_SCALE
+#endif
 
 /**
  * @brief Set the internal rendering resolution multiplier (default: 1)

@@ -1,0 +1,8 @@
+bu00/
+bu10/
+
+# PSP test stuff
+*.prx
+EBOOT.PBP
+PARAM.SFO
+psyz_tests_psp
