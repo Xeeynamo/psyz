@@ -294,6 +294,9 @@ TEST_F(gpu_Test, gouraud_line_after_flush) {
 
 TEST_F(gpu_Test, draw_lines) {
 #ifdef __PSP__
+#ifdef IS_PPSSPP_EMU
+    GTEST_SKIP() << "Known failure on PPSSPP";
+#endif
 // native line geometry has a different rasterization algorihm, and using
 // triangles to represent lines is too expensive for the Graphics Engine.
 #define VARIANT ".psp"
