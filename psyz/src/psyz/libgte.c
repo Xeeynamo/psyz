@@ -205,15 +205,44 @@ long SquareRoot0(long a) { return SquareRoot0_impl(a); }
 long SquareRoot12_impl(long a);
 long SquareRoot12(long a) { return SquareRoot12_impl(a); }
 
+#include "rcossin_table.inc"
+
+/* RotMatrix in PsyQ uses the packed rcossin_tbl, not the independently
+ * rounded rsin_tbl used by rsin/rcos.  The tables differ by several units at
+ * some angles, which is enough to change game physics after fixed-point
+ * matrix multiplication. */
+static void Psyz_Rcossin(int angle, int* cosine, int* sine) {
+    unsigned int normalized;
+    unsigned int packed;
+    int baseSin;
+    int baseCos;
+    int quadrant;
+
+    normalized = angle < 0 ? 0U - (unsigned int)angle : (unsigned int)angle;
+    normalized &= 0xFFF;
+    quadrant = (int)(normalized >> 10);
+    packed = kRcossinQuarter[normalized & 0x3FF];
+    baseSin = (short)(packed & 0xFFFF);
+    baseCos = (short)(packed >> 16);
+
+    switch (quadrant) {
+    case 0: *sine = baseSin;  *cosine = baseCos;  break;
+    case 1: *sine = baseCos;  *cosine = -baseSin; break;
+    case 2: *sine = -baseSin; *cosine = -baseCos; break;
+    default:*sine = -baseCos; *cosine = baseSin;  break;
+    }
+    if (angle < 0) *sine = -*sine;
+}
+
 MATRIX* RotMatrix(SVECTOR* r, MATRIX* m) {
+    int cxi, sxi, cyi, syi, czi, szi;
+    Psyz_Rcossin(r->vx, &cxi, &sxi);
+    Psyz_Rcossin(r->vy, &cyi, &syi);
+    Psyz_Rcossin(r->vz, &czi, &szi);
 #ifdef PLATFORM_64BIT
-    // 64-bit version, accurate with PS1 implementation
-    long long cx = rcos(r->vx);
-    long long sx = rsin(r->vx);
-    long long cy = rcos(r->vy);
-    long long sy = rsin(r->vy);
-    long long cz = rcos(r->vz);
-    long long sz = rsin(r->vz);
+    long long cx = cxi, sx = sxi;
+    long long cy = cyi, sy = syi;
+    long long cz = czi, sz = szi;
 
     m->m[0][0] = (short)((cy * cz) >> 12);
     m->m[0][1] = (short)((-cy * sz) >> 12);
@@ -228,12 +257,9 @@ MATRIX* RotMatrix(SVECTOR* r, MATRIX* m) {
     m->m[2][2] = (short)((cx * cy) >> 12);
 #else
     // 32-bit version, less accurate but much faster on non-64bit CPUs
-    int cx = rcos(r->vx);
-    int sx = rsin(r->vx);
-    int cy = rcos(r->vy);
-    int sy = rsin(r->vy);
-    int cz = rcos(r->vz);
-    int sz = rsin(r->vz);
+    int cx = cxi, sx = sxi;
+    int cy = cyi, sy = syi;
+    int cz = czi, sz = szi;
 
     m->m[0][0] = (short)((cy * cz) >> 12);
     m->m[0][1] = (short)((-cy * sz) >> 12);

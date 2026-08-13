@@ -151,9 +151,9 @@ TEST_F(gte_Test, rot_matrix) {
                 4,  5,  6, //
                 7,  8,  9, //
                 10, 11, 12};
-    MATRIX exp = {+0x0FFD, -0x0071, +0x006B, //
+    MATRIX exp = {+0x0FFC, -0x0071, +0x006B, //
                   +0x0073, +0x0FFC, -0x0065, //
-                  -0x0069, +0x0067, +0x0FFE, //
+                  -0x0069, +0x0067, +0x0FFD, //
                   10,      11,      12};
     SVECTOR sv = {16, 17, 18};
     EXPECT_EQ(RotMatrix(&sv, &m), &m);
@@ -616,6 +616,17 @@ TEST_F(gte_Test, rcos_rsin) {
     EXPECT_EQ(rsin(0x0400), 0x1000);
     EXPECT_EQ(rcos(0x1000), rcos(0));
     EXPECT_EQ(rsin(0x1000), rsin(0));
+}
+
+TEST_F(gte_Test, rot_matrix_uses_packed_psyq_rcossin_table) {
+    SVECTOR rotation = {0, 474, 0, 0};
+    MATRIX matrix = {};
+
+    EXPECT_EQ(RotMatrix(&rotation, &matrix), &matrix);
+    EXPECT_EQ(matrix.m[0][0], 3056);
+    EXPECT_EQ(matrix.m[0][2], 2723);
+    EXPECT_EQ(matrix.m[2][0], -2723);
+    EXPECT_EQ(matrix.m[2][2], 3056);
 }
 
 TEST_F(gte_Test, rot_matrix_x) {
