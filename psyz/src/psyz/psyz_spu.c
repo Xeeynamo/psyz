@@ -60,7 +60,7 @@ static void spu_adpcm_decode_block(
         unsigned short byte = block[2 + i];
         for (int n = 0; n < 2; n++) {
             int t = sign4((byte >> (n * 4)) & 0x0F);
-            int s = (t << shift) + ((prev * f0) >> 6) + ((prev2 * f1) >> 6);
+            int s = t * (1 << shift) + ((prev * f0) >> 6) + ((prev2 * f1) >> 6);
             short final = clamp16(s);
             out[i * 2 + n] = final;
             prev2 = prev;
