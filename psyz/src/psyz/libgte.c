@@ -226,12 +226,25 @@ static void Psyz_Rcossin(int angle, int* cosine, int* sine) {
     baseCos = (short)(packed >> 16);
 
     switch (quadrant) {
-    case 0: *sine = baseSin;  *cosine = baseCos;  break;
-    case 1: *sine = baseCos;  *cosine = -baseSin; break;
-    case 2: *sine = -baseSin; *cosine = -baseCos; break;
-    default:*sine = -baseCos; *cosine = baseSin;  break;
+    case 0:
+        *sine = baseSin;
+        *cosine = baseCos;
+        break;
+    case 1:
+        *sine = baseCos;
+        *cosine = -baseSin;
+        break;
+    case 2:
+        *sine = -baseSin;
+        *cosine = -baseCos;
+        break;
+    default:
+        *sine = -baseCos;
+        *cosine = baseSin;
+        break;
     }
-    if (angle < 0) *sine = -*sine;
+    if (angle < 0)
+        *sine = -*sine;
 }
 
 MATRIX* RotMatrix(SVECTOR* r, MATRIX* m) {
