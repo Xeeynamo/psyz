@@ -15,10 +15,10 @@ typedef unsigned short u_short;
 #endif
 
 // u_long* is widely used in PSY-Q, it should reflect the OS max pointer size
-#ifdef _WIN64
+#if defined(_WIN64) && !defined(_WINSOCK2API_) && !defined(_WINSOCKAPI_)
 // long on MSVC is 32-bit, unlike any other platform
 typedef unsigned long long u_long;
-#else
+#elif !defined(_WIN64)
 #ifndef _BSD_SOURCE
 typedef unsigned long u_long;
 #endif
@@ -56,7 +56,8 @@ typedef struct {
 #define NULL ((void*)0)
 #endif
 
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && \
+    !defined(_WINSOCK2API_) && !defined(_WINSOCKAPI_)
 _Static_assert(
     sizeof(u_long) == sizeof(void*), "u_long type must be pointer aligned");
 #endif
