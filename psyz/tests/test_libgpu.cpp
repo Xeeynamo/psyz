@@ -21,7 +21,7 @@ extern "C" {
 #define STBI_SUPPORT_ZLIB
 #define STBI_MAX_DIMENSIONS 1024
 #include "stb_image.h"
-#include "stb_image_write.h"
+#include "../src/dbgserver/stb_image_write.h"
 
 #ifndef LEN
 #define LEN(x) ((s32)(sizeof(x) / sizeof(*(x))))

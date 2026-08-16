@@ -21,3 +21,11 @@ int Draw_SetHorizontalGrid(
     }
     return source_width == target_width ? 0 : -1;
 }
+
+int Psyz_DebugServer(int port) {
+    (void)port;
+    WARNF("debug server not supported on this platform");
+    return -1;
+}
+
+void Psyz_DebugServerStop(void) {}
