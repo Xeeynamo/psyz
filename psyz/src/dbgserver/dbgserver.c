@@ -1,4 +1,23 @@
 // barebone HTTP 1.1 debug server
+
+// winsock2.h must be included before psyz.h (via psyz/types.h) so its
+// u_char/u_short/u_long typedefs win over the BSD-style ones in types.h
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+typedef SOCKET dbg_socket_t;
+#define DBG_INVALID_SOCKET INVALID_SOCKET
+#define dbg_closesocket closesocket
+#else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+typedef int dbg_socket_t;
+#define DBG_INVALID_SOCKET (-1)
+#define dbg_closesocket close
+#endif
+
 #include <psyz.h>
 #include <common.h>
 #include <psyz/video.h>
@@ -21,22 +40,6 @@
 #undef close
 #undef read
 #undef write
-
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-typedef SOCKET dbg_socket_t;
-#define DBG_INVALID_SOCKET INVALID_SOCKET
-#define dbg_closesocket closesocket
-#else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-typedef int dbg_socket_t;
-#define DBG_INVALID_SOCKET (-1)
-#define dbg_closesocket close
-#endif
 
 #define DBG_MAX_REQUEST 4096
 #define DBG_MAX_SEGMENTS 64

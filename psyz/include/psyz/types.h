@@ -24,8 +24,8 @@ typedef unsigned long u_long;
 #endif
 #endif
 
-#else
-
+#elif !defined(_WINSOCK2API_) && !defined(_WINSOCKAPI_)
+// winsock2.h/winsock.h already typedef these with Windows-compatible sizes
 typedef unsigned char u_char;
 typedef unsigned short u_short;
 typedef unsigned long u_long;
@@ -38,7 +38,10 @@ typedef signed int s32;
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned int u32;
+// rpcndr.h (pulled in by windows.h) already typedefs byte as unsigned char
+#ifndef __RPCNDR_H__
 typedef signed char byte;
+#endif
 #endif
 
 typedef struct {
