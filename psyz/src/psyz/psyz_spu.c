@@ -347,7 +347,9 @@ static int adsr_num_increase(int rate) {
 }
 
 static int adsr_num_decrease(int rate) {
-    return rate < 48 ? (-8 + (rate & 3)) << (11 - (rate >> 2))
+    // (-8 + (rate & 3)) is always negative; shifting it left is undefined,
+    // so scale by the equivalent power of two instead.
+    return rate < 48 ? (-8 + (rate & 3)) * (1 << (11 - (rate >> 2)))
                      : (-8 + (rate & 3));
 }
 
