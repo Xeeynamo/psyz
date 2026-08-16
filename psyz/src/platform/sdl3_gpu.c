@@ -791,33 +791,28 @@ static bool DownloadVramRegionAsRGBA8888(int x, int y, int w, int h, u8* out) {
     return true;
 }
 
-unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
-    const int channels = 3;
+static unsigned char* AllocRgb888Region(int x, int y, int w, int h) {
     if (!device || !vram_render) {
-        *w = *h = 0;
         ERRORF("GPU device not initialized");
         return NULL;
     }
 
-    *w = display_size.x;
-    *h = display_size.y;
-    unsigned char* pixels = malloc((*w) * (*h) * channels);
-    u8* rgba = malloc((size_t)(*w) * (*h) * 4);
+    unsigned char* pixels = malloc((size_t)w * h * 3);
+    u8* rgba = malloc((size_t)w * h * 4);
     if (!pixels || !rgba) {
         free(pixels);
         free(rgba);
         return NULL;
     }
 
-    if (!DownloadVramRegionAsRGBA8888(
-            display_area.x, display_area.y, *w, *h, rgba)) {
+    if (!DownloadVramRegionAsRGBA8888(x, y, w, h, rgba)) {
         free(pixels);
         free(rgba);
         return NULL;
     }
     const u8* src = rgba;
     unsigned char* dst = pixels;
-    for (int i = 0; i < (*w) * (*h); i++) {
+    for (int i = 0; i < w * h; i++) {
         dst[0] = src[0];
         dst[1] = src[1];
         dst[2] = src[2];
@@ -826,6 +821,18 @@ unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
     }
     free(rgba);
     return pixels;
+}
+
+unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
+    *w = display_size.x;
+    *h = display_size.y;
+    return AllocRgb888Region(display_area.x, display_area.y, *w, *h);
+}
+
+unsigned char* Psyz_VideoAllocVramDump(int* w, int* h) {
+    *w = VRAM_W;
+    *h = VRAM_H;
+    return AllocRgb888Region(0, 0, VRAM_W, VRAM_H);
 }
 
 static void UpdateScissor() {

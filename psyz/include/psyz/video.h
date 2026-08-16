@@ -206,9 +206,18 @@ int Psyz_VideoStats(PsyzVideoStats* stats);
  *
  * @param w Output frame width
  * @param h Output frame height
- * @return NULL on failure, otherwise ptr to be destroyed with free(ptr)
+ * @return NULL on failure, or RGB888 buffer to be destroyed with free(ptr)
  */
 unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h);
+
+/**
+ * @brief Dump the whole video memory plane as RGB888
+ *
+ * @param w Output VRAM width
+ * @param h Output VRAM height
+ * @return NULL on failure, or RGB888 buffer to be destroyed with free(ptr)
+ */
+unsigned char* Psyz_VideoAllocVramDump(int* w, int* h);
 
 #ifdef __cplusplus
 }
