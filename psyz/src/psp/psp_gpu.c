@@ -929,6 +929,8 @@ int Psyz_VideoSetVsyncMode(PsyzVsyncMode mode) {
     }
 }
 
+PsyzVsyncMode Psyz_VideoGetVsyncMode(void) { return vsync_mode; }
+
 int Psyz_VideoSetDitheringMode(PsyzDitherMode mode) {
     switch (mode) {
     case PSYZ_DITHER_AUTO:
@@ -939,6 +941,8 @@ int Psyz_VideoSetDitheringMode(PsyzDitherMode mode) {
         return -1;
     }
 }
+
+PsyzDitherMode Psyz_VideoGetDitheringMode(void) { return dither_mode; }
 
 int Psyz_VideoSetAspectMode(PsyzAspectMode mode) {
     switch (mode) {
@@ -952,6 +956,8 @@ int Psyz_VideoSetAspectMode(PsyzAspectMode mode) {
         return -1;
     }
 }
+
+PsyzAspectMode Psyz_VideoGetAspectMode(void) { return aspect_mode; }
 
 PsyzSize Psyz_VideoGetDisplaySize(void) {
     PsyzSize s = {PSP_SCREEN_W, PSP_SCREEN_H};

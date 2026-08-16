@@ -178,6 +178,8 @@ int Psyz_VideoSetAspectMode(PsyzAspectMode mode) {
     return 0;
 }
 
+PsyzAspectMode Psyz_VideoGetAspectMode(void) { return aspect_mode; }
+
 static Uint32 elapsed_from_beginning = 0;
 static Uint32 last_vsync = 0;
 
@@ -502,6 +504,8 @@ int Psyz_VideoSetVsyncMode(PsyzVsyncMode mode) {
     return 0;
 }
 
+PsyzVsyncMode Psyz_VideoGetVsyncMode(void) { return vsync_mode; }
+
 static int s_dither = 0;
 static inline int GetCurrentDither(void) {
     if (dither_mode == PSYZ_DITHER_OFF) {
@@ -531,6 +535,8 @@ int Psyz_VideoSetDitheringMode(PsyzDitherMode mode) {
     dither_mode = mode;
     return 0;
 }
+
+PsyzDitherMode Psyz_VideoGetDitheringMode(void) { return dither_mode; }
 
 int Psyz_VideoStats(PsyzVideoStats* stats) {
     if (!stats || !is_platform_init_successful) {
