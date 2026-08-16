@@ -119,9 +119,14 @@ typedef void (*PsyzVSyncCb)(void);
  * VSyncCallback set by the game. The registered callback will be executed
  * right before the callback set with VSyncCallback.
  *
+ * Only one callback can be registered at a time. If a callback is already
+ * registered, the caller is responsible for chaining to the previously
+ * registered callback from within its own.
+ *
  * @param cb Callback to register, or NULL to unregister
+ * @return Previously registered callback, or NULL if none was set
  */
-void Psyz_SetVSyncCb(PsyzVSyncCb cb);
+PsyzVSyncCb Psyz_SetVSyncCb(PsyzVSyncCb cb);
 
 #ifdef __cplusplus
 }
