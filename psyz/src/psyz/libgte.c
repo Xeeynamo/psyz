@@ -147,9 +147,9 @@ void SetLightMatrix(MATRIX* m) {
 }
 
 void SetBackColor(long rbk, long gbk, long bbk) {
-    L1.t[0] = (int)(rbk << 4);
-    L1.t[1] = (int)(gbk << 4);
-    L1.t[2] = (int)(bbk << 4);
+    L1.t[0] = (int)(rbk * 16);
+    L1.t[1] = (int)(gbk * 16);
+    L1.t[2] = (int)(bbk * 16);
 }
 
 void SetColorMatrix(MATRIX* m) {
@@ -165,9 +165,9 @@ void SetColorMatrix(MATRIX* m) {
 }
 
 void SetFarColor(long rfc, long gfc, long bfc) {
-    L2.t[0] = (int)(rfc << 4);
-    L2.t[1] = (int)(gfc << 4);
-    L2.t[2] = (int)(bfc << 4);
+    L2.t[0] = (int)(rfc * 16);
+    L2.t[1] = (int)(gfc * 16);
+    L2.t[2] = (int)(bfc * 16);
 }
 
 void SetFogNear(long a, long h) { NOT_IMPLEMENTED; }
@@ -219,12 +219,12 @@ MATRIX* RotMatrix(SVECTOR* r, MATRIX* m) {
     m->m[0][1] = (short)((-cy * sz) >> 12);
     m->m[0][2] = (short)(sy);
 
-    m->m[1][0] = (short)((sx * sy * cz + (cx * sz << 12)) >> 24);
-    m->m[1][1] = (short)((-sx * sy * sz + (cx * cz << 12)) >> 24);
+    m->m[1][0] = (short)((sx * sy * cz + cx * sz * 4096) >> 24);
+    m->m[1][1] = (short)((-sx * sy * sz + cx * cz * 4096) >> 24);
     m->m[1][2] = (short)((-sx * cy) >> 12);
 
-    m->m[2][0] = (short)((-cx * sy * cz + (sx * sz << 12)) >> 24);
-    m->m[2][1] = (short)((cx * sy * sz + (sx * cz << 12)) >> 24);
+    m->m[2][0] = (short)((-cx * sy * cz + sx * sz * 4096) >> 24);
+    m->m[2][1] = (short)((cx * sy * sz + sx * cz * 4096) >> 24);
     m->m[2][2] = (short)((cx * cy) >> 12);
 #else
     // 32-bit version, less accurate but much faster on non-64bit CPUs
@@ -306,14 +306,14 @@ MATRIX* RotMatrixYXZ(SVECTOR* r, MATRIX* m) {
     long long cz = rcos(r->vz);
     long long sz = rsin(r->vz);
 
-    m->m[0][0] = (short)(((cy * cz << 12) + sy * sx * sz) >> 24);
-    m->m[0][1] = (short)(((-cy * sz << 12) + sy * sx * cz) >> 24);
+    m->m[0][0] = (short)((cy * cz * 4096 + sy * sx * sz) >> 24);
+    m->m[0][1] = (short)((-cy * sz * 4096 + sy * sx * cz) >> 24);
     m->m[0][2] = (short)((sy * cx) >> 12);
     m->m[1][0] = (short)((cx * sz) >> 12);
     m->m[1][1] = (short)((cx * cz) >> 12);
     m->m[1][2] = (short)(-sx);
-    m->m[2][0] = (short)(((-sy * cz << 12) + cy * sx * sz) >> 24);
-    m->m[2][1] = (short)(((sy * sz << 12) + cy * sx * cz) >> 24);
+    m->m[2][0] = (short)((-sy * cz * 4096 + cy * sx * sz) >> 24);
+    m->m[2][1] = (short)((sy * sz * 4096 + cy * sx * cz) >> 24);
     m->m[2][2] = (short)((cy * cx) >> 12);
 #else
     // 32-bit version, less accurate but much faster on non-64bit CPUs
@@ -494,11 +494,11 @@ static void RTPS_vertex(SVECTOR* v, int sf, int lm, int depth_cue) {
     int shift = sf ? 12 : 0;
 
     // MAC1..3 = (TR<<12 + RT*V) >> sf, with 44-bit overflow detection.
-    long long m1 = ((long long)M.t[0] << 12) + (long long)M.m[0][0] * v->vx +
+    long long m1 = (long long)M.t[0] * 4096 + (long long)M.m[0][0] * v->vx +
                    (long long)M.m[0][1] * v->vy + (long long)M.m[0][2] * v->vz;
-    long long m2 = ((long long)M.t[1] << 12) + (long long)M.m[1][0] * v->vx +
+    long long m2 = (long long)M.t[1] * 4096 + (long long)M.m[1][0] * v->vx +
                    (long long)M.m[1][1] * v->vy + (long long)M.m[1][2] * v->vz;
-    long long m3 = ((long long)M.t[2] << 12) + (long long)M.m[2][0] * v->vx +
+    long long m3 = (long long)M.t[2] * 4096 + (long long)M.m[2][0] * v->vx +
                    (long long)M.m[2][1] * v->vy + (long long)M.m[2][2] * v->vz;
     m1 = mac_check_44(m1, 0);
     m2 = mac_check_44(m2, 1);
@@ -547,7 +547,7 @@ static void RTPS_vertex(SVECTOR* v, int sf, int lm, int depth_cue) {
 
     // psx-spx: MAC0 = (div_result*IR1) + OFX, with OFX in 16.16 fixed point
     // (so what's stored as integer pixels here gets shifted back up by 16).
-    long long mac0 = (long long)div_result * IR1 + ((long long)OFX << 16);
+    long long mac0 = (long long)div_result * IR1 + (long long)OFX * 65536;
     MAC0 = mac0_check(mac0);
     // SX2/SY2 saturation works on the un-truncated 64-bit MAC0 SAR 16, not on
     // the wrapped 32-bit MAC0 register. (psx-spx Lm_G1 acts before MAC0 wrap.)
@@ -559,7 +559,7 @@ static void RTPS_vertex(SVECTOR* v, int sf, int lm, int depth_cue) {
         FLAG |= FLAG_SX2_SAT;
     SX2 = (short)sx;
 
-    mac0 = (long long)div_result * IR2 + ((long long)OFY << 16);
+    mac0 = (long long)div_result * IR2 + (long long)OFY * 65536;
     MAC0 = mac0_check(mac0);
     long long sy_full = mac0 >> 16;
     int sy = (sy_full < -0x400)  ? -0x400
@@ -719,9 +719,9 @@ static inline void matrix_vec_mul(int sf, int lm, int mx, int vx, int cv) {
         // FC bug: first multiplication FC<<12 + M[i][0]*V_x is computed, IR
         // gets saturated but is then DISCARDED; the result keeps only the
         // subsequent two M[i][1]*V_y + M[i][2]*V_z terms.
-        long long tmp1 = ((long long)t1 << 12) + (long long)M_sel[0][0] * Vx;
-        long long tmp2 = ((long long)t2 << 12) + (long long)M_sel[1][0] * Vx;
-        long long tmp3 = ((long long)t3 << 12) + (long long)M_sel[2][0] * Vx;
+        long long tmp1 = (long long)t1 * 4096 + (long long)M_sel[0][0] * Vx;
+        long long tmp2 = (long long)t2 * 4096 + (long long)M_sel[1][0] * Vx;
+        long long tmp3 = (long long)t3 * 4096 + (long long)M_sel[2][0] * Vx;
         (void)mac_check_44(tmp1, 0);
         (void)mac_check_44(tmp2, 1);
         (void)mac_check_44(tmp3, 2);
@@ -729,11 +729,11 @@ static inline void matrix_vec_mul(int sf, int lm, int mx, int vx, int cv) {
         m2 = (long long)M_sel[1][1] * Vy + (long long)M_sel[1][2] * Vz;
         m3 = (long long)M_sel[2][1] * Vy + (long long)M_sel[2][2] * Vz;
     } else {
-        m1 = ((long long)t1 << 12) + (long long)M_sel[0][0] * Vx +
+        m1 = (long long)t1 * 4096 + (long long)M_sel[0][0] * Vx +
              (long long)M_sel[0][1] * Vy + (long long)M_sel[0][2] * Vz;
-        m2 = ((long long)t2 << 12) + (long long)M_sel[1][0] * Vx +
+        m2 = (long long)t2 * 4096 + (long long)M_sel[1][0] * Vx +
              (long long)M_sel[1][1] * Vy + (long long)M_sel[1][2] * Vz;
-        m3 = ((long long)t3 << 12) + (long long)M_sel[2][0] * Vx +
+        m3 = (long long)t3 * 4096 + (long long)M_sel[2][0] * Vx +
              (long long)M_sel[2][1] * Vy + (long long)M_sel[2][2] * Vz;
     }
     m1 = mac_check_44(m1, 0);
@@ -768,9 +768,9 @@ static inline void depth_cue(int sf, int lm, int inR, int inG, int inB) {
     int shift = sf ? 12 : 0;
     // sat_s16 of ((FC<<12 - inN) >> shift). Computed in s64 to handle the
     // pre-shift overflow safely; result after >>12 always fits in s32.
-    short diff_r = sat_s16((int)((((long long)L2.t[0] << 12) - inR) >> shift));
-    short diff_g = sat_s16((int)((((long long)L2.t[1] << 12) - inG) >> shift));
-    short diff_b = sat_s16((int)((((long long)L2.t[2] << 12) - inB) >> shift));
+    short diff_r = sat_s16((int)(((long long)L2.t[0] * 4096 - inR) >> shift));
+    short diff_g = sat_s16((int)(((long long)L2.t[1] * 4096 - inG) >> shift));
+    short diff_b = sat_s16((int)(((long long)L2.t[2] * 4096 - inB) >> shift));
     // IR0 * diff_s16 is s16*s16 → s32. inN is s32. Sum stays in s32 here
     // since (RGB<<16) + ((s16)0x7FFF*0x7FFF) is well within s32.
     MAC1 = (inR + (int)IR0 * diff_r) >> shift;
@@ -979,7 +979,7 @@ static void DCPL(unsigned int cmd) {
 static void INTPL(unsigned int cmd) {
     int sf = (cmd >> 19) & 1, lm = (cmd >> 10) & 1;
     FLAG = 0;
-    depth_cue(sf, lm, IR1 << 12, IR2 << 12, IR3 << 12);
+    depth_cue(sf, lm, IR1 * 4096, IR2 * 4096, IR3 * 4096);
     color_fifo_push();
     FLAG_update_error();
 }
@@ -1039,9 +1039,9 @@ static void GPL(unsigned int cmd25) {
     int lm = (cmd25 >> 10) & 1;
     int shift = sf ? 12 : 0;
     FLAG = 0;
-    long long m1 = ((long long)MAC1 << shift) + (long long)IR0 * IR1;
-    long long m2 = ((long long)MAC2 << shift) + (long long)IR0 * IR2;
-    long long m3 = ((long long)MAC3 << shift) + (long long)IR0 * IR3;
+    long long m1 = (long long)MAC1 * (1 << shift) + (long long)IR0 * IR1;
+    long long m2 = (long long)MAC2 * (1 << shift) + (long long)IR0 * IR2;
+    long long m3 = (long long)MAC3 * (1 << shift) + (long long)IR0 * IR3;
     m1 = mac_check_44(m1, 0);
     m2 = mac_check_44(m2, 1);
     m3 = mac_check_44(m3, 2);
@@ -1623,9 +1623,9 @@ unsigned int Psyz_GteCtrlRead(unsigned idx) {
     case 23:
         return (unsigned int)L2.t[2];
     case 24:
-        return (unsigned int)(OFX << 16);
+        return (unsigned int)OFX << 16;
     case 25:
-        return (unsigned int)(OFY << 16);
+        return (unsigned int)OFY << 16;
     case 26:
         return (unsigned int)H;
     case 27:
