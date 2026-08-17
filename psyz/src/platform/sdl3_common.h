@@ -184,6 +184,28 @@ static PsyzDitherMode dither_mode = PSYZ_DITHER_AUTO;
 static bool use_driver_vsync = false;
 static PsyzVideoStats gpu_stats = {0};
 
+static unsigned draw_grid_source_width = 1;
+static unsigned draw_grid_target_width = 1;
+
+static float GetDrawGridXScale(void) {
+    return (float)draw_grid_target_width / (float)draw_grid_source_width;
+}
+
+int Draw_SetHorizontalGrid(
+    unsigned int source_width, unsigned int target_width) {
+    if (source_width == 0 || target_width == 0) {
+        return -1;
+    }
+    if (draw_grid_source_width == source_width &&
+        draw_grid_target_width == target_width) {
+        return 0;
+    }
+    Draw_FlushBuffer();
+    draw_grid_source_width = source_width;
+    draw_grid_target_width = target_width;
+    return 0;
+}
+
 static void PollEvents(void);
 
 // overlay callbacks shared across backends

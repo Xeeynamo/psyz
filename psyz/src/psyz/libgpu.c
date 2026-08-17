@@ -51,6 +51,29 @@ static void GPU_read_image() { NOT_IMPLEMENTED; }
 
 static int queue_len = 0;
 static u_long queue_buf[0x4000];
+
+typedef struct {
+    PsyzGpuCommandHandler handler;
+    void* userdata;
+} UserGpuCommand;
+
+static UserGpuCommand user_gpu_commands[256];
+
+int Psyz_GpuRegisterCommandHandler(
+    unsigned int opcode, PsyzGpuCommandHandler handler, void* userdata) {
+    if (opcode > 0xFF) {
+        return -1;
+    }
+    user_gpu_commands[opcode].handler = handler;
+    user_gpu_commands[opcode].userdata = handler ? userdata : NULL;
+    return 0;
+}
+
+int Psyz_GpuSetHorizontalGrid(
+    unsigned int source_width, unsigned int target_width) {
+    return Draw_SetHorizontalGrid(source_width, target_width);
+}
+
 static void DispatchPackets(u_long* buf, int len) {
     RECT rect;
     unsigned int x, y;
@@ -115,6 +138,17 @@ static void DispatchPackets(u_long* buf, int len) {
         default:
             if (code >= 0x20 && code < 0x80) {
                 i += Draw_PushPrim(&buf[i], len - i) - 1;
+                break;
+            }
+            if (user_gpu_commands[code].handler) {
+                int consumed = user_gpu_commands[code].handler(
+                    &buf[i], len - i, user_gpu_commands[code].userdata);
+                if (consumed > 0 && consumed <= len - i) {
+                    i += consumed - 1;
+                    break;
+                }
+                WARNF("custom command %02X returned invalid length %d", code,
+                      consumed);
                 break;
             }
             WARNF("unsupported command %02X", code);
