@@ -306,8 +306,8 @@ static void AddSaturnPack(int target_x, int y, int pack) {
             int index = row * 5 + col;
             unsigned int color = colors[(pack * 3 + index) % 10];
 
-            AddNumberedTile(target_x + col * TILE_SIZE, y + row * TILE_SIZE,
-                            index, color);
+            AddNumberedTile(
+                target_x + col * TILE_SIZE, y + row * TILE_SIZE, index, color);
         }
     }
 }
@@ -327,8 +327,8 @@ static void AddPsxPack(int target_x, int y, int pack) {
             int index = row * 4 + col;
             unsigned int color = colors[(pack * 3 + index) % 10];
 
-            AddNumberedTile(source_x + col * TILE_SIZE, y + row * TILE_SIZE,
-                            index, color);
+            AddNumberedTile(
+                source_x + col * TILE_SIZE, y + row * TILE_SIZE, index, color);
         }
     }
 }
