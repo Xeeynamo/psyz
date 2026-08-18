@@ -383,6 +383,29 @@ TEST_F(LibCdTest, sync_peek_caches_last_response) {
     EXPECT_NE(sr[1] & 0x80, 0);
 }
 
+TEST_F(LibCdTest, responses_stay_inside_the_caller_result_buffer) {
+    load_cue_single(1, 271796, true);
+
+    // CdlGetTD produces four bytes. A caller that sizes its buffer for that
+    // response must not have the bytes behind it disturbed.
+    struct {
+        u_char result[4];
+        u_char guard[4];
+    } buf;
+
+    u_char track = itob(1);
+    std::memset(&buf, 0xAA, sizeof(buf));
+    ASSERT_EQ(CdControlB(CdlGetTD, &track, buf.result), CdlDataReady);
+
+    // Repaint the guard so that anything the cached response carries past the
+    // four response bytes becomes visible instead of writing 0xAA over 0xAA.
+    std::memset(buf.guard, 0x55, sizeof(buf.guard));
+    EXPECT_EQ(CdSync(1, buf.result), CdlComplete);
+    for (size_t i = 0; i < sizeof(buf.guard); i++) {
+        EXPECT_EQ(buf.guard[i], 0x55) << "CdSync overran result at +" << i;
+    }
+}
+
 class LibCdPlaybackTest : public ::testing::Test {
   protected:
     std::string dir;
