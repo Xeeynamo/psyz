@@ -5,7 +5,7 @@
 #define SCREEN_WIDTH 320
 #define SCREEN_HEIGHT 240
 
-#define GRID_COMMAND_OPCODE 0x03u
+#define GRID_COMMAND_OPCODE 0x04u
 #define GRID_COMMAND(source_width)                                             \
     ((GRID_COMMAND_OPCODE << 24) | ((source_width) & 0xFFFFu))
 
@@ -17,8 +17,40 @@
 #define SATURN_Y 56
 #define PSX_Y 112
 
-static DRAWENV draw;
-static DISPENV disp;
+#define GLYPH_COUNT 10
+#define GLYPH_W 8
+#define GLYPH_H 8
+#define FONT_VRAM_X 640
+#define FONT_VRAM_Y 0
+#define FONT_TEX_W (GLYPH_COUNT * GLYPH_W)
+#define FONT_TPAGE getTPage(2, 0, FONT_VRAM_X, FONT_VRAM_Y)
+
+#define OT_LENGTH 1
+
+#define MAX_PRIMS 512
+
+typedef struct {
+    O_TAG;
+    u_long code[1];
+} DR_GRID;
+
+typedef union {
+    TILE tile;
+    SPRT sprt;
+    DR_GRID grid;
+} PRIM;
+
+typedef struct {
+    DRAWENV draw;
+    DISPENV disp;
+    OT_TYPE ot[OT_LENGTH];
+    PRIM prims[MAX_PRIMS];
+    int prim_count;
+    void* prim_tail;
+} DB;
+
+static DB db[2];
+static DB* cdb;
 
 // 5x7 font 0-10
 static const unsigned char font[10][7] = {
@@ -132,13 +164,7 @@ static const unsigned char font[10][7] = {
         0x0E,
     }};
 
-static const unsigned char saturn_labels[10] = {
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-};
-
-static const unsigned char psx_labels[8] = {
-    0, 1, 2, 3, 4, 5, 6, 7,
-};
+static u_short font_texture[FONT_TEX_W * GLYPH_H];
 
 static const unsigned int colors[] = {
     0x4050E0u, 0x40B0E0u, 0x40D080u, 0x80D040u, 0xD0C040u,
@@ -164,50 +190,115 @@ static int HandleGridCommand(
     return 1;
 }
 
-static void WriteRect(unsigned int x, unsigned int y, unsigned int w,
-                      unsigned int h, unsigned int rgb) {
-
-    Psyz_GpuWriteGP0(0x60000000u | (rgb & 0xFFFFFFu));
-    Psyz_GpuWriteGP0((y << 16) | x);
-    Psyz_GpuWriteGP0((h << 16) | w);
-}
-
-static void WriteGlyph(
-    unsigned int x, unsigned int y, unsigned int glyph, unsigned int rgb) {
-
+// converts to 16-bit
+static void LoadFont(void) {
+    RECT rect;
+    int glyph;
     int row;
     int col;
 
-    for (row = 0; row < 7; row++) {
-        unsigned int bits = font[glyph][row];
+    for (glyph = 0; glyph < GLYPH_COUNT; glyph++) {
+        for (row = 0; row < 7; row++) {
+            unsigned int bits = font[glyph][row];
 
-        for (col = 0; col < 5; col++) {
-            if (bits & (1u << (4 - col))) {
-                WriteRect(x + 1 + col, y + row, 1, 1, rgb);
+            for (col = 0; col < 5; col++) {
+                if (bits & (1u << (4 - col))) {
+                    font_texture[row * FONT_TEX_W + glyph * GLYPH_W + 1 + col] =
+                        0x7FFF;
+                }
             }
         }
     }
+
+    rect.x = FONT_VRAM_X;
+    rect.y = FONT_VRAM_Y;
+    rect.w = FONT_TEX_W;
+    rect.h = GLYPH_H;
+    LoadImage(&rect, (u_long*)font_texture);
+    DrawSync(0);
 }
 
-static void WriteNumberedTile(
-    unsigned int x, unsigned int y, unsigned int label, unsigned int rgb) {
+static void ResetPrims(void) {
+    cdb->prim_count = 0;
+    cdb->prim_tail = NULL;
+    ClearOTag(cdb->ot, OT_LENGTH);
+}
+
+static void* AllocPrim(void) {
+    void* prim;
+
+    if (cdb->prim_count >= MAX_PRIMS) {
+        return NULL;
+    }
+
+    prim = &cdb->prims[cdb->prim_count++];
+    if (cdb->prim_tail) {
+        setaddr(cdb->prim_tail, prim);
+    } else {
+        setaddr(cdb->ot, prim);
+    }
+    cdb->prim_tail = prim;
+    termPrim(prim);
+    return prim;
+}
+
+static void AddGrid(unsigned int source_width) {
+    DR_GRID* grid = (DR_GRID*)AllocPrim();
+
+    if (grid == NULL) {
+        return;
+    }
+
+    setlen(grid, 1);
+    grid->code[0] = GRID_COMMAND(source_width);
+}
+
+static void AddRect(int x, int y, int w, int h, unsigned int rgb) {
+    TILE* tile = (TILE*)AllocPrim();
+
+    if (tile == NULL) {
+        return;
+    }
+
+    SetTile(tile);
+    setXY0(tile, x, y);
+    setWH(tile, w, h);
+    setRGB0(tile, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+}
+
+static void AddGlyph(int x, int y, int glyph, int intensity) {
+    SPRT* sprt = (SPRT*)AllocPrim();
+
+    if (sprt == NULL) {
+        return;
+    }
+
+    SetSprt(sprt);
+    setXY0(sprt, x, y);
+    setWH(sprt, GLYPH_W, GLYPH_H);
+    setUV0(sprt, glyph * GLYPH_W, 0);
+    setClut(sprt, 0, 0);
+    setRGB0(sprt, intensity, intensity, intensity);
+}
+
+static void AddNumberedTile(int x, int y, int label, unsigned int rgb) {
 
     // colored tile
-    WriteRect(x, y, TILE_SIZE, TILE_SIZE, rgb);
+    AddRect(x, y, TILE_SIZE, TILE_SIZE, rgb);
 
     // shadow
-    WriteGlyph(x + 1, y + 1, label, 0x101010u);
+    AddGlyph(x + 1, y + 1, label, 0x10);
 
     // number
-    WriteGlyph(x, y, label, 0xFFFFFFu);
+    AddGlyph(x, y, label, 0x80);
 }
 
-static void WriteSaturnPack(unsigned int target_x, unsigned int y, int pack) {
+static void AddSaturnPack(int target_x, int y, int pack) {
 
     int row;
     int col;
 
-    Psyz_GpuWriteGP0(GRID_COMMAND(320));
+    AddGrid(320);
 
     // saturn packing: 5 * 8 = 40 pixels
     for (row = 0; row < 2; row++) {
@@ -215,20 +306,20 @@ static void WriteSaturnPack(unsigned int target_x, unsigned int y, int pack) {
             int index = row * 5 + col;
             unsigned int color = colors[(pack * 3 + index) % 10];
 
-            WriteNumberedTile(target_x + col * TILE_SIZE, y + row * TILE_SIZE,
-                              saturn_labels[index], color);
+            AddNumberedTile(target_x + col * TILE_SIZE, y + row * TILE_SIZE,
+                            index, color);
         }
     }
 }
 
-static void WritePsxPack(unsigned int target_x, unsigned int y, int pack) {
+static void AddPsxPack(int target_x, int y, int pack) {
 
     int row;
     int col;
 
-    unsigned int source_x = target_x * 4 / 5;
+    int source_x = target_x * 4 / 5;
 
-    Psyz_GpuWriteGP0(GRID_COMMAND(256));
+    AddGrid(256);
 
     // psx packing, appears as 10x8 to match saturn
     for (row = 0; row < 2; row++) {
@@ -236,38 +327,43 @@ static void WritePsxPack(unsigned int target_x, unsigned int y, int pack) {
             int index = row * 4 + col;
             unsigned int color = colors[(pack * 3 + index) % 10];
 
-            WriteNumberedTile(source_x + col * TILE_SIZE, y + row * TILE_SIZE,
-                              psx_labels[index], color);
+            AddNumberedTile(source_x + col * TILE_SIZE, y + row * TILE_SIZE,
+                            index, color);
         }
     }
 }
 
-static void WriteGuideLines(unsigned int y0, unsigned int y1) {
-    unsigned int x;
+static void AddGuideLines(int y0, int y1) {
+    int x;
 
-    Psyz_GpuWriteGP0(GRID_COMMAND(320));
+    AddGrid(320);
 
     // grid line to separate 4x8 and 5x8 psx/saturn logical blocks
     for (x = 0; x < SCREEN_WIDTH; x += PACK_WIDTH) {
-        WriteRect(x, y0, 1, y1 - y0, 0xFFFFFFu);
+        AddRect(x, y0, 1, y1 - y0, 0xFFFFFFu);
     }
 }
 
 static void InitGraphics(void) {
+    int i;
+
     ResetGraph(0);
 
-    SetDefDrawEnv(&draw, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    SetDefDrawEnv(&db[0].draw, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    SetDefDrawEnv(&db[1].draw, 0, SCREEN_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT);
+    SetDefDispEnv(&db[0].disp, 0, SCREEN_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT);
+    SetDefDispEnv(&db[1].disp, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    SetDefDispEnv(&disp, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    for (i = 0; i < 2; i++) {
+        db[i].draw.isbg = 1;
+        setRGB0(&db[i].draw, 8, 8, 8);
+        db[i].draw.tpage = FONT_TPAGE;
+    }
 
-    PutDrawEnv(&draw);
-    PutDispEnv(&disp);
     SetDispMask(1);
 }
 
 int main(void) {
-    RECT screen = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
-
     int pack;
 
     InitGraphics();
@@ -280,23 +376,32 @@ int main(void) {
     Psyz_GpuRegisterCommandHandler(
         GRID_COMMAND_OPCODE, HandleGridCommand, NULL);
 
+    LoadFont();
+
+    cdb = db;
     while (1) {
-        ClearImage(&screen, 8, 8, 8);
+        cdb = (cdb == db) ? db + 1 : db;
+        ResetPrims();
 
         for (pack = 0; pack < PACK_COUNT; pack++) {
-            WriteSaturnPack(pack * PACK_WIDTH, SATURN_Y, pack);
+            AddSaturnPack(pack * PACK_WIDTH, SATURN_Y, pack);
         }
 
         for (pack = 0; pack < PACK_COUNT; pack++) {
-            WritePsxPack(pack * PACK_WIDTH, PSX_Y, pack);
+            AddPsxPack(pack * PACK_WIDTH, PSX_Y, pack);
         }
 
-        WriteGuideLines(SATURN_Y - 8, PSX_Y + PACK_HEIGHT + 8);
+        AddGuideLines(SATURN_Y - 8, PSX_Y + PACK_HEIGHT + 8);
 
-        Psyz_GpuWriteGP0(GRID_COMMAND(320));
+        // back to the native grid for whatever is drawn next
+        AddGrid(320);
 
         DrawSync(0);
         VSync(0);
+
+        PutDispEnv(&cdb->disp);
+        PutDrawEnv(&cdb->draw);
+        DrawOTag(cdb->ot);
     }
 
     return 0;
