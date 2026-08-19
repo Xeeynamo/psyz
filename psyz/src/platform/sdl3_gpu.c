@@ -1505,6 +1505,19 @@ void Draw_FlushBuffer(void) {
         .store_op = SDL_GPU_STOREOP_STORE,
     };
     SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(cmd, &target, 1, NULL);
+    {
+        const float grid_scale_x = GetDrawGridXScale();
+        const float render_scale = (float)internal_res;
+        const SDL_GPUViewport grid_viewport = {
+            .x = (float)draw_offset.x * render_scale * (1.0f - grid_scale_x),
+            .y = 0.0f,
+            .w = (float)VRAM_W * render_scale * grid_scale_x,
+            .h = (float)VRAM_H * render_scale,
+            .min_depth = 0.0f,
+            .max_depth = 1.0f,
+        };
+        SDL_SetGPUViewport(pass, &grid_viewport);
+    }
     SDL_Rect scaled_scissor = {
         scissor_rect.x * (int)internal_res, scissor_rect.y * (int)internal_res,
         scissor_rect.w * (int)internal_res, scissor_rect.h * (int)internal_res};

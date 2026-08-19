@@ -1357,6 +1357,15 @@ void Draw_FlushBuffer(void) {
         GL_ELEMENT_ARRAY_BUFFER, 0,
         (GLsizeiptr)(sizeof(*index_buf) * (size_t)n_indices), index_buf);
     glBindVertexArray(VAO);
+    {
+        const float grid_scale_x = GetDrawGridXScale();
+        const float render_scale = (float)internal_res;
+        const GLint viewport_x = (GLint)lroundf(
+            (float)draw_offset.x * render_scale * (1.0f - grid_scale_x));
+        const GLsizei viewport_w =
+            (GLsizei)lroundf((float)VRAM_W * render_scale * grid_scale_x);
+        glViewport(viewport_x, 0, viewport_w, VRAM_H * (GLsizei)internal_res);
+    }
     int prim_size = 3;
     int start = 0;
     bool cur_subtract = false;

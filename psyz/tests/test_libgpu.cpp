@@ -1346,3 +1346,169 @@ TEST_F(dither_Test, dithering_pattern_alignment) {
     AddPrim(cdb->ot, &cdb->g4[0]);
     Present("dithering_pattern_alignment");
 }
+
+class horizontal_grid_Test : public gpu_Test {
+  protected:
+    static const int GRID_OPCODE = 0x04;
+    static const int DISP_W = 320;
+    static const int DISP_H = 240;
+    static const int PSX_W = 256;
+    static const int PACK_W = 40;
+    static const int CELL = 8;
+    static const int BAND_H = 16;
+    static const int NATIVE_Y = 48;
+    static const int PSX_Y = 96;
+    static const int GUIDE_Y0 = 40;
+    static const int GUIDE_Y1 = 120;
+
+    typedef struct {
+        O_TAG;
+        u_long code[1];
+    } DR_GRID;
+
+    TILE tiles[96];
+    DR_GRID grids[8];
+    int tile_count;
+    int grid_count;
+    void* tail;
+    static int handler_calls;
+
+    static int HandleGrid(const u_long* words, int available, void* userdata) {
+        (void)userdata;
+        if (available < 1) {
+            return 0;
+        }
+        handler_calls++;
+        if (Psyz_GpuSetHorizontalGrid(
+                (unsigned int)(words[0] & 0xFFFF), DISP_W) < 0) {
+            return 0;
+        }
+        return 1;
+    }
+
+    void SetUp() override {
+#ifdef __PSP__
+        GTEST_SKIP() << "horizontal grid not supported";
+        return;
+#endif
+        gpu_Test::SetUp();
+        SetDefDrawEnv(&cdb->draw, 0, 0, DISP_W, DISP_H);
+        SetDefDispEnv(&cdb->disp, 0, 0, DISP_W, DISP_H);
+        cdb->draw.dtd = 0;
+        PutDrawEnv(&cdb->draw);
+        PutDispEnv(&cdb->disp);
+        ClearOTag(cdb->ot, OTSIZE);
+        ClearImage(&cdb->draw.clip, 0, 0, 0);
+        DrawSync(0);
+        tile_count = 0;
+        grid_count = 0;
+        tail = nullptr;
+        handler_calls = 0;
+        ASSERT_EQ(
+            Psyz_GpuRegisterCommandHandler(GRID_OPCODE, HandleGrid, nullptr),
+            0);
+    }
+
+    void TearDown() override {
+        Psyz_GpuRegisterCommandHandler(GRID_OPCODE, nullptr, nullptr);
+        Psyz_GpuSetHorizontalGrid(1, 1);
+        Psyz_VideoSetInternalResolution(1);
+        gpu_Test::TearDown();
+    }
+
+    void Append(void* prim) {
+        if (tail) {
+            setaddr(tail, prim);
+        } else {
+            setaddr(cdb->ot, prim);
+        }
+        tail = prim;
+        termPrim(prim);
+    }
+
+    void AddGrid(int source_width) {
+        DR_GRID* grid = &grids[grid_count++];
+        setlen(grid, 1);
+        grid->code[0] =
+            ((u_long)GRID_OPCODE << 24) | ((u_long)source_width & 0xFFFF);
+        Append(grid);
+    }
+
+    void AddRect(int x, int y, int w, int h, int r, int g, int b) {
+        TILE* tile = &tiles[tile_count++];
+        SetTile(tile);
+        setXY0(tile, x, y);
+        setWH(tile, w, h);
+        setRGB0(tile, r, g, b);
+        Append(tile);
+    }
+
+    void DrawBands() {
+        static const unsigned char native[5][3] = {
+            {0x40, 0x50, 0xE0},
+            {0x40, 0xB0, 0xE0},
+            {0x40, 0xD0, 0x80},
+            {0x80, 0xD0, 0x40},
+            {0xD0, 0xC0, 0x40}};
+        static const unsigned char psx[4][3] = {
+            {0xE0, 0x80, 0x40},
+            {0xD0, 0x40, 0x60},
+            {0xB0, 0x40, 0xD0},
+            {0x70, 0x40, 0xD0}};
+        int i;
+
+        AddGrid(DISP_W);
+        for (i = 0; i < DISP_W / CELL; i++) {
+            const unsigned char* c = native[i % 5];
+            AddRect(i * CELL, NATIVE_Y, CELL, BAND_H, c[0], c[1], c[2]);
+        }
+
+        AddGrid(PSX_W);
+        for (i = 0; i < PSX_W / CELL; i++) {
+            const unsigned char* c = psx[i % 4];
+            AddRect(i * CELL, PSX_Y, CELL, BAND_H, c[0], c[1], c[2]);
+        }
+
+        AddGrid(DISP_W);
+        for (i = 0; i < DISP_W; i += PACK_W) {
+            AddRect(i, GUIDE_Y0, 1, GUIDE_Y1 - GUIDE_Y0, 255, 255, 255);
+        }
+    }
+
+    void Present(const char* golden) {
+        DrawOTag(cdb->ot);
+        DrawSync(0);
+        VSync(0);
+        PutDispEnv(&cdb->disp);
+        AssertFrame(golden);
+    }
+};
+
+int horizontal_grid_Test::handler_calls = 0;
+
+TEST_F(horizontal_grid_Test, horizontal_grid) {
+    DrawBands();
+    Present("horizontal_grid");
+    EXPECT_EQ(handler_calls, 3);
+}
+
+// 2x and 4x reproduce the 1x golden
+TEST_F(horizontal_grid_Test, horizontal_grid_internal_res_2) {
+    ASSERT_EQ(Psyz_VideoSetInternalResolution(2), 0);
+    DrawBands();
+    Present("horizontal_grid");
+}
+
+TEST_F(horizontal_grid_Test, horizontal_grid_internal_res_4) {
+    ASSERT_EQ(Psyz_VideoSetInternalResolution(4), 0);
+    DrawBands();
+    Present("horizontal_grid");
+}
+
+TEST_F(horizontal_grid_Test, horizontal_grid_invalid_args) {
+    EXPECT_EQ(Psyz_GpuSetHorizontalGrid(0, DISP_W), -1);
+    EXPECT_EQ(Psyz_GpuSetHorizontalGrid(DISP_W, 0), -1);
+    EXPECT_EQ(Psyz_GpuSetHorizontalGrid(PSX_W, DISP_W), 0);
+    EXPECT_EQ(Psyz_GpuSetHorizontalGrid(1, 1), 0);
+    EXPECT_EQ(Psyz_GpuRegisterCommandHandler(0x100, HandleGrid, nullptr), -1);
+}
