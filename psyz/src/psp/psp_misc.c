@@ -14,18 +14,6 @@ int Psyz_VideoSetInternalResolution(unsigned multiplier) {
 
 unsigned Psyz_VideoGetInternalResolution(void) { return 1; }
 
-int Psyz_GpuRegisterCommandHandler(
-    unsigned int opcode, PsyzGpuCommandHandler handler, void* userdata) {
-    (void)opcode;
-    (void)userdata;
-    return handler ? -1 : 0;
-}
-
-int Psyz_GpuSetHorizontalGrid(
-    unsigned int source_width, unsigned int target_width) {
-    return Draw_SetHorizontalGrid(source_width, target_width);
-}
-
 int Draw_SetHorizontalGrid(
     unsigned int source_width, unsigned int target_width) {
     if (source_width == 0 || target_width == 0) {
