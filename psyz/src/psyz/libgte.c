@@ -86,7 +86,7 @@ static void MVMVA(unsigned int cmd25);
 #define FLAG_ERROR_MASK 0x7F87E000u
 #define FLAG_ERROR (1u << 31)
 
-static const unsigned int rcossin_tbl[][2] = {
+static const short rcossin_tbl[][2] = {
     {0x0000, 0x1000}, {0x0006, 0x1000}, {0x000D, 0x1000}, {0x0013, 0x1000},
     {0x0019, 0x1000}, {0x001F, 0x1000}, {0x0026, 0x1000}, {0x002C, 0x1000},
     {0x0032, 0x1000}, {0x0039, 0x1000}, {0x003F, 0x1000}, {0x0045, 0x0FFF},
@@ -1242,11 +1242,11 @@ MATRIX* RotMatrix(SVECTOR* r, MATRIX* m) {
         if (a < 0) {
             a = -a;
         }
-        cx = rcossin_tbl[a & 0xFFF][1];
-        sx = -rcossin_tbl[a & 0xFFF][0];
+        cx = (int)rcossin_tbl[a & 0xFFF][1];
+        sx = (int)-rcossin_tbl[a & 0xFFF][0];
     } else {
-        cx = rcossin_tbl[a & 0xFFF][1];
-        sx = rcossin_tbl[a & 0xFFF][0];
+        cx = (int)rcossin_tbl[a & 0xFFF][1];
+        sx = (int)rcossin_tbl[a & 0xFFF][0];
     }
 
     a = r->vy;
@@ -1255,12 +1255,12 @@ MATRIX* RotMatrix(SVECTOR* r, MATRIX* m) {
         if (a < 0) {
             a = -a;
         }
-        cy = rcossin_tbl[a & 0xFFF][1];
-        nsy = rcossin_tbl[a & 0xFFF][0];
+        cy = (int)rcossin_tbl[a & 0xFFF][1];
+        nsy = (int)rcossin_tbl[a & 0xFFF][0];
         sy = -nsy;
     } else {
-        cy = rcossin_tbl[a & 0xFFF][1];
-        sy = rcossin_tbl[a & 0xFFF][0];
+        cy = (int)rcossin_tbl[a & 0xFFF][1];
+        sy = (int)rcossin_tbl[a & 0xFFF][0];
         nsy = -sy;
     }
 
