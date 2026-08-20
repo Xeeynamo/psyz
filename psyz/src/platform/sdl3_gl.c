@@ -614,6 +614,7 @@ static void PlatformBackend_Present(void) {
 }
 
 static void QuitPlatform(void) {
+    Sdl3Common_Shutdown();
     if (overlay_destroy_cb) {
         overlay_destroy_cb();
     }

@@ -371,10 +371,16 @@ bool InitPlatform() {
     }
     INFOF("SDL_GPU with driver %s", SDL_GetGPUDeviceDriver(device));
 
-    sdl3_window = SDL_CreateWindow(
-        window_title, DEFAULT_FRONT_W, DEFAULT_FRONT_H,
+#ifdef PLATFORM_IOS
+    const SDL_WindowFlags window_flags =
+        SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+#else
+    const SDL_WindowFlags window_flags =
         SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE |
-            SDL_WINDOW_HIGH_PIXEL_DENSITY);
+        SDL_WINDOW_HIGH_PIXEL_DENSITY;
+#endif
+    sdl3_window = SDL_CreateWindow(
+        window_title, DEFAULT_FRONT_W, DEFAULT_FRONT_H, window_flags);
     if (!sdl3_window) {
         ERRORF("SDL_CreateWindow: %s", SDL_GetError());
         return false;
@@ -592,6 +598,10 @@ static void PlatformBackend_Present(void) {
     if (!sdl3_window && !InitPlatform()) {
         return;
     }
+    if (Sdl3Common_IsInBackground()) {
+        finish_time = SDL_GetPerformanceCounter();
+        return;
+    }
 
     ApplyPendingInternalRes();
 
@@ -668,6 +678,7 @@ static void PlatformBackend_Present(void) {
 }
 
 static void QuitPlatform(void) {
+    Sdl3Common_Shutdown();
     if (overlay_destroy_cb) {
         overlay_destroy_cb();
     }
@@ -863,13 +874,23 @@ static void ApplyDisplayPendingChanges() {
     if (cur_display_size.x != display_size.x ||
         cur_display_size.y != display_size.y || !is_window_visible) {
         if (!is_window_visible) {
+#ifdef PLATFORM_IOS
+            SDL_GetWindowSizeInPixels(
+                sdl3_window, &wnd_size_in_pixels.w, &wnd_size_in_pixels.h);
+#else
             SetWindowSizeInPixels(DEFAULT_FRONT_W, DEFAULT_FRONT_H);
+#endif
         }
         cur_display_size = display_size;
     }
     if (!is_window_visible) {
         SDL_ShowWindow(sdl3_window);
         is_window_visible = true;
+#ifdef PLATFORM_IOS
+        SDL_GetWindowSizeInPixels(
+            sdl3_window, &wnd_size_in_pixels.w, &wnd_size_in_pixels.h);
+        Psyz_IosAttachWindow(sdl3_window);
+#endif
     }
     if (cur_disp_horiz != set_disp_horiz || cur_disp_vert != set_disp_vert) {
         cur_disp_horiz = set_disp_horiz;

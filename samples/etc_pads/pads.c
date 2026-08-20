@@ -4,7 +4,13 @@
 // fan-out (4 slots per port). Buffers carry the raw on-the-wire bytes that
 // we decode per known device id. No rumble (would require PSY-Q 4.2 libpad).
 
+#ifdef PLATFORM_IOS
+#include <SDL3/SDL_main.h>
+#endif
+
 #include <psyz.h>
+#include <psyz/audio.h>
+#include <psyz/spu.h>
 #include <libgpu.h>
 #include <libetc.h>
 #include <stdio.h>
@@ -508,7 +514,9 @@ static void display(void) {
     DrawOTag(&cdb->ot[0]);
 }
 
-int main(void) {
+int main(int argc, char* argv[]) {
+    (void)argc;
+    (void)argv;
     init_graphics();
     FntLoad(960, 256);
     SetDumpFnt(FntOpen(4, 8, 312, 224, 0, 1024));
@@ -524,7 +532,7 @@ int main(void) {
     // ChangeClearPAD(1) state so our reads always see the latest frame.
     ChangeClearPAD(0);
 
-    while (1) {
+    while (!Psyz_QuitRequested()) {
         for (int p = 0; p < PORTS; p++) {
             decode_port_buffer(p);
         }

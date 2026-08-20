@@ -10,3 +10,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE psyz)
 target_include_directories(psyz PRIVATE ../../psyz/include)
 target_compile_definitions(psyz PRIVATE __psyz)
 psyz_title(${PROJECT_NAME} "Sample: hello world")
+psyz_ios_configure_target(${PROJECT_NAME}
+    BUNDLE_IDENTIFIER "org.psyz.sample.gpu-hello"
+    DISPLAY_NAME "PSY-Z GPU Hello")
