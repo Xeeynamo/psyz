@@ -8,3 +8,4 @@ undefined_*_auto.*.txt
 *.elf
 *.elf.sha256
 *.map
+compile_commands.json
