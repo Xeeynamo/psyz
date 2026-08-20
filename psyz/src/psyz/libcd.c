@@ -317,12 +317,23 @@ static int parse_cue_file(const char* cue_path) {
     return 0;
 }
 
+// Number of bytes CD_cw writes for the short status-style responses.
+#define CD_STATUS_RESULT_LEN 4
+
 // Cached last-command response, exposed via CD_sync().
 static u_char last_result[8];
+static size_t last_result_len = 0;
 static int last_intr = CdlComplete;
 
-static void cache_last_result(const u_char* result, int intr) {
-    memcpy(last_result, result, sizeof(last_result));
+// `result` points at a caller-owned buffer sized for its own command, which is
+// usually shorter than last_result, so only `len` bytes may be touched.
+static void cache_last_result(const u_char* result, size_t len, int intr) {
+    if (len > sizeof(last_result)) {
+        len = sizeof(last_result);
+    }
+    memset(last_result, 0, sizeof(last_result));
+    memcpy(last_result, result, len);
+    last_result_len = len;
     last_intr = intr;
 }
 
@@ -871,7 +882,9 @@ int CD_initvol(void) {
 
 int CD_sync(int mode, u_char* result) {
     if (result) {
-        memcpy(result, last_result, sizeof(last_result));
+        // Hand back only what the last command produced; the caller sized its
+        // buffer for that command, not for last_result.
+        memcpy(result, last_result, last_result_len);
     }
     return last_intr;
 }
@@ -893,7 +906,7 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
                 result[1] = 0x80;
                 result[2] = 0x00;
                 result[3] = 0x00;
-                cache_last_result(result, CdlDiskError);
+                cache_last_result(result, CD_STATUS_RESULT_LEN, CdlDiskError);
             }
             return -1;
         }
@@ -902,7 +915,7 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
             result[1] = 0x00;
             result[2] = 0x00;
             result[3] = 0x00;
-            cache_last_result(result, CdlComplete);
+            cache_last_result(result, CD_STATUS_RESULT_LEN, CdlComplete);
         }
         break;
     case CdlSetloc:
@@ -995,7 +1008,7 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
         result[6] = 0x00;
         result[7] = 0x00;
         u_char status_result[8] = {(u_char)CD_status, 0, 0, 0, 0, 0, 0, 0};
-        cache_last_result(status_result, CdlComplete);
+        cache_last_result(status_result, sizeof(status_result), CdlComplete);
         break;
     }
     case CdlGetlocP:
@@ -1011,14 +1024,14 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
             result[1] = 0x80; // error-response sentinel
             result[2] = 0x00;
             result[3] = 0x00;
-            cache_last_result(result, CdlDiskError);
+            cache_last_result(result, CD_STATUS_RESULT_LEN, CdlDiskError);
             return -1;
         }
         result[0] = (u_char)CD_status;
         result[1] = itob(1);
         result[2] = itob(g_track_count);
         result[3] = 0x00;
-        cache_last_result(result, CdlComplete);
+        cache_last_result(result, CD_STATUS_RESULT_LEN, CdlComplete);
         break;
     case CdlGetTD:
         if (!param || !result) {
@@ -1030,7 +1043,7 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
             result[1] = 0x80;
             result[2] = 0x00;
             result[3] = 0x00;
-            cache_last_result(result, CdlDiskError);
+            cache_last_result(result, CD_STATUS_RESULT_LEN, CdlDiskError);
             return -1;
         }
         t = btoi(param[0]);
@@ -1042,7 +1055,7 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
             result[1] = 0x80;
             result[2] = 0x00;
             result[3] = 0x00;
-            cache_last_result(result, CdlDiskError);
+            cache_last_result(result, CD_STATUS_RESULT_LEN, CdlDiskError);
             return -1;
         } else {
             abs_sector = g_tracks[t - 1].abs_sector;
@@ -1053,7 +1066,7 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
         result[1] = itob(total / 75 / 60);
         result[2] = itob(total / 75 % 60);
         result[3] = 0x00;
-        cache_last_result(result, CdlComplete);
+        cache_last_result(result, CD_STATUS_RESULT_LEN, CdlComplete);
         break;
     default:
         if (com >= LEN(CD_comstr)) {
