@@ -1,0 +1,9 @@
+CompileFlags:
+  Add:
+    - -Wno-incompatible-library-redeclaration
+    - -Wno-implicit-function-declaration
+  Remove:
+    - -fno-builtin
+Diagnostics:
+  Suppress:
+    - incompatible-library-redeclaration

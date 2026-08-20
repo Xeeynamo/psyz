@@ -34,7 +34,7 @@ ASM_OBJS := $(patsubst asm/%.s,build/asm/%.s.o,$(ASM_SRCS))
 .PHONY: build
 build: build/psyq$(PSYQ_VER).elf
 
-all:
+all: compile_commands.json
 	make build/psyq$(PSYQ_VER).ld -j
 	make expected -j
 
@@ -60,6 +60,9 @@ $(CLANG_FORMAT):
 .PHONY: format
 format: $(CLANG_FORMAT)
 	find src -type f -name '*.c' -print0 | xargs -0 -P$$(nproc) -n1 $(CLANG_FORMAT) -i
+
+compile_commands.json:
+	python3 tools/gen_compile_commands.py
 
 .PHONY: expected
 expected: build/psyq$(PSYQ_VER).elf
