@@ -6,7 +6,6 @@ PSP_HEAP_SIZE_KB(-1024); // 1MB of heap for kernel stuff (threads, callbacks)
 
 static volatile int quit_requested = 0;
 
-// TODO wire this one with SDL3 quit_requested
 int Psyz_QuitRequested(void) { return quit_requested; }
 
 static int ExitCallback(int arg1, int arg2, void* common) {

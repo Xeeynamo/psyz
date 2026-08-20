@@ -1,6 +1,7 @@
 #include <psyz.h>
 #include <psyz/log.h>
 #include <SDL3/SDL.h>
+#include <stdbool.h>
 #include <stdio.h>
 
 #define N_CHANNELS 2
@@ -45,6 +46,12 @@ int Psyz_AudioInit(void) {
         }
     }
 
+    mutex = SDL_CreateMutex();
+    if (!mutex) {
+        ERRORF("failed to create audio mutex: %s", SDL_GetError());
+        return -1;
+    }
+
     SDL_AudioSpec spec = {
         .format = SDL_AUDIO_S16,
         .channels = N_CHANNELS,
@@ -54,15 +61,13 @@ int Psyz_AudioInit(void) {
         SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, audio_callback, NULL);
     if (!sdl_stream) {
         ERRORF("failed to open audio device: %s", SDL_GetError());
+        SDL_DestroyMutex(mutex);
+        mutex = NULL;
         return -1;
     }
-    SDL_ResumeAudioStreamDevice(sdl_stream);
 
-    mutex = SDL_CreateMutex();
-    if (!mutex) {
-        ERRORF("failed to create audio mutex: %s", SDL_GetError());
-        SDL_DestroyAudioStream(sdl_stream);
-        return -1;
+    if (!SDL_ResumeAudioStreamDevice(sdl_stream)) {
+        WARNF("failed to resume audio device: %s", SDL_GetError());
     }
 
     is_audio_init = true;
@@ -71,21 +76,41 @@ int Psyz_AudioInit(void) {
 }
 
 void Psyz_AudioDestroy(void) {
-    if (mutex) {
-        SDL_DestroyMutex(mutex);
-        mutex = NULL;
-    }
     if (sdl_stream) {
         SDL_DestroyAudioStream(sdl_stream);
         sdl_stream = NULL;
     }
+    if (mutex) {
+        SDL_DestroyMutex(mutex);
+        mutex = NULL;
+    }
     is_audio_init = false;
 }
 
-void Psyz_AudioLock() { SDL_LockMutex(mutex); }
+void Psyz_AudioLock() {
+    if (mutex) {
+        SDL_LockMutex(mutex);
+    }
+}
 
-void Psyz_AudioUnlock() { SDL_UnlockMutex(mutex); }
+void Psyz_AudioUnlock() {
+    if (mutex) {
+        SDL_UnlockMutex(mutex);
+    }
+}
 
-void Psyz_AudioPause(void) { SDL_PauseAudioStreamDevice(sdl_stream); }
+void Psyz_AudioPause(void) {
+    if (sdl_stream) {
+        SDL_PauseAudioStreamDevice(sdl_stream);
+    }
+}
 
-void Psyz_AudioUnpause(void) { SDL_ResumeAudioStreamDevice(sdl_stream); }
+void Psyz_AudioUnpause(void) {
+    if (sdl_stream) {
+        SDL_ResumeAudioStreamDevice(sdl_stream);
+    }
+}
+
+int Psyz_AudioIsPaused(void) {
+    return !sdl_stream || SDL_AudioStreamDevicePaused(sdl_stream);
+}

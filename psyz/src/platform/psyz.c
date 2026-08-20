@@ -1,6 +1,10 @@
 #include <psyz.h>
 #include <string.h>
 
+#ifdef PLATFORM_IOS
+#include "../ios/ios_platform.h"
+#endif
+
 #ifdef _WIN32
 #include <direct.h>
 #define PATH_SEP '\\'
@@ -65,7 +69,13 @@ void Psyz_AdjustPathCB(
 }
 
 void Psyz_AdjustPath(char* dst, const char* src, int maxlen) {
-    if (!adjust_path_cb || adjust_path_cb(dst, src, maxlen) < 0) {
+    int handled = adjust_path_cb ? adjust_path_cb(dst, src, maxlen) : -1;
+#ifdef PLATFORM_IOS
+    if (handled < 0) {
+        handled = Psyz_IosAdjustPath(dst, src, maxlen);
+    }
+#endif
+    if (handled < 0) {
         default_adjust_path(dst, src, maxlen);
     }
     truncate_filename(dst);

@@ -12,6 +12,9 @@
 #include <psyz/overlay.h>
 #include <psyz/overlay_sdl3.h>
 #include "../internal.h"
+#ifdef PLATFORM_IOS
+#include "../ios/ios_platform.h"
+#endif
 
 // HACK to avoid conflicting with RECT from windef.h
 // It renames the libgpu RECT into PS1_RECT, ensuring the windef struct RECT
@@ -41,9 +44,15 @@ static SDL_Window* sdl3_window = NULL;
 static bool is_window_visible = false;
 static bool is_platform_initialized = false;
 static bool is_platform_init_successful = false;
-static bool quit_requested = false;
+static SDL_AtomicInt quit_requested = {0};
+static SDL_AtomicInt app_in_background = {0};
+static SDL_AtomicInt timing_reset_requested = {0};
+static SDL_AtomicInt resume_audio_on_foreground = {0};
+static bool app_event_watch_installed = false;
 static bool debug_show_vram = false;
+#ifndef PLATFORM_IOS
 static bool is_fullscreen = false;
+#endif
 
 // defaults to better support integer scaling
 #define DEFAULT_FRONT_W 1280
@@ -240,7 +249,9 @@ void Psyz_SetTitle(const char* str) {
 
 PsyzSize Psyz_VideoGetDisplaySize(void) {
     PsyzSize s = {0, 0};
-    SDL_GetWindowSize(sdl3_window, &s.w, &s.h);
+    if (sdl3_window) {
+        SDL_GetWindowSizeInPixels(sdl3_window, &s.w, &s.h);
+    }
     return s;
 }
 
@@ -305,13 +316,108 @@ static void UpdateTargetFramerate(double fps) {
     ConfigureVSync(target_frame_rate);
 }
 
+static bool SDLCALL Sdl3Common_AppEventWatch(void* userdata, SDL_Event* event) {
+    (void)userdata;
+    switch (event->type) {
+    case SDL_EVENT_TERMINATING:
+        SDL_SetAtomicInt(&quit_requested, 1);
+        Psyz_AudioPause();
+#ifdef PLATFORM_IOS
+        Psyz_IosResetTouchControls();
+#endif
+        break;
+    case SDL_EVENT_WILL_ENTER_BACKGROUND:
+        SDL_SetAtomicInt(
+            &resume_audio_on_foreground, Psyz_AudioIsPaused() ? 0 : 1);
+        SDL_SetAtomicInt(&app_in_background, 1);
+        Psyz_AudioPause();
+#ifdef PLATFORM_IOS
+        Psyz_IosResetTouchControls();
+#endif
+        break;
+    case SDL_EVENT_DID_ENTER_BACKGROUND:
+        if (!SDL_GetAtomicInt(&app_in_background)) {
+            SDL_SetAtomicInt(
+                &resume_audio_on_foreground, Psyz_AudioIsPaused() ? 0 : 1);
+        }
+        SDL_SetAtomicInt(&app_in_background, 1);
+        Psyz_AudioPause();
+#ifdef PLATFORM_IOS
+        Psyz_IosResetTouchControls();
+#endif
+        break;
+    case SDL_EVENT_WILL_ENTER_FOREGROUND:
+        break;
+    case SDL_EVENT_DID_ENTER_FOREGROUND:
+        SDL_SetAtomicInt(&app_in_background, 0);
+        SDL_SetAtomicInt(&timing_reset_requested, 1);
+        if (SDL_SetAtomicInt(&resume_audio_on_foreground, 0)) {
+            Psyz_AudioUnpause();
+        }
+        break;
+    default:
+        break;
+    }
+    return true;
+}
+
+static void Sdl3Common_InstallAppEventWatch(void) {
+    if (!app_event_watch_installed) {
+        if (SDL_AddEventWatch(Sdl3Common_AppEventWatch, NULL)) {
+            app_event_watch_installed = true;
+        } else {
+            WARNF("failed to install SDL lifecycle event watch: %s",
+                  SDL_GetError());
+        }
+    }
+}
+
+static void Sdl3Common_ApplyPendingTimingReset(void) {
+    if (!SDL_GetAtomicInt(&timing_reset_requested)) {
+        return;
+    }
+    SDL_SetAtomicInt(&timing_reset_requested, 0);
+    drift_compensation = 0.0;
+    last_frame_time = SDL_GetPerformanceCounter();
+    finish_time = last_frame_time;
+    last_vsync = (Uint32)SDL_GetTicks();
+    if (sdl3_window && is_platform_init_successful) {
+        ConfigureVSync(target_frame_rate);
+    }
+}
+
+static bool Sdl3Common_IsInBackground(void) {
+    return SDL_GetAtomicInt(&app_in_background) != 0;
+}
+
+int Psyz_QuitRequested(void) { return SDL_GetAtomicInt(&quit_requested) != 0; }
+
 // Initialize the timing/vsync state. Call once at the end of InitPlatform.
 static void Sdl3Common_TimingInit(void) {
     elapsed_from_beginning = (Uint32)SDL_GetTicks();
     last_vsync = elapsed_from_beginning;
     perf_frequency = SDL_GetPerformanceFrequency();
     last_frame_time = SDL_GetPerformanceCounter();
+    finish_time = last_frame_time;
+    SDL_SetAtomicInt(&quit_requested, 0);
+    SDL_SetAtomicInt(&app_in_background, 0);
+    SDL_SetAtomicInt(&timing_reset_requested, 0);
+    SDL_SetAtomicInt(&resume_audio_on_foreground, 0);
+    Sdl3Common_InstallAppEventWatch();
     UpdateTargetFramerate(VSYNC_NTSC);
+}
+
+static void Sdl3Common_Shutdown(void) {
+    if (app_event_watch_installed) {
+        SDL_RemoveEventWatch(Sdl3Common_AppEventWatch, NULL);
+        app_event_watch_installed = false;
+    }
+#ifdef PLATFORM_IOS
+    Psyz_IosDetachWindow();
+#endif
+    SDL_SetAtomicInt(&app_in_background, 0);
+    SDL_SetAtomicInt(&timing_reset_requested, 0);
+    SDL_SetAtomicInt(&resume_audio_on_foreground, 0);
 }
 
 static void WaitForNextFrame(void) {
@@ -369,6 +475,7 @@ static void WaitForNextFrame(void) {
 int Psyz_VideoVSync(int mode) {
     Uint32 cur;
     unsigned short ret;
+    Sdl3Common_ApplyPendingTimingReset();
     cur = (Uint32)SDL_GetTicks();
     if (mode >= 0) {
         ret = (unsigned short)(cur - last_vsync);
@@ -440,8 +547,20 @@ struct Gamepad {
 };
 static bool is_pads_init = false;
 static struct Gamepad gamepads[16] = {0};
+
+static void UpdatePlatformTouchControls(void) {
+#ifdef PLATFORM_IOS
+    Psyz_IosSetTouchControlsVisible(is_pads_init && !gamepads[0].dev);
+#endif
+}
+
 static void AddGamepad(SDL_JoystickID id) {
     int i;
+    for (i = 0; i < LEN(gamepads); i++) {
+        if (gamepads[i].id == id) {
+            return;
+        }
+    }
     for (i = 0; i < LEN(gamepads); i++) {
         if (!gamepads[i].id) {
             break;
@@ -449,17 +568,19 @@ static void AddGamepad(SDL_JoystickID id) {
     }
     if (i == LEN(gamepads)) {
         ERRORF("too many gamepads connected");
-    } else {
-        SDL_Gamepad* dev = SDL_OpenGamepad(id);
-        if (!dev) {
-            ERRORF("failed to open gamepad %d", (int)id);
-            return;
-        }
-        gamepads[i].id = id;
-        gamepads[i].dev = dev;
-        gamepads[i].name = SDL_GetGamepadName(dev);
-        INFOF("connected %s", gamepads[i].name);
+        return;
     }
+
+    SDL_Gamepad* dev = SDL_OpenGamepad(id);
+    if (!dev) {
+        ERRORF("failed to open gamepad %d", (int)id);
+        return;
+    }
+    gamepads[i].id = id;
+    gamepads[i].dev = dev;
+    gamepads[i].name = SDL_GetGamepadName(dev);
+    INFOF("connected %s", gamepads[i].name);
+    UpdatePlatformTouchControls();
 }
 
 static void RemoveGamepad(SDL_JoystickID id) {
@@ -471,19 +592,36 @@ static void RemoveGamepad(SDL_JoystickID id) {
     }
     if (i == LEN(gamepads)) {
         WARNF("gamepad already removed");
-    } else {
-        SDL_CloseGamepad(gamepads[i].dev);
-        gamepads[i] = (struct Gamepad){0};
+        return;
     }
+
+    SDL_CloseGamepad(gamepads[i].dev);
+    for (; i + 1 < LEN(gamepads); i++) {
+        gamepads[i] = gamepads[i + 1];
+    }
+    gamepads[LEN(gamepads) - 1] = (struct Gamepad){0};
+    UpdatePlatformTouchControls();
 }
 
 void MyPadInit(int mode) {
+    (void)mode;
     if (!SDL_WasInit(SDL_INIT_GAMEPAD)) {
         if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD)) {
             ERRORF("failed to initialize SDL_INIT_GAMEPAD");
+            return;
         }
     }
+
+    int count = 0;
+    SDL_JoystickID* ids = SDL_GetGamepads(&count);
+    if (ids) {
+        for (int i = 0; i < count; i++) {
+            AddGamepad(ids[i]);
+        }
+        SDL_free(ids);
+    }
     is_pads_init = true;
+    UpdatePlatformTouchControls();
 }
 
 static u_long keyb_p1[] = {
@@ -582,7 +720,12 @@ static unsigned int SinglePadRead(int id) {
 
     u_long pressed = 0;
     if (id == 0) {
-        pressed |= PadRead_Keyboard(keyb_p1, LEN(keyb_p1));
+        if (SDL_HasKeyboard()) {
+            pressed |= PadRead_Keyboard(keyb_p1, LEN(keyb_p1));
+        }
+#ifdef PLATFORM_IOS
+        pressed |= Psyz_IosReadTouchControls();
+#endif
     }
     return pressed | PadRead_Gamepad(&gamepads[id]);
 }
@@ -605,10 +748,14 @@ static bool PortHasHostInput(int port) {
     if (gamepads[port].dev) {
         return true;
     }
-    if (port == 0) {
-        // The keyboard always acts as a fallback for port 0.
+    if (port == 0 && SDL_HasKeyboard()) {
         return true;
     }
+#ifdef PLATFORM_IOS
+    if (port == 0 && Psyz_IosTouchControlsActive()) {
+        return true;
+    }
+#endif
     return false;
 }
 
@@ -682,6 +829,7 @@ void Psyz_PadsPoll(void) {
     }
 }
 
+#ifndef PLATFORM_IOS
 // Prefers exclusive fullscreen mode, fallback on borderless fullscreen
 static void SetFullScreen(bool isFullscreen) {
     if (!sdl3_window) {
@@ -722,6 +870,7 @@ static void SetFullScreen(bool isFullscreen) {
     SDL_GetWindowSizeInPixels(
         sdl3_window, &wnd_size_in_pixels.w, &wnd_size_in_pixels.h);
 }
+#endif
 
 static void PollEvents(void) {
     SDL_Event event;
@@ -737,18 +886,25 @@ static void PollEvents(void) {
             RemoveGamepad(event.gdevice.which);
             break;
         case SDL_EVENT_QUIT:
-            quit_requested = true;
+            SDL_SetAtomicInt(&quit_requested, 1);
             break;
         case SDL_EVENT_WINDOW_RESIZED:
+        case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
             SDL_GetWindowSizeInPixels(
                 sdl3_window, &wnd_size_in_pixels.w, &wnd_size_in_pixels.h);
             break;
         case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
+#ifdef PLATFORM_IOS
+            SDL_GetWindowSizeInPixels(
+                sdl3_window, &wnd_size_in_pixels.w, &wnd_size_in_pixels.h);
+#else
             SetWindowSizeInPixels(wnd_size_in_pixels.w, wnd_size_in_pixels.h);
+#endif
             break;
+#ifndef PLATFORM_IOS
         case SDL_EVENT_KEY_DOWN:
             if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
-                quit_requested = true;
+                SDL_SetAtomicInt(&quit_requested, 1);
             }
             if (event.key.scancode == SDL_SCANCODE_F6) {
                 debug_show_vram ^= 1;
@@ -757,14 +913,17 @@ static void PollEvents(void) {
                 SetFullScreen(!is_fullscreen);
             }
             break;
+#endif
         default:
             break;
         }
     }
-    if (quit_requested) {
+#ifndef PLATFORM_IOS
+    if (Psyz_QuitRequested()) {
         QuitPlatform();
         exit(0);
     }
+#endif
 }
 
 typedef struct {

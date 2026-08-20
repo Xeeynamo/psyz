@@ -139,3 +139,26 @@ jobs:
           name: test-failures-psp
           path: psyz/tests/expected/*.actual.png
           if-no-files-found: ignore
+
+  build-ios:
+    runs-on: macos-latest
+    env:
+      CI: 1
+      OS: ios
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Configure iOS GPU sample
+        run: |
+          cmake -S samples/gpu_hello -B build-ios -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT=iphoneos \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
+      - name: Build iOS GPU sample
+        run: |
+          cmake --build build-ios --config Release -- \
+            -sdk iphoneos CODE_SIGNING_ALLOWED=NO

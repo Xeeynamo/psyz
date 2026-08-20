@@ -23,4 +23,8 @@
 #define VRAM_W 1024
 #define VRAM_H 512
 
+// SDL platform lifecycle code uses this to avoid undoing an explicit game
+// audio pause when the application returns from the background.
+int Psyz_AudioIsPaused(void);
+
 #endif

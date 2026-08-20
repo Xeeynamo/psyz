@@ -2,6 +2,10 @@
 // Displays text on the screen using the built-in GPU routines
 // NOTE: This example uses double buffering.
 
+#ifdef PLATFORM_IOS
+#include <SDL3/SDL_main.h>
+#endif
+
 #include <psyz.h>
 #include <libgpu.h>
 #include <libgs.h>
@@ -95,7 +99,9 @@ static void display() {
 #endif
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    (void)argc;
+    (void)argv;
     int nFrame = 0;
     initGraphics(0);
 
@@ -106,7 +112,7 @@ int main() {
         FntOpen(5, 16, SCREEN_WIDTH, SCREEN_HEIGHT, 0, 512));
 
     printf("hello world!\n");
-    while (1) {
+    while (!Psyz_QuitRequested()) {
         FntPrint("hello world!\n");
         FntPrint("%d", nFrame++);
         display();

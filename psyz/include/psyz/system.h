@@ -87,6 +87,15 @@ void Psyz_AdjustPath(char* dst, const char* src, int maxlen);
 void Psyz_AdjustPathCB(int (*callback)(char* dst, const char* src, int maxlen));
 
 /**
+ * @brief Return non-zero when the host requested application termination.
+ *
+ * SDL targets set this after SDL_EVENT_QUIT. Console/mobile targets may set it
+ * from their platform lifecycle callback. Games that want graceful shutdown can
+ * poll this from their main loop instead of relying on a host-side exit().
+ */
+int Psyz_QuitRequested(void);
+
+/**
  * @brief Join two path components with the platform's path separator
  *
  * Automatically handles path separators to avoid double separators.
