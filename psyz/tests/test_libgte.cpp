@@ -635,6 +635,151 @@ TEST_F(gte_Test, rot_matrix_z) {
     EXPECT_EQ(m.m[2][2], 0x1000);
 }
 
+TEST_F(gte_Test, rot_matrix_arbitrary_angles) {
+    MATRIX m = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    MATRIX exp = {+0x0212, +0x0061, +0x0FDC, //
+                  -0x041C, -0x0F71, +0x00E8, //
+                  +0x0F52, -0x0431, -0x01E7, //
+                  10,      11,      12};
+    SVECTOR sv = {0x123, 0x456, 0x789};
+    EXPECT_EQ(RotMatrix(&sv, &m), &m);
+    EqMatrix(&m, &exp);
+}
+
+TEST_F(gte_Test, rot_matrix_negative_and_wrapped_angles) {
+    MATRIX m = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    MATRIX exp = {-0x0541, +0x0588, -0x0E10, //
+                  +0x0D03, -0x05EB, -0x0730, //
+                  -0x07B1, -0x0DCC, -0x0290, //
+                  10,      11,      12};
+    SVECTOR sv = {-0x321, 0x0ABC, -0x1DEF};
+    EXPECT_EQ(RotMatrix(&sv, &m), &m);
+    EqMatrix(&m, &exp);
+}
+
+TEST_F(gte_Test, rot_matrix_yxz_arbitrary_angles) {
+    MATRIX m = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    MATRIX exp = {+0x0350, -0x0659, +0x0E4E, //
+                  +0x029F, -0x0E32, -0x06E8, //
+                  +0x0F6E, +0x03C6, -0x01E7, //
+                  0,       0,       0};
+    SVECTOR sv = {0x123, 0x456, 0x789};
+    EXPECT_EQ(RotMatrixYXZ(&sv, &m), &m);
+    EqMatrix(&m, &exp);
+}
+
+TEST_F(gte_Test, rot_matrix_yxz_negative_and_wrapped_angles) {
+    MATRIX m = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    MATRIX exp = {+0x045A, +0x0EA7, -0x04B8, //
+                  +0x03E4, +0x03B1, +0x0F13, //
+                  +0x0EE4, -0x0542, -0x0290, //
+                  0,       0,       0};
+    SVECTOR sv = {-0x321, 0x0ABC, -0x1DEF};
+    EXPECT_EQ(RotMatrixYXZ(&sv, &m), &m);
+    EqMatrix(&m, &exp);
+}
+
+TEST_F(gte_Test, rot_matrix_yxz_axis_only) {
+    MATRIX m = {0};
+    SVECTOR sv = {0x400, 0, 0};
+    RotMatrixYXZ(&sv, &m);
+    EXPECT_EQ(m.m[1][2], -0x1000);
+    EXPECT_EQ(m.m[0][2], 0);
+    EXPECT_EQ(m.m[2][2], 0);
+    EXPECT_EQ(m.m[0][0], 0x1000);
+}
+
+TEST_F(gte_Test, rot_matrix_x_arbitrary_angle) {
+    MATRIX m = {+0x0F00, -0x0234, +0x0123, //
+                +0x0456, +0x0E12, -0x0789, //
+                -0x0321, +0x0654, +0x0FA0, //
+                7,       8,       9};
+    MATRIX exp = {+0x0F00, -0x0234, +0x0123, //
+                  +0x0543, +0x09F6, -0x0D8B, //
+                  -0x00F4, +0x0BC8, +0x0AD7, //
+                  7,       8,       9};
+    EXPECT_EQ(RotMatrixX(0x123, &m), &m);
+    EqMatrix(&m, &exp);
+}
+
+TEST_F(gte_Test, rot_matrix_x_negative_angle) {
+    MATRIX m = {+0x0F00, -0x0234, +0x0123, //
+                +0x0456, +0x0E12, -0x0789, //
+                -0x0321, +0x0654, +0x0FA0, //
+                7,       8,       9};
+    MATRIX exp = {+0x0F00, -0x0234, +0x0123, //
+                  -0x04D6, -0x0CB0, +0x0A3F, //
+                  +0x024A, -0x08C8, -0x0E00, //
+                  7,       8,       9};
+    EXPECT_EQ(RotMatrixX(-0x789, &m), &m);
+    EqMatrix(&m, &exp);
+}
+
+TEST_F(gte_Test, rot_matrix_y_arbitrary_angle) {
+    MATRIX m = {+0x0F00, -0x0234, +0x0123, //
+                +0x0456, +0x0E12, -0x0789, //
+                -0x0321, +0x0654, +0x0FA0, //
+                7,       8,       9};
+    MATRIX exp = {+0x0C2E, +0x00BE, +0x07C5, //
+                  +0x0456, +0x0E12, -0x0789, //
+                  -0x094D, +0x06A8, +0x0D9A, //
+                  7,       8,       9};
+    EXPECT_EQ(RotMatrixY(0x123, &m), &m);
+    EqMatrix(&m, &exp);
+}
+
+TEST_F(gte_Test, rot_matrix_y_negative_angle) {
+    MATRIX m = {+0x0F00, -0x0234, +0x0123, //
+                +0x0456, +0x0E12, -0x0789, //
+                -0x0321, +0x0654, +0x0FA0, //
+                7,       8,       9};
+    MATRIX exp = {-0x0E2F, +0x0104, -0x03F5, //
+                  +0x0456, +0x0E12, -0x0789, //
+                  +0x05CD, -0x06A0, -0x0F29, //
+                  7,       8,       9};
+    EXPECT_EQ(RotMatrixY(-0x789, &m), &m);
+    EqMatrix(&m, &exp);
+}
+
+TEST_F(gte_Test, rot_matrix_z_arbitrary_angle) {
+    MATRIX m = {+0x0F00, -0x0234, +0x0123, //
+                +0x0456, +0x0E12, -0x0789, //
+                -0x0321, +0x0654, +0x0FA0, //
+                7,       8,       9};
+    MATRIX exp = {+0x0BA8, -0x0810, +0x0447, //
+                  +0x0A62, +0x0BBD, -0x064F, //
+                  -0x0321, +0x0654, +0x0FA0, //
+                  7,       8,       9};
+    EXPECT_EQ(RotMatrixZ(0x123, &m), &m);
+    EqMatrix(&m, &exp);
+}
+
+TEST_F(gte_Test, rot_matrix_z_negative_angle) {
+    MATRIX m = {+0x0F00, -0x0234, +0x0123, //
+                +0x0456, +0x0E12, -0x0789, //
+                -0x0321, +0x0654, +0x0FA0, //
+                7,       8,       9};
+    MATRIX exp = {-0x0DF7, +0x04B8, -0x027D, //
+                  -0x06FE, -0x0D70, +0x0734, //
+                  -0x0321, +0x0654, +0x0FA0, //
+                  7,       8,       9};
+    EXPECT_EQ(RotMatrixZ(-0x789, &m), &m);
+    EqMatrix(&m, &exp);
+}
+
+TEST_F(gte_Test, rot_matrix_angle_wraps_full_turn) {
+    SVECTOR base = {0x123, 0x456, 0x789};
+    SVECTOR wrapped = {0x123 + 0x1000, 0x456 - 0x1000, 0x789 + 0x2000};
+    MATRIX a = {0}, b = {0};
+    RotMatrix(&base, &a);
+    RotMatrix(&wrapped, &b);
+    EqMatrix(&a, &b);
+    MATRIX c = {0}, d = {0};
+    RotMatrixYXZ(&base, &c);
+    RotMatrixYXZ(&wrapped, &d);
+    EqMatrix(&c, &d);
+}
+
 TEST_F(gte_Test, rot_matrix_zero) {
     MATRIX m = {0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0};
     MATRIX exp = {0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0};

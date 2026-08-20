@@ -1231,55 +1231,44 @@ long SquareRoot0(long a) { return SquareRoot0_impl(a); }
 long SquareRoot12_impl(long a);
 long SquareRoot12(long a) { return SquareRoot12_impl(a); }
 
+int rsin(int a) {
+    if (a < 0) {
+        return -(int)rcossin_tbl[-a & 0xFFF][0];
+    }
+    return (int)rcossin_tbl[a & 0xFFF][0];
+}
+
+int rcos(int a) {
+    if (a < 0) {
+        a = -a;
+    }
+    return (int)rcossin_tbl[a & 0xFFF][1];
+}
+
+static void rcossin(int a, int* c, int* s) {
+    if (a < 0) {
+        a = -a;
+        *c = (int)rcossin_tbl[a & 0xFFF][1];
+        *s = -(int)rcossin_tbl[a & 0xFFF][0];
+    } else {
+        *c = (int)rcossin_tbl[a & 0xFFF][1];
+        *s = (int)rcossin_tbl[a & 0xFFF][0];
+    }
+}
+
 MATRIX* RotMatrix(SVECTOR* r, MATRIX* m) {
     int sx, cx, sy, nsy, cy, sz, cz;
-    int a;
     int t;
 
-    a = r->vx;
-    if (a < 0) {
-        a = -a;
-        if (a < 0) {
-            a = -a;
-        }
-        cx = (int)rcossin_tbl[a & 0xFFF][1];
-        sx = (int)-rcossin_tbl[a & 0xFFF][0];
-    } else {
-        cx = (int)rcossin_tbl[a & 0xFFF][1];
-        sx = (int)rcossin_tbl[a & 0xFFF][0];
-    }
-
-    a = r->vy;
-    if (a < 0) {
-        a = -a;
-        if (a < 0) {
-            a = -a;
-        }
-        cy = (int)rcossin_tbl[a & 0xFFF][1];
-        nsy = (int)rcossin_tbl[a & 0xFFF][0];
-        sy = -nsy;
-    } else {
-        cy = (int)rcossin_tbl[a & 0xFFF][1];
-        sy = (int)rcossin_tbl[a & 0xFFF][0];
-        nsy = -sy;
-    }
+    rcossin(r->vx, &cx, &sx);
+    rcossin(r->vy, &cy, &sy);
+    nsy = -sy;
 
     m->m[0][2] = sy;
     m->m[1][2] = -(cy * sx) >> 12;
     m->m[2][2] = (cy * cx) >> 12;
 
-    a = r->vz;
-    if (a < 0) {
-        a = -a;
-        if (a < 0) {
-            a = -a;
-        }
-        cz = rcossin_tbl[a & 0xFFF][1];
-        sz = -(rcossin_tbl[a & 0xFFF][0]);
-    } else {
-        cz = rcossin_tbl[a & 0xFFF][1];
-        sz = rcossin_tbl[a & 0xFFF][0];
-    }
+    rcossin(r->vz, &cz, &sz);
 
     m->m[0][0] = (cz * cy) >> 12;
     m->m[0][1] = -(sz * cy) >> 12;
@@ -1296,11 +1285,11 @@ MATRIX* RotMatrix(SVECTOR* r, MATRIX* m) {
 }
 
 MATRIX* RotMatrixY(long r, MATRIX* m) {
-    int c = rcos((int)r);
-    int s = rsin((int)r);
+    int c, s;
     int a0 = m->m[0][0], a1 = m->m[0][1], a2 = m->m[0][2];
     int b0 = m->m[2][0], b1 = m->m[2][1], b2 = m->m[2][2];
 
+    rcossin((short)r, &c, &s);
     m->m[0][0] = (short)((c * a0 + s * b0) >> 12);
     m->m[0][1] = (short)((c * a1 + s * b1) >> 12);
     m->m[0][2] = (short)((c * a2 + s * b2) >> 12);
@@ -1311,11 +1300,11 @@ MATRIX* RotMatrixY(long r, MATRIX* m) {
 }
 
 MATRIX* RotMatrixX(long r, MATRIX* m) {
-    int c = rcos((int)r);
-    int s = rsin((int)r);
+    int c, s;
     int a0 = m->m[1][0], a1 = m->m[1][1], a2 = m->m[1][2];
     int b0 = m->m[2][0], b1 = m->m[2][1], b2 = m->m[2][2];
 
+    rcossin((short)r, &c, &s);
     m->m[1][0] = (short)((c * a0 - s * b0) >> 12);
     m->m[1][1] = (short)((c * a1 - s * b1) >> 12);
     m->m[1][2] = (short)((c * a2 - s * b2) >> 12);
@@ -1326,11 +1315,11 @@ MATRIX* RotMatrixX(long r, MATRIX* m) {
 }
 
 MATRIX* RotMatrixZ(long r, MATRIX* m) {
-    int c = rcos((int)r);
-    int s = rsin((int)r);
+    int c, s;
     int a0 = m->m[0][0], a1 = m->m[0][1], a2 = m->m[0][2];
     int b0 = m->m[1][0], b1 = m->m[1][1], b2 = m->m[1][2];
 
+    rcossin((short)r, &c, &s);
     m->m[0][0] = (short)((c * a0 - s * b0) >> 12);
     m->m[0][1] = (short)((c * a1 - s * b1) >> 12);
     m->m[0][2] = (short)((c * a2 - s * b2) >> 12);
@@ -1341,43 +1330,26 @@ MATRIX* RotMatrixZ(long r, MATRIX* m) {
 }
 
 MATRIX* RotMatrixYXZ(SVECTOR* r, MATRIX* m) {
-#ifdef PLATFORM_64BIT
-    // 64-bit version, accurate with PS1 implementation
-    long long cx = rcos(r->vx);
-    long long sx = rsin(r->vx);
-    long long cy = rcos(r->vy);
-    long long sy = rsin(r->vy);
-    long long cz = rcos(r->vz);
-    long long sz = rsin(r->vz);
+    int sx, cx, sy, cy, sz, cz;
+    int sysx, cysx;
 
-    m->m[0][0] = (short)((cy * cz * 4096 + sy * sx * sz) >> 24);
-    m->m[0][1] = (short)((-cy * sz * 4096 + sy * sx * cz) >> 24);
-    m->m[0][2] = (short)((sy * cx) >> 12);
-    m->m[1][0] = (short)((cx * sz) >> 12);
-    m->m[1][1] = (short)((cx * cz) >> 12);
-    m->m[1][2] = (short)(-sx);
-    m->m[2][0] = (short)((-sy * cz * 4096 + cy * sx * sz) >> 24);
-    m->m[2][1] = (short)((sy * sz * 4096 + cy * sx * cz) >> 24);
-    m->m[2][2] = (short)((cy * cx) >> 12);
-#else
-    // 32-bit version, less accurate but much faster on non-64bit CPUs
-    int cx = rcos(r->vx);
-    int sx = rsin(r->vx);
-    int cy = rcos(r->vy);
-    int sy = rsin(r->vy);
-    int cz = rcos(r->vz);
-    int sz = rsin(r->vz);
+    rcossin(r->vx, &cx, &sx);
+    rcossin(r->vy, &cy, &sy);
+    rcossin(r->vz, &cz, &sz);
 
-    m->m[0][0] = (short)((cy * cz + (((sy * sx) >> 12) * sz)) >> 12);
-    m->m[0][1] = (short)((-cy * sz + (((sy * sx) >> 12) * cz)) >> 12);
-    m->m[0][2] = (short)((sy * cx) >> 12);
-    m->m[1][0] = (short)((cx * sz) >> 12);
-    m->m[1][1] = (short)((cx * cz) >> 12);
-    m->m[1][2] = (short)(-sx);
-    m->m[2][0] = (short)((-sy * cz + (((cy * sx) >> 12) * sz)) >> 12);
-    m->m[2][1] = (short)((sy * sz + (((cy * sx) >> 12) * cz)) >> 12);
-    m->m[2][2] = (short)((cy * cx) >> 12);
-#endif
+    sysx = (sy * sx) >> 12;
+    cysx = (cy * sx) >> 12;
+
+    m->m[0][0] = ((cy * cz) >> 12) + ((sysx * sz) >> 12);
+    m->m[0][1] = ((sysx * cz) >> 12) - ((cy * sz) >> 12);
+    m->m[0][2] = (sy * cx) >> 12;
+    m->m[1][0] = (cx * sz) >> 12;
+    m->m[1][1] = (cx * cz) >> 12;
+    m->m[1][2] = -sx;
+    m->m[2][0] = ((cysx * sz) >> 12) - ((sy * cz) >> 12);
+    m->m[2][1] = ((sy * sz) >> 12) + ((cysx * cz) >> 12);
+    m->m[2][2] = (cy * cx) >> 12;
+
     m->t[0] = 0;
     m->t[1] = 0;
     m->t[2] = 0;
