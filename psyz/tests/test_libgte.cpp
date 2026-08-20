@@ -157,20 +157,7 @@ TEST_F(gte_Test, rot_matrix) {
                   10,      11,      12};
     SVECTOR sv = {16, 17, 18};
     EXPECT_EQ(RotMatrix(&sv, &m), &m);
-#ifdef __PSP__
-    // The PSP uses the 32-bit fast RotMatrix path, which slightly differs
-    // by one. We accept the very minor error in favour of performance.
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            int diff = (int)m.m[i][j] - (int)exp.m[i][j];
-            EXPECT_LE(diff < 0 ? -diff : diff, 1)
-                << "Matrix coefficient mismatch at m[" << i << "][" << j << "]";
-        }
-        EXPECT_EQ(m.t[i], exp.t[i]) << "Translation mismatch at t[" << i << "]";
-    }
-#else
     EqMatrix(&m, &exp);
-#endif
 }
 
 TEST_F(gte_Test, trans_matrix_negative) {
