@@ -669,17 +669,13 @@ void ResetPlatform(void) {
     QuitPlatform();
 }
 
-unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
-    const int channels = 3;
+static unsigned char* AllocRgb888Region(int x, int y, int w, int h) {
     if (vram_fbo == 0) {
-        *w = *h = 0;
         ERRORF("FBO not initialized");
         return NULL;
     }
 
-    *w = display_size.x;
-    *h = display_size.y;
-    unsigned char* pixels = malloc((*w) * (*h) * channels);
+    unsigned char* pixels = malloc((size_t)w * h * 3);
     if (!pixels) {
         return NULL;
     }
@@ -689,15 +685,13 @@ unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, vram_fbo);
 
-    // GL_RGB read-back is not guaranteed on GLES, read RGBA and repack
-    size_t count = (size_t)(*w) * (*h);
+    size_t count = (size_t)w * h;
     u8* rgba = GetVramConvertBuffer(count * 4);
     if (!rgba) {
         free(pixels);
         return NULL;
     }
-    glReadPixels(display_area.x, display_area.y, *w, *h, GL_RGBA,
-                 GL_UNSIGNED_BYTE, rgba);
+    glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
     for (size_t i = 0; i < count; i++) {
         pixels[i * 3 + 0] = rgba[i * 4 + 0];
         pixels[i * 3 + 1] = rgba[i * 4 + 1];
@@ -706,12 +700,25 @@ unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
 
     GLenum err = glGetError();
     if (err != GL_NO_ERROR) {
-        ERRORF("glReadPixels failed: 0x%X (w=%d, h=%d)", err, *w, *h);
+        ERRORF("glReadPixels failed: 0x%X (x=%d, y=%d, w=%d, h=%d)", err, x, y,
+               w, h);
         free(pixels);
         return NULL;
     }
 
     return pixels;
+}
+
+unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
+    *w = display_size.x;
+    *h = display_size.y;
+    return AllocRgb888Region(display_area.x, display_area.y, *w, *h);
+}
+
+unsigned char* Psyz_VideoAllocVramDump(int* w, int* h) {
+    *w = VRAM_W;
+    *h = VRAM_H;
+    return AllocRgb888Region(0, 0, VRAM_W, VRAM_H);
 }
 
 unsigned Psyz_VideoGetInternalResolution(void) { return internal_res; }

@@ -929,6 +929,8 @@ int Psyz_VideoSetVsyncMode(PsyzVsyncMode mode) {
     }
 }
 
+PsyzVsyncMode Psyz_VideoGetVsyncMode(void) { return vsync_mode; }
+
 int Psyz_VideoSetDitheringMode(PsyzDitherMode mode) {
     switch (mode) {
     case PSYZ_DITHER_AUTO:
@@ -939,6 +941,8 @@ int Psyz_VideoSetDitheringMode(PsyzDitherMode mode) {
         return -1;
     }
 }
+
+PsyzDitherMode Psyz_VideoGetDitheringMode(void) { return dither_mode; }
 
 int Psyz_VideoSetAspectMode(PsyzAspectMode mode) {
     switch (mode) {
@@ -952,6 +956,8 @@ int Psyz_VideoSetAspectMode(PsyzAspectMode mode) {
         return -1;
     }
 }
+
+PsyzAspectMode Psyz_VideoGetAspectMode(void) { return aspect_mode; }
 
 PsyzSize Psyz_VideoGetDisplaySize(void) {
     PsyzSize s = {PSP_SCREEN_W, PSP_SCREEN_H};
@@ -980,24 +986,18 @@ int Psyz_VideoStats(PsyzVideoStats* stats) {
     return 0;
 }
 
-unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
-    if (!is_init && !InitPlatform()) {
-        return NULL;
-    }
-    WaitPrevFrameGpu();
-    int fb_idx = show_fb >= 0 ? show_fb : cur_draw_fb;
-    int bufw = FB_STRIDE;
-    const u16* fb =
-        (const u16*)(0x40000000 | (uintptr_t)(edram_base + FbOffset(fb_idx)));
-    unsigned char* out = malloc(out_w * out_h * 3);
+static unsigned char* AllocRgb888Region(
+    int offset, int bufw, int x, int y, int w, int h) {
+    const u16* fb = (const u16*)(0x40000000 | (uintptr_t)(edram_base + offset));
+    unsigned char* out = malloc((size_t)w * h * 3);
     if (!out) {
         return NULL;
     }
     unsigned char* p = out;
-    for (int y = 0; y < out_h; y++) {
-        const u16* row = &fb[(out_y + y) * bufw + out_x];
-        for (int x = 0; x < out_w; x++) {
-            u16 c = row[x];
+    for (int j = 0; j < h; j++) {
+        const u16* row = &fb[(y + j) * bufw + x];
+        for (int i = 0; i < w; i++) {
+            u16 c = row[i];
             u8 r5 = c & 0x1F;
             u8 g5 = (c >> 5) & 0x1F;
             u8 b5 = (c >> 10) & 0x1F;
@@ -1006,11 +1006,46 @@ unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
             *p++ = (u8)((b5 << 3) | (b5 >> 2));
         }
     }
+    return out;
+}
+
+unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
+    if (!is_init && !InitPlatform()) {
+        return NULL;
+    }
+    WaitPrevFrameGpu();
+    int fb_idx = show_fb >= 0 ? show_fb : cur_draw_fb;
+    unsigned char* out = AllocRgb888Region(
+        FbOffset(fb_idx), FB_STRIDE, out_x, out_y, out_w, out_h);
+    if (!out) {
+        return NULL;
+    }
     if (w) {
         *w = out_w;
     }
     if (h) {
         *h = out_h;
+    }
+    return out;
+}
+
+unsigned char* Psyz_VideoAllocVramDump(int* w, int* h) {
+    // TODO feasibility of returning the edram pointer directly?
+    if (!is_init && !InitPlatform()) {
+        return NULL;
+    }
+    WaitPrevFrameGpu();
+    int dump_w = FB_STRIDE;
+    int dump_h = (int)sceGeEdramGetSize() / (dump_w * 2);
+    unsigned char* out = AllocRgb888Region(0, dump_w, 0, 0, dump_w, dump_h);
+    if (!out) {
+        return NULL;
+    }
+    if (w) {
+        *w = dump_w;
+    }
+    if (h) {
+        *h = dump_h;
     }
     return out;
 }

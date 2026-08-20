@@ -44,7 +44,11 @@ static void ReadPadsOnVsync(void) {
 }
 
 static PsyzVSyncCb g_PsyzVsyncCb = NULL;
-void Psyz_SetVSyncCb(PsyzVSyncCb cb) { g_PsyzVsyncCb = cb; }
+PsyzVSyncCb Psyz_SetVSyncCb(PsyzVSyncCb cb) {
+    PsyzVSyncCb prev = g_PsyzVsyncCb;
+    g_PsyzVsyncCb = cb;
+    return prev;
+}
 
 extern void (*g_VsyncCallback)();
 int Psyz_VideoVSync(int mode);

@@ -41,6 +41,7 @@
 
 #include <psyz/audio.h>
 #include <psyz/cd.h>
+#include <psyz/dbgserver.h>
 #include <psyz/dma.h>
 #include <psyz/gpu.h>
 #include <psyz/gte.h>

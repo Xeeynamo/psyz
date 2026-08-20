@@ -86,6 +86,13 @@ typedef struct {
 } PsyzVideoStats;
 
 /**
+ * @brief Get the current VSync mode
+ *
+ * @return current VSync mode
+ */
+PsyzVsyncMode Psyz_VideoGetVsyncMode(void);
+
+/**
  * @brief Set VSync mode (default: AUTO)
  *
  * @param mode VSync mode to set
@@ -94,12 +101,26 @@ typedef struct {
 int Psyz_VideoSetVsyncMode(PsyzVsyncMode mode);
 
 /**
+ * @brief Get the current dithering mode
+ *
+ * @return current dithering mode
+ */
+PsyzDitherMode Psyz_VideoGetDitheringMode(void);
+
+/**
  * @brief Set dithering mode (default: AUTO)
  *
  * @param mode Dithering mode to set
  * @return 0 on success, -1 if invalid mode
  */
 int Psyz_VideoSetDitheringMode(PsyzDitherMode mode);
+
+/**
+ * @brief Get the current aspect mode
+ *
+ * @return current aspect mode
+ */
+PsyzAspectMode Psyz_VideoGetAspectMode(void);
 
 /**
  * @brief Select how the presented aspect ratio is determined
@@ -206,9 +227,18 @@ int Psyz_VideoStats(PsyzVideoStats* stats);
  *
  * @param w Output frame width
  * @param h Output frame height
- * @return NULL on failure, otherwise ptr to be destroyed with free(ptr)
+ * @return NULL on failure, or RGB888 buffer to be destroyed with free(ptr)
  */
 unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h);
+
+/**
+ * @brief Dump the whole video memory plane as RGB888
+ *
+ * @param w Output VRAM width
+ * @param h Output VRAM height
+ * @return NULL on failure, or RGB888 buffer to be destroyed with free(ptr)
+ */
+unsigned char* Psyz_VideoAllocVramDump(int* w, int* h);
 
 #ifdef __cplusplus
 }
