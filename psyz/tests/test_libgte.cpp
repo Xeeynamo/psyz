@@ -662,7 +662,7 @@ TEST_F(gte_Test, rot_matrix_yxz_arbitrary_angles) {
     MATRIX exp = {+0x0350, -0x0659, +0x0E4E, //
                   +0x029F, -0x0E32, -0x06E8, //
                   +0x0F6E, +0x03C6, -0x01E7, //
-                  0,       0,       0};
+                  10,      11,      12};
     SVECTOR sv = {0x123, 0x456, 0x789};
     EXPECT_EQ(RotMatrixYXZ(&sv, &m), &m);
     EqMatrix(&m, &exp);
@@ -673,7 +673,7 @@ TEST_F(gte_Test, rot_matrix_yxz_negative_and_wrapped_angles) {
     MATRIX exp = {+0x045A, +0x0EA7, -0x04B8, //
                   +0x03E4, +0x03B1, +0x0F13, //
                   +0x0EE4, -0x0542, -0x0290, //
-                  0,       0,       0};
+                  10,      11,      12};
     SVECTOR sv = {-0x321, 0x0ABC, -0x1DEF};
     EXPECT_EQ(RotMatrixYXZ(&sv, &m), &m);
     EqMatrix(&m, &exp);

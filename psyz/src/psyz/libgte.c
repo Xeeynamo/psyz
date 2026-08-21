@@ -1350,9 +1350,6 @@ MATRIX* RotMatrixYXZ(SVECTOR* r, MATRIX* m) {
     m->m[2][1] = ((sy * sz) >> 12) + ((cysx * cz) >> 12);
     m->m[2][2] = (cy * cx) >> 12;
 
-    m->t[0] = 0;
-    m->t[1] = 0;
-    m->t[2] = 0;
     return m;
 }
 
