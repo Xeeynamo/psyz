@@ -165,10 +165,26 @@ try {
 } finally {
   chrome.kill('SIGTERM');
   server.close();
-  await Promise.race([
-    chromeExited,
-    new Promise((resolveWait) => setTimeout(resolveWait, 2000))
+  const exited = await Promise.race([
+    chromeExited.then(() => true),
+    new Promise((resolveWait) => setTimeout(() => resolveWait(false), 10000))
   ]);
-  await rm(profileDir, { recursive: true, force: true });
+  if (!exited) {
+    chrome.kill('SIGKILL');
+    await Promise.race([
+      chromeExited,
+      new Promise((resolveWait) => setTimeout(resolveWait, 5000))
+    ]);
+  }
+  try {
+    await rm(profileDir, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 100
+    });
+  } catch (error) {
+    console.warn(`Could not remove ${profileDir}: ${error.message}`);
+  }
 }
 process.exitCode = exitCode;
