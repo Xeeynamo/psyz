@@ -171,16 +171,30 @@ static int GPU_Enqueue(u_long p1, u_long p2) {
         WARNF("mask not supported (mask:%08X)", mask);
     }
     DR_ENV* env = (DR_ENV*)(uintptr_t)p1;
-    while (1) {
-        if (env->len > LEN(queue_buf)) {
-            ERRORF("packet 0x%lX long, likely corrupted", env->len);
-            return -1;
+    if (sizeof(u_long) == 4) {
+        // fast path for 32-bit systems
+        while (1) {
+            if (env->len > 0) {
+                DispatchPackets((u_long*)env->code, (int)env->len);
+            }
+            if (isendprim(env)) {
+                break;
+            }
+            env = (DR_ENV*)nextPrim(env);
         }
+#ifdef __EMSCRIPTEN__
+        Draw_FlushBuffer();
+#endif
+        return 0;
+    }
+    while (1) {
         if (queue_len + env->len > LEN(queue_buf)) {
+            if (env->len > 0x100) {
+                ERRORF("packet 0x%X long, likely corrupted", env->len);
+            }
             INFOF("GPU queue full, calling exeque");
             Psyz_GpuExeque();
-        }
-        if (sizeof(u_long) == 8) {
+        } else if (sizeof(u_long) == 8) {
             // Wow okay, this part is uuuugly...
             // Gpu code is usually written to a u_long array, which will work
             // fine on both 32-bit and 64-bit compiled code.
@@ -199,9 +213,6 @@ static int GPU_Enqueue(u_long p1, u_long p2) {
                 memcpy(queue_buf + queue_len, env->code,
                        env->len * sizeof(u_long));
             }
-        } else {
-            // 32-bit needs to be deferred too
-            memcpy(queue_buf + queue_len, env->code, env->len * sizeof(u_long));
         }
         queue_len += (int)env->len;
         if (isendprim(env)) {
