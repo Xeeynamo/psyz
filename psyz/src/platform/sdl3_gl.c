@@ -238,9 +238,7 @@ static GLposi draw_area_end = {0x10000, 0x10000};
 
 static bool CreateScaledVramFbo(int n);
 
-static bool HasSeparateDrawTarget(void) {
-    return scaled_vram_fbo != 0;
-}
+static bool HasSeparateDrawTarget(void) { return scaled_vram_fbo != 0; }
 
 static GLuint Init_CompileShader(const char* source, GLenum kind) {
     const char* sources[2] = {
@@ -436,8 +434,8 @@ bool InitPlatform() {
     }
 #endif
 
-    glBindFramebuffer(GL_FRAMEBUFFER,
-                      HasSeparateDrawTarget() ? scaled_vram_fbo : vram_fbo);
+    glBindFramebuffer(
+        GL_FRAMEBUFFER, HasSeparateDrawTarget() ? scaled_vram_fbo : vram_fbo);
     glViewport(0, 0, VRAM_W, VRAM_H);
 
     cur_tpage = 0;

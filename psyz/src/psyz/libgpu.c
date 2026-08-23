@@ -201,8 +201,7 @@ static int GPU_Enqueue(u_long p1, u_long p2) {
             }
         } else {
             // 32-bit needs to be deferred too
-            memcpy(queue_buf + queue_len, env->code,
-                   env->len * sizeof(u_long));
+            memcpy(queue_buf + queue_len, env->code, env->len * sizeof(u_long));
         }
         queue_len += (int)env->len;
         if (isendprim(env)) {
@@ -374,8 +373,7 @@ void GPU_cw(u_long* param) {
 }
 
 // these are not yet decompiled
-int _addque2(
-    int (*exec)(u_long p1, u_long p2), u_long p1, int len, u_long p2) {
+int _addque2(int (*exec)(u_long p1, u_long p2), u_long p1, int len, u_long p2) {
     return 0;
 }
 int _exeque() { return 0; }
