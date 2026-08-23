@@ -9,13 +9,13 @@
 #include <libetc.h>
 #include "../internal.h"
 #include <SDL3/SDL.h>
-#if defined(_MSC_VER) || defined(__MINGW32__) || defined(__APPLE__)
+#if defined(__EMSCRIPTEN__)
+#include <GLES3/gl3.h>
+#elif defined(_MSC_VER) || defined(__MINGW32__) || defined(__APPLE__)
 #include "glad/glad.h"
-
 #else
 #include <SDL3/SDL_opengl.h>
 #include <GLES3/gl3.h>
-
 #endif
 
 #ifdef _MSC_VER
@@ -236,6 +236,12 @@ static GLposi draw_offset = {0, 0};
 static GLposi draw_area_start = {0, 0};
 static GLposi draw_area_end = {0x10000, 0x10000};
 
+static bool CreateScaledVramFbo(int n);
+
+static bool HasSeparateDrawTarget(void) {
+    return scaled_vram_fbo != 0;
+}
+
 static GLuint Init_CompileShader(const char* source, GLenum kind) {
     const char* sources[2] = {
         use_gles ? shader_prologue_es : shader_prologue_core, source};
@@ -292,7 +298,7 @@ PsyzOverlayInitCB_SDL3GL Psyz_OverlayInit_SDL3GL(PsyzOverlayInitCB_SDL3GL cb) {
 }
 
 static void ResolveGlProfile(void) {
-#if defined(__ANDROID__)
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
     bool es = true;
 #elif defined(_WIN32)
     bool es = false;
@@ -318,6 +324,11 @@ bool InitPlatform() {
     }
     // avoid re-initializing it continuously on failures
     is_platform_initialized = true;
+
+#if defined(__EMSCRIPTEN__)
+    // avoid yielding twice per frame
+    SDL_SetHint(SDL_HINT_EMSCRIPTEN_ASYNCIFY, "0");
+#endif
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         ERRORF("SDL_Init: %s", SDL_GetError());
@@ -417,7 +428,16 @@ bool InitPlatform() {
         return false;
     }
 
-    glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
+#if defined(__EMSCRIPTEN__)
+    // webgl won't let us read a texture we are drawing to. keep a separate
+    // target
+    if (!CreateScaledVramFbo(1)) {
+        return false;
+    }
+#endif
+
+    glBindFramebuffer(GL_FRAMEBUFFER,
+                      HasSeparateDrawTarget() ? scaled_vram_fbo : vram_fbo);
     glViewport(0, 0, VRAM_W, VRAM_H);
 
     cur_tpage = 0;
@@ -437,7 +457,7 @@ static void PlatformBackend_SetDriverVsync(bool enable) {
 static void UpdateScissor(void);
 
 static GLuint GetDrawFbo(void) {
-    return internal_res <= 1 ? vram_fbo : scaled_vram_fbo;
+    return HasSeparateDrawTarget() ? scaled_vram_fbo : vram_fbo;
 }
 
 static void BindDrawFbo(void) {
@@ -447,7 +467,7 @@ static void BindDrawFbo(void) {
 
 // mirror a native VRAM region into the scaled draw target
 static void SyncNativeVramToScaled(int x, int y, int w, int h) {
-    if (internal_res <= 1 || w <= 0 || h <= 0) {
+    if (!HasSeparateDrawTarget() || w <= 0 || h <= 0) {
         return;
     }
     glDisable(GL_SCISSOR_TEST);
@@ -461,7 +481,7 @@ static void SyncNativeVramToScaled(int x, int y, int w, int h) {
 }
 
 static void SyncScaledVramToNative(void) {
-    if (internal_res <= 1) {
+    if (!HasSeparateDrawTarget()) {
         return;
     }
     int x0 = CLAMP(draw_area_start.x, 0, VRAM_W);
@@ -545,11 +565,15 @@ static void ApplyPendingInternalRes(void) {
         return;
     }
     Draw_FlushBuffer(); // render pending prims with the old multiplier
-    if (n > 1 && !CreateScaledVramFbo(n)) {
+    bool need_separate_target = n > 1;
+#if defined(__EMSCRIPTEN__)
+    need_separate_target = true;
+#endif
+    if (need_separate_target && !CreateScaledVramFbo(n)) {
         n = 1;
         set_internal_res = 1;
     }
-    if (n > 1) {
+    if (need_separate_target && HasSeparateDrawTarget()) {
         // scale native VRAM to scaled VRAM according to internal resolution
         glDisable(GL_SCISSOR_TEST);
         glBindFramebuffer(GL_READ_FRAMEBUFFER, vram_fbo);
@@ -557,7 +581,7 @@ static void ApplyPendingInternalRes(void) {
         glBlitFramebuffer(0, 0, VRAM_W, VRAM_H, 0, 0, VRAM_W * n, VRAM_H * n,
                           GL_COLOR_BUFFER_BIT, GL_NEAREST);
         glEnable(GL_SCISSOR_TEST);
-    } else if (scaled_vram_fbo || scaled_vram_texture) {
+    } else if (HasSeparateDrawTarget() || scaled_vram_texture) {
         glDeleteTextures(1, &scaled_vram_texture);
         scaled_vram_texture = 0;
         glDeleteFramebuffers(1, &scaled_vram_fbo);
@@ -729,7 +753,7 @@ int Psyz_VideoSetInternalResolution(unsigned multiplier) {
     }
     if (multiplier > PSYZ_INTERNAL_RES_MAX) {
         WARNF("internal resolution %dx exceeds maximum value of %dx",
-              PSYZ_INTERNAL_RES_MAX);
+              multiplier, PSYZ_INTERNAL_RES_MAX);
         return -1;
     }
     set_internal_res = multiplier;
@@ -748,7 +772,7 @@ static void UpdateScissor(void) {
         return;
     }
 
-    if (!sdl3_window || !InitPlatform()) {
+    if (!sdl3_window && !InitPlatform()) {
         return;
     }
     Draw_FlushBuffer();
@@ -805,7 +829,7 @@ void Draw_DisplayEnable(unsigned int on) {
         glDisable(GL_SCISSOR_TEST);
         glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
         glClear(GL_COLOR_BUFFER_BIT);
-        if (internal_res > 1) {
+        if (HasSeparateDrawTarget()) {
             glBindFramebuffer(GL_FRAMEBUFFER, scaled_vram_fbo);
             glClear(GL_COLOR_BUFFER_BIT);
         }
@@ -1193,6 +1217,9 @@ void Draw_SetOffset(int x, int y) {
     }
     draw_offset.x = x;
     draw_offset.y = y;
+    if (!sdl3_window && !InitPlatform()) {
+        return;
+    }
     glUniform2f(uniform_draw_offset, (float)x, (float)y);
 }
 
@@ -1200,11 +1227,14 @@ void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
     if (rect->w == 0 || rect->h == 0) {
         return;
     }
+    if (!sdl3_window && !InitPlatform()) {
+        return;
+    }
     glClearColor((float)r / 255.0f, (float)g / 255.0f, (float)b / 255.0f, 0.0f);
     glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
     glScissor(rect->x, rect->y, rect->w, rect->h);
     glClear(GL_COLOR_BUFFER_BIT);
-    if (internal_res > 1) {
+    if (HasSeparateDrawTarget()) {
         glBindFramebuffer(GL_FRAMEBUFFER, scaled_vram_fbo);
         glScissor(rect->x * internal_res, rect->y * internal_res,
                   rect->w * internal_res, rect->h * internal_res);
@@ -1215,6 +1245,9 @@ void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
 }
 void Draw_LoadImage(PS1_RECT* rect, u_long* p) {
     if (rect->w == 0 || rect->h == 0) {
+        return;
+    }
+    if (!sdl3_window && !InitPlatform()) {
         return;
     }
     size_t count = (size_t)rect->w * rect->h;
@@ -1232,6 +1265,9 @@ void Draw_LoadImage(PS1_RECT* rect, u_long* p) {
 }
 void Draw_StoreImage(PS1_RECT* rect, u_long* p) {
     if (rect->w == 0 || rect->h == 0) {
+        return;
+    }
+    if (!sdl3_window && !InitPlatform()) {
         return;
     }
     size_t count = (size_t)rect->w * rect->h;
@@ -1279,6 +1315,9 @@ static bool EnsureScratchFbo(void) {
 }
 void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
     if (rect->x == x && rect->y == y) {
+        return;
+    }
+    if (!sdl3_window && !InitPlatform()) {
         return;
     }
     Draw_FlushBuffer(); // flush primitives before operating with the VRAM
@@ -1354,6 +1393,7 @@ void Draw_FlushBuffer(void) {
     if (VBO == -1) {
         Draw_InitBuffer();
     }
+
     glUseProgram(shader_program);
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);

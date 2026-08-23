@@ -15,6 +15,7 @@ The platforms currently supported include:
 - **Linux** (i686, x86_64)
 - **macOS** (ARM64)
 - **iOS / iPadOS** (ARM64)
+- **WebAssembly / WebGL 2** via Emscripten
 - **Windows** (x86, x64, ARM64) with support for MSVC, Clang, and MinGW
 - **PlayStation Portable** via its [dedicated backend](psyz/src/psp/README.md)
 

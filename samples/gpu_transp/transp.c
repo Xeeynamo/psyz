@@ -154,8 +154,11 @@ int main(void) {
             while (DrawSync(1))
                 ;
             invalidate_pal = 0;
-            while (PadRead(0))
-                ;
+            while (PadRead(0)) {
+#ifdef PLATFORM_WEB
+                VSync(0);
+#endif
+            }
         }
 
         cdb = (cdb == &db[0]) ? &db[0] : &db[0];

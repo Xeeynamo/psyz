@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Interactive PSY-Z WebAssembly sample gallery">
+  <title>PSY-Z WebAssembly samples</title>
+  <link rel="stylesheet" href="styles.css?v=7">
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">PSY-Z / WebAssembly</p>
+      <h1>PlayStation code,<br>running in your browser.</h1>
+      <p class="lede">
+          PSY-Z is a cross-platform compatibility layer for PSY-Q, the original PlayStation SDK.
+      </p>
+    </div>
+    <div class="keymap" aria-label="Keyboard controls">
+      <strong>Keyboard</strong>
+      <span>Arrows · D-pad</span>
+      <span>Z / X / S / D · □ / × / △ / ○</span>
+      <span>Q / R · L1 / R1</span>
+      <span>W / E · L2 / R2</span>
+      <span>Enter · Start</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="section-heading">
+      <div>
+        <p class="eyebrow">Sample gallery</p>
+        <h2>Pick a demo</h2>
+      </div>
+    </section>
+    <div id="gallery" class="gallery" aria-live="polite"></div>
+  </main>
+
+  <dialog id="player" class="player">
+    <div class="player-bar">
+      <div>
+        <span id="player-category" class="player-category"></span>
+        <strong id="player-title"></strong>
+      </div>
+      <div class="player-actions">
+        <button id="reload" type="button">Reload</button>
+        <button id="close" type="button">Close</button>
+      </div>
+    </div>
+    <div class="frame-wrap">
+      <iframe id="sample-frame" title="PSY-Z sample" allow="autoplay; gamepad; fullscreen"></iframe>
+    </div>
+    <p id="player-help" class="player-help"></p>
+  </dialog>
+
+  <script type="module" src="gallery.js?v=10"></script>
+</body>
+</html>
