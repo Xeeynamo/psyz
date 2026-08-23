@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - webasm
     paths:
       - '.github/workflows/pages.yaml'
       - 'web/**'
