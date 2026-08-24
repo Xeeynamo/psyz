@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <chrono>
 #include <cstring>
 #include <gtest/gtest.h>
 extern "C" {
@@ -557,6 +558,101 @@ TEST_F(gpu_Test, move_image_internal_res) {
     ASSERT_EQ(Psyz_VideoGetInternalResolution(), 1);
     VSync(0);
     AssertFrame("move_image");
+}
+
+TEST_F(gpu_Test, store_image_is_deferred_and_ordered) {
+    constexpr int side = 16;
+    RECT rect = {704, 320, side, side};
+    u_short source_a[side * side];
+    u_short source_b[side * side];
+    u_short result_a[side * side];
+    u_short result_b[side * side];
+    for (int i = 0; i < side * side; ++i) {
+        source_a[i] = (u_short)(i * 31);
+        source_b[i] = (u_short)(0x7fff - i * 17);
+        result_a[i] = result_b[i] = 0x1234;
+    }
+
+    LoadImage(&rect, (u_long*)source_a);
+    StoreImage(&rect, (u_long*)result_a);
+    EXPECT_EQ(result_a[0], 0x1234);
+
+    LoadImage(&rect, (u_long*)source_b);
+    StoreImage(&rect, (u_long*)result_b);
+    DrawSync(0);
+
+    EXPECT_EQ(memcmp(source_a, result_a, sizeof(source_a)), 0);
+    EXPECT_EQ(memcmp(source_b, result_b, sizeof(source_b)), 0);
+}
+
+TEST_F(gpu_Test, store_image_after_draw_otag) {
+    static u_short readback[64 * 64];
+    memset(readback, 0xAA, sizeof(readback));
+
+    ClearImage(&cdb->draw.clip, 0, 0, 0);
+    SetTile(&cdb->tile[0]);
+    setRGB0(&cdb->tile[0], 255, 0, 0);
+    setXY0(&cdb->tile[0], 0, 0);
+    setWH(&cdb->tile[0], 64, 64);
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &cdb->tile[0]);
+
+    DrawOTag(cdb->ot);
+    RECT rect = {0, 0, 64, 64};
+    StoreImage(&rect, (u_long*)readback);
+    DrawSync(0);
+
+    int bad = -1;
+    for (int i = 0; i < 64 * 64; i++) {
+        if ((readback[i] & 0x7FFF) != 0x001F) {
+            bad = i;
+            break;
+        }
+    }
+    EXPECT_EQ(bad, -1) << "at index " << bad << " got "
+                       << (bad < 0 ? 0 : (readback[bad] & 0x7FFF))
+                       << " (expected 31)";
+}
+
+TEST_F(gpu_Test, DISABLED_store_image_async_benchmark) {
+    constexpr int side = 128;
+    constexpr int iterations = 32;
+    RECT rect = {704, 320, side, side};
+    u_short source[side * side] = {};
+    u_short results[iterations][side * side] = {};
+    LoadImage(&rect, (u_long*)source);
+    DrawSync(0);
+
+    const auto synchronous_start = std::chrono::steady_clock::now();
+    for (int i = 0; i < iterations; ++i) {
+        StoreImage(&rect, (u_long*)results[i]);
+        DrawSync(0);
+    }
+    const auto synchronous_done = std::chrono::steady_clock::now();
+
+    const auto async_start = std::chrono::steady_clock::now();
+    for (int i = 0; i < iterations; ++i) {
+        StoreImage(&rect, (u_long*)results[i]);
+    }
+    const auto async_queued = std::chrono::steady_clock::now();
+    DrawSync(0);
+    const auto async_done = std::chrono::steady_clock::now();
+
+    const auto synchronous_us =
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            synchronous_done - synchronous_start)
+            .count();
+    const auto queue_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                              async_queued - async_start)
+                              .count();
+    const auto sync_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                             async_done - async_queued)
+                             .count();
+    printf("StoreImage benchmark (%d x %dx%d): synchronous=%lld us, "
+           "async queue=%lld us, async DrawSync=%lld us, async total=%lld us\n",
+           iterations, side, side, (long long)synchronous_us,
+           (long long)queue_us, (long long)sync_us,
+           (long long)(queue_us + sync_us));
 }
 
 TEST_F(gpu_Test, blit) {

@@ -872,6 +872,7 @@ void Draw_SetDisplayMode(DisplayMode* mode) {
 }
 
 int Draw_ExequeSync() { return 0; }
+int Draw_ExequeIsSyncComplete() { return 1; }
 
 static unsigned int VAO = -1, VBO = -1, EBO = -1;
 
