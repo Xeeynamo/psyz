@@ -80,12 +80,23 @@ void SetDrawLoad(DR_LOAD* p, RECT* rect) {
 }
 
 int MargePrim(void* p0, void* p1) {
+#ifdef __psyz
+    int len0 = getlen(p0);
+    int len1 = getlen(p1);
+    // includes both O_TAG of p1 and potential alignment padding on 64-bit
+    int gap = (((uintptr_t)p1 - (uintptr_t)p0) / 4) - len0;
+    int newLen = len0 + gap + len1;
+    setlen(p0, newLen);
+    memset((char*)p0 + sizeof(OT_TYPE) + len0 * 4, 0, gap * 4);
+    return 0;
+#else
     int newLen = getlen(p0) + getlen(p1) + 1;
     if (newLen > 16)
         return -1;
     setlen(p0, newLen);
     *(u_long*)p1 = 0;
     return 0;
+#endif
 }
 
 void DumpDrawEnv(DRAWENV* env) {

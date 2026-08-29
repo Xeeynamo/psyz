@@ -1123,6 +1123,30 @@ TEST_F(gpu_Test, texture_window_non_square) {
     AssertFrame("texture_window_non_square");
 }
 
+TEST_F(gpu_Test, marge_prim) {
+    SetPolyF4(&cdb->f4[0]);
+    setXYWH(&cdb->f4[0], 16, 16, 64, 64);
+    setRGB0(&cdb->f4[0], 0, 0, 255);
+    setSemiTrans(&cdb->f4[0], 0);
+
+    SetPolyF4(&cdb->f4[1]);
+    setXYWH(&cdb->f4[1], 32, 32, 32, 32);
+    setRGB0(&cdb->f4[1], 0, 255, 0);
+    setSemiTrans(&cdb->f4[1], 0);
+
+    MargePrim(&cdb->f4[0], &cdb->f4[1]);
+
+    SetPolyF4(&cdb->f4[2]);
+    setXYWH(&cdb->f4[2], 40, 40, 16, 16);
+    setRGB0(&cdb->f4[2], 255, 0, 0);
+    setSemiTrans(&cdb->f4[2], 0);
+
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &cdb->f4[2]);
+    AddPrim(cdb->ot, &cdb->f4[0]);
+    Present("marge_prim");
+}
+
 class dither_Test : public gpu_Test {
   protected:
     static const int DR = 47;
