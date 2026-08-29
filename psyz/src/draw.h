@@ -1,5 +1,6 @@
 #ifndef DRAW_H
 #define DRAW_H
+#include <libgpu.h>
 
 // ===== GPU backend =====
 // as long as the platform implements these API calls, psy-z will work natively

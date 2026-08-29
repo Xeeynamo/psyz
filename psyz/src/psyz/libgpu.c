@@ -1,5 +1,6 @@
 #include <psyz.h>
 #include <libgpu.h>
+#include "../../../decomp/src/libgpu/libgpu_private.h"
 #include <psyz/log.h>
 #include "../draw.h"
 #include "../internal.h"
@@ -19,29 +20,6 @@ typedef enum {
     GPU_V1, // 2MB VRAM, arcade
     GPU_V2, // 2MB VRAM, PSone
 } GpuVersion;
-
-struct Gpu {
-    /* 0x00 */ const char* ver;
-    /* 0x04 */ int (*addque)(
-        int (*exec)(u_long p1, u_long p2), u_long p1, u_long p2);
-    /* 0x08 */ int (*addque2)(
-        int (*exec)(u_long p1, u_long p2), u_long p1, int len, u_long p2);
-    /* 0x0C */ int (*clr)(RECT* rect, u32 color);
-    /* 0x10 */ void (*ctl)(unsigned int);
-    /* 0x14 */ int (*cwb)();
-    /* 0x18 */ int (*cwc)(u_long p1, u_long p2);
-    /* 0x1C */ int (*drs)(u_long p1, u_long p2);
-    /* 0x20 */ int (*dws)(u_long p1, u_long p2);
-    /* 0x24 */ int (*exeque)();
-    /* 0x28 */ int (*getctl)(int);
-    /* 0x2C */ void (*otc)(OT_TYPE* ot, s32 n);
-    /* 0x30 */ int (*param)(int);
-    /* 0x34 */ int (*reset)(int);
-    /* 0x38 */ u_long (*status)(void);
-    /* 0x3C */ int (*sync)(int mode);
-};
-
-u32 get_vram_wh(void);
 
 static void GPU_clear_cache() { NOT_IMPLEMENTED; }
 
@@ -165,12 +143,8 @@ int Psyz_GpuExeque() {
     return queue_len;
 }
 
-static int GPU_Enqueue(u_long p1, u_long p2) {
-    int mask = (int)p2;
-    if (mask) {
-        WARNF("mask not supported (mask:%08X)", mask);
-    }
-    DR_ENV* env = (DR_ENV*)(uintptr_t)p1;
+static void GPU_Enqueue(u_long* packets) {
+    DR_ENV* env = (DR_ENV*)packets;
     if (sizeof(u_long) == 4) {
         // fast path for 32-bit systems
         while (1) {
@@ -182,7 +156,7 @@ static int GPU_Enqueue(u_long p1, u_long p2) {
             }
             env = (DR_ENV*)nextPrim(env);
         }
-        return 0;
+        return;
     }
     while (1) {
         if (queue_len + env->len > LEN(queue_buf)) {
@@ -217,16 +191,15 @@ static int GPU_Enqueue(u_long p1, u_long p2) {
         }
         env = (DR_ENV*)nextPrim(env);
     }
+}
+static int GPU_DataWrite(RECT* rect, u_long* data) {
+    Psyz_GpuExeque();
+    Draw_LoadImage(rect, data);
     return 0;
 }
-static int GPU_DataWrite(u_long p1, u_long p2) {
+static int GPU_DataRead(RECT* rect, u_long* data) {
     Psyz_GpuExeque();
-    Draw_LoadImage((RECT*)(uintptr_t)p1, (u_long*)(uintptr_t)p2);
-    return 0;
-}
-static int GPU_DataRead(u_long p1, u_long p2) {
-    Psyz_GpuExeque();
-    Draw_StoreImage((RECT*)(uintptr_t)p1, (u_long*)(uintptr_t)p2);
+    Draw_StoreImage(rect, data);
     return 0;
 }
 
@@ -243,11 +216,8 @@ static int psyz_addque(
 // psyz_clr is very similar to _clr from libgpu/sys.c
 static DR_ENV clear_cmd;
 static int psyz_clr(RECT* rect, u32 color) {
-    const u32 wh = get_vram_wh();
-    const unsigned short w = wh & 0xFFFF;
-    const unsigned short h = wh >> 16;
-    rect->w = CLAMP(rect->w, 0, w - 1);
-    rect->h = CLAMP(rect->h, 0, h - 1);
+    rect->w = CLAMP(rect->w, 0, VRAM_W - 1);
+    rect->h = CLAMP(rect->h, 0, VRAM_H - 1);
 
 #if 1 // HACK: faster but more inaccurate path, doesn't need a Psyz_GpuExeque
     setlen(&clear_cmd, 4);
@@ -267,7 +237,7 @@ static int psyz_clr(RECT* rect, u32 color) {
 #endif
 
     termPrim(&clear_cmd);
-    GPU_Enqueue((u_long)&clear_cmd, 0);
+    GPU_Enqueue((u_long*)&clear_cmd);
     return 0;
 }
 
@@ -316,11 +286,11 @@ static int psyz_getctl(int _) {
     return 0;
 }
 
-static void psyz_otc(OT_TYPE* ot, s32 n) {
+static int psyz_otc(OT_TYPE* ot, s32 n) {
     s32 i;
 
     if (n <= 0) {
-        return;
+        return 0;
     }
     for (i = n - 1; i > 0; i--) {
         setaddr(&ot[i], &ot[i - 1]);
@@ -328,6 +298,7 @@ static void psyz_otc(OT_TYPE* ot, s32 n) {
     }
     setaddr(&ot[0], 0xFFFFFF);
     setlen(&ot[0], 0);
+    return 0;
 }
 
 static int psyz_param(int _) {
@@ -361,7 +332,7 @@ void Psyz_GpuWriteGP0(unsigned int word) {
 }
 
 void GPU_cw(u_long* param) {
-    struct Gpu* gpu = (struct Gpu*)param;
+    GpuVtable* gpu = (GpuVtable*)param;
     gpu->ver = "psyz";
     gpu->addque = psyz_addque;
     gpu->addque2 = psyz_addque2;
