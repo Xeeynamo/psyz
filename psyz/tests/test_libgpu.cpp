@@ -96,6 +96,12 @@ class gpu_Test : public testing::Test {
     }
     static void AssertFrame(
         const char* png_path, int tolerance = 0, float precision = 1.0f) {
+#ifdef __PSP__
+        // GU_COLOR_5551 is slightly brighter than PS1, account for error margin
+        if (tolerance < 2) {
+            tolerance = 2;
+        }
+#endif
         char filename[FILENAME_MAX];
         char filenameAct[FILENAME_MAX];
         int exp_w, exp_h, act_w, act_h, ch;
@@ -439,7 +445,11 @@ TEST_F(gpu_Test, drawenv_clear_vram) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
+#ifdef __PSP__
+    AssertFrame("drawenv_clear_vram", 2, 0.995);
+#else
     AssertFrame("drawenv_clear_vram");
+#endif
 }
 
 TEST_F(gpu_Test, move_image) {

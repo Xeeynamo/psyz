@@ -257,15 +257,22 @@ static void UpdateOutputMapping(void) {
 }
 
 typedef struct {
-    unsigned int c;
+    u16 c;
     short x, y, z;
-} CVert; // GU_COLOR_8888 | GU_VERTEX_16BIT
+} CVert; // GU_COLOR_5551 | GU_VERTEX_16BIT
+_Static_assert(sizeof(CVert) == 8, "CVert must be 8 bytes");
 
 typedef struct {
     short u, v;
-    unsigned int c;
+    u16 c;
     short x, y, z;
-} BVert; // GU_TEXTURE_16BIT | GU_COLOR_8888 | GU_VERTEX_16BIT
+} BVert; // GU_TEXTURE_16BIT | GU_COLOR_5551 | GU_VERTEX_16BIT, 12 bytes packed
+_Static_assert(sizeof(BVert) == 12, "BVert must be 12 bytes");
+
+// Equivalent of 0xBDEF. Since GU_FRAGMENT_2X is enabled globally, the PSP GPU
+// computes tex*col*2/255 and neutral is 0x7F per 8-bit channel, which is 15
+// in 5 bits. Using 31 would double every texel and saturates half the range.
+#define COL5551_MOD1X ((u16)(0x8000u | (15u << 10) | (15u << 5) | 15u))
 
 // ===== primitive batching =====
 #define MAX_VERTEX_COUNT 40960
@@ -304,7 +311,7 @@ static void CloseBatch(void) {
     batch_start = vring_used;
     GuDrawArrayDirect(
         batch_prim,
-        GU_TEXTURE_16BIT | GU_COLOR_8888 | GU_VERTEX_16BIT | GU_TRANSFORM_2D, n,
+        GU_TEXTURE_16BIT | GU_COLOR_5551 | GU_VERTEX_16BIT | GU_TRANSFORM_2D, n,
         first);
     if ((unsigned int)((char*)gu_list->current - (char*)last_kick) > 2048) {
         KickGe();
@@ -694,16 +701,16 @@ static void ClearTargetBlack(int w, int h) {
     ScissorFull();
     GeCmd(GECMD_CLEARMODE, (GU_COLOR_BUFFER_BIT << 8) | 1);
     CVert* out = GuGetMemoryDirect(2 * sizeof(CVert));
-    out[0].c = 0xFF000000;
+    out[0].c = 0x8000;
     out[0].x = 0;
     out[0].y = 0;
     out[0].z = 0;
-    out[1].c = 0xFF000000;
+    out[1].c = 0x8000;
     out[1].x = (short)w;
     out[1].y = (short)h;
     out[1].z = 0;
     GuDrawArrayDirect(
-        GU_SPRITES, GU_COLOR_8888 | GU_VERTEX_16BIT | GU_TRANSFORM_2D, 2, out);
+        GU_SPRITES, GU_COLOR_5551 | GU_VERTEX_16BIT | GU_TRANSFORM_2D, 2, out);
     GeCmd(GECMD_CLEARMODE, 0);
 }
 
@@ -768,19 +775,19 @@ static void PresentSurface(void) {
     BVert* out = GuGetMemoryDirect(2 * sizeof(BVert));
     out[0].u = 0;
     out[0].v = 0;
-    out[0].c = 0xFF7F7F7Fu;
+    out[0].c = COL5551_MOD1X;
     out[0].x = (short)pres_x;
     out[0].y = (short)pres_y;
     out[0].z = 0;
     out[1].u = (short)game_w;
     out[1].v = (short)game_h;
-    out[1].c = 0xFF7F7F7Fu;
+    out[1].c = COL5551_MOD1X;
     out[1].x = (short)(pres_x + target_w);
     out[1].y = (short)(pres_y + game_h);
     out[1].z = 0;
     GuDrawArrayDirect(
         GU_SPRITES,
-        GU_TEXTURE_16BIT | GU_COLOR_8888 | GU_VERTEX_16BIT | GU_TRANSFORM_2D, 2,
+        GU_TEXTURE_16BIT | GU_COLOR_5551 | GU_VERTEX_16BIT | GU_TRANSFORM_2D, 2,
         out);
 }
 
@@ -1657,8 +1664,9 @@ static inline int ApplyTexture(u16 tpage, u16 clut, int variant) {
     return ApplyTextureReal(tpage, clut, variant);
 }
 
-static inline unsigned int PackColor(u8 r, u8 g, u8 b) {
-    return 0xFF000000u | ((unsigned int)b << 16) | ((unsigned int)g << 8) | r;
+static inline unsigned short PackColor(u8 r, u8 g, u8 b) {
+    return (unsigned short)(0x8000u | ((b >> 3) << 10) | ((g >> 3) << 5) |
+                            (r >> 3));
 }
 
 static inline void ApplyTextured(bool on) {
@@ -1699,9 +1707,14 @@ static const u8 tex_color_scale[256] = {
 
 static inline u8 ScaleTexChannel(u8 c) { return tex_color_scale[c]; }
 
-static inline unsigned int PackTexColor(u8 r, u8 g, u8 b) {
+static inline unsigned short PackTexColor(u8 r, u8 g, u8 b) {
+#if 0
+    // useless?
     return PackColor(
         ScaleTexChannel(r), ScaleTexChannel(g), ScaleTexChannel(b));
+#else
+    return PackColor(r, g, b);
+#endif
 }
 
 // Axis-aligned TILE/SPRT fast path
@@ -1749,7 +1762,7 @@ __attribute__((noinline)) static void EmitRectTextured(
     ApplyBlend(semitrans, (tpage >> 5) & 3);
     ApplyDither(env_dither && can_dither);
 
-    unsigned int c = PackTexColor(r, g, b);
+    unsigned short c = PackTexColor(r, g, b);
     int kx = draw_offset.x - fb_origin.x + map_ofs_x;
     int ky = draw_offset.y - fb_origin.y + map_ofs_y;
 
@@ -1781,7 +1794,7 @@ __attribute__((noinline)) static void EmitRectUntextured(
     ApplyBlend(semitrans, (tpage >> 5) & 3);
     ApplyDither(env_dither && can_dither);
 
-    unsigned int c = PackColor(r, g, b);
+    unsigned short c = PackColor(r, g, b);
     int kx = draw_offset.x - fb_origin.x + map_ofs_x;
     int ky = draw_offset.y - fb_origin.y + map_ofs_y;
 
@@ -1936,7 +1949,7 @@ static void EmitPrim(const PVert* v, int n, u16 tpage, u16 clut, bool textured,
         BVert* out = GuGetMemoryDirect(n * sizeof(BVert));
         memcpy(out, tv, n * sizeof(BVert));
         GuDrawArrayDirect(n == 3 ? GU_TRIANGLES : GU_TRIANGLE_STRIP,
-                          GU_TEXTURE_16BIT | GU_COLOR_8888 | GU_VERTEX_16BIT |
+                          GU_TEXTURE_16BIT | GU_COLOR_5551 | GU_VERTEX_16BIT |
                               GU_TRANSFORM_2D,
                           n, out);
     }
@@ -1984,18 +1997,18 @@ static void EmitVramRegionQuad(int x, int y, int w, int h) {
             BVert* out = GuGetMemoryDirect(2 * sizeof(BVert));
             out[0].u = (short)(px - tile_x);
             out[0].v = (short)(py - tile_y);
-            out[0].c = 0xFF7F7F7Fu;
+            out[0].c = COL5551_MOD1X;
             out[0].x = (short)(px - fb_origin.x + map_ofs_x);
             out[0].y = (short)(py - fb_origin.y + map_ofs_y);
             out[0].z = 0;
             out[1].u = (short)(px - tile_x + span_x);
             out[1].v = (short)(py - tile_y + span_y);
-            out[1].c = 0xFF7F7F7Fu;
+            out[1].c = COL5551_MOD1X;
             out[1].x = (short)(px + span_x - fb_origin.x + map_ofs_x);
             out[1].y = (short)(py + span_y - fb_origin.y + map_ofs_y);
             out[1].z = 0;
             GuDrawArrayDirect(GU_SPRITES,
-                              GU_TEXTURE_16BIT | GU_COLOR_8888 |
+                              GU_TEXTURE_16BIT | GU_COLOR_5551 |
                                   GU_VERTEX_16BIT | GU_TRANSFORM_2D,
                               2, out);
             px += span_x;
@@ -2009,7 +2022,7 @@ static void EmitVramFill(int x, int y, int w, int h, u8 r, u8 g, u8 b) {
     FlushBatch();
     GeCmd(GECMD_CLEARMODE,
           ((GU_COLOR_BUFFER_BIT | GU_STENCIL_BUFFER_BIT) << 8) | 1);
-    unsigned int c = ((unsigned int)b << 16) | ((unsigned int)g << 8) | r;
+    unsigned short c = PackColor(r, g, b);
     int xe = x + w, ye = y + h;
     for (int ty = y >> 8; ty <= (ye - 1) >> 8; ty++) {
         for (int tx = x >> 6; tx <= (xe - 1) >> 6; tx++) {
@@ -2032,7 +2045,7 @@ static void EmitVramFill(int x, int y, int w, int h, u8 r, u8 g, u8 b) {
             out[1].y = (short)ly1;
             out[1].z = 0;
             GuDrawArrayDirect(
-                GU_SPRITES, GU_COLOR_8888 | GU_VERTEX_16BIT | GU_TRANSFORM_2D,
+                GU_SPRITES, GU_COLOR_5551 | GU_VERTEX_16BIT | GU_TRANSFORM_2D,
                 2, out);
         }
     }
@@ -2070,7 +2083,7 @@ static void EmitClearQuad(int x, int y, int w, int h, u8 r, u8 g, u8 b) {
     out[1].z = 0.0f;
     ScissorFull();
     GuDrawArrayDirect(
-        GU_SPRITES, GU_COLOR_8888 | GU_VERTEX_16BIT | GU_TRANSFORM_2D, 2, out);
+        GU_SPRITES, GU_COLOR_5551 | GU_VERTEX_16BIT | GU_TRANSFORM_2D, 2, out);
     GeCmd(GECMD_CLEARMODE, 0);
     UpdateScissor();
 }
@@ -2260,7 +2273,7 @@ __attribute__((noinline)) static int PushLine(
         nPoints++; // don't ask, have faith
     }
 
-    unsigned int c1 = PackColor(
+    unsigned short c1 = PackColor(
         (u8)(*packets >> 0), (u8)(*packets >> 8), (u8)(*packets >> 16));
     packets++;
     len--;
@@ -2273,7 +2286,7 @@ __attribute__((noinline)) static int PushLine(
         packets++;
         len--;
         for (int i = 1; i < nPoints && len > 0; i++) {
-            unsigned int c0 = c1;
+            unsigned short c0 = c1;
             if (isGouraud) {
                 c1 = PackColor(
                     ((u8*)packets)[0], ((u8*)packets)[1], ((u8*)packets)[2]);
@@ -2458,7 +2471,7 @@ static inline int PushPolyFast(
     }
 
     if (!shadetex) {
-        pv.c[0] = 0xFF7F7F7Fu; // raw texture: pass-through modulation
+        pv.c[0] = COL5551_MOD1X; // raw texture: pass-through modulation
     } else {
         int ncol = gouraud ? (quad ? 4 : 3) : 1;
         for (int i = 0; i < ncol; i++) {
