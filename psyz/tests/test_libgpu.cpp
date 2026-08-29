@@ -120,6 +120,14 @@ class gpu_Test : public testing::Test {
         free(act_d);
     }
 
+    void Present(const char* golden) {
+        DrawOTag(cdb->ot);
+        DrawSync(0);
+        VSync(0);
+        PutDispEnv(&cdb->disp);
+        AssertFrame(golden);
+    }
+
     static int LoadTim(void* data, u_short* outTpage, u_short* outClut) {
         if (OpenTIM((u_long*)data)) {
             return 1;
@@ -1152,14 +1160,6 @@ class dither_Test : public gpu_Test {
         DrawSync(0);
         return GetTPage(2, 0, TEX_X, TEX_Y);
     }
-
-    void Present(const char* golden) {
-        DrawOTag(cdb->ot);
-        DrawSync(0);
-        VSync(0);
-        PutDispEnv(&cdb->disp);
-        AssertFrame(golden);
-    }
 };
 
 TEST_F(dither_Test, dithering_drawenv_disabled) {
@@ -1473,14 +1473,6 @@ class horizontal_grid_Test : public gpu_Test {
         for (i = 0; i < DISP_W; i += PACK_W) {
             AddRect(i, GUIDE_Y0, 1, GUIDE_Y1 - GUIDE_Y0, 255, 255, 255);
         }
-    }
-
-    void Present(const char* golden) {
-        DrawOTag(cdb->ot);
-        DrawSync(0);
-        VSync(0);
-        PutDispEnv(&cdb->disp);
-        AssertFrame(golden);
     }
 };
 
