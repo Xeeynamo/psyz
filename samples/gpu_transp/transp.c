@@ -154,8 +154,9 @@ int main(void) {
             while (DrawSync(1))
                 ;
             invalidate_pal = 0;
-            while (PadRead(0))
-                ;
+            while (PadRead(0)) {
+                VSync(0);
+            }
         }
 
         cdb = (cdb == &db[0]) ? &db[0] : &db[0];

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>PSY-Z sample</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; background: #080b10; }
+    body {
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    #stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+    }
+    #canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+      image-rendering: pixelated;
+    }
+    #status {
+      position: absolute;
+      left: 12px;
+      bottom: 10px;
+      padding: 5px 8px;
+      border-radius: 5px;
+      background: rgba(0, 0, 0, .72);
+      color: #aeb7c7;
+      font-size: 12px;
+      pointer-events: none;
+    }
+    #status:empty { display: none; }
+  </style>
+</head>
+<body>
+  <main id="stage">
+    <canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+    <div id="status">Loading…</div>
+  </main>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const status = document.getElementById('status');
+    const isPreview = new URLSearchParams(location.search).has('preview');
+    canvas.addEventListener('pointerdown', () => canvas.focus());
+
+    var Module = {
+      canvas,
+      print: (text) => console.log(text),
+      printErr: (text) => console.error(text),
+      setStatus: (text) => { status.textContent = text || ''; },
+      onRuntimeInitialized: () => {
+        status.textContent = '';
+        if (!isPreview) canvas.focus();
+      }
+    };
+  </script>
+  {{{ SCRIPT }}}
+</body>
+</html>
