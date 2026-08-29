@@ -136,8 +136,10 @@ static void DispatchPackets(u_long* buf, int len) {
 
 int Psyz_GpuExeque() {
     Draw_ResetBuffer();
-    DispatchPackets(queue_buf, queue_len);
-    Draw_FlushBuffer();
+    if (queue_len > 0) {
+        DispatchPackets(queue_buf, queue_len);
+        Draw_FlushBuffer();
+    }
     Draw_ExequeSync();
     queue_len = 0;
     return queue_len;
@@ -200,6 +202,12 @@ static int GPU_DataWrite(RECT* rect, u_long* data) {
 static int GPU_DataRead(RECT* rect, u_long* data) {
     Psyz_GpuExeque();
     Draw_StoreImage(rect, data);
+    return 0;
+}
+static int psyz_cwb(u32* data, s32 n) {
+    if (n > 0) {
+        Draw_PushPrim((u_long*)data, n);
+    }
     return 0;
 }
 
@@ -276,10 +284,6 @@ void Psyz_GpuDisplayCommand(unsigned int cmd) {
         WARNF("unhandled ctl %02X (%08X)", op, cmd);
         break;
     }
-}
-static int psyz_cwb() {
-    NOT_IMPLEMENTED;
-    return 0;
 }
 static int psyz_getctl(int _) {
     NOT_IMPLEMENTED;
