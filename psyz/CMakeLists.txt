@@ -83,6 +83,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libspu/s_wp.c
     ../decomp/src/libspu/spu.c
     ../decomp/src/libspu/sr_gaks.c
+    ../decomp/src/libspu/sr_sv.c
     src/psyz/libspu.c
     ../decomp/src/libsnd/cres.c
     ../decomp/src/libsnd/decres.c

@@ -252,6 +252,7 @@ void _SsVmKeyOffNow(int mode);
 int _spu_getInTransfer(void);
 void _spu_FwriteByIO(unsigned char* addr, u_long size);
 u_long _SpuSetAnyVoice(long on_off, u_long voice_bit, int arg2, int arg3);
+s32 _SpuRSetVoiceAttr(SpuVoiceAttr* attr, s32 min, s32 max, s32 nowait);
 void _spu_Fw1ts(void);
 void _spu_setReverbAttr(struct rev_param_entry* attr);
 
