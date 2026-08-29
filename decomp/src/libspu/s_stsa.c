@@ -1,6 +1,6 @@
 #include "libspu_private.h"
 
-unsigned SpuSetTransferStartAddr(unsigned addr) {
+unsigned long SpuSetTransferStartAddr(unsigned long addr) {
     unsigned _addr;
     _addr = addr;
     if (_addr - 0x1010 > 0x7EFE8) {
