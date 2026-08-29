@@ -51,6 +51,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libspu/s_dcb.c
     ../decomp/src/libspu/s_gtm.c
     ../decomp/src/libspu/s_gva.c
+    ../decomp/src/libspu/s_gvv.c
     ../decomp/src/libspu/s_i.c
     ../decomp/src/libspu/s_ih.c
     ../decomp/src/libspu/s_ini.c
