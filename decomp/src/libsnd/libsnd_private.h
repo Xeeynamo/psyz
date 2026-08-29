@@ -187,6 +187,8 @@ extern SPU_RXX* _svm_sreg;
  * decomp build relocates against _svm_sreg and matches the original library. */
 #undef SPUR
 #undef SPUW
+#undef SPURV
+#undef SPUWV
 #ifndef __psyz
 #define SPUR(field) (_svm_sreg->field)
 #define SPUW(field, val) _svm_sreg->field = (val)
