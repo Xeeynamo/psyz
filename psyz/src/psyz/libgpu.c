@@ -182,6 +182,9 @@ static int GPU_Enqueue(u_long p1, u_long p2) {
             }
             env = (DR_ENV*)nextPrim(env);
         }
+#ifdef __EMSCRIPTEN__
+        Draw_FlushBuffer();
+#endif
         return 0;
     }
     while (1) {
@@ -381,6 +384,8 @@ void GPU_cw(u_long* param) {
 }
 
 // these are not yet decompiled
-int _addque2() { return 0; }
+int _addque2(int (*exec)(u_long p1, u_long p2), u_long p1, int len, u_long p2) {
+    return 0;
+}
 int _exeque() { return 0; }
 int get_alarm(void) { return 0; }

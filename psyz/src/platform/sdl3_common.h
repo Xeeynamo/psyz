@@ -31,6 +31,9 @@
 static void PlatformBackend_SetDriverVsync(bool enable);
 static void PlatformBackend_Present(void);
 static void QuitPlatform(void);
+#ifdef PLATFORM_WEB
+void Psyz_WebWaitForNextFrame(void);
+#endif
 
 #ifndef PSYZ_TITLE
 #define PSYZ_TITLE "PSY-Z"
@@ -426,6 +429,11 @@ static void WaitForNextFrame(void) {
     Uint64 current_time = SDL_GetPerformanceCounter();
     double elapsed_us = GetElapsedMicroseconds(last_frame_time, current_time);
 
+#ifdef PLATFORM_WEB
+    // yield to browser
+    (void)elapsed_us;
+    Psyz_WebWaitForNextFrame();
+#else
     if (!use_driver_vsync && vsync_mode != PSYZ_VSYNC_LIMITLESS) {
         double time_to_wait_us =
             target_frame_time_us - elapsed_us + drift_compensation;
@@ -461,6 +469,7 @@ static void WaitForNextFrame(void) {
             drift_compensation = -5000.0;
         }
     }
+#endif
 
     Uint64 frame_end_time = SDL_GetPerformanceCounter();
     gpu_stats.last_frame_time_us =

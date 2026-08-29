@@ -336,8 +336,9 @@ static int pad_read(int n) {
         while (APDLoad(0) & PADL1)
             ;
 #else
-        while (PadRead(0) & PADL1)
-            ;
+        while (PadRead(0) & PADL1) {
+            VSync(0);
+        }
 #endif
 
     if (padd & PADselect)
