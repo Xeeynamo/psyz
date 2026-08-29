@@ -155,9 +155,7 @@ int main(void) {
                 ;
             invalidate_pal = 0;
             while (PadRead(0)) {
-#ifdef PLATFORM_WEB
                 VSync(0);
-#endif
             }
         }
 

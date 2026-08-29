@@ -337,9 +337,7 @@ static int pad_read(int n) {
             ;
 #else
         while (PadRead(0) & PADL1) {
-#ifdef PLATFORM_WEB
             VSync(0);
-#endif
         }
 #endif
 
