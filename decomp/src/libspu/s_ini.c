@@ -11,8 +11,8 @@ int _spu_rev_flag = 0;
 int _spu_rev_reserve_wa = 0;
 int _spu_rev_offsetaddr = 0;
 SpuReverbAttr _spu_rev_attr = {0};
-int _spu_RQvoice = 0;
-int _spu_RQmask = 0;
+extern volatile s32 _spu_RQvoice = 0;
+extern volatile s32 _spu_RQmask = 0;
 unsigned short _spu_voice_centerNote[] = {
     0xC000, 0xC000, 0xC000, 0xC000, 0xC000, 0xC000, 0xC000, 0xC000,
     0xC000, 0xC000, 0xC000, 0xC000, 0xC000, 0xC000, 0xC000, 0xC000,
