@@ -2,27 +2,7 @@
 #include <libetc.h>
 #include <libgte.h>
 #include <libgpu.h>
-
-struct Gpu {
-    /* 0x00 */ const char* ver;
-    /* 0x04 */ int (*addque)(
-        int (*exec)(u_long p1, u_long p2), u_long p1, u_long p2);
-    /* 0x08 */ int (*addque2)(
-        int (*exec)(u_long p1, u_long p2), u_long p1, int len, u_long p2);
-    /* 0x0C */ int (*clr)(RECT* rect, unsigned int color);
-    /* 0x10 */ void (*ctl)(unsigned int);
-    /* 0x14 */ int (*cwb)(u32* data, s32 n);
-    /* 0x18 */ void (*cwc)(u_long* packets);
-    /* 0x1C */ int (*drs)(RECT* rect, u_long* data);
-    /* 0x20 */ int (*dws)(RECT* rect, u_long* data);
-    /* 0x24 */ int (*exeque)();
-    /* 0x28 */ int (*getctl)(int);
-    /* 0x2C */ int (*otc)(OT_TYPE* ot, s32 n);
-    /* 0x30 */ int (*param)(int);
-    /* 0x34 */ int (*reset)(int);
-    /* 0x38 */ u_long (*status)(void);
-    /* 0x3C */ int (*sync)(int mode);
-};
+#include "libgpu_private.h"
 struct Debug {
     // GPU version
     // https://psx-spx.consoledev.net/graphicsprocessingunitgpu/#gpu-versions
@@ -78,7 +58,7 @@ u_long get_ofs(short x, short y);
 u_long get_mode(int dfe, int dtd, u_short tpage);
 u_long get_tw(RECT* rect);
 
-static struct Gpu _gpucb = {
+static GpuVtable _gpucb = {
     "$Id: sys.c,v 1.129 1996/12/25 03:36:20 noda Exp $",
     _addque,
     _addque2,
@@ -96,7 +76,7 @@ static struct Gpu _gpucb = {
     _status,
     _sync,
 };
-static struct Gpu* gpu = &_gpucb;
+static GpuVtable* gpu = &_gpucb;
 #ifdef __psyz
 int (*GPU_printf)(const char* fmt, ...) = printf;
 #else
@@ -966,9 +946,4 @@ static void memset(u_char* ptr, int value, int num) {
         *ptr++ = value;
     }
 }
-#endif
-
-#ifdef __psyz
-// exclusive to PSY-Z, useful to obtain info.w and info.h
-u32 get_vram_wh(void) { return *(u32*)&info.w; }
 #endif
