@@ -131,9 +131,8 @@ static void SubmitCmdAndWait(void) {
 }
 
 static SDL_GPUShader* CreateShader(
-    const unsigned char* code, unsigned int code_len,
-    SDL_GPUShaderStage stage, Uint32 num_samplers,
-    Uint32 num_uniform_buffers) {
+    const unsigned char* code, unsigned int code_len, SDL_GPUShaderStage stage,
+    Uint32 num_samplers, Uint32 num_uniform_buffers) {
     const SDL_GPUShaderCreateInfo info = {
         .code = code,
         .code_size = code_len,
@@ -348,8 +347,8 @@ static bool CreateGpuResources(void) {
         return false;
     }
 
-    SDL_GPUShader* psx_vs = CreateShader(
-        psx_vert, psx_vert_len, SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
+    SDL_GPUShader* psx_vs =
+        CreateShader(psx_vert, psx_vert_len, SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
     SDL_GPUShader* psx_fs = CreateShader(
         psx_frag, psx_frag_len, SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 0);
     SDL_GPUShader* clear_vs = CreateShader(
