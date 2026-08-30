@@ -18,6 +18,10 @@
 #include "shaders/psx_frag_msl.h"
 #include "shaders/clear_vert_msl.h"
 #include "shaders/clear_frag_msl.h"
+#include "shaders/psx_vert_dxil.h"
+#include "shaders/psx_frag_dxil.h"
+#include "shaders/clear_vert_dxil.h"
+#include "shaders/clear_frag_dxil.h"
 
 typedef struct {
     int x, y;
@@ -100,8 +104,10 @@ static void SubmitCmdAndWait(void) {
 
 static SDL_GPUShader* CreateShader(
     const unsigned char* spirv, unsigned int spirv_len,
-    const unsigned char* msl, unsigned int msl_len, SDL_GPUShaderStage stage,
-    Uint32 num_samplers, Uint32 num_uniform_buffers) {
+    const unsigned char* msl, unsigned int msl_len,
+    const unsigned char* dxil, unsigned int dxil_len,
+    SDL_GPUShaderStage stage, Uint32 num_samplers,
+    Uint32 num_uniform_buffers) {
     const SDL_GPUShaderFormat formats = SDL_GetGPUShaderFormats(device);
     SDL_GPUShaderCreateInfo info = {
         .stage = stage,
@@ -118,6 +124,11 @@ static SDL_GPUShader* CreateShader(
         info.code_size = msl_len;
         info.format = SDL_GPU_SHADERFORMAT_MSL;
         info.entrypoint = "main0";
+    } else if (formats & SDL_GPU_SHADERFORMAT_DXIL) {
+        info.code = dxil;
+        info.code_size = dxil_len;
+        info.format = SDL_GPU_SHADERFORMAT_DXIL;
+        info.entrypoint = "main";
     } else {
         ERRORF("no supported GPU shader format (formats=0x%x)", formats);
         return NULL;
@@ -319,18 +330,20 @@ static bool CreateGpuResources(void) {
         return false;
     }
 
-    SDL_GPUShader* psx_vs =
-        CreateShader(psx_vert_spv, psx_vert_spv_len, psx_vert_msl,
-                     psx_vert_msl_len, SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
-    SDL_GPUShader* psx_fs =
-        CreateShader(psx_frag_spv, psx_frag_spv_len, psx_frag_msl,
-                     psx_frag_msl_len, SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 0);
-    SDL_GPUShader* clear_vs =
-        CreateShader(clear_vert_spv, clear_vert_spv_len, clear_vert_msl,
-                     clear_vert_msl_len, SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
-    SDL_GPUShader* clear_fs =
-        CreateShader(clear_frag_spv, clear_frag_spv_len, clear_frag_msl,
-                     clear_frag_msl_len, SDL_GPU_SHADERSTAGE_FRAGMENT, 0, 0);
+    SDL_GPUShader* psx_vs = CreateShader(
+        psx_vert_spv, psx_vert_spv_len, psx_vert_msl, psx_vert_msl_len,
+        psx_vert_dxil, psx_vert_dxil_len, SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
+    SDL_GPUShader* psx_fs = CreateShader(
+        psx_frag_spv, psx_frag_spv_len, psx_frag_msl, psx_frag_msl_len,
+        psx_frag_dxil, psx_frag_dxil_len, SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 0);
+    SDL_GPUShader* clear_vs = CreateShader(
+        clear_vert_spv, clear_vert_spv_len, clear_vert_msl,
+        clear_vert_msl_len, clear_vert_dxil, clear_vert_dxil_len,
+        SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
+    SDL_GPUShader* clear_fs = CreateShader(
+        clear_frag_spv, clear_frag_spv_len, clear_frag_msl,
+        clear_frag_msl_len, clear_frag_dxil, clear_frag_dxil_len,
+        SDL_GPU_SHADERSTAGE_FRAGMENT, 0, 0);
     bool shaders_ok = psx_vs && psx_fs && clear_vs && clear_fs;
     if (shaders_ok) {
         pipe_tri_add = CreatePsxPipeline(psx_vs, psx_fs, false);
