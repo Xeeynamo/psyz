@@ -197,6 +197,13 @@ static void GPU_Enqueue(u_long* packets) {
         env = (DR_ENV*)nextPrim(env);
     }
 }
+
+// Weird fix due to addque2 calling the callback with two u_long params
+static int GPU_EnqueueTrampoline(u_long p1, u_long p2) {
+    GPU_Enqueue((u_long*)p1);
+    return 0;
+}
+
 static int GPU_DataWrite(RECT* rect, u_long* data) {
     Psyz_GpuExeque();
     Draw_LoadImage(rect, data);
@@ -346,7 +353,7 @@ void GPU_cw(u_long* param) {
     gpu->clr = psyz_clr;
     gpu->ctl = Psyz_GpuDisplayCommand;
     gpu->cwb = psyz_cwb;
-    gpu->cwc = GPU_Enqueue;
+    gpu->cwc = (void (*)(u_long*))GPU_EnqueueTrampoline;
     gpu->drs = GPU_DataRead;
     gpu->dws = GPU_DataWrite;
     gpu->exeque = Psyz_GpuExeque;
