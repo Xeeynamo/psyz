@@ -54,6 +54,9 @@ const chrome = spawn(chromePath, [
   '--disable-backgrounding-occluded-windows',
   '--force-device-scale-factor=1',
   '--window-size=640,480',
+  '--use-gl=angle',
+  '--use-angle=swiftshader',
+  '--enable-unsafe-swiftshader',
   `--user-data-dir=${profileDir}`,
   '--remote-debugging-pipe',
   'about:blank'
