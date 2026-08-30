@@ -10,18 +10,46 @@
 #include <SDL3/SDL.h>
 #include "sdl3_common.h"
 
-#include "shaders/psx_vert_spv.h"
-#include "shaders/psx_frag_spv.h"
-#include "shaders/clear_vert_spv.h"
-#include "shaders/clear_frag_spv.h"
-#include "shaders/psx_vert_msl.h"
-#include "shaders/psx_frag_msl.h"
-#include "shaders/clear_vert_msl.h"
-#include "shaders/clear_frag_msl.h"
+#if defined(_WIN32)
 #include "shaders/psx_vert_dxil.h"
 #include "shaders/psx_frag_dxil.h"
 #include "shaders/clear_vert_dxil.h"
 #include "shaders/clear_frag_dxil.h"
+#define psx_vert psx_vert_dxil
+#define psx_vert_len psx_vert_dxil_len
+#define psx_frag psx_frag_dxil
+#define psx_frag_len psx_frag_dxil_len
+#define clear_vert clear_vert_dxil
+#define clear_vert_len clear_vert_dxil_len
+#define clear_frag clear_frag_dxil
+#define clear_frag_len clear_frag_dxil_len
+#elif defined(__APPLE__)
+#include "shaders/psx_vert_msl.h"
+#include "shaders/psx_frag_msl.h"
+#include "shaders/clear_vert_msl.h"
+#include "shaders/clear_frag_msl.h"
+#define psx_vert psx_vert_msl
+#define psx_vert_len psx_vert_msl_len
+#define psx_frag psx_frag_msl
+#define psx_frag_len psx_frag_msl_len
+#define clear_vert clear_vert_msl
+#define clear_vert_len clear_vert_msl_len
+#define clear_frag clear_frag_msl
+#define clear_frag_len clear_frag_msl_len
+#else
+#include "shaders/psx_vert_spv.h"
+#include "shaders/psx_frag_spv.h"
+#include "shaders/clear_vert_spv.h"
+#include "shaders/clear_frag_spv.h"
+#define psx_vert psx_vert_spv
+#define psx_vert_len psx_vert_spv_len
+#define psx_frag psx_frag_spv
+#define psx_frag_len psx_frag_spv_len
+#define clear_vert clear_vert_spv
+#define clear_vert_len clear_vert_spv_len
+#define clear_frag clear_frag_spv
+#define clear_frag_len clear_frag_spv_len
+#endif
 
 typedef struct {
     int x, y;
@@ -103,36 +131,26 @@ static void SubmitCmdAndWait(void) {
 }
 
 static SDL_GPUShader* CreateShader(
-    const unsigned char* spirv, unsigned int spirv_len,
-    const unsigned char* msl, unsigned int msl_len,
-    const unsigned char* dxil, unsigned int dxil_len,
+    const unsigned char* code, unsigned int code_len,
     SDL_GPUShaderStage stage, Uint32 num_samplers,
     Uint32 num_uniform_buffers) {
-    const SDL_GPUShaderFormat formats = SDL_GetGPUShaderFormats(device);
-    SDL_GPUShaderCreateInfo info = {
+    const SDL_GPUShaderCreateInfo info = {
+        .code = code,
+        .code_size = code_len,
+#if defined(_WIN32)
+        .format = SDL_GPU_SHADERFORMAT_DXIL,
+        .entrypoint = "main",
+#elif defined(__APPLE__)
+        .format = SDL_GPU_SHADERFORMAT_MSL,
+        .entrypoint = "main0",
+#else
+        .format = SDL_GPU_SHADERFORMAT_SPIRV,
+        .entrypoint = "main",
+#endif
         .stage = stage,
         .num_samplers = num_samplers,
         .num_uniform_buffers = num_uniform_buffers,
     };
-    if (formats & SDL_GPU_SHADERFORMAT_SPIRV) {
-        info.code = spirv;
-        info.code_size = spirv_len;
-        info.format = SDL_GPU_SHADERFORMAT_SPIRV;
-        info.entrypoint = "main";
-    } else if (formats & SDL_GPU_SHADERFORMAT_MSL) {
-        info.code = msl;
-        info.code_size = msl_len;
-        info.format = SDL_GPU_SHADERFORMAT_MSL;
-        info.entrypoint = "main0";
-    } else if (formats & SDL_GPU_SHADERFORMAT_DXIL) {
-        info.code = dxil;
-        info.code_size = dxil_len;
-        info.format = SDL_GPU_SHADERFORMAT_DXIL;
-        info.entrypoint = "main";
-    } else {
-        ERRORF("no supported GPU shader format (formats=0x%x)", formats);
-        return NULL;
-    }
     SDL_GPUShader* shader = SDL_CreateGPUShader(device, &info);
     if (!shader) {
         ERRORF("SDL_CreateGPUShader: %s", SDL_GetError());
@@ -331,19 +349,13 @@ static bool CreateGpuResources(void) {
     }
 
     SDL_GPUShader* psx_vs = CreateShader(
-        psx_vert_spv, psx_vert_spv_len, psx_vert_msl, psx_vert_msl_len,
-        psx_vert_dxil, psx_vert_dxil_len, SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
+        psx_vert, psx_vert_len, SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
     SDL_GPUShader* psx_fs = CreateShader(
-        psx_frag_spv, psx_frag_spv_len, psx_frag_msl, psx_frag_msl_len,
-        psx_frag_dxil, psx_frag_dxil_len, SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 0);
+        psx_frag, psx_frag_len, SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 0);
     SDL_GPUShader* clear_vs = CreateShader(
-        clear_vert_spv, clear_vert_spv_len, clear_vert_msl,
-        clear_vert_msl_len, clear_vert_dxil, clear_vert_dxil_len,
-        SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
+        clear_vert, clear_vert_len, SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
     SDL_GPUShader* clear_fs = CreateShader(
-        clear_frag_spv, clear_frag_spv_len, clear_frag_msl,
-        clear_frag_msl_len, clear_frag_dxil, clear_frag_dxil_len,
-        SDL_GPU_SHADERSTAGE_FRAGMENT, 0, 0);
+        clear_frag, clear_frag_len, SDL_GPU_SHADERSTAGE_FRAGMENT, 0, 0);
     bool shaders_ok = psx_vs && psx_fs && clear_vs && clear_fs;
     if (shaders_ok) {
         pipe_tri_add = CreatePsxPipeline(psx_vs, psx_fs, false);
@@ -377,7 +389,14 @@ bool InitPlatform() {
     }
 
     device = SDL_CreateGPUDevice(
-        SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_MSL, false, NULL);
+#if defined(_WIN32)
+        SDL_GPU_SHADERFORMAT_DXIL,
+#elif defined(__APPLE__)
+        SDL_GPU_SHADERFORMAT_MSL,
+#else
+        SDL_GPU_SHADERFORMAT_SPIRV,
+#endif
+        false, NULL);
     if (!device) {
         ERRORF("SDL_CreateGPUDevice: %s", SDL_GetError());
         return false;
