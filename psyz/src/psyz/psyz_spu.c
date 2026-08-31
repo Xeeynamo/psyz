@@ -538,8 +538,8 @@ static int reverb_mul(int sample, u16 coefficient) {
     return (sample * spu_s16(coefficient)) >> 15;
 }
 
-static void reverb_process_22050(int input_left, int input_right,
-                                 short output[2]) {
+static void reverb_process_22050(
+    int input_left, int input_right, short output[2]) {
     SPU_RXX* r = (SPU_RXX*)&_spu_RXX->rxx;
     const int input[2] = {input_left, input_right};
     const u16 same_src[2] = {r->dLSAME, r->dRSAME};
@@ -556,12 +556,12 @@ static void reverb_process_22050(int input_left, int input_right,
     int channel;
 
     for (channel = 0; channel < 2; channel++) {
-        int iir_input_a = clamp16(
-            reverb_mul(reverb_read(same_src[channel], 0), r->vWALL) +
-            reverb_mul(input[channel], in_coef[channel]));
-        int iir_input_b = clamp16(
-            reverb_mul(reverb_read(diff_src[channel], 0), r->vWALL) +
-            reverb_mul(input[channel], in_coef[channel]));
+        int iir_input_a =
+            clamp16(reverb_mul(reverb_read(same_src[channel], 0), r->vWALL) +
+                    reverb_mul(input[channel], in_coef[channel]));
+        int iir_input_b =
+            clamp16(reverb_mul(reverb_read(diff_src[channel], 0), r->vWALL) +
+                    reverb_mul(input[channel], in_coef[channel]));
         int previous_a = reverb_read(same_dst[channel], -2);
         int previous_b = reverb_read(diff_dst[channel], -2);
         int inverse_iir = 0x8000 - spu_s16(r->vIIR);
@@ -684,8 +684,8 @@ static void spu_tick(short* out) {
         reverb_input_left = reverb_input_right = 0;
     }
 
-    reverb_tick(clamp16(reverb_input_left), clamp16(reverb_input_right),
-                reverb_output);
+    reverb_tick(
+        clamp16(reverb_input_left), clamp16(reverb_input_right), reverb_output);
     left_sum += reverb_mul(reverb_output[0], rxx->rev_vol.left);
     right_sum += reverb_mul(reverb_output[1], rxx->rev_vol.right);
 
