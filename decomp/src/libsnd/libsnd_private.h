@@ -232,8 +232,13 @@ extern u8 spuVmMaxVoice;
 extern short _svm_stereo_mono;
 extern u32 VBLANK_MINUS;
 extern _SsFCALL SsFCALL;
+#ifdef __psyz
 extern void (*_autovol)(short voice);
 extern void (*_autopan)(short voice);
+#else
+extern void (*_autovol)();
+extern void (*_autopan)();
+#endif
 extern SPU_VOICE_REG _svm_sreg_buf[NUM_VOICES];
 extern char _svm_sreg_dirty[NUM_VOICES];
 
@@ -272,6 +277,7 @@ void _SsSndSetVolData(
     short sep_access_num, short seq_num, short vol, int v_time);
 void _SsVmDamperOff(void);
 int _SsInitSoundSep(short flag, short i, short vab_id, unsigned long* addr);
+int _SsReadDeltaValue(short seq_access_num, short seq_num);
 char _SsVmAlloc(short voice);
 void vmNoiseOn(char voice);
 void vmNoiseOff(char voice);
