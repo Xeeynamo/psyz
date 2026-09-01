@@ -116,7 +116,7 @@ int _SpuMallocSeparateTo3(int arg0, unsigned addr, int size) {
     return -1;
 }
 
-int SpuMallocWithStartAddr(unsigned _addr, int size) {
+long SpuMallocWithStartAddr(unsigned long _addr, long size) {
     int temp_a2;
     int addr;
     int var_s2;

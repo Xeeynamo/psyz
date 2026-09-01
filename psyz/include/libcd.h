@@ -447,7 +447,7 @@ int CdGetToc(CdlLOC* loc);
  * @param func Callback function pointer
  * @return Previous callback function
  */
-CdlCB CdDataCallback(CdlCB func);
+void(*CdDataCallback(void (*func)()));
 
 /**
  * @brief Convert integer to position

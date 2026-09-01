@@ -1,6 +1,6 @@
 #include "libspu_private.h"
 
-void SpuFree(int addr) {
+void SpuFree(unsigned long addr) {
     int i;
 
     for (i = 0; i < _spu_AllocBlockNum; i++) {

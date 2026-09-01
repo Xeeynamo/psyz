@@ -1239,14 +1239,14 @@ SpuIRQCallbackProc SpuSetIRQCallback(SpuIRQCallbackProc func);
  * @param mode Transfer mode
  * @return Mode set
  */
-int SpuSetTransferMode(int mode);
+long SpuSetTransferMode(long mode);
 
 /**
  * @brief Get transfer mode
  *
  * @return Current transfer mode
  */
-int SpuGetTransferMode(void);
+long SpuGetTransferMode(void);
 
 /**
  * @brief Set transfer start address
@@ -1254,7 +1254,7 @@ int SpuGetTransferMode(void);
  * @param addr Start SPU address
  * @return SPU address set
  */
-unsigned SpuSetTransferStartAddr(unsigned addr);
+unsigned long SpuSetTransferStartAddr(unsigned long addr);
 
 /**
  * @brief Get transfer start address
@@ -1342,7 +1342,7 @@ long SpuInitMalloc(long num, char* top);
  * @param size Size in bytes
  * @return Start address, or -1 on failure
  */
-int SpuMalloc(int size);
+long SpuMalloc(long size);
 
 /**
  * @brief Allocate area from specific address
@@ -1351,14 +1351,14 @@ int SpuMalloc(int size);
  * @param size Size in bytes
  * @return Start address, or -1 on failure
  */
-int SpuMallocWithStartAddr(unsigned addr, int size);
+long SpuMallocWithStartAddr(unsigned long addr, long size);
 
 /**
  * @brief Free allocated area
  *
  * @param addr Start address of area
  */
-void SpuFree(int addr);
+void SpuFree(unsigned long addr);
 
 /*============================================================================
  * Environment Functions

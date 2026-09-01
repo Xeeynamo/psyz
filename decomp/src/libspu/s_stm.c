@@ -1,6 +1,6 @@
 #include "libspu_private.h"
 
-int SpuSetTransferMode(int mode) {
+long SpuSetTransferMode(long mode) {
     s32 transMode;
 
     switch (mode) {

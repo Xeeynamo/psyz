@@ -4,7 +4,7 @@
 # --build-id=none keeps distro-default build-id notes out of the image.
 # LC_ALL=C sort -d keeps the link order independent of the host locale.
 cd build
-mipsel-linux-gnu-gcc -O0 -g -o psyq$1_org.elf -T ../psyq.ld \
+mipsel-linux-gnu-gcc -no-pie -O0 -g -o psyq$1_org.elf -T ../psyq.ld \
     -fno-toplevel-reorder -nostartfiles -nostdlib \
     -Wl,--whole-archive -Wl,--build-id=none \
     -Wl,-Map=psyq$1_org.map \

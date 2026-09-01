@@ -145,7 +145,7 @@ int CdGetSector2(void* madr, int size) {
     return CD_getsector2(madr, size) == 0;
 }
 
-CdlCB CdDataCallback(CdlCB func) { return DMACallback(3, func); }
+void(*CdDataCallback(void (*func)())) { return DMACallback(3, (void*)func); }
 
 int CdDataSync(int mode) { return CD_datasync(mode); }
 
