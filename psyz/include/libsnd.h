@@ -630,7 +630,7 @@ short SsSepOpen(unsigned long* addr, short vab_id, short seq_num);
  * @param seq_num Number of SEQs contained in SEP
  * @return SEP access number
  */
-short SsSepOpenJ(u_long* addr, short vab_id, short seq_num);
+short SsSepOpenJ(unsigned long* addr, short vab_id, short seq_num);
 
 /**
  * @brief Close SEP data

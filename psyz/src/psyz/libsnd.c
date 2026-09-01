@@ -3,6 +3,7 @@
 #include <libsnd.h>
 #include <psyz/log.h>
 #include "../../decomp/src/libspu/libspu_private.h"
+#include "../../decomp/src/libsnd/libsnd_private.h"
 
 #define LEN(x) ((s32)(sizeof(x) / sizeof(*(x))))
 #define NUM_VOICES 24
@@ -14,7 +15,6 @@ extern short _snd_seq_t_max;
 extern int _snd_ev_flag;
 extern _SsFCALL SsFCALL;
 extern SndSsMarkCallbackProc _SsMarkCallback[32][16];
-extern struct SeqStruct* _ss_score[32];
 extern unsigned int VBLANK_MINUS;
 extern int _snd_openflag;
 
@@ -35,7 +35,7 @@ static unsigned short default_state[] = {
     0x3FFF, 0x3FFF, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
     0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000};
 extern SPU_RXX* _svm_sreg;
-void _SsVmInit(int num_voices);
+
 void _SsInit(void) {
     int i, j;
 
@@ -81,11 +81,6 @@ void _SsVmGetSeqVol(short seq_sep_no, short* voll, short* volr) {
     NOT_IMPLEMENTED;
 }
 
-int _SsInitSoundSep(short flag, short i, short vab_id, unsigned int* addr) {
-    NOT_IMPLEMENTED;
-    return -1;
-}
-
 char _SsVmAlloc(short voice) {
     NOT_IMPLEMENTED;
     return -1;
@@ -100,7 +95,7 @@ void _SsVmSeqKeyOff(s16 seq_sep_num) { NOT_IMPLEMENTED; }
 
 void vmNoiseOn(char voice) { NOT_IMPLEMENTED; }
 
-void SetAutoVol(int voices) { NOT_IMPLEMENTED; }
+void SetAutoVol(short voice) { NOT_IMPLEMENTED; }
 
 void SeAutoPan(short arg0, short arg1, short arg2, short arg3) {
     NOT_IMPLEMENTED;
