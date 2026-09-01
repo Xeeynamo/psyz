@@ -49,6 +49,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libspu/s_cb.c
     ../decomp/src/libspu/s_crwa.c
     ../decomp/src/libspu/s_dcb.c
+    ../decomp/src/libspu/s_gks.c
     ../decomp/src/libspu/s_gtm.c
     ../decomp/src/libspu/s_gva.c
     ../decomp/src/libspu/s_i.c
@@ -71,6 +72,8 @@ set(PSYZ_SOURCES
     ../decomp/src/libspu/s_sk.c
     ../decomp/src/libspu/s_snv.c
     ../decomp/src/libspu/s_sr.c
+    ../decomp/src/libspu/s_sra.c
+    ../decomp/src/libspu/s_srmp.c
     ../decomp/src/libspu/s_stm.c
     ../decomp/src/libspu/s_stsa.c
     ../decomp/src/libspu/s_w.c
@@ -80,10 +83,12 @@ set(PSYZ_SOURCES
     src/psyz/libspu.c
     ../decomp/src/libsnd/cres.c
     ../decomp/src/libsnd/decres.c
+    ../decomp/src/libsnd/miditime.c
     ../decomp/src/libsnd/pause.c
     ../decomp/src/libsnd/play.c
     ../decomp/src/libsnd/playmode.c
     ../decomp/src/libsnd/replay.c
+    ../decomp/src/libsnd/sepinit.c
     ../decomp/src/libsnd/sscall.c
     ../decomp/src/libsnd/ssclose.c
     ../decomp/src/libsnd/sscres.c
@@ -93,6 +98,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/ssinit_h.c
     ../decomp/src/libsnd/ssloop.c
     ../decomp/src/libsnd/ssopenp.c
+    ../decomp/src/libsnd/ssopenpj.c
     ../decomp/src/libsnd/ssplay.c
     ../decomp/src/libsnd/ssquit.c
     ../decomp/src/libsnd/sssattr.c
@@ -107,6 +113,8 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/ut_ako.c
     ../decomp/src/libsnd/ut_autop.c
     ../decomp/src/libsnd/ut_cadsr.c
+    ../decomp/src/libsnd/ut_gpa.c
+    ../decomp/src/libsnd/ut_gva.c
     ../decomp/src/libsnd/ut_key.c
     ../decomp/src/libsnd/ut_keyv.c
     ../decomp/src/libsnd/ut_rdel.c

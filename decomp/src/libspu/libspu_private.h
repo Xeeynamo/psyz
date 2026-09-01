@@ -4,6 +4,39 @@
 
 #include <common.h>
 #include <libspu.h>
+
+#define SPU_REV_ATTR_DAPF1 (1u << 0)
+#define SPU_REV_ATTR_DAPF2 (1u << 1)
+#define SPU_REV_ATTR_VIIR (1u << 2)
+#define SPU_REV_ATTR_VCOMB1 (1u << 3)
+#define SPU_REV_ATTR_VCOMB2 (1u << 4)
+#define SPU_REV_ATTR_VCOMB3 (1u << 5)
+#define SPU_REV_ATTR_VCOMB4 (1u << 6)
+#define SPU_REV_ATTR_VWALL (1u << 7)
+#define SPU_REV_ATTR_VAPF1 (1u << 8)
+#define SPU_REV_ATTR_VAPF2 (1u << 9)
+#define SPU_REV_ATTR_MLSAME (1u << 10)
+#define SPU_REV_ATTR_MRSAME (1u << 11)
+#define SPU_REV_ATTR_MLCOMB1 (1u << 12)
+#define SPU_REV_ATTR_MRCOMB1 (1u << 13)
+#define SPU_REV_ATTR_MLCOMB2 (1u << 14)
+#define SPU_REV_ATTR_MRCOMB2 (1u << 15)
+#define SPU_REV_ATTR_DLSAME (1u << 16)
+#define SPU_REV_ATTR_DRSAME (1u << 17)
+#define SPU_REV_ATTR_MLDIFF (1u << 18)
+#define SPU_REV_ATTR_MRDIFF (1u << 19)
+#define SPU_REV_ATTR_MLCOMB3 (1u << 20)
+#define SPU_REV_ATTR_MRCOMB3 (1u << 21)
+#define SPU_REV_ATTR_MLCOMB4 (1u << 22)
+#define SPU_REV_ATTR_MRCOMB4 (1u << 23)
+#define SPU_REV_ATTR_DLDIFF (1u << 24)
+#define SPU_REV_ATTR_DRDIFF (1u << 25)
+#define SPU_REV_ATTR_MLAPF1 (1u << 26)
+#define SPU_REV_ATTR_MRAPF1 (1u << 27)
+#define SPU_REV_ATTR_MLAPF2 (1u << 28)
+#define SPU_REV_ATTR_MRAPF2 (1u << 29)
+#define SPU_REV_ATTR_VLIN (1u << 30)
+#define SPU_REV_ATTR_VRIN (1u << 31)
 #include "libdma.h"
 
 #define NUM_VOICES 24
@@ -180,6 +213,7 @@ extern s32 _spu_mem_mode_unitM;
 extern SPU_MALLOC* _spu_memList;
 extern s32 _spu_rev_flag;
 extern s32 _spu_rev_offsetaddr;
+extern s8 _spu_rev_param[];
 extern s32 _spu_rev_reserve_wa;
 extern s32 _spu_rev_startaddr[];
 extern SpuReverbAttr _spu_rev_attr;
@@ -210,5 +244,6 @@ int _spu_getInTransfer(void);
 void _spu_FwriteByIO(unsigned char* addr, u_long size);
 u_long _SpuSetAnyVoice(long on_off, u_long voice_bit, int arg2, int arg3);
 void _spu_Fw1ts(void);
+void _spu_setReverbAttr(struct rev_param_entry* attr);
 
 #endif

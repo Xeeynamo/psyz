@@ -1,3 +1,4 @@
+#include <sys/types.h>
 #include <kernel.h>
 #include <libapi.h>
 #include <libetc.h>

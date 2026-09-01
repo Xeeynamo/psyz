@@ -1,3 +1,4 @@
+SHELL		:= bash -e -o pipefail
 PSYQ_VER	:= 400
 AS			:= mipsel-linux-gnu-as
 CC			:= ./bin/cc1-psx-272

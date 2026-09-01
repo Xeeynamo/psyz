@@ -67,4 +67,17 @@ short SsUtKeyOnV(short voice, short vabId, short prog, short tone, short note,
     return voice;
 }
 
-INCLUDE_ASM("asm/nonmatchings/libsnd/ut_keyv", SsUtKeyOffV);
+short SsUtKeyOffV(short voice) {
+    if (_snd_ev_flag == 1) {
+        return -1;
+    }
+    _snd_ev_flag = 1;
+    if (voice >= 0 && voice < NUM_VOICES) {
+        _svm_cur.voice = voice;
+        _SsVmKeyOffNow(0);
+        _snd_ev_flag = 0;
+        return 0;
+    }
+    _snd_ev_flag = 0;
+    return -1;
+}

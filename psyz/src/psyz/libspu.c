@@ -11,11 +11,6 @@ volatile u16 _spu_RQ[10] = {0};
 
 void SpuSetVoiceAttr(SpuVoiceAttr* arg) { NOT_IMPLEMENTED; }
 
-long SpuSetReverbModeParam(SpuReverbAttr* attr) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
 u_long _SpuSetAnyVoice(long on_off, u_long voice_bit, int arg2, int arg3) {
     NOT_IMPLEMENTED;
     return 0;

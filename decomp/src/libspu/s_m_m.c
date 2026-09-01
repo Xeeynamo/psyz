@@ -1,6 +1,6 @@
 #include "libspu_private.h"
 
-int SpuMalloc(int size) {
+long SpuMalloc(long size) {
     int var_s2;
     int var_s3;
     int i;
