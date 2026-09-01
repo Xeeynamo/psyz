@@ -17,8 +17,12 @@ long SpuGetKeyStatus(u_long voice_bit) {
     if (voice == -1) {
         return -1;
     }
+#ifndef __psyz
     voices = _spu_RXX->rxx.voice;
     volumex = voices[voice].volumex;
+#else
+    volumex = SPUR(voice[voice].volumex);
+#endif
     voice_mask = 1 << voice;
     if (_spu_keystat & voice_mask) {
         if (volumex > 0) {
