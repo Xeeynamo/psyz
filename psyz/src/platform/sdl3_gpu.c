@@ -648,44 +648,56 @@ static void PlatformBackend_Present(void) {
             WARNF("SDL_WaitAndAcquireGPUSwapchainTexture: %s", SDL_GetError());
         }
         if (swapchain) {
-            const Uint32 n = internal_res;
-            SDL_GPUBlitRegion src = {
-                .texture = GetRenderTarget(),
-                .x = (Uint32)display_area.x * n,
-                .y = (Uint32)display_area.y * n,
-                .w = (Uint32)display_size.x * n,
-                .h = (Uint32)display_size.y * n,
-            };
-            float game_aspect =
-                GetCurrentGameAspectRatio(display_size.x, display_size.y);
-            if (debug_show_vram) {
-                src.x = 0;
-                src.y = 0;
-                src.w = VRAM_W * n;
-                src.h = VRAM_H * n;
-                game_aspect = (float)VRAM_W / (float)VRAM_H;
+            if (!disp_on) {
+                const SDL_GPUColorTargetInfo blank_target = {
+                    .texture = swapchain,
+                    .clear_color = {0.0f, 0.0f, 0.0f, 1.0f},
+                    .load_op = SDL_GPU_LOADOP_CLEAR,
+                    .store_op = SDL_GPU_STOREOP_STORE,
+                };
+                SDL_GPURenderPass* blank_pass =
+                    SDL_BeginGPURenderPass(cmd, &blank_target, 1, NULL);
+                SDL_EndGPURenderPass(blank_pass);
+            } else {
+                const Uint32 n = internal_res;
+                SDL_GPUBlitRegion src = {
+                    .texture = GetRenderTarget(),
+                    .x = (Uint32)display_area.x * n,
+                    .y = (Uint32)display_area.y * n,
+                    .w = (Uint32)display_size.x * n,
+                    .h = (Uint32)display_size.y * n,
+                };
+                float game_aspect =
+                    GetCurrentGameAspectRatio(display_size.x, display_size.y);
+                if (debug_show_vram) {
+                    src.x = 0;
+                    src.y = 0;
+                    src.w = VRAM_W * n;
+                    src.h = VRAM_H * n;
+                    game_aspect = (float)VRAM_W / (float)VRAM_H;
+                }
+
+                WndSize win = {(int)sc_w, (int)sc_h};
+                SDL_Rect dst = FitGameToWindow(game_aspect, win);
+
+                const SDL_GPUBlitInfo blit = {
+                    .source = src,
+                    .destination =
+                        {
+                            .texture = swapchain,
+                            .x = (Uint32)dst.x,
+                            .y = (Uint32)dst.y,
+                            .w = (Uint32)dst.w,
+                            .h = (Uint32)dst.h,
+                        },
+                    // clear the swapchain to black first so the horizontal or
+                    // vertical bars around the game output are black
+                    .load_op = SDL_GPU_LOADOP_CLEAR,
+                    .clear_color = {0.0f, 0.0f, 0.0f, 1.0f},
+                    .filter = SDL_GPU_FILTER_NEAREST,
+                };
+                SDL_BlitGPUTexture(cmd, &blit);
             }
-
-            WndSize win = {(int)sc_w, (int)sc_h};
-            SDL_Rect dst = FitGameToWindow(game_aspect, win);
-
-            const SDL_GPUBlitInfo blit = {
-                .source = src,
-                .destination =
-                    {
-                        .texture = swapchain,
-                        .x = (Uint32)dst.x,
-                        .y = (Uint32)dst.y,
-                        .w = (Uint32)dst.w,
-                        .h = (Uint32)dst.h,
-                    },
-                // clear the swapchain to black first so the horizontal or
-                // vertical bars around the game output are black
-                .load_op = SDL_GPU_LOADOP_CLEAR,
-                .clear_color = {0.0f, 0.0f, 0.0f, 1.0f},
-                .filter = SDL_GPU_FILTER_NEAREST,
-            };
-            SDL_BlitGPUTexture(cmd, &blit);
             if (overlay_frame_cb) {
                 overlay_frame_cb();
             }
@@ -940,35 +952,7 @@ void Draw_Reset() { NOT_IMPLEMENTED; }
 
 void Draw_DisplayEnable(unsigned int on) {
     disp_on = on;
-    if (!on) {
-        if (!sdl3_window && !InitPlatform()) {
-            return;
-        }
-        // when display is on, clear background in black
-        SDL_GPUCommandBuffer* cmd = AcquireCmd();
-        if (!cmd) {
-            return;
-        }
-        const SDL_GPUColorTargetInfo target = {
-            .texture = vram_render,
-            .clear_color = {0, 0, 0, 1},
-            .load_op = SDL_GPU_LOADOP_CLEAR,
-            .store_op = SDL_GPU_STOREOP_STORE,
-        };
-        SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(cmd, &target, 1, NULL);
-        SDL_EndGPURenderPass(pass);
-        if (internal_res > 1 && scaled_vram_render) {
-            const SDL_GPUColorTargetInfo scaled_target = {
-                .texture = scaled_vram_render,
-                .clear_color = {0, 0, 0, 1},
-                .load_op = SDL_GPU_LOADOP_CLEAR,
-                .store_op = SDL_GPU_STOREOP_STORE,
-            };
-            SDL_GPURenderPass* scaled_pass =
-                SDL_BeginGPURenderPass(cmd, &scaled_target, 1, NULL);
-            SDL_EndGPURenderPass(scaled_pass);
-        }
-    } else {
+    if (on) {
         ApplyDisplayPendingChanges();
     }
 }

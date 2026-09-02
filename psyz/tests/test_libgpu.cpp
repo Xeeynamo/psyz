@@ -577,6 +577,34 @@ TEST_F(gpu_Test, move_image_internal_res) {
     AssertFrame("move_image");
 }
 
+TEST_F(gpu_Test, disp_mask_preserves_vram) {
+    u_short pattern[16 * 16];
+    u_short readback[16 * 16];
+    for (int i = 0; i < 16 * 16; i++) {
+        pattern[i] = (u_short)(i * 0x1235);
+    }
+    RECT rect = {704, 320, 16, 16};
+    LoadImage(&rect, (u_long*)pattern);
+    DrawSync(0);
+
+    SetDispMask(0);
+    VSync(0);
+    DrawSync(0);
+    memset(readback, 0, sizeof(readback));
+    StoreImage(&rect, (u_long*)readback);
+    DrawSync(0);
+    EXPECT_EQ(memcmp(pattern, readback, sizeof(pattern)), 0)
+        << "SetDispMask(0) must not alter VRAM";
+
+    SetDispMask(1);
+    VSync(0);
+    memset(readback, 0, sizeof(readback));
+    StoreImage(&rect, (u_long*)readback);
+    DrawSync(0);
+    EXPECT_EQ(memcmp(pattern, readback, sizeof(pattern)), 0)
+        << "VRAM must survive the display being re-enabled";
+}
+
 TEST_F(gpu_Test, blit) {
     TIM_IMAGE tim;
     RECT rect = {16, 16, 64, 64};

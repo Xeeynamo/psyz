@@ -619,9 +619,11 @@ static void PlatformBackend_Present(void) {
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    glBlitFramebuffer(
-        src.x * n, (src.y + src.h) * n, (src.x + src.w) * n, src.y * n, dst.x,
-        dst.y, dst.x + dst.w, dst.y + dst.h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    if (disp_on) {
+        glBlitFramebuffer(src.x * n, (src.y + src.h) * n, (src.x + src.w) * n,
+                          src.y * n, dst.x, dst.y, dst.x + dst.w, dst.y + dst.h,
+                          GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
     if (overlay_frame_cb) {
         overlay_frame_cb();
     }
@@ -818,22 +820,7 @@ void Draw_Reset() { NOT_IMPLEMENTED; }
 
 void Draw_DisplayEnable(unsigned int on) {
     disp_on = on;
-    if (!on) {
-        if (!sdl3_window && !InitPlatform()) {
-            return;
-        }
-        // when display is on, clear background in black
-        glClearColor(0, 0, 0, 1);
-        glDisable(GL_SCISSOR_TEST);
-        glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
-        glClear(GL_COLOR_BUFFER_BIT);
-        if (HasSeparateDrawTarget()) {
-            glBindFramebuffer(GL_FRAMEBUFFER, scaled_vram_fbo);
-            glClear(GL_COLOR_BUFFER_BIT);
-        }
-        BindDrawFbo();
-        glEnable(GL_SCISSOR_TEST);
-    } else {
+    if (on) {
         ApplyDisplayPendingChanges();
     }
 }
