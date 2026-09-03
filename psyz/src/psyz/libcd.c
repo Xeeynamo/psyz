@@ -338,6 +338,11 @@ static void cache_last_result(const u_char* result, size_t len, int intr) {
 }
 
 static int is_disk_loaded = 0;
+static u_char data_sector[SECTOR_SIZE];
+static int data_read_active = 0;
+static int data_sector_valid = 0;
+static int data_sector_number = 0;
+static int data_getsector_count = 0;
 
 // Compute the absolute sector of the disc lead-out, used by CdlGetTD with
 // param = 0x00. Equals the absolute sector where the last track's file ends.
@@ -362,7 +367,10 @@ void Psyz_CdShellOpen(int is_open) {
     }
 }
 
+static void close_track_file(void);
+
 int Psyz_CdSetDiskPath(const char* diskPath) {
+    close_track_file();
     is_disk_loaded = 0;
     g_track_count = 0;
     memset(g_tracks, 0, sizeof(g_tracks));
@@ -388,6 +396,15 @@ void Psyz_CdSetReadCB(PsyzCdReadCB cb) { disk_read_cb = cb; }
 #define CD_BUF_FRAMES                                                          \
     (SECTOR_SIZE * BUFFER_SECTORS / (N_CHANNELS * SAMPLE_SIZE))
 static FILE* track_file;
+static const TrackEntry* track_file_track;
+
+static void close_track_file(void) {
+    if (track_file) {
+        fclose(track_file);
+        track_file = NULL;
+    }
+    track_file_track = NULL;
+}
 static s16 cd_buf[CD_BUF_FRAMES * N_CHANNELS];
 static size_t cd_buf_pos = 0;   // current read position (in frames)
 static size_t cd_buf_count = 0; // number of valid frames in buffer
@@ -698,9 +715,7 @@ size_t Psyz_CdPullSamples(short* out, size_t num_frames) {
 
 // Open the track containing the absolute sector encoded in CD_pos. Closes
 // any previously-open track_file. Returns 0 on success, -1 on failure.
-static int open_track_at_cd_pos(void) {
-    int sector = CdPosToInt(&CD_pos);
-    TrackEntry* track = NULL;
+static TrackEntry* find_track_for_sector(int sector) {
     for (int i = 0; i < g_track_count; i++) {
         if (!g_tracks[i].is_valid) {
             continue;
@@ -710,18 +725,20 @@ static int open_track_at_cd_pos(void) {
             next_abs_sector = g_tracks[i + 1].abs_sector;
         }
         if (sector >= g_tracks[i].abs_sector && sector < next_abs_sector) {
-            track = &g_tracks[i];
-            break;
+            return &g_tracks[i];
         }
     }
+    return NULL;
+}
+
+static int open_track_at_cd_pos(void) {
+    int sector = CdPosToInt(&CD_pos);
+    TrackEntry* track = find_track_for_sector(sector);
     if (!track) {
         WARNF("no track found for sector %d", sector);
         return -1;
     }
-    if (track_file) {
-        fclose(track_file);
-        track_file = NULL;
-    }
+    close_track_file();
     FILE* file = fopen(track->file_path, "rb");
     if (!file) {
         ERRORF("failed to open audio file: %s", track->file_path);
@@ -738,7 +755,35 @@ static int open_track_at_cd_pos(void) {
     DEBUGF("opened track %s at sector %d (offset %d)", track->file_path, sector,
            sector_offset);
     track_file = file;
+    track_file_track = track;
     return 0;
+}
+
+static int read_raw_sector(int sector, u_char* out) {
+    TrackEntry* track = find_track_for_sector(sector);
+    if (!track) {
+        return -1;
+    }
+    Psyz_AudioLock();
+    if (track != track_file_track || !track_file) {
+        close_track_file();
+        track_file = fopen(track->file_path, "rb");
+        if (!track_file) {
+            ERRORF("failed to open data file: %s", track->file_path);
+            Psyz_AudioUnlock();
+            return -1;
+        }
+        track_file_track = track;
+    }
+    long offset =
+        (long)(sector - track->abs_sector + track->start_sector) * SECTOR_SIZE;
+    int result = -1;
+    if (fseek(track_file, offset, SEEK_SET) == 0 &&
+        fread(out, 1, SECTOR_SIZE, track_file) == SECTOR_SIZE) {
+        result = 0;
+    }
+    Psyz_AudioUnlock();
+    return result;
 }
 
 static int need_cdda_rewind = 1;
@@ -752,6 +797,8 @@ static void psyz_play() {
         DEBUGF("audio already playing");
         return;
     }
+    data_read_active = 0;
+    data_sector_valid = 0;
     if (!need_cdda_rewind) {
         Psyz_AudioLock();
         is_playing = 1;
@@ -775,6 +822,8 @@ static void psyz_xa_read(void) {
         LOG_ONCE("CdlReadN/ReadS without CdlModeRT not implemented");
         return;
     }
+    data_read_active = 0;
+    data_sector_valid = 0;
     if (open_track_at_cd_pos()) {
         return;
     }
@@ -791,10 +840,9 @@ static void psyz_stop() {
     Psyz_AudioLock();
     is_playing = 0;
     xa.active = 0;
-    if (track_file) {
-        fclose(track_file);
-        track_file = NULL;
-    }
+    data_read_active = 0;
+    data_sector_valid = 0;
+    close_track_file();
     cd_buf_pos = 0;
     cd_buf_count = 0;
     Psyz_AudioUnlock();
@@ -804,6 +852,8 @@ static void psyz_pause() {
     Psyz_AudioLock();
     is_playing = 0;
     xa.active = 0;
+    data_read_active = 0;
+    data_sector_valid = 0;
     Psyz_AudioUnlock();
 }
 
@@ -862,7 +912,21 @@ int CD_vol(CdlATV* vol) {
     return 0;
 }
 
-int CD_getsector(void* madr, int size) { NOT_IMPLEMENTED; }
+int CD_getsector(void* madr, int size) {
+    size_t bytes = (size_t)size * 4;
+    if (!data_sector_valid || !madr)
+        return -1;
+    size_t offset = data_getsector_count++ == 0 ? 12u : 24u;
+    if (offset + bytes > sizeof(data_sector))
+        return -1;
+    memcpy(madr, data_sector + offset, bytes);
+    if (offset == 24u) {
+        data_sector_valid = 0;
+        data_sector_number++;
+        data_getsector_count = 0;
+    }
+    return 0;
+}
 int CD_getsector2(void) { NOT_IMPLEMENTED; }
 void CD_datasync(int mode) { NOT_IMPLEMENTED; }
 
@@ -889,8 +953,25 @@ int CD_sync(int mode, u_char* result) {
     return last_intr;
 }
 int CD_ready(int mode, u_char* result) {
-    NOT_IMPLEMENTED;
-    return CdlComplete;
+    (void)mode;
+    if (!data_read_active)
+        return CdlNoIntr;
+    if (!data_sector_valid) {
+        if (disk_read_cb) {
+            struct PsyzCdRead read = {
+                (unsigned int)data_sector_number, SECTOR_SIZE, data_sector};
+            if (disk_read_cb(&read) < 0)
+                return CdlDiskError;
+        } else if (read_raw_sector(data_sector_number, data_sector) < 0) {
+            return CdlDiskError;
+        }
+        data_sector_valid = 1;
+        data_getsector_count = 0;
+    }
+    if (result) {
+        result[0] = (u_char)CD_status;
+    }
+    return CdlDataReady;
 }
 int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
     int total;
@@ -930,7 +1011,20 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
         break;
     case CdlReadN:
     case CdlReadS:
-        psyz_xa_read();
+        if (CD_mode & CdlModeRT) {
+            psyz_xa_read();
+        } else {
+            Psyz_AudioLock();
+            is_playing = 0;
+            xa.active = 0;
+            need_cdda_rewind = 1;
+            Psyz_AudioUnlock();
+            data_sector_number = CdPosToInt(&CD_pos);
+            data_sector_valid = 0;
+            data_getsector_count = 0;
+            data_read_active = 1;
+            CD_status |= CdlStatRead;
+        }
         break;
     case CdlSetfilter:
         if (!param) {

@@ -41,6 +41,25 @@ void write_text(const std::string& path, const std::string& body) {
     std::fclose(f);
 }
 
+int g_read_cb_calls = 0;
+int g_read_cb_fails = 0;
+unsigned int g_read_cb_last_sector = 0;
+unsigned int g_read_cb_last_size = 0;
+
+int fake_read_cb(struct PsyzCdRead* read) {
+    g_read_cb_calls++;
+    g_read_cb_last_sector = read->sector;
+    g_read_cb_last_size = read->size;
+    if (g_read_cb_fails) {
+        return -1;
+    }
+    auto* b = static_cast<unsigned char*>(read->buffer);
+    for (unsigned int i = 0; i < read->size; ++i) {
+        b[i] = (unsigned char)(0xC0 + i + read->sector);
+    }
+    return (int)read->size;
+}
+
 class LibCdTest : public ::testing::Test {
   protected:
     std::string dir;
@@ -56,6 +75,7 @@ class LibCdTest : public ::testing::Test {
     }
 
     void TearDown() override {
+        Psyz_CdSetReadCB(nullptr);
         Psyz_CdSetDiskPath(nullptr);
         Psyz_CdShellOpen(0);
         for (const auto& b : bins) {
@@ -125,6 +145,50 @@ class LibCdTest : public ::testing::Test {
         ASSERT_EQ(Psyz_CdSetDiskPath(cue.c_str()), 0)
             << "Psyz_CdSetDiskPath failed for " << cue;
         Psyz_CdShellOpen(0);
+    }
+
+    static void build_data_sector(unsigned char* sector, int sector_idx) {
+        std::memset(sector, 0, SECTOR_SIZE);
+        sector[0] = 0x00;
+        for (int i = 1; i < 11; ++i) {
+            sector[i] = 0xFF;
+        }
+        sector[11] = 0x00;
+        for (int i = 12; i < 24; ++i) {
+            sector[i] = (unsigned char)(0xA0 + i + sector_idx);
+        }
+        for (int i = 24; i < SECTOR_SIZE; ++i) {
+            sector[i] = (unsigned char)(sector_idx * 31 + i);
+        }
+    }
+
+    void load_cue_data(int sectors) {
+        std::string bin = dir + "/data.bin";
+        FILE* f = std::fopen(bin.c_str(), "wb");
+        ASSERT_NE(f, nullptr) << "fopen " << bin;
+        std::vector<unsigned char> sector(SECTOR_SIZE);
+        for (int i = 0; i < sectors; ++i) {
+            build_data_sector(sector.data(), i);
+            ASSERT_EQ(std::fwrite(sector.data(), 1, SECTOR_SIZE, f),
+                      (size_t)SECTOR_SIZE);
+        }
+        std::fclose(f);
+        bins.push_back(bin);
+
+        cue = dir + "/data.cue";
+        write_text(cue, "FILE \"data.bin\" BINARY\n"
+                        "  TRACK 01 MODE2/2352\n"
+                        "    INDEX 01 00:00:00\n");
+        ASSERT_EQ(Psyz_CdSetDiskPath(cue.c_str()), 0)
+            << "Psyz_CdSetDiskPath failed for " << cue;
+        Psyz_CdShellOpen(0);
+    }
+
+    static void start_read_at(int sector) {
+        CdlLOC loc;
+        CdIntToPos(sector, &loc);
+        CdControlB(CdlSetloc, (u_char*)&loc, nullptr);
+        CdControlB(CdlReadN, nullptr, nullptr);
     }
 };
 
@@ -406,6 +470,109 @@ TEST_F(LibCdTest, responses_stay_inside_the_caller_result_buffer) {
     }
 }
 
+TEST_F(LibCdTest, data_read_returns_header_then_payload) {
+    load_cue_data(4);
+    unsigned char expected[SECTOR_SIZE];
+    build_data_sector(expected, 0);
+
+    u_char r[8];
+    std::memset(r, 0xCC, sizeof(r));
+    EXPECT_EQ(CdReady(1, r), CdlNoIntr) << "idle before any read command";
+
+    start_read_at(0);
+    std::memset(r, 0xCC, sizeof(r));
+    ASSERT_EQ(CdReady(1, r), CdlDataReady);
+    EXPECT_NE(r[0] & CdlStatRead, 0) << "stat byte must carry the read bit";
+
+    u_char header[12];
+    std::memset(header, 0xCC, sizeof(header));
+    ASSERT_NE(CdGetSector(header, sizeof(header) / 4), 0);
+    EXPECT_EQ(std::memcmp(header, expected + 12, sizeof(header)), 0)
+        << "first read must expose the header/subheader at offset 12";
+
+    u_char payload[2048];
+    std::memset(payload, 0xCC, sizeof(payload));
+    ASSERT_NE(CdGetSector(payload, sizeof(payload) / 4), 0);
+    EXPECT_EQ(std::memcmp(payload, expected + 24, sizeof(payload)), 0)
+        << "second read must expose the user payload at offset 24";
+
+    EXPECT_EQ(CdGetSector(payload, sizeof(payload) / 4), 0)
+        << "a consumed sector must not be handed out again";
+
+    CdControlB(CdlStop, nullptr, nullptr);
+}
+
+TEST_F(LibCdTest, data_read_advances_through_sectors) {
+    load_cue_data(4);
+    start_read_at(1);
+
+    for (int sector = 1; sector < 4; ++sector) {
+        unsigned char expected[SECTOR_SIZE];
+        build_data_sector(expected, sector);
+
+        ASSERT_EQ(CdReady(1, nullptr), CdlDataReady) << "sector " << sector;
+
+        u_char header[12];
+        ASSERT_NE(CdGetSector(header, sizeof(header) / 4), 0);
+        EXPECT_EQ(std::memcmp(header, expected + 12, sizeof(header)), 0)
+            << "header of sector " << sector;
+
+        u_char payload[2048];
+        ASSERT_NE(CdGetSector(payload, sizeof(payload) / 4), 0);
+        EXPECT_EQ(std::memcmp(payload, expected + 24, sizeof(payload)), 0)
+            << "payload of sector " << sector;
+    }
+
+    CdControlB(CdlStop, nullptr, nullptr);
+}
+
+TEST_F(LibCdTest, data_read_uses_the_read_callback) {
+    load_cue_data(4);
+    g_read_cb_calls = 0;
+    g_read_cb_fails = 0;
+    Psyz_CdSetReadCB(fake_read_cb);
+
+    start_read_at(2);
+    ASSERT_EQ(CdReady(1, nullptr), CdlDataReady);
+    EXPECT_EQ(g_read_cb_calls, 1);
+    EXPECT_EQ(g_read_cb_last_sector, 2u);
+    EXPECT_EQ(g_read_cb_last_size, (unsigned)SECTOR_SIZE);
+
+    unsigned char expected[SECTOR_SIZE];
+    for (int i = 0; i < SECTOR_SIZE; ++i) {
+        expected[i] = (unsigned char)(0xC0 + i + 2);
+    }
+
+    u_char header[12];
+    ASSERT_NE(CdGetSector(header, sizeof(header) / 4), 0);
+    EXPECT_EQ(std::memcmp(header, expected + 12, sizeof(header)), 0);
+
+    u_char payload[2048];
+    ASSERT_NE(CdGetSector(payload, sizeof(payload) / 4), 0);
+    EXPECT_EQ(std::memcmp(payload, expected + 24, sizeof(payload)), 0);
+
+    g_read_cb_fails = 1;
+    start_read_at(0);
+    EXPECT_EQ(CdReady(1, nullptr), CdlDiskError);
+
+    CdControlB(CdlStop, nullptr, nullptr);
+    Psyz_CdSetReadCB(nullptr);
+}
+
+TEST_F(LibCdTest, readn_in_rt_mode_leaves_the_data_path_idle) {
+    load_cue_data(4);
+
+    u_char mode = CdlModeRT;
+    CdControlB(CdlSetmode, &mode, nullptr);
+    start_read_at(0);
+
+    EXPECT_EQ(CdReady(1, nullptr), CdlNoIntr);
+
+    CdControlB(CdlStop, nullptr, nullptr);
+    mode = 0;
+    CdControlB(CdlSetmode, &mode, nullptr);
+}
+
 class LibCdPlaybackTest : public ::testing::Test {
   protected:
     std::string dir;
@@ -608,6 +775,63 @@ TEST_F(LibCdPlaybackTest, xa_playback) {
             << "frame " << i << " left channel unexpected value";
         ASSERT_EQ(out[i * 2 + 1], 0x07FE)
             << "frame " << i << " right channel unexpected value";
+    }
+}
+
+TEST_F(LibCdPlaybackTest, data_read_interrupts_xa_playback) {
+    constexpr int kSectors = 16;
+    std::vector<unsigned short> sample(kSectors * 2352 / 2, 0);
+    auto* raw = reinterpret_cast<unsigned char*>(sample.data());
+    for (int i = 0; i < kSectors; i++) {
+        build_xa_sector(raw + i * 2352, i);
+    }
+    mount_bin_cue_pair(sample, "MODE2/2352");
+
+    CdReset(1);
+
+    u_char param[8];
+    param[0] = CdlModeSpeed | CdlModeRT | CdlModeSF;
+    CdControlB(CdlSetmode, param, nullptr);
+    param[0] = 1;
+    param[1] = 0;
+    CdControlB(CdlSetfilter, param, nullptr);
+
+    CdlLOC loc;
+    CdIntToPos(0, &loc);
+    CdControl(CdlSetloc, (u_char*)&loc, nullptr);
+
+    Psyz_AudioPause();
+    Psyz_AudioLock();
+
+    constexpr int kFrames = 512;
+    std::vector<short> out(kFrames * 2, 0);
+    CdControl(CdlReadN, nullptr, nullptr);
+    Psyz_SpuPullSamples(out.data(), kFrames);
+
+    bool streaming = false;
+    for (short v : out) {
+        if (v != 0) {
+            streaming = true;
+            break;
+        }
+    }
+    ASSERT_TRUE(streaming) << "XA stream produced no audio to interrupt";
+
+    param[0] = CdlModeSpeed;
+    CdControlB(CdlSetmode, param, nullptr);
+    CdControl(CdlReadN, nullptr, nullptr);
+    ASSERT_EQ(CdReady(1, nullptr), CdlDataReady);
+
+    std::vector<short> drain(4096 * 2, 0);
+    Psyz_SpuPullSamples(drain.data(), 4096);
+
+    std::fill(out.begin(), out.end(), (short)0x1234);
+    Psyz_SpuPullSamples(out.data(), kFrames);
+    Psyz_AudioUnlock();
+
+    for (size_t i = 0; i < out.size(); ++i) {
+        ASSERT_EQ(out[i], 0)
+            << "XA kept streaming after a data read, sample " << i;
     }
 }
 
