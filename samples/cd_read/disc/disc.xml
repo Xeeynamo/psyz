@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<iso_project image_name="cd_read.bin" cue_sheet="cd_read.cue">
+    <track type="data">
+        <identifiers
+            system="PLAYSTATION"
+            volume="PSYZCDTEST"
+            volume_set="PSYZCDTEST"
+            publisher="PSYZ"
+            data_preparer="MKPSXISO"/>
+        <directory_tree>
+            <file name="SYSTEM.CNF" type="data" source="SYSTEM.CNF"/>
+            <file name="CD_READ.EXE" type="data" source="../cd_read.ps-exe"/>
+            <dummy sectors="1200"/>
+        </directory_tree>
+    </track>
+    <track type="audio" source="tone.wav"/>
+</iso_project>
