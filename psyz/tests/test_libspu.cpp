@@ -7,6 +7,7 @@
 #include <vector>
 extern "C" {
 #include <psyz.h>
+#include <libspu.h>
 }
 
 class spu_Test : public testing::Test {
@@ -1064,4 +1065,256 @@ TEST_F(spu_Test, adsr_release_exponential) {
     EXPECT_ENVX_NEAR(0x3099, 0x02, envx[16]);
     EXPECT_ENVX_NEAR(0x2172, 0x02, envx[21]);
     EXPECT_ENVX_NEAR(0x1cf7, 0x01, envx[23]);
+}
+
+namespace {
+
+constexpr unsigned kRoomWorkAddr = 0x7D940;
+constexpr unsigned kRoomWorkBytes = 0x26C0;
+constexpr int kRoomLapFrames = (int)kRoomWorkBytes;
+
+static void reverb_room_setup(bool master_enable, bool voice1_reverb) {
+    spu_reset_quiet();
+    SpuInit();
+    Psyz_SpuWrite(0x1AA, 0x8000 | 0x4000);
+    Psyz_SpuWrite(0x180, 0x3FFF);
+    Psyz_SpuWrite(0x182, 0x3FFF);
+
+    SpuReverbAttr attr;
+    memset(&attr, 0, sizeof(attr));
+    attr.mask = SPU_REV_MODE;
+    attr.mode = SPU_REV_MODE_ROOM | SPU_REV_MODE_CLEAR_WA;
+    ASSERT_EQ(0, SpuSetReverbModeParam(&attr));
+
+    memset(&attr, 0, sizeof(attr));
+    attr.mask = SPU_REV_DEPTHL | SPU_REV_DEPTHR;
+    attr.depth.left = 0x3FFF;
+    attr.depth.right = 0x3FFF;
+    ASSERT_EQ(0, SpuSetReverbModeParam(&attr));
+
+    if (master_enable) {
+        ASSERT_EQ(SPU_ON, SpuSetReverb(SPU_ON));
+    }
+    Psyz_SpuWrite(0x198, voice1_reverb ? (1u << 1) : 0);
+
+    Psyz_SpuWrite((1 << 4) + 0x00, 0x3FFF);
+    Psyz_SpuWrite((1 << 4) + 0x02, 0x3FFF);
+}
+
+static void run_reverb_room(
+    const unsigned char* sample64, int nframes, unsigned char* work_out) {
+    unsigned char upload[128];
+    memcpy(upload, sample64, 64);
+    memset(upload + 64, 0xAA, 64);
+    Psyz_SpuMemWrite(kSampleAddr, upload, sizeof(upload));
+
+    spu_voice1_keyon(kSampleAddr, 0x1000);
+    pull_samples_nop(nframes);
+    Psyz_SpuMemRead(kRoomWorkAddr, work_out, kRoomWorkBytes);
+
+    Psyz_SpuWrite(0x18C, 0xFFFF);
+    Psyz_SpuWrite(0x18E, 0xFFFF);
+}
+
+static std::vector<unsigned char> load_expected_bin(const char* name) {
+    std::string path = std::string("expected/spu/") + name + ".test.bin";
+    FILE* f = std::fopen(path.c_str(), "rb");
+    if (!f) {
+        ADD_FAILURE() << "cannot open expected file: " << path;
+        return {};
+    }
+    std::fseek(f, 0, SEEK_END);
+    long n = std::ftell(f);
+    std::fseek(f, 0, SEEK_SET);
+    std::vector<unsigned char> buf(n);
+    if (std::fread(buf.data(), 1, n, f) != (size_t)n) {
+        ADD_FAILURE() << "short read: " << path;
+    }
+    std::fclose(f);
+    return buf;
+}
+
+static void dump_actual_bin(
+    const char* name, const unsigned char* data, size_t size) {
+    std::string path = std::string("expected/spu/") + name + ".actual.bin";
+    FILE* f = std::fopen(path.c_str(), "wb");
+    if (f) {
+        std::fwrite(data, 1, size, f);
+        std::fclose(f);
+    }
+}
+
+static ::testing::AssertionResult compare_work_area(
+    const char* name, const unsigned char* got,
+    const std::vector<unsigned char>& want) {
+    if (want.size() != kRoomWorkBytes) {
+        dump_actual_bin(name, got, kRoomWorkBytes);
+        return ::testing::AssertionFailure()
+               << name << ": golden is " << want.size() << " bytes, want "
+               << kRoomWorkBytes;
+    }
+    for (unsigned i = 0; i < kRoomWorkBytes; i++) {
+        if (got[i] != want[i]) {
+            dump_actual_bin(name, got, kRoomWorkBytes);
+            char detail[128];
+            snprintf(detail, sizeof(detail),
+                     ": first mismatch at work area offset %u (SPU RAM 0x%05X)"
+                     ": got 0x%02X, want 0x%02X",
+                     i, kRoomWorkAddr + i, got[i], want[i]);
+            return ::testing::AssertionFailure() << name << detail;
+        }
+    }
+    return ::testing::AssertionSuccess();
+}
+
+static bool all_zero(const unsigned char* p, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        if (p[i] != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+} // namespace
+
+TEST_F(spu_Test, reverb_room_work_area) {
+    std::vector<unsigned char> work(kRoomWorkBytes);
+    reverb_room_setup(true, true);
+    run_reverb_room(kAdpcmSine, kRoomLapFrames, work.data());
+
+    EXPECT_FALSE(all_zero(work.data(), work.size()))
+        << "reverb wrote nothing to its work area";
+    EXPECT_TRUE(compare_work_area(
+        "reverb_room", work.data(), load_expected_bin("reverb_room")));
+}
+
+TEST_F(spu_Test, reverb_master_disabled_leaves_work_area_clear) {
+    std::vector<unsigned char> work(kRoomWorkBytes);
+    reverb_room_setup(false, true);
+    run_reverb_room(kAdpcmSine, kRoomLapFrames, work.data());
+
+    EXPECT_TRUE(all_zero(work.data(), work.size()))
+        << "reverb wrote to its work area with SPUCNT bit 7 clear";
+}
+
+TEST_F(spu_Test, reverb_unrouted_voice_leaves_work_area_clear) {
+    std::vector<unsigned char> work(kRoomWorkBytes);
+    reverb_room_setup(true, false);
+    run_reverb_room(kAdpcmSine, kRoomLapFrames, work.data());
+
+    EXPECT_TRUE(all_zero(work.data(), work.size()))
+        << "reverb work area is non-zero with no voice routed to reverb";
+}
+
+extern "C" {
+typedef struct tagSpuMalloc {
+    u32 addr;
+    u32 size;
+} SPU_MALLOC;
+extern SPU_MALLOC* _spu_memList;
+extern int _spu_mem_mode_plus;
+extern int _spu_rev_reserve_wa;
+extern int _spu_rev_offsetaddr;
+extern int _SpuIsInAllocateArea_(unsigned);
+long SpuInitMalloc(long num, char* top);
+long SpuMallocWithStartAddr(unsigned long addr, long size);
+
+void psyz_test_record_spu_write(unsigned int reg_offset, unsigned short value);
+}
+
+namespace {
+
+struct SpuWrite {
+    unsigned int offset;
+    unsigned short value;
+};
+
+std::vector<SpuWrite> g_spu_writes;
+
+static ::testing::AssertionResult writes_are(
+    const std::vector<SpuWrite>& want) {
+    if (g_spu_writes.size() != want.size()) {
+        ::testing::Message m;
+        m << "recorded " << g_spu_writes.size() << " writes, want "
+          << want.size() << ":";
+        for (size_t i = 0; i < g_spu_writes.size(); i++) {
+            char line[64];
+            snprintf(line, sizeof(line), "\n  [%zu] 0x%03X 0x%04X", i,
+                     g_spu_writes[i].offset, g_spu_writes[i].value);
+            m << line;
+        }
+        return ::testing::AssertionFailure() << m;
+    }
+    for (size_t i = 0; i < want.size(); i++) {
+        if (g_spu_writes[i].offset != want[i].offset ||
+            g_spu_writes[i].value != want[i].value) {
+            char detail[128];
+            snprintf(detail, sizeof(detail),
+                     "write %zu: got 0x%03X 0x%04X, want 0x%03X 0x%04X", i,
+                     g_spu_writes[i].offset, g_spu_writes[i].value,
+                     want[i].offset, want[i].value);
+            return ::testing::AssertionFailure() << detail;
+        }
+    }
+    return ::testing::AssertionSuccess();
+}
+
+class spu_trace_Test : public spu_Test {
+  protected:
+    void SetUp() override {
+        spu_Test::SetUp();
+        g_spu_writes.clear();
+        Psyz_SpuSetWriteHook(psyz_test_record_spu_write);
+        memset(heap, 0, sizeof(heap));
+        SpuInit();
+    }
+    void TearDown() override {
+        Psyz_SpuSetWriteHook(NULL);
+        g_spu_writes.clear();
+    }
+    char heap[0x1000];
+};
+
+} // namespace
+
+extern "C" void psyz_test_record_spu_write(
+    unsigned int reg_offset, unsigned short value) {
+    g_spu_writes.push_back({reg_offset, value});
+}
+
+TEST_F(spu_trace_Test, SpuSetReverbOffWritesSpucntOnly) {
+    Psyz_SpuWrite(0x1AA, 0);
+    g_spu_writes.clear();
+
+    EXPECT_EQ(0, SpuSetReverb(SPU_OFF));
+    EXPECT_TRUE(writes_are({{0x1AA, 0x0000}}));
+}
+
+TEST_F(spu_trace_Test, SpuSetReverbOnWritesSpucntOnly) {
+    Psyz_SpuWrite(0x1AA, 0);
+    SpuInitMalloc(32, heap);
+
+    EXPECT_EQ(3, _spu_mem_mode_plus);
+    EXPECT_EQ(0, _spu_rev_reserve_wa);
+    EXPECT_EQ(0xFFFE, _spu_rev_offsetaddr);
+    EXPECT_EQ(0x40001010u, _spu_memList[0].addr);
+    EXPECT_EQ(520176u, _spu_memList[0].size);
+    EXPECT_EQ(0, _SpuIsInAllocateArea_(_spu_rev_offsetaddr));
+
+    g_spu_writes.clear();
+    EXPECT_EQ(SPU_ON, SpuSetReverb(SPU_ON));
+    EXPECT_TRUE(writes_are({{0x1AA, 0x0080}}));
+}
+
+TEST_F(spu_trace_Test, SpuMallocWithStartAddrSplitsFreeBlock) {
+    SpuInitMalloc(32, heap);
+    SpuMallocWithStartAddr(0x00001010, 0x00010000);
+
+    EXPECT_EQ(0x00001010u, _spu_memList[0].addr);
+    EXPECT_EQ(65536u, _spu_memList[0].size);
+    EXPECT_EQ(0x40011010u, _spu_memList[1].addr);
+    EXPECT_EQ(454640u, _spu_memList[1].size);
+    EXPECT_EQ(0u, _spu_memList[2].addr);
+    EXPECT_EQ(0u, _spu_memList[2].size);
 }
