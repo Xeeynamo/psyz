@@ -189,6 +189,8 @@ union SpuUnion {
 #define SPUW(field, val) _spu_RXX->rxx.field = (val)
 #define SPURV(n, field) (((SPU_VOICE_REG*)_spu_RXX)[n].field)
 #define SPUWV(n, field, val) ((SPU_VOICE_REG*)_spu_RXX)[n].field = (val)
+#define SPUR_RAW(idx) (_spu_RXX->raw[idx])
+#define SPUW_RAW(idx, val) _spu_RXX->raw[idx] = (val)
 #else
 #include <stddef.h>
 #define SPUR(field) Psyz_SpuRead(offsetof(SPU_RXX, field))
@@ -196,6 +198,8 @@ union SpuUnion {
 #define SPURV(n, field) Psyz_SpuRead(offsetof(SPU_RXX, voice[n].field))
 #define SPUWV(n, field, val)                                                   \
     Psyz_SpuWrite(offsetof(SPU_RXX, voice[n].field), val)
+#define SPUR_RAW(idx) Psyz_SpuRead((idx) * sizeof(short))
+#define SPUW_RAW(idx, val) Psyz_SpuWrite((idx) * sizeof(short), val)
 #endif
 
 extern s32 D_80033098;
