@@ -46,6 +46,7 @@
 #include <psyz/gpu.h>
 #include <psyz/gte.h>
 #include <psyz/input.h>
+#include <psyz/module.h>
 #include <psyz/spu.h>
 #include <psyz/system.h>
 #include <psyz/timers.h>

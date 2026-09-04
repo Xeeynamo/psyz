@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10..3.31)
+cmake_minimum_required(VERSION 3.19..3.31)
 
 project(psyz)
 
@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/strip_file_prefix.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/title.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/module.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ios.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/web.cmake)
 
@@ -16,9 +17,9 @@ if(NOT PSP)
     set(SDL_STATIC ON CACHE BOOL "" FORCE)
     set(SDL_TEST OFF CACHE BOOL "" FORCE)
     add_subdirectory(
-            ${CMAKE_CURRENT_SOURCE_DIR}/../external/SDL
-            ${CMAKE_CURRENT_BINARY_DIR}/sdl
-            EXCLUDE_FROM_ALL)
+        ${CMAKE_CURRENT_SOURCE_DIR}/../external/SDL
+        ${CMAKE_CURRENT_BINARY_DIR}/sdl
+        EXCLUDE_FROM_ALL)
 endif()
 
 option(GTE_USE_HW_SQRT "Use hardware-accelerated sqrt (C math library)" OFF)
@@ -181,6 +182,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     list(APPEND PSYZ_SOURCES src/platform/sdl3_audio.c)
     list(APPEND PSYZ_SOURCES src/psyz/psyz_spu.c)
     list(APPEND PSYZ_SOURCES src/dbgserver/dbgserver.c)
+    list(APPEND PSYZ_SOURCES src/platform/module_win.c)
     list(APPEND PSYZ_LIBS ws2_32)
     if(PSYZ_RENDERER STREQUAL "sdl3_gl")
         list(APPEND PSYZ_SOURCES src/platform/sdl3_gl.c)
@@ -191,7 +193,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
             list(APPEND PSYZ_LIBS -lsdl3_gl32)
         endif()
     else()
-    list(APPEND PSYZ_SOURCES src/platform/sdl3_gpu.c)
+        list(APPEND PSYZ_SOURCES src/platform/sdl3_gpu.c)
         list(APPEND PSYZ_INC ${CMAKE_CURRENT_SOURCE_DIR}/../external/SDL/src/video/khronos)
     endif()
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
@@ -200,6 +202,8 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     list(APPEND PSYZ_SOURCES src/platform/sdl3_audio.c)
     list(APPEND PSYZ_SOURCES src/psyz/psyz_spu.c)
     list(APPEND PSYZ_SOURCES src/dbgserver/dbgserver.c)
+    list(APPEND PSYZ_SOURCES src/platform/module_unix.c)
+    list(APPEND PSYZ_LIBS ${CMAKE_DL_LIBS})
     if(PSYZ_RENDERER STREQUAL "sdl3_gl")
         message(FATAL_ERROR "sdl3_gl renderer is not supported on macOS; use sdl3_gpu")
     else()
@@ -233,21 +237,15 @@ elseif(PSP)
     # output rate matches the 44100Hz the mixer produces.
     list(APPEND PSYZ_SOURCES src/psp/psp_file.c)
     list(APPEND PSYZ_SOURCES src/psp/psp_log.c)
+    list(APPEND PSYZ_SOURCES src/psp/psp_module_host.c)
     list(APPEND PSYZ_SOURCES src/psp/psp_gpu.c)
     list(APPEND PSYZ_SOURCES src/psp/psp_input.c)
     list(APPEND PSYZ_SOURCES src/psp/psp_misc.c)
     list(APPEND PSYZ_SOURCES src/psp/psp_audio.c)
     list(APPEND PSYZ_SOURCES src/psyz/psyz_spu.c)
-    # pspdebug first: it depends on pspdisplay and pspge
     list(APPEND PSYZ_LIBS pspdebug pspgu pspdisplay pspge pspctrl pspaudio
-         psppower)
+        psppower)
     if(PSYZ_PSP_PROFILE)
-        # gprof_start/gprof_stop (pspprof.h), used by -pg profiling builds;
-        # see psyz/src/psp/README.md's "Profiling" section. -pg is scoped to
-        # just this target (the engine/renderer) rather than the whole
-        # program: instrumenting sotn-decomp's game logic too multiplies the
-        # mcount call-site count (worse under -O3 inlining) and made a
-        # 120-frame run take 10+ minutes on real hardware instead of seconds.
         list(APPEND PSYZ_LIBS pspprof)
         set(PSYZ_PSP_PROFILE_CFLAGS -pg)
     endif()
@@ -257,6 +255,8 @@ else()
     list(APPEND PSYZ_SOURCES src/platform/sdl3_audio.c)
     list(APPEND PSYZ_SOURCES src/psyz/psyz_spu.c)
     list(APPEND PSYZ_SOURCES src/dbgserver/dbgserver.c)
+    list(APPEND PSYZ_SOURCES src/platform/module_unix.c)
+    list(APPEND PSYZ_LIBS ${CMAKE_DL_LIBS})
     if(PSYZ_RENDERER STREQUAL "sdl3_gl")
         list(APPEND PSYZ_SOURCES src/platform/sdl3_gl.c)
         list(APPEND PSYZ_LIBS -lGL)
