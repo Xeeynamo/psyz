@@ -464,7 +464,6 @@ static struct {
     int active;
     unsigned char filter_file;
     unsigned char filter_channel;
-    int filter_set; // 1 once CdlSetfilter has been called
     int decoded_count;
     int decoded_pos;
     int hist_l_old, hist_l_older;
@@ -486,19 +485,10 @@ static void xa_reset_stream(void) {
 }
 
 static int xa_sector_matches(unsigned char file, unsigned char channel) {
-    if (!xa.filter_set) {
+    if (!(CD_mode & CdlModeSF)) {
         return 1;
     }
-    if (file != xa.filter_file) {
-        return 0;
-    }
-    if (xa.filter_channel == 0) {
-        return 1;
-    }
-    if (channel == xa.filter_channel) {
-        return 1;
-    }
-    return 0;
+    return file == xa.filter_file && channel == xa.filter_channel;
 }
 
 static int s4(int n) { return (n & 0x8) ? (n - 0x10) : n; }
@@ -1033,7 +1023,6 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
         }
         xa.filter_file = param[0];
         xa.filter_channel = param[1];
-        xa.filter_set = 1;
         break;
     case CdlStop:
         psyz_stop();
