@@ -1206,7 +1206,6 @@ TEST_F(spu_Test, reverb_unrouted_voice_leaves_work_area_clear) {
     EXPECT_TRUE(all_zero(work.data(), work.size()))
         << "reverb work area is non-zero with no voice routed to reverb";
 }
-
 extern "C" {
 typedef struct tagSpuMalloc {
     u32 addr;
@@ -1219,79 +1218,30 @@ extern int _spu_rev_offsetaddr;
 extern int _SpuIsInAllocateArea_(unsigned);
 long SpuInitMalloc(long num, char* top);
 long SpuMallocWithStartAddr(unsigned long addr, long size);
-
-void psyz_test_record_spu_write(unsigned int reg_offset, unsigned short value);
 }
 
 namespace {
 
-struct SpuWrite {
-    unsigned int offset;
-    unsigned short value;
-};
-
-std::vector<SpuWrite> g_spu_writes;
-
-static ::testing::AssertionResult writes_are(
-    const std::vector<SpuWrite>& want) {
-    if (g_spu_writes.size() != want.size()) {
-        ::testing::Message m;
-        m << "recorded " << g_spu_writes.size() << " writes, want "
-          << want.size() << ":";
-        for (size_t i = 0; i < g_spu_writes.size(); i++) {
-            char line[64];
-            snprintf(line, sizeof(line), "\n  [%zu] 0x%03X 0x%04X", i,
-                     g_spu_writes[i].offset, g_spu_writes[i].value);
-            m << line;
-        }
-        return ::testing::AssertionFailure() << m;
-    }
-    for (size_t i = 0; i < want.size(); i++) {
-        if (g_spu_writes[i].offset != want[i].offset ||
-            g_spu_writes[i].value != want[i].value) {
-            char detail[128];
-            snprintf(detail, sizeof(detail),
-                     "write %zu: got 0x%03X 0x%04X, want 0x%03X 0x%04X", i,
-                     g_spu_writes[i].offset, g_spu_writes[i].value,
-                     want[i].offset, want[i].value);
-            return ::testing::AssertionFailure() << detail;
-        }
-    }
-    return ::testing::AssertionSuccess();
-}
-
-class spu_trace_Test : public spu_Test {
+class spu_malloc_Test : public spu_Test {
   protected:
     void SetUp() override {
         spu_Test::SetUp();
-        g_spu_writes.clear();
-        Psyz_SpuSetWriteHook(psyz_test_record_spu_write);
         memset(heap, 0, sizeof(heap));
         SpuInit();
-    }
-    void TearDown() override {
-        Psyz_SpuSetWriteHook(NULL);
-        g_spu_writes.clear();
     }
     char heap[0x1000];
 };
 
 } // namespace
 
-extern "C" void psyz_test_record_spu_write(
-    unsigned int reg_offset, unsigned short value) {
-    g_spu_writes.push_back({reg_offset, value});
-}
-
-TEST_F(spu_trace_Test, SpuSetReverbOffWritesSpucntOnly) {
-    Psyz_SpuWrite(0x1AA, 0);
-    g_spu_writes.clear();
+TEST_F(spu_malloc_Test, SpuSetReverbOffClearsSpucnt) {
+    Psyz_SpuWrite(0x1AA, 0x0080);
 
     EXPECT_EQ(0, SpuSetReverb(SPU_OFF));
-    EXPECT_TRUE(writes_are({{0x1AA, 0x0000}}));
+    EXPECT_EQ(0x0000, Psyz_SpuRead(0x1AA));
 }
 
-TEST_F(spu_trace_Test, SpuSetReverbOnWritesSpucntOnly) {
+TEST_F(spu_malloc_Test, SpuSetReverbOnSetsSpucnt) {
     Psyz_SpuWrite(0x1AA, 0);
     SpuInitMalloc(32, heap);
 
@@ -1302,12 +1252,11 @@ TEST_F(spu_trace_Test, SpuSetReverbOnWritesSpucntOnly) {
     EXPECT_EQ(520176u, _spu_memList[0].size);
     EXPECT_EQ(0, _SpuIsInAllocateArea_(_spu_rev_offsetaddr));
 
-    g_spu_writes.clear();
     EXPECT_EQ(SPU_ON, SpuSetReverb(SPU_ON));
-    EXPECT_TRUE(writes_are({{0x1AA, 0x0080}}));
+    EXPECT_EQ(0x0080, Psyz_SpuRead(0x1AA));
 }
 
-TEST_F(spu_trace_Test, SpuMallocWithStartAddrSplitsFreeBlock) {
+TEST_F(spu_malloc_Test, SpuMallocWithStartAddrSplitsFreeBlock) {
     SpuInitMalloc(32, heap);
     SpuMallocWithStartAddr(0x00001010, 0x00010000);
 

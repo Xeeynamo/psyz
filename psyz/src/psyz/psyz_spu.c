@@ -132,8 +132,6 @@ static struct {
     u8 initialized;
 } spu;
 
-static Psyz_SpuWriteHook spu_write_hook = NULL;
-
 u8* Psyz_SpuGetRam(void) { return spu.ram; }
 
 void Psyz_SpuInit(void) {
@@ -248,15 +246,10 @@ static void spu_key_on_voice(int v) {
     rxx->voice[v].volumex = 0;
 }
 
-void Psyz_SpuSetWriteHook(Psyz_SpuWriteHook hook) { spu_write_hook = hook; }
-
 void Psyz_SpuWrite(unsigned int reg_offset, unsigned short value) {
     if (reg_offset >= sizeof(SPU_RXX) || (reg_offset & 1)) {
         WARNF("Psyz_SpuWrite: bad offset 0x%X", reg_offset);
         return;
-    }
-    if (spu_write_hook) {
-        spu_write_hook(reg_offset, value);
     }
     if (reg_offset == offsetof(SPU_RXX, spustat)) { // read-only
         return;

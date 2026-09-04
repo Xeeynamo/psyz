@@ -36,15 +36,6 @@ void Psyz_SpuInit(void);
 void Psyz_SpuReset(int hot);
 
 /**
- * @brief Hook invoked on every Psyz_SpuWrite
- *
- * @param reg_offset Offset relative to 0x1F801C00
- * @param value 16-bit value being written
- */
-typedef void (*Psyz_SpuWriteHook)(
-    unsigned int reg_offset, unsigned short value);
-
-/**
  * @brief Write one 16-bit value into the SPU register file
  *
  * Certain registers can trigger a side-effect. Please refer to psxspx docs for
@@ -54,21 +45,6 @@ typedef void (*Psyz_SpuWriteHook)(
  * @param value 16-bit value to write
  */
 void Psyz_SpuWrite(unsigned int reg_offset, unsigned short value);
-
-/**
- * @brief Set a hook invoked on every Psyz_SpuWrite
- *
- * Called with the requested register offset and value before the write is
- * applied, so the sequence a library call pokes into the register file can be
- * recorded and compared against a reference trace. Only writes routed through
- * Psyz_SpuWrite are reported; SPU emulation updates register fields directly
- * and does not go through this path. Pass NULL to remove the hook.
- *
- * For tests and offline rendering.
- *
- * @param hook Hook to invoke, or NULL to disable
- */
-void Psyz_SpuSetWriteHook(Psyz_SpuWriteHook hook);
 
 /**
  * @brief Read back one 16-bit value from the SPU register file
