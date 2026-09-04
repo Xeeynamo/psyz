@@ -6,8 +6,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#ifndef NO_LOGS
-LOG_LEVEL psyz_logLevel = LOG_LEVEL_D;
 void psyz_log(unsigned int level, const char* file, unsigned int line,
               const char* func, const char* fmt, ...) {
     static const char levels[] = "DIWE";
@@ -17,7 +15,7 @@ void psyz_log(unsigned int level, const char* file, unsigned int line,
     va_list args;
 
     va_start(args, fmt);
-    if (level >= psyz_logLevel && level < sizeof(levels) - 1) {
+    if (level < sizeof(levels) - 1) {
         char buf[1024];
 
         int n = vsnprintf(buf, sizeof(buf), fmt, args);
@@ -27,7 +25,8 @@ void psyz_log(unsigned int level, const char* file, unsigned int line,
             buf[sizeof(buf) - 1] = '\0';
         }
 
-        // filtering is done with psyz_logLevel, don't let SDL filter again
+        // filtering is done at the call site by PSYZ_LOG_LEVEL, don't let
+        // SDL filter again
         static bool sdl_log_configured = false;
         if (!sdl_log_configured) {
             SDL_SetLogPriority(
@@ -40,4 +39,3 @@ void psyz_log(unsigned int level, const char* file, unsigned int line,
     }
     va_end(args);
 }
-#endif

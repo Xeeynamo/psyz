@@ -11,39 +11,40 @@ typedef enum {
 #define NAMEOF(var) #var
 #define NOT_IMPLEMENTED LOG_ONCE("not implemented")
 
-#ifndef NO_LOGS
-
-// current logging level
-// set to LOG_LEVEL_D to enable all logging
-// set to LOG_LEVEL_E+1 to disable all logging
-extern LOG_LEVEL psyz_logLevel;
+#ifndef PSYZ_LOG_LEVEL
+#ifndef NDEBUG
+#define PSYZ_LOG_LEVEL LOG_LEVEL_D
+#else
+#define PSYZ_LOG_LEVEL LOG_LEVEL_I
+#endif
+#endif
 
 #define LOG_ONCE(...)                                                          \
     do {                                                                       \
         static int was_logged = 0;                                             \
-        if (LOG_LEVEL_D >= psyz_logLevel && !was_logged) {                     \
+        if (LOG_LEVEL_D >= PSYZ_LOG_LEVEL && !was_logged) {                    \
             was_logged = 1;                                                    \
             psyz_log(LOG_LEVEL_D, __FILE__, __LINE__, __func__, __VA_ARGS__);  \
         }                                                                      \
     } while (0)
 #define DEBUGF(...)                                                            \
     do {                                                                       \
-        if (LOG_LEVEL_D >= psyz_logLevel)                                      \
+        if (LOG_LEVEL_D >= PSYZ_LOG_LEVEL)                                     \
             psyz_log(LOG_LEVEL_D, __FILE__, __LINE__, __func__, __VA_ARGS__);  \
     } while (0)
 #define INFOF(...)                                                             \
     do {                                                                       \
-        if (LOG_LEVEL_I >= psyz_logLevel)                                      \
+        if (LOG_LEVEL_I >= PSYZ_LOG_LEVEL)                                     \
             psyz_log(LOG_LEVEL_I, __FILE__, __LINE__, __func__, __VA_ARGS__);  \
     } while (0)
 #define WARNF(...)                                                             \
     do {                                                                       \
-        if (LOG_LEVEL_W >= psyz_logLevel)                                      \
+        if (LOG_LEVEL_W >= PSYZ_LOG_LEVEL)                                     \
             psyz_log(LOG_LEVEL_W, __FILE__, __LINE__, __func__, __VA_ARGS__);  \
     } while (0)
 #define ERRORF(...)                                                            \
     do {                                                                       \
-        if (LOG_LEVEL_E >= psyz_logLevel)                                      \
+        if (LOG_LEVEL_E >= PSYZ_LOG_LEVEL)                                     \
             psyz_log(LOG_LEVEL_E, __FILE__, __LINE__, __func__, __VA_ARGS__);  \
     } while (0)
 
@@ -52,14 +53,5 @@ __attribute__((format(printf, 5, 6)))
 #endif
 void psyz_log(unsigned int level, const char* file, unsigned int line,
               const char* func, const char* fmt, ...);
-
-#else
-
-#define DEBUGF(...) ((void)0)
-#define INFOF(...) ((void)0)
-#define WARNF(...) ((void)0)
-#define ERRORF(...) ((void)0)
-
-#endif
 
 #endif
