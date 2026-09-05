@@ -28,6 +28,11 @@ jobs:
       - name: Test PsyZ
         working-directory: psyz/
         run: make test
+      - name: Build and run overlays sample
+        run: |
+          cmake -GNinja -DSDL_STATIC=ON -S samples/overlays -B samples/overlays/build
+          cmake --build samples/overlays/build
+          ./samples/overlays/build/host
       - name: Upload test failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
@@ -41,13 +46,16 @@ jobs:
     env:
       CI: 1
       OS: windows
+      SDL_VIDEODRIVER: offscreen
     strategy:
       matrix:
         compiler:
           - name: MSVC
             script: test.bat
+            toolset: ''
           - name: ClangCl
             script: test-clang.bat
+            toolset: '-T ClangCl'
     steps:
       - name: Clone repo
         uses: actions/checkout@v4
@@ -56,8 +64,11 @@ jobs:
       - name: Test PsyZ on Windows (${{ matrix.compiler.name }})
         working-directory: psyz/
         run: ./${{ matrix.compiler.script }}
-        env:
-          SDL_VIDEODRIVER: offscreen
+      - name: Build and run overlays sample (${{ matrix.compiler.name }})
+        run: |
+          cmake -S samples/overlays -B samples/overlays/build ${{ matrix.compiler.toolset }}
+          cmake --build samples/overlays/build --config Debug
+          ./samples/overlays/build/Debug/host.exe
       - name: Upload test failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
@@ -81,6 +92,11 @@ jobs:
       - name: Test PsyZ
         working-directory: psyz/
         run: make test
+      - name: Build and run overlays sample
+        run: |
+          cmake -GNinja -DSDL_STATIC=ON -S samples/overlays -B samples/overlays/build
+          cmake --build samples/overlays/build
+          ./samples/overlays/build/host
       - name: Upload test failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
@@ -132,6 +148,21 @@ jobs:
       - name: Test PsyZ on PSP
         working-directory: psyz/
         run: make test-psp-emu
+      - name: Build and run overlays sample
+        run: |
+          cmake -GNinja -DCMAKE_TOOLCHAIN_FILE="$PWD/psyz/src/psp/psp.cmake" \
+            -S samples/overlays -B samples/overlays/build
+          cmake --build samples/overlays/build
+          timeout 10 PPSSPPHeadless -r "$PWD/samples/overlays/build" \
+            "$PWD/samples/overlays/build/EBOOT.PBP" --timeout=5 -l -v \
+            > overlays-psp.log 2>&1 || true
+          grep "stdout:" overlays-psp.log > overlays-psp.out || true
+          cat overlays-psp.out
+          grep -q "sceKernelExitGame" overlays-psp.log
+          ! grep -qE "OVERLAYS_FAIL|if you see this|invalid initial state" overlays-psp.out
+          grep -q "my_ovl: start" overlays-psp.out
+          grep -q "my_ovl: entrypoint called" overlays-psp.out
+          grep -q "my_ovl: stop" overlays-psp.out
       - name: Upload test failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
