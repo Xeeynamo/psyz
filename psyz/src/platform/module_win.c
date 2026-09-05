@@ -1,60 +1,60 @@
 // Backend for Windows-like targets
+#include <psyz/log.h>
 #include <psyz/module.h>
 #include <windows.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 typedef void (*ModuleStartFn)(void* param);
 typedef void (*ModuleStopFn)(void);
-typedef void(__cdecl* PsyzModuleFn)(void* param);
 
 struct PsyzModule {
     HMODULE handle;
     ModuleStopFn stop;
 };
 
-static char g_PsyzModuleLastError[512] = "";
-static void SetError(const char* what) {
-    DWORD err = GetLastError();
-    char msg[256] = "";
-    FormatMessageA(
-        FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 0, err,
-        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), msg, sizeof(msg), 0);
-    _snprintf_s(g_PsyzModuleLastError, sizeof(g_PsyzModuleLastError), _TRUNCATE,
-                "%s: %s (0x%lx)", what, msg, err);
+#define PSYZ_MODULE_MAX 256
+static struct PsyzModule g_PsyzModules[PSYZ_MODULE_MAX] = {0};
+static PsyzModule* AllocModule(void) {
+    for (int i = 0; i < PSYZ_MODULE_MAX; i++) {
+        if (!g_PsyzModules[i].handle) {
+            return &g_PsyzModules[i];
+        }
+    }
+    return 0;
 }
 
-const char* Psyz_ModuleError(void) { return g_PsyzModuleLastError; }
-
-static const char* GetExeDir(void) {
-    static char dir[512];
-    static bool done = false;
-    static bool isok = false;
-    if (done) {
-        return isok ? dir : 0;
+// load modules relative to the executable path
+static bool GetHostExecutablePath(char* dir, size_t size) {
+    static char cached[512];
+    static bool is_cached = false;
+    static bool is_ok = false;
+    if (!is_cached) {
+        is_cached = true;
+        unsigned long len =
+            GetModuleFileNameA(0, cached, (DWORD)sizeof(cached));
+        if (len == 0 || len >= sizeof(cached)) {
+            return false;
+        }
+        char* lastSep = strrchr(cached, '\\');
+        if (!lastSep) {
+            return false;
+        }
+        *lastSep = '\0';
+        is_ok = true;
     }
-    done = true;
-
-    unsigned long len = GetModuleFileNameA(0, dir, sizeof(dir));
-    if (len == 0 || len >= sizeof(dir)) {
-        return 0;
+    if (is_ok) {
+        _snprintf_s(dir, size, _TRUNCATE, "%s", cached);
     }
-    char* lastSep = strrchr(dir, '\\');
-    if (!lastSep) {
-        return 0;
-    }
-    *lastSep = '\0';
-
-    isok = true;
-    return dir;
+    return is_ok;
 }
 
 PsyzModule* Psyz_ModuleOpen(const char* name, void* param) {
     char path[512];
-    const char* exeDir = GetExeDir();
-    if (exeDir) {
+    char exeDir[512];
+
+    if (GetHostExecutablePath(exeDir, sizeof(exeDir))) {
         _snprintf_s(path, sizeof(path), _TRUNCATE, "%s\\%s.dll", exeDir, name);
     } else {
         _snprintf_s(path, sizeof(path), _TRUNCATE, "%s.dll", name);
@@ -62,7 +62,7 @@ PsyzModule* Psyz_ModuleOpen(const char* name, void* param) {
 
     HMODULE handle = LoadLibraryA(path);
     if (!handle) {
-        SetError("LoadLibraryA failed");
+        ERRORF("LoadLibraryA('%s') failed: 0x%lx", path, GetLastError());
         return 0;
     }
 
@@ -71,22 +71,19 @@ PsyzModule* Psyz_ModuleOpen(const char* name, void* param) {
     ModuleStopFn stop =
         (ModuleStopFn)GetProcAddress(handle, "psyz_module_stop");
     if (!start || !stop) {
-        _snprintf_s(g_PsyzModuleLastError, sizeof(g_PsyzModuleLastError),
-                    _TRUNCATE, "%s: PsyZ module entrypoints not found", path);
+        ERRORF("'%s': PsyZ module entrypoints not found", path);
         FreeLibrary(handle);
         return 0;
     }
 
-    PsyzModule* module = (PsyzModule*)malloc(sizeof(PsyzModule));
+    PsyzModule* module = AllocModule();
     if (!module) {
-        _snprintf_s(g_PsyzModuleLastError, sizeof(g_PsyzModuleLastError),
-                    _TRUNCATE, "%s: out of memory", path);
+        ERRORF("'%s': too many modules loaded", path);
         FreeLibrary(handle);
         return 0;
     }
     module->handle = handle;
     module->stop = stop;
-    module->param = param;
     start(param);
     return module;
 }
@@ -95,7 +92,7 @@ void Psyz_ModuleClose(PsyzModule* module) {
     if (!module) {
         return;
     }
-    module->stop(module->param);
+    module->stop();
     FreeLibrary(module->handle);
-    free(module);
+    module->handle = 0;
 }
