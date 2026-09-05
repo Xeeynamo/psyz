@@ -21,7 +21,7 @@ void MainLog(const char* s) {
 int main(int argc, char* argv[]) {
     int did_fail = 0;
     struct SampleState state = {0};
-    PsyzModule* mod = Psyz_ModuleOpen("my_ovl", &state);
+    PsyzModule mod = Psyz_ModuleOpen("my_ovl", &state);
     if (!mod) {
         MainLog("OVERLAYS_FAIL: open\n");
         did_fail = 1;

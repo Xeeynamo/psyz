@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-typedef struct PsyzModule PsyzModule;
+typedef unsigned int PsyzModule;
 
 /**
  * @brief Load a module dynamically to simulate PS1 overlays
@@ -49,16 +49,19 @@ typedef struct PsyzModule PsyzModule;
  *
  * @param name Module name or path, without its extension.
  * @param param Parameter passed to Psyz_ModuleStart(void* param).
- * @return Opaque handle, or NULL on failure.
+ * @return Opaque descriptor, 0 on failure.
  */
-PsyzModule* Psyz_ModuleOpen(const char* name, void* param);
+PsyzModule Psyz_ModuleOpen(const char* name, void* param);
 
 /**
  * @brief Call the module's Psyz_ModuleStop() and release module.
  *
- * @param module Handle returned by Psyz_ModuleOpen(). NULL is a no-op.
+ * Module descriptors are re-used. Ensure to set your module descriptor to zero
+ * after Psyz_ModuleClose.
+ *
+ * @param module Descriptor returned by Psyz_ModuleOpen(). 0 is a no-op.
  */
-void Psyz_ModuleClose(PsyzModule* module);
+void Psyz_ModuleClose(PsyzModule module);
 
 /**
  * @brief Called once when the module is loaded.
