@@ -9,17 +9,17 @@
 typedef void (*ModuleStartFn)(void* param);
 typedef void (*ModuleStopFn)(void);
 
-struct PsyzModule {
+struct PsyzInternalModule {
     HMODULE handle;
     ModuleStopFn stop;
 };
 
 #define PSYZ_MODULE_MAX 256
-static struct PsyzModule g_PsyzModules[PSYZ_MODULE_MAX] = {0};
-static PsyzModule* AllocModule(void) {
+static struct PsyzInternalModule g_PsyzModules[PSYZ_MODULE_MAX] = {0};
+static PsyzModule AllocModule(void) {
     for (int i = 0; i < PSYZ_MODULE_MAX; i++) {
         if (!g_PsyzModules[i].handle) {
-            return &g_PsyzModules[i];
+            return i + 1;
         }
     }
     return 0;
@@ -50,7 +50,7 @@ static bool GetHostExecutablePath(char* dir, size_t size) {
     return is_ok;
 }
 
-PsyzModule* Psyz_ModuleOpen(const char* name, void* param) {
+PsyzModule Psyz_ModuleOpen(const char* name, void* param) {
     char path[512];
     char exeDir[512];
 
@@ -76,20 +76,30 @@ PsyzModule* Psyz_ModuleOpen(const char* name, void* param) {
         return 0;
     }
 
-    PsyzModule* module = AllocModule();
-    if (!module) {
+    PsyzModule descriptor = AllocModule();
+    if (!descriptor) {
         ERRORF("'%s': too many modules loaded", path);
         FreeLibrary(handle);
         return 0;
     }
+    struct PsyzInternalModule* module = &g_PsyzModules[descriptor - 1];
     module->handle = handle;
     module->stop = stop;
     start(param);
-    return module;
+    return descriptor;
 }
 
-void Psyz_ModuleClose(PsyzModule* module) {
-    if (!module) {
+void Psyz_ModuleClose(PsyzModule descriptor) {
+    if (!descriptor) {
+        return;
+    }
+    if (descriptor > PSYZ_MODULE_MAX) {
+        ERRORF("module %d is invalid", descriptor);
+        return;
+    }
+    struct PsyzInternalModule* module = &g_PsyzModules[descriptor - 1];
+    if (!module->handle) {
+        WARNF("module is already closed");
         return;
     }
     module->stop();
