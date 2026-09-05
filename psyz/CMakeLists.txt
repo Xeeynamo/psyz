@@ -75,6 +75,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libspu/s_snv.c
     ../decomp/src/libspu/s_sr.c
     ../decomp/src/libspu/s_sra.c
+    ../decomp/src/libspu/s_srd.c
     ../decomp/src/libspu/s_srmp.c
     ../decomp/src/libspu/s_stm.c
     ../decomp/src/libspu/s_stsa.c
