@@ -5,35 +5,41 @@
 #include <stdio.h>
 #include <string.h>
 
-struct PsyzModule {
+struct PsyzInternalModule {
     SceUID modId; // valid values are >= 0
     int used;
 };
 
 #define PSYZ_MODULE_MAX 256
-static struct PsyzModule g_PsyzModules[PSYZ_MODULE_MAX] = {0};
-static PsyzModule* AllocModule(void) {
+static struct PsyzInternalModule g_PsyzModules[PSYZ_MODULE_MAX] = {0};
+static PsyzModule AllocModule(void) {
     for (int i = 0; i < PSYZ_MODULE_MAX; i++) {
         if (!g_PsyzModules[i].used) {
-            g_PsyzModules[i] = (struct PsyzModule){0};
-            return &g_PsyzModules[i];
+            g_PsyzModules[i] = (struct PsyzInternalModule){.used = 1};
+            return i + 1;
         }
     }
     return 0;
 }
 
-PsyzModule* Psyz_ModuleOpen(const char* name, void* param) {
-    PsyzModule* module = AllocModule();
-    if (!module) {
+PsyzModule Psyz_ModuleOpen(const char* name, void* param) {
+    PsyzModule descriptor = AllocModule();
+    if (!descriptor) {
         ERRORF("too many modules loaded");
         return 0;
     }
 
+    struct PsyzInternalModule* module = &g_PsyzModules[descriptor - 1];
     char path[256];
-    snprintf(path, sizeof(path), "%s.prx", name);
+    if (!name || snprintf(path, sizeof(path), "%s.prx", name) >= sizeof(path)) {
+        ERRORF("invalid module path '%s'", path);
+        module->used = 0;
+        return 0;
+    }
     SceUID modId = sceKernelLoadModule(path, 0, 0);
     if (modId < 0) {
         ERRORF("sceKernelLoadModule('%s') failed: 0x%08x", path, modId);
+        module->used = 0;
         return 0;
     }
 
@@ -42,20 +48,42 @@ PsyzModule* Psyz_ModuleOpen(const char* name, void* param) {
     int ret = sceKernelStartModule(modId, sizeof(argp), &argp, &status, 0);
     if (ret < 0) {
         ERRORF("sceKernelStartModule('%s') failed: 0x%08x", path, ret);
-        sceKernelUnloadModule(modId);
+        ret = sceKernelUnloadModule(modId); // module stalled
+        if (ret < 0) {
+            ERRORF("sceKernelUnloadModule failed: 0x%08x", ret);
+            module->modId = modId;
+        } else {
+            module->used = 0;
+        }
         return 0;
     }
     module->modId = modId;
-    module->used = 1;
-    return module;
+    return descriptor;
 }
 
-void Psyz_ModuleClose(PsyzModule* module) {
-    if (!module) {
+void Psyz_ModuleClose(PsyzModule descriptor) {
+    if (!descriptor) {
+        return;
+    }
+    if (descriptor > PSYZ_MODULE_MAX) {
+        ERRORF("module %d is invalid", descriptor);
+        return;
+    }
+    struct PsyzInternalModule* module = &g_PsyzModules[descriptor - 1];
+    if (!module->used) {
+        WARNF("module is already closed");
         return;
     }
     int status = 0;
-    sceKernelStopModule(module->modId, 0, 0, &status, 0);
-    sceKernelUnloadModule(module->modId);
-    *module = (struct PsyzModule){0};
+    int ret = sceKernelStopModule(module->modId, 0, 0, &status, 0);
+    if (ret < 0) {
+        ERRORF("sceKernelStopModule failed: 0x%08x", ret);
+        return;
+    }
+    ret = sceKernelUnloadModule(module->modId);
+    if (ret < 0) {
+        ERRORF("sceKernelUnloadModule failed: 0x%08x", ret);
+        return;
+    }
+    *module = (struct PsyzInternalModule){0};
 }
