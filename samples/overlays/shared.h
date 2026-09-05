@@ -7,4 +7,10 @@
 extern int g_SampleCounter;
 extern void MainLog(const char* s);
 
+struct SampleState {
+    int starts;
+    int stops;
+    void (*pfnEntrypoint)(void);
+};
+
 #endif

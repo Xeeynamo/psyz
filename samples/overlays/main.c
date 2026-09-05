@@ -1,6 +1,5 @@
 #include <psyz/module.h>
 #include <psyz/log.h>
-#include <stdio.h>
 #include <string.h>
 #if defined(__PSP__)
 #include <pspkernel.h>
@@ -21,14 +20,22 @@ void MainLog(const char* s) {
 
 int main(int argc, char* argv[]) {
     int did_fail = 0;
-    int ogCounter = g_SampleCounter;
-    PsyzModule* mod = Psyz_ModuleOpen("my_ovl", 0);
+    struct SampleState state = {0};
+    PsyzModule* mod = Psyz_ModuleOpen("my_ovl", &state);
     if (!mod) {
-        goto error;
+        MainLog("OVERLAYS_FAIL: open\n");
+        did_fail = 1;
+        goto exit;
     }
+    if (g_SampleCounter != 43 || state.starts != 1 || state.stops != 0) {
+        MainLog("if you see this, the module Start callback failed.\n");
+        goto exit;
+    }
+    state.pfnEntrypoint();
     Psyz_ModuleClose(mod);
-    if (ogCounter == g_SampleCounter) {
-        MainLog("if you see this, then there's a bug.");
+    if (g_SampleCounter != 43 || state.starts != 1 || state.stops != 1) {
+        MainLog("if you see this, the module Stop callback failed.\n");
+        did_fail = 1;
     }
 
 exit:
@@ -36,7 +43,4 @@ exit:
     sceKernelExitGame();
 #endif
     return did_fail;
-error:
-    did_fail = 1;
-    goto exit;
 }
