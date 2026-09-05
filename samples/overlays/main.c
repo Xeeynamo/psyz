@@ -29,6 +29,7 @@ int main(int argc, char* argv[]) {
     }
     if (g_SampleCounter != 43 || state.starts != 1 || state.stops != 0) {
         MainLog("if you see this, the module Start callback failed.\n");
+        did_fail = 1;
         goto exit;
     }
     state.pfnEntrypoint();

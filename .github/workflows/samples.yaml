@@ -30,3 +30,27 @@ jobs:
             cmake -GNinja -DSDL_STATIC=ON -DCMAKE_MESSAGE_LOG_LEVEL=NOTICE -B "$sample_dir/build/" -S "$sample_dir/"
             cmake --build "$sample_dir/build/" -- --quiet
           done
+
+  build-samples-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        compiler:
+          - name: MSVC
+            toolset: ''
+          - name: ClangCl
+            toolset: '-T ClangCl'
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build overlays sample (${{ matrix.compiler.name }})
+        run: |
+          cmake -S samples/overlays -B samples/overlays/build ${{ matrix.compiler.toolset }}
+          cmake --build samples/overlays/build --config Debug
+      - name: Run overlays sample (${{ matrix.compiler.name }})
+        working-directory: samples/overlays/build/Debug
+        run: ./host.exe
+        env:
+          SDL_VIDEODRIVER: offscreen
