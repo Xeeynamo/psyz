@@ -7,6 +7,10 @@ set(PSYZ_MODULE_GLUE_DESKTOP
 set(PSYZ_MODULE_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/../include"
     CACHE INTERNAL "PsyZ public include directory")
 
+if(WIN32)
+    include(${CMAKE_CURRENT_LIST_DIR}/module_win.cmake)
+endif()
+
 # psyz_exports(<target>)
 #
 # Declares that <target> is a host for all modules using that will be loaded
@@ -18,6 +22,8 @@ function(psyz_exports target)
 
     if(PSP)
         message(FATAL_ERROR "PSP target does not yet support modules")
+    elseif(WIN32)
+        psyz_win_export_closure(${target})
     else()
         set_target_properties(${target} PROPERTIES ENABLE_EXPORTS ON)
     endif()
@@ -50,13 +56,18 @@ function(psyz_add_module target)
             return()
         endif()
 
-        if(WIN32)
-            target_link_libraries(${target} PRIVATE ${ARG_HOST})
-        endif()
-
         set_target_properties(${target} PROPERTIES
             LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:${ARG_HOST}>
             RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:${ARG_HOST}>)
-        add_dependencies(${ARG_HOST} ${target})
+
+        if(WIN32)
+            target_link_libraries(${target} PRIVATE ${ARG_HOST})
+            if(MSVC)
+                psyz_win_module_autoimport(${target} ${ARG_HOST}
+                    ${ARG_SOURCES} ${PSYZ_MODULE_GLUE_DESKTOP})
+            endif()
+        else()
+            add_dependencies(${ARG_HOST} ${target})
+        endif()
     endif()
 endfunction()
