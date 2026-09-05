@@ -30,9 +30,9 @@ typedef struct PsyzModule PsyzModule;
  * - Modules can invoke functions from HOST.
  * - Modules can read and write HOST global variables.
  * - Modules can export its symbols to HOST via a struct passed as param.
- * - Handles ctor and dtor.
  *
  * Known limitations:
+ * - PSP modules do not run constructors or destructors.
  * - The module name must be unique, otherwise it will fail to load on PSP.
  * - A module is unique to its HOST, and can't be loaded elsewhere.
  * - The same module cannot be loaded more than once.
@@ -63,8 +63,6 @@ void Psyz_ModuleClose(PsyzModule* module);
 /**
  * @brief Called once when the module is loaded.
  *
- * This is executed after any constructor .ctor
- *
  * NOTE: This function is called in the module. The function is not meant to
  * be called manually.
  *
@@ -74,8 +72,6 @@ void Psyz_ModuleStart(void* param);
 
 /**
  * @brief Called once, before the module is unloaded.
- *
- * This is executed before any deconstructor .dtor
  *
  * NOTE: This function is called in the module. The function is not meant to
  * be called manually.
