@@ -21,7 +21,7 @@ function(psyz_exports target)
     endif()
 
     if(PSP)
-        message(FATAL_ERROR "PSP target does not yet support modules")
+        psyz_psp_host_exports(${target})
     elseif(WIN32)
         psyz_win_export_closure(${target})
     else()
@@ -45,7 +45,16 @@ function(psyz_add_module target)
     endif()
 
     if(PSP)
-        message(FATAL_ERROR "PSP target does not yet support modules")
+        if(ARG_HOST)
+            set_property(TARGET ${ARG_HOST} APPEND PROPERTY
+                PSYZ_PSP_MODULES ${target})
+            psyz_psp_module(${target} SOURCES ${ARG_SOURCES}
+                LIBRARY ${ARG_HOST} HOST ${ARG_HOST})
+        else()
+            psyz_psp_module(${target} SOURCES ${ARG_SOURCES})
+        endif()
+        target_compile_definitions(${target}_objs PRIVATE
+            PSYZ_MODULE_NAME="${target}")
     else()
         add_library(${target} MODULE ${ARG_SOURCES} ${PSYZ_MODULE_GLUE_DESKTOP})
         target_include_directories(${target} PRIVATE ${PSYZ_MODULE_INCLUDE_DIR})
