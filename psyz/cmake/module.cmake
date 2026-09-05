@@ -19,7 +19,9 @@ function(psyz_exports target)
     if(PSP)
         message(FATAL_ERROR "PSP target does not yet support modules")
     else()
-        set_target_properties(${target} PROPERTIES ENABLE_EXPORTS ON)
+        set_target_properties(${target} PROPERTIES
+            ENABLE_EXPORTS ON
+            WINDOWS_EXPORT_ALL_SYMBOLS ON)
     endif()
 endfunction()
 
@@ -50,13 +52,14 @@ function(psyz_add_module target)
             return()
         endif()
 
-        if(WIN32)
-            target_link_libraries(${target} PRIVATE ${ARG_HOST})
-        endif()
-
         set_target_properties(${target} PROPERTIES
             LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:${ARG_HOST}>
             RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:${ARG_HOST}>)
-        add_dependencies(${ARG_HOST} ${target})
+
+        if(WIN32)
+            target_link_libraries(${target} PRIVATE ${ARG_HOST})
+        else()
+            add_dependencies(${ARG_HOST} ${target})
+        endif()
     endif()
 endfunction()
