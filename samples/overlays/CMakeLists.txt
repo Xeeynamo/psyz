@@ -14,3 +14,4 @@ psyz_exports(host)
 psyz_title(host "Sample: overlays")
 
 psyz_add_module(my_ovl HOST host SOURCES my_ovl.c)
+psyz_add_module(my_ovl2 HOST host SOURCES my_ovl2.c)

@@ -5,6 +5,7 @@
 // Imported from both main and overlays. Ensures signatrues do not diverge.
 
 extern int g_SampleCounter;
+extern int g_SubOverlayResult;
 extern void MainLog(const char* s);
 
 struct SampleState {
