@@ -63,6 +63,26 @@ int SampleOverlaysCanLoadOverlays(void) {
     return g_SubOverlayResult;
 }
 
+int SampleOverlaysLoseStatusWhenUnloaded(void) {
+    g_SubOverlayResult = -1;
+
+    PsyzModule mod = Psyz_ModuleOpen("my_ovl3", SampleLoadAndUnloadOverlay);
+    if (!mod) {
+        MainLog("failed to open overlay 'my_ovl3'\n");
+        return 1;
+    }
+    Psyz_ModuleClose(mod);
+
+    mod = Psyz_ModuleOpen("my_ovl3", SampleLoadAndUnloadOverlay);
+    if (!mod) {
+        MainLog("failed to open overlay 'my_ovl3'\n");
+        return 1;
+    }
+    Psyz_ModuleClose(mod);
+
+    return g_SubOverlayResult;
+}
+
 int main(int argc, char* argv[]) {
     int any_failed = 0;
     int did_fail = 0;
@@ -82,6 +102,12 @@ int main(int argc, char* argv[]) {
     did_fail = SampleOverlaysCanLoadOverlays();
     if (did_fail) {
         MainLog("FAIL SampleOverlaysCanLoadOverlays");
+        any_failed = 1;
+    }
+
+    did_fail = SampleOverlaysLoseStatusWhenUnloaded();
+    if (did_fail) {
+        MainLog("FAIL SampleOverlaysLoseStatusWhenUnloaded");
         any_failed = 1;
     }
 
