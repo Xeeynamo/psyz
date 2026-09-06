@@ -101,9 +101,9 @@ class LibCdTest : public ::testing::Test {
             if (i == 1 && has_data) {
                 type = "MODE2/2352";
             }
-            std::snprintf(buf, sizeof(buf), "  TRACK %02d %s\n", i, type);
+            snprintf(buf, sizeof(buf), "  TRACK %02d %s\n", i, type);
             body += buf;
-            std::snprintf(buf, sizeof(buf), "    INDEX 01 00:00:00\n");
+            snprintf(buf, sizeof(buf), "    INDEX 01 00:00:00\n");
             body += buf;
         }
 
@@ -127,15 +127,15 @@ class LibCdTest : public ::testing::Test {
 
         for (int i = 0; i < audio_track_count; ++i) {
             char fname[64];
-            std::snprintf(fname, sizeof(fname), "audio%02d.bin", i + 1);
+            snprintf(fname, sizeof(fname), "audio%02d.bin", i + 1);
             std::string ab = dir + "/" + fname;
             make_blob(ab, audio_sectors_each * SECTOR_SIZE);
             bins.push_back(ab);
 
             char buf[128];
-            std::snprintf(buf, sizeof(buf), "FILE \"%s\" BINARY\n", fname);
+            snprintf(buf, sizeof(buf), "FILE \"%s\" BINARY\n", fname);
             body += buf;
-            std::snprintf(buf, sizeof(buf), "  TRACK %02d AUDIO\n", i + 2);
+            snprintf(buf, sizeof(buf), "  TRACK %02d AUDIO\n", i + 2);
             body += buf;
             body += "    INDEX 01 00:00:00\n";
         }
