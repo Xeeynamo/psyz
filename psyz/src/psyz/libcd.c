@@ -1183,8 +1183,56 @@ int CdReading() {
 void ExecCd() { NOT_IMPLEMENTED; }
 
 int CdRead(int sectors, u_long* buf, int mode) {
-    NOT_IMPLEMENTED;
-    return 0;
+    if (sectors <= 0 || open_track_at_cd_pos() != 0) {
+        return 0;
+    }
+
+    int sector_size;
+    switch (mode & (CdlModeSize0 | CdlModeSize1)) {
+    case 0:
+        // Normal sector user data
+        sector_size = 2048;
+        break;
+    case CdlModeSize1:
+        // Full sector except sync header
+        sector_size = 2340;
+        break;
+    default:
+        // Mode 2 form 2 user data
+        sector_size = 2328;
+        break;
+    }
+
+    long sector = CdPosToInt(&CD_pos);
+    Psyz_AudioLock();
+    for (int i = 0; i < sectors; i++) {
+        if (fseek(track_file, (sector + i) * SECTOR_SIZE, SEEK_SET) != 0) {
+            break;
+        }
+        unsigned char sector_raw[SECTOR_SIZE];
+        if (fread(sector_raw, 1, SECTOR_SIZE, track_file) != SECTOR_SIZE) {
+            break;
+        }
+        int user_offset;
+        switch (mode & (CdlModeSize0 | CdlModeSize1)) {
+        case 0:
+            // Skip Mode 1 or 2 header
+            user_offset = (sector_raw[15] == 2) ? 24 : 16;
+            break;
+        case CdlModeSize1:
+            // Skip sync bytes only
+            user_offset = 12;
+            break;
+        default:
+            // Skip Mode 2 header
+            user_offset = 24;
+            break;
+        }
+        memcpy((char*)buf + i * sector_size, sector_raw + user_offset,
+               sector_size);
+    }
+    Psyz_AudioUnlock();
+    return 1;
 }
 
 int CdRead2(long mode) {
@@ -1193,7 +1241,10 @@ int CdRead2(long mode) {
 }
 
 int CdReadSync(int mode, u_char* result) {
-    NOT_IMPLEMENTED;
+    (void)mode;
+    if (result) {
+        memcpy(result, last_result, sizeof(last_result));
+    }
     return 0;
 }
 
