@@ -683,9 +683,12 @@ end:
 
 size_t Psyz_CdPullSamples(short* out, size_t num_frames) {
     size_t read_frames;
-    if (CD_mode & CdlModeDA) {
+    Psyz_AudioLock();
+    u_char mode = CD_mode;
+    Psyz_AudioUnlock();
+    if (mode & CdlModeDA) {
         read_frames = cdda_pull_samples(out, num_frames);
-    } else if (CD_mode & CdlModeRT) {
+    } else if (mode & CdlModeRT) {
         read_frames = xa_pull_samples(out, num_frames);
     } else {
         read_frames = 0;
@@ -728,10 +731,12 @@ static int open_track_at_cd_pos(void) {
         WARNF("no track found for sector %d", sector);
         return -1;
     }
+    Psyz_AudioLock();
     close_track_file();
     FILE* file = fopen(track->file_path, "rb");
     if (!file) {
         ERRORF("failed to open audio file: %s", track->file_path);
+        Psyz_AudioUnlock();
         return -1;
     }
     int sector_offset = sector - track->abs_sector;
@@ -740,12 +745,14 @@ static int open_track_at_cd_pos(void) {
     if (fseek(file, byte_offset, SEEK_SET) != 0) {
         ERRORF("failed to seek to sector %d in %s", sector, track->file_path);
         fclose(file);
+        Psyz_AudioUnlock();
         return -1;
     }
     DEBUGF("opened track %s at sector %d (offset %d)", track->file_path, sector,
            sector_offset);
     track_file = file;
     track_file_track = track;
+    Psyz_AudioUnlock();
     return 0;
 }
 
@@ -1068,7 +1075,9 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
         if (*param & CdlModeStream) {
             LOG_ONCE("%s does not support CdlModeStream", CD_comstr[com]);
         }
+        Psyz_AudioLock();
         CD_mode = *param;
+        Psyz_AudioUnlock();
         break;
     case CdlGetlocL: {
         if (!result) {

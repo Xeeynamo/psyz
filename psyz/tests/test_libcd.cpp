@@ -78,6 +78,7 @@ class LibCdTest : public ::testing::Test {
         Psyz_CdSetReadCB(nullptr);
         Psyz_CdSetDiskPath(nullptr);
         Psyz_CdShellOpen(0);
+        Psyz_AudioDestroy();
         for (const auto& b : bins) {
             std::remove(b.c_str());
         }
@@ -597,6 +598,7 @@ class LibCdPlaybackTest : public ::testing::Test {
     void TearDown() override {
         Psyz_CdSetDiskPath(nullptr);
         Psyz_CdShellOpen(0);
+        Psyz_AudioDestroy();
         for (const auto& b : bins) {
             std::remove(b.c_str());
         }
