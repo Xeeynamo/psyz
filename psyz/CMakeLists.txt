@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.19..3.31)
+cmake_minimum_required(VERSION 3.21..3.31)
 
 project(psyz)
 
