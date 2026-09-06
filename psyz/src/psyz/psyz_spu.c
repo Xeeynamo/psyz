@@ -500,11 +500,7 @@ static inline int voice_vol(unsigned short reg) {
         LOG_ONCE("voice volume bit15 not implemented");
         return 0;
     }
-    int v = reg & 0x7FFF;
-    if (v & 0x4000) { // bit14 is sign for values -0x4000 to 0x3FFF
-        v -= 0x8000;
-    }
-    return v;
+    return (short)((reg & 0x7FFF) << 1);
 }
 
 static inline int spu_s16(u16 value) { return (short)value; }
