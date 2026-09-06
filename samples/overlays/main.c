@@ -49,24 +49,27 @@ int SampleLoadMultipleOverlays(void) {
 }
 
 int main(int argc, char* argv[]) {
+    int any_failed = 0;
     int did_fail = 0;
 
     did_fail = SampleLoadAndUnloadOverlay();
     if (did_fail) {
         MainLog("FAIL SampleLoadAndUnloadOverlay");
+        any_failed = 1;
     }
 
     did_fail = SampleLoadMultipleOverlays();
     if (did_fail) {
         MainLog("FAIL SampleLoadMultipleOverlays");
+        any_failed = 1;
     }
 
-    if (!did_fail) {
+    if (!any_failed) {
         MainLog("PASS");
     }
 
 #if defined(__PSP__)
     sceKernelExitGame();
 #endif
-    return did_fail;
+    return any_failed;
 }

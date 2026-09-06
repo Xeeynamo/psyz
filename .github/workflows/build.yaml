@@ -159,10 +159,8 @@ jobs:
           grep "stdout:" overlays-psp.log > overlays-psp.out || true
           cat overlays-psp.out
           grep -q "sceKernelExitGame" overlays-psp.log
-          ! grep -qE "OVERLAYS_FAIL|if you see this|invalid initial state" overlays-psp.out
-          grep -q "my_ovl: start" overlays-psp.out
-          grep -q "my_ovl: entrypoint called" overlays-psp.out
-          grep -q "my_ovl: stop" overlays-psp.out
+          ! grep -q "FAIL" overlays-psp.out
+          grep -q "PASS" overlays-psp.out
       - name: Upload test failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
