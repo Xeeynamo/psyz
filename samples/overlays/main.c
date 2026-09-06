@@ -8,6 +8,7 @@
 
 // proof that an overlay can use an exported global variable
 int g_SampleCounter = 42;
+int g_SubOverlayResult = -1;
 
 // proof that an overlay can call an exported function
 void MainLog(const char* s) {
@@ -20,18 +21,21 @@ void MainLog(const char* s) {
 
 int SampleLoadAndUnloadOverlay(void) {
     struct SampleState state = {0};
+    int expected_counter = g_SampleCounter + 1;
     PsyzModule mod = Psyz_ModuleOpen("my_ovl", &state);
     if (!mod) {
         MainLog("failed to open overlay 'my_ovl'\n");
         return 1;
     }
-    if (g_SampleCounter != 43 || state.starts != 1 || state.stops != 0) {
+    if (g_SampleCounter != expected_counter || state.starts != 1 ||
+        state.stops != 0) {
         MainLog("if you see this, the module Start callback failed.\n");
         return 1;
     }
     state.pfnEntrypoint();
     Psyz_ModuleClose(mod);
-    if (g_SampleCounter != 43 || state.starts != 1 || state.stops != 1) {
+    if (g_SampleCounter != expected_counter || state.starts != 1 ||
+        state.stops != 1) {
         MainLog("if you see this, the module Stop callback failed.\n");
         return 1;
     }
@@ -48,6 +52,17 @@ int SampleLoadMultipleOverlays(void) {
     return 0;
 }
 
+int SampleOverlaysCanLoadOverlays(void) {
+    g_SubOverlayResult = -1;
+    PsyzModule mod = Psyz_ModuleOpen("my_ovl2", SampleLoadAndUnloadOverlay);
+    if (!mod) {
+        MainLog("failed to open overlay 'my_ovl2'\n");
+        return 1;
+    }
+    Psyz_ModuleClose(mod);
+    return g_SubOverlayResult;
+}
+
 int main(int argc, char* argv[]) {
     int any_failed = 0;
     int did_fail = 0;
@@ -61,6 +76,12 @@ int main(int argc, char* argv[]) {
     did_fail = SampleLoadMultipleOverlays();
     if (did_fail) {
         MainLog("FAIL SampleLoadMultipleOverlays");
+        any_failed = 1;
+    }
+
+    did_fail = SampleOverlaysCanLoadOverlays();
+    if (did_fail) {
+        MainLog("FAIL SampleOverlaysCanLoadOverlays");
         any_failed = 1;
     }
 
