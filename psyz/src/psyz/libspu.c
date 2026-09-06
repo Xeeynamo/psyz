@@ -9,8 +9,6 @@ union SpuUnion* _spu_RXX = (union SpuUnion*)&spu_RXX;
 unsigned* dma_dpcr = &_dma_dpcr; // TODO this must be removed
 volatile u16 _spu_RQ[10] = {0};
 
-void SpuSetVoiceAttr(SpuVoiceAttr* arg) { NOT_IMPLEMENTED; }
-
 u_long _SpuSetAnyVoice(long on_off, u_long voice_bit, int arg2, int arg3) {
     NOT_IMPLEMENTED;
     return 0;

@@ -189,6 +189,8 @@ union SpuUnion {
 #define SPUW(field, val) _spu_RXX->rxx.field = (val)
 #define SPURV(n, field) (((SPU_VOICE_REG*)_spu_RXX)[n].field)
 #define SPUWV(n, field, val) ((SPU_VOICE_REG*)_spu_RXX)[n].field = (val)
+#define SPUR_RAW(idx) (_spu_RXX->raw[idx])
+#define SPUW_RAW(idx, val) _spu_RXX->raw[idx] = (val)
 #else
 #include <stddef.h>
 #define SPUR(field) Psyz_SpuRead(offsetof(SPU_RXX, field))
@@ -196,6 +198,8 @@ union SpuUnion {
 #define SPURV(n, field) Psyz_SpuRead(offsetof(SPU_RXX, voice[n].field))
 #define SPUWV(n, field, val)                                                   \
     Psyz_SpuWrite(offsetof(SPU_RXX, voice[n].field), val)
+#define SPUR_RAW(idx) Psyz_SpuRead((idx) * sizeof(short))
+#define SPUW_RAW(idx, val) Psyz_SpuWrite((idx) * sizeof(short), val)
 #endif
 
 extern s32 D_80033098;
@@ -248,6 +252,7 @@ void _SsVmKeyOffNow(int mode);
 int _spu_getInTransfer(void);
 void _spu_FwriteByIO(unsigned char* addr, u_long size);
 u_long _SpuSetAnyVoice(long on_off, u_long voice_bit, int arg2, int arg3);
+s32 _SpuRSetVoiceAttr(SpuVoiceAttr* attr, s32 min, s32 max, s32 nowait);
 void _spu_Fw1ts(void);
 void _spu_setReverbAttr(struct rev_param_entry* attr);
 
