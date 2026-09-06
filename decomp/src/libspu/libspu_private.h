@@ -212,6 +212,7 @@ extern int _spu_AllocLastNum;
 extern s32 _spu_EVdma;
 extern volatile s32 _spu_RQmask;
 extern volatile s32 _spu_RQvoice;
+extern volatile u16 _spu_RQ[10];
 extern union SpuUnion* _spu_RXX;
 extern s32 _spu_env;
 extern int _spu_inTransfer;

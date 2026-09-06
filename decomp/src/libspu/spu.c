@@ -30,8 +30,6 @@ static int D_800D1058 = 0;
 static int spu_madr = 0;
 static int spu_bcr = 0;
 
-extern volatile u16 _spu_RQ[10];
-
 int _spu_init(int bHot) {
     unsigned dmaTimer;
     int i;
