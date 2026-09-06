@@ -52,30 +52,19 @@ int SampleLoadMultipleOverlays(void) {
     return 0;
 }
 
-int SampleOverlaysCanLoadOverlays(void) {
+int SampleOverlaysLoseStatusWhenUnloaded(void) {
     g_SubOverlayResult = -1;
+
     PsyzModule mod = Psyz_ModuleOpen("my_ovl2", SampleLoadAndUnloadOverlay);
     if (!mod) {
         MainLog("failed to open overlay 'my_ovl2'\n");
         return 1;
     }
     Psyz_ModuleClose(mod);
-    return g_SubOverlayResult;
-}
 
-int SampleOverlaysLoseStatusWhenUnloaded(void) {
-    g_SubOverlayResult = -1;
-
-    PsyzModule mod = Psyz_ModuleOpen("my_ovl3", SampleLoadAndUnloadOverlay);
+    mod = Psyz_ModuleOpen("my_ovl2", SampleLoadAndUnloadOverlay);
     if (!mod) {
-        MainLog("failed to open overlay 'my_ovl3'\n");
-        return 1;
-    }
-    Psyz_ModuleClose(mod);
-
-    mod = Psyz_ModuleOpen("my_ovl3", SampleLoadAndUnloadOverlay);
-    if (!mod) {
-        MainLog("failed to open overlay 'my_ovl3'\n");
+        MainLog("failed to open overlay 'my_ovl2'\n");
         return 1;
     }
     Psyz_ModuleClose(mod);
@@ -96,12 +85,6 @@ int main(int argc, char* argv[]) {
     did_fail = SampleLoadMultipleOverlays();
     if (did_fail) {
         MainLog("FAIL SampleLoadMultipleOverlays");
-        any_failed = 1;
-    }
-
-    did_fail = SampleOverlaysCanLoadOverlays();
-    if (did_fail) {
-        MainLog("FAIL SampleOverlaysCanLoadOverlays");
         any_failed = 1;
     }
 

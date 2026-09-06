@@ -1,14 +1,12 @@
 #include <psyz/module.h>
 #include "shared.h"
 
-typedef int (*PFN_LoadSubOverlay)(void);
+static const char* combos[] = {"my_ovl2: FIRST", "my_ovl2: SECOND"};
+static int internal_counter = 0;
 
 void Psyz_ModuleStart(void* param) {
-    MainLog("my_ovl2: start\n");
-    PFN_LoadSubOverlay pfnLoadSubOverlay = (PFN_LoadSubOverlay)param;
-    if (pfnLoadSubOverlay) {
-        g_SubOverlayResult = pfnLoadSubOverlay();
-    }
+    MainLog(combos[internal_counter++]);
+    g_SubOverlayResult = internal_counter != 1;
 }
 
-void Psyz_ModuleStop(void) { MainLog("my_ovl2: stop\n"); }
+void Psyz_ModuleStop(void) {}

@@ -37,6 +37,7 @@ typedef unsigned int PsyzModule;
  * - A module is unique to its HOST, and can't be loaded elsewhere.
  * - The same module cannot be loaded more than once.
  * - Recompiling HOST must follow all its modules to be re-linked to it.
+ * - PSP modules cannot load modules on their own.
  *
  * Supported targets:
  * - Linux: shared object .so
