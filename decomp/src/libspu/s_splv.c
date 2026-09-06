@@ -1,4 +1,5 @@
-#include <common.h>
-#include <libspu.h>
+#include "libspu_private.h"
 
-INCLUDE_ASM("asm/nonmatchings/libspu/s_splv", SpuSetPitchLFOVoice);
+u_long SpuSetPitchLFOVoice(long on_off, u_long voice_bit) {
+    return _SpuSetAnyVoice(on_off, voice_bit, 0xC8, 0xC9);
+}
