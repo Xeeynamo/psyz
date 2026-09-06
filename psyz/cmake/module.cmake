@@ -1,7 +1,7 @@
 # psyz_exports(<target>)
 # psyz_add_module(<target> SOURCES <src...> [HOST <target>])
 
-set(PSYZ_MODULE_GLUE_DESKTOP
+set(PSYZ_MODULE_GLUE
     "${CMAKE_CURRENT_LIST_DIR}/../src/platform/module_glue.c"
     CACHE INTERNAL "PsyZ module glue source")
 set(PSYZ_MODULE_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/../include"
@@ -55,28 +55,35 @@ function(psyz_add_module target)
         endif()
         target_compile_definitions(${target}_objs PRIVATE
             PSYZ_MODULE_NAME="${target}")
+        return()
+    endif()
+
+    add_library(${target} MODULE ${ARG_SOURCES} ${PSYZ_MODULE_GLUE})
+    target_include_directories(${target} PRIVATE ${PSYZ_MODULE_INCLUDE_DIR})
+    target_compile_definitions(${target} PRIVATE PSYZ_MODULE_NAME="${target}")
+    set_target_properties(${target} PROPERTIES PREFIX "")
+    if(APPLE)
+        set_target_properties(${target} PROPERTIES SUFFIX ".dylib")
+    endif()
+
+    if(NOT ARG_HOST)
+        return()
+    endif()
+
+    set_target_properties(${target} PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:${ARG_HOST}>
+        RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:${ARG_HOST}>)
+
+    if(MSVC)
+        target_link_libraries(${target} PRIVATE ${ARG_HOST})
+        psyz_win_module_autoimport(${target} ${ARG_HOST}
+            ${ARG_SOURCES} ${PSYZ_MODULE_GLUE})
+    elseif(WIN32)
+        target_link_libraries(${target} PRIVATE ${ARG_HOST})
+    elseif(APPLE)
+        target_link_options(${target} PRIVATE -undefined dynamic_lookup)
+        add_dependencies(${ARG_HOST} ${target})
     else()
-        add_library(${target} MODULE ${ARG_SOURCES} ${PSYZ_MODULE_GLUE_DESKTOP})
-        target_include_directories(${target} PRIVATE ${PSYZ_MODULE_INCLUDE_DIR})
-        target_compile_definitions(${target} PRIVATE PSYZ_MODULE_NAME="${target}")
-        set_target_properties(${target} PROPERTIES PREFIX "")
-
-        if(NOT ARG_HOST)
-            return()
-        endif()
-
-        set_target_properties(${target} PROPERTIES
-            LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:${ARG_HOST}>
-            RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:${ARG_HOST}>)
-
-        if(WIN32)
-            target_link_libraries(${target} PRIVATE ${ARG_HOST})
-            if(MSVC)
-                psyz_win_module_autoimport(${target} ${ARG_HOST}
-                    ${ARG_SOURCES} ${PSYZ_MODULE_GLUE_DESKTOP})
-            endif()
-        else()
-            add_dependencies(${ARG_HOST} ${target})
-        endif()
+        add_dependencies(${ARG_HOST} ${target})
     endif()
 endfunction()
