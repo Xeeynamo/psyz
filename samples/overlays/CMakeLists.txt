@@ -11,6 +11,7 @@ target_compile_definitions(psyz PRIVATE __psyz)
 add_executable(host main.c)
 target_link_libraries(host PRIVATE psyz)
 psyz_exports(host)
+psyz_strip_file_prefix(host)
 psyz_title(host "Sample: overlays")
 
 psyz_add_module(my_ovl HOST host SOURCES my_ovl.c)
