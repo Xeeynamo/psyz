@@ -31,6 +31,11 @@ static int AudioThread(SceSize args, void* argp) {
         Psyz_AudioUnlock();
         sceAudioOutputBlocking(chan, PSP_AUDIO_VOLUME_MAX, buf[cur]);
         cur ^= 1;
+
+        // We don't want the audio thread to hug all CPU. This is required as
+        // SPU mixing is heavy enough to not allow the main thread to run
+        // undisturbed. This needs to remain here until sceSas is implemented.
+        sceKernelDelayThread(1000);
     }
     return 0;
 }
@@ -65,9 +70,9 @@ int Psyz_AudioInit(void) {
         chan = -1;
         return -1;
     }
-    sceKernelStartThread(thid, 0, NULL);
     is_audio_init = 1;
     DEBUGF("audio initialized");
+    sceKernelStartThread(thid, 0, NULL);
     return 0;
 }
 
