@@ -215,12 +215,12 @@ function(psyz_psp_module target)
     # Avoid unavailable newlib imports and $gp-relative addressing in loaded PRXs.
     target_compile_options(${target}_objs PRIVATE -nostdlib -G0)
 
-    # Use the C driver because this toolchain lacks CMake ASM platform support.
+    # Use the C driver because this toolchain lacks CMake ASM platform support,
     get_target_property(_objs_sources ${target}_objs SOURCES)
     foreach(_src ${_objs_sources})
         if(_src MATCHES "\\.[sS]$")
             set_source_files_properties(${_src} TARGET_DIRECTORY ${target}_objs
-                PROPERTIES LANGUAGE C)
+                PROPERTIES LANGUAGE C COMPILE_OPTIONS "-x;assembler-with-cpp")
         endif()
     endforeach()
 
@@ -234,6 +234,7 @@ function(psyz_psp_module target)
         # Make needs a file dependency on imports generated in the host's directory.
         set_source_files_properties(${_imports_s} PROPERTIES
             GENERATED TRUE LANGUAGE C
+            COMPILE_OPTIONS "-x;assembler-with-cpp"
             OBJECT_DEPENDS ${_abi_dir}/${ARG_LIBRARY}.abi.stamp)
         add_library(${target}_abi_objs OBJECT ${_imports_s})
         target_include_directories(${target}_abi_objs PRIVATE
