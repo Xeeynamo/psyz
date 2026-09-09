@@ -37,6 +37,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libgpu/otag.c
     ../decomp/src/libgpu/prim.c
     ../decomp/src/libgpu/tmd.c
+    ../decomp/src/libgte/geo_03.c
     ../decomp/src/libgte/sqrtbl.c
     ../decomp/src/libgte/ratan.c
     src/psyz/libgte.c
