@@ -815,9 +815,8 @@ VECTOR* OuterProduct12(VECTOR* v0, VECTOR* v1, VECTOR* v2);
  *
  * @param v0 Pointer to input vector
  * @param v1 Pointer to output vector
- * @return Length of input vector
  */
-long VectorNormal(VECTOR* v0, VECTOR* v1);
+void VectorNormal(VECTOR* v0, VECTOR* v1);
 
 /**
  * @brief Normalize short vector

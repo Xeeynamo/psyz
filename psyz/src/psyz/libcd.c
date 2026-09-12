@@ -1171,9 +1171,8 @@ int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
 }
 
 int CdInit(void) {
-    NOT_IMPLEMENTED;
     CdReset(1);
-    return CD_init();
+    return CD_init() == 0 ? 1 : 0;
 }
 
 int CdReading() {

@@ -460,6 +460,13 @@ typedef struct {
 
 typedef struct {
     O_TAG;
+    u_char r0, g0, b0, code;
+    short x0, y0;
+    short w, h;
+} BLK_FILL;
+
+typedef struct {
+    O_TAG;
     u_char r0;
     u_char g0;
     u_char b0;

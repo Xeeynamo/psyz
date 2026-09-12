@@ -2369,10 +2369,7 @@ long RotAverageNclip4(
     return MAC0;
 }
 
-long VectorNormal(VECTOR* v0, VECTOR* v1) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
+void VectorNormal(VECTOR* v0, VECTOR* v1) { NOT_IMPLEMENTED; }
 
 long VectorNormalS(VECTOR* v0, SVECTOR* v1) {
     NOT_IMPLEMENTED;
