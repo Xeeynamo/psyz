@@ -46,6 +46,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libcd/iso9660.c
     ../decomp/src/libcd/sys.c
     ../decomp/src/libcd/toc.c
+    ../decomp/src/libcd/type.c
     src/psyz/libcard.c
     ../decomp/src/libspu/s_cb.c
     ../decomp/src/libspu/s_crwa.c
