@@ -1292,7 +1292,7 @@ segments:
       - [0xB7098, data, libetc/intr_vb]
       - [0xB70C0, data, libetc/vmode]
       - [0xB70C8, .data, libetc/vsync]
-      - [0xB70E0, data, libgpu/break]
+      - [0xB70E0, .data, libgpu/break]
       - [0xB70F8, data, libgpu/exta]
       - [0xB7130, .data, libgpu/font]
       - [0xB7CC0, data, libgpu/fonttex]
