@@ -130,6 +130,14 @@
 #define CdlStatError 0x01     /* command error detected */
 
 /*
+ * Macros for CdGetDiskType()
+ */
+#define CdlStatNoDisk	0
+#define CdlOtherFormat	1
+#define CdlCdromFormat	2
+
+
+/*
  * Interrupts
  */
 #define CdlNoIntr 0x00      /* No interrupt */
