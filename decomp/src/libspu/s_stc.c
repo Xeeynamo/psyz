@@ -1,4 +1,11 @@
-#include <common.h>
-#include <libspu.h>
+#include "libspu_private.h"
 
-INCLUDE_ASM("asm/nonmatchings/libspu/s_stc", SpuSetTransferCallback);
+SpuTransferCallbackProc SpuSetTransferCallback(SpuTransferCallbackProc func) {
+    SpuTransferCallbackProc previousCallback = _spu_transferCallback;
+
+    if (func != previousCallback) {
+        _spu_transferCallback = func;
+    }
+
+    return previousCallback;
+}

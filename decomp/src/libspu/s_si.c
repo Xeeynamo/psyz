@@ -1,6 +1,29 @@
-#include <common.h>
-#include <libspu.h>
+#include "libspu_private.h"
+#include <stdio.h>
 
-INCLUDE_RODATA("asm/nonmatchings/libspu/s_si", D_800B4E88);
+long SpuSetIRQ(long on_off) {
+    u_long dmaTimer;
 
-INCLUDE_ASM("asm/nonmatchings/libspu/s_si", SpuSetIRQ);
+    if ((on_off == SPU_OFF) || (on_off == SPU_RESET)) {
+        SPUW(spucnt, SPUR(spucnt) & ~0x40);
+        dmaTimer = 0;
+        while (SPUR(spucnt) & 0x40) {
+            if (++dmaTimer > 0xF00u) {
+                printf("SPU:T/O [%s]\n", "wait (IRQ/ON)");
+                return SPU_ERROR;
+            }
+        }
+    }
+
+    if ((on_off == SPU_ON) || (on_off == SPU_RESET)) {
+        SPUW(spucnt, SPUR(spucnt) | 0x40);
+        dmaTimer = 0;
+        while (!(SPUR(spucnt) & 0x40)) {
+            if (++dmaTimer > 0xF00u) {
+                printf("SPU:T/O [%s]\n", "wait (IRQ/OFF)");
+                return SPU_ERROR;
+            }
+        }
+    }
+    return on_off;
+}
