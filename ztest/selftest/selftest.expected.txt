@@ -1,0 +1,120 @@
+pass::scalars PASS
+pass::strings_and_arrays PASS
+pass::expect_returns_result PASS
+fail::scalars FAIL
+   Line 43  Expected: 123  Actual: 456
+   Line 44  Expected: != 7  Actual: 7
+   Line 45  Expected: > 5  Actual: 3
+   Line 46  Expected: >= 5  Actual: 3
+   Line 47  Expected: < 3  Actual: 5
+   Line 48  Expected: <= 3  Actual: 5
+   Line 49  Expected: 3735928559 (0xDEADBEEF)  Actual: 3
+   Line 50  Expected: 0  Actual: -32768
+   Line 51  Expected: 1  Actual: 32768 (0x8000)
+   Line 52  Expected: 0  Actual: -1
+   Line 53  Expected: 0  Actual: 255 (0xFF)
+   Line 54  Expected: 'A' (0x41)  Actual: 0x0A
+   Line 55  Expected: NULL  Actual: 0x1234
+   Line 56  Expected: != 0xCAFE  Actual: 0xCAFE
+   Line 57  Expected: "short"  Actual: "shirt"
+   Line 58  Expected: NULL  Actual: "x"
+fail::u8array_single_byte FAIL
+   Line 66  Offset: 0x000006  (1 byte differs)
+            Expected: DE AD BE EF [C1] BA DC 0F FE
+            Actual:   DE AD BE EF [C2] BA DC 0F FE
+fail::u8array_long_run FAIL
+   Line 74  Offset: 0x000004  (5 bytes differ)
+            Expected: DE AD BE EF [C1 BA DC 0F ...]
+            Actual:   DE AD BE EF [C2 C3 C4 C5 ...]
+fail::u8array_short_run_at_start FAIL
+   Line 80  Offset: 0x000000  (2 bytes differ)
+            Expected: [01 02] 03 04 05 06
+            Actual:   [09 09] 03 04 05 06
+fail::u8array_at_end FAIL
+   Line 86  Offset: 0x000007  (1 byte differs)
+            Expected: 04 05 06 07 [08]
+            Actual:   04 05 06 07 [09]
+fail::u8array_all_different FAIL
+   Line 94  Offset: 0x000000  (6 bytes differ)
+            Expected: [01 02 03 04 ...]
+            Actual:   [09 09 09 09 ...]
+   Line 95  Offset: 0x000000  (2 bytes differ)
+            Expected: [01 02]
+            Actual:   [03 04]
+   Line 96  Expected: act != exp  Actual: all 6 bytes identical
+fail::long_strings FAIL
+   Line 106  Offset: 24  Length: 60 vs 61
+             Expected: "own fox jump[s over the lazy ...]"
+             Actual:   "own fox jump[ed over the lazy...]"
+   Line 107  Offset: 28  Length: 59 vs 28
+             Expected: " long enough[ to need the win...]"
+             Actual:   " long enough[]"
+fail::log_is_interleaved FAIL
+   before the failure
+   Line 112  Expected: 1  Actual: 2
+   an error line
+   multi
+   line
+   Line 115  Expected: 3  Actual: 4
+fail::formatter FAIL
+   [-42] [   42] [42   ] [00042] [+42] [7]
+   [ff] [FF] [0000BEEF] [10] [4000000000] [123456]
+   [-9000000000] [18000000000] [77] [-3] [250]
+   [str] [abc] [       r] [l       ] [z] [%] [0x0]
+   [3.141590] [-2.00] [3] [   0.333] [100.0]
+   Line 128  Failed
+fail::zfail_and_zabort FAIL
+   Line 132  custom message 42
+   Line 133  Failed
+   Line 134  stop here
+control::zassert_stops_the_test FAIL
+   Line 140  Expected: 1  Actual: 2
+control::zexpect_keeps_going PASS
+control::skip SKIP
+   Line 147  Skipped
+control::skip_with_reason SKIP
+   printed only with --verbose
+   Line 153  reason 7
+control::skip_targets_matches_current SKIP
+   Line 157  Skipped on nothing;{TARGET}
+control::skip_targets_other PASS
+control::tags PASS
+control::fail_then_skip_is_a_failure FAIL
+   Line 173  Expected: 1  Actual: 0
+   Line 174  skipped after a failure
+fixture::first FAIL
+   Line 184  Expected: 1  Actual: 0
+fixture::teardown_ran_after_abort PASS
+fixture_abort::body_is_not_run FAIL
+   Line 192  setup failed
+   teardown still runs
+fixture_skip::body_is_not_run SKIP
+   Line 198  whole group skipped
+image::exact_rgb888 PASS
+image::exact_other_formats PASS
+image::tolerance_and_precision PASS
+image::mismatch FAIL
+   Line 256  Image: gradient
+             Match: 99.87% (min 100.00%)  Tolerance: 2
+             First diff at (5,6)  Expected: (10,12,11)  Actual: (7,12,11)
+             Wrote expected/gradient.{TARGET}.actual.png
+image::size_and_region_errors FAIL
+   Line 262  Image: gradient
+             Expected: 16x16  Actual: 8x16
+             Wrote expected/gradient.{TARGET}.actual.png
+   Line 263  Image: gradient
+             Region 8,8 16x16 is outside 16x16 or 16x16
+   Line 264  Image: gradient
+             Expected a difference, but the images match
+image::missing_golden FAIL
+   Line 269  Image: does_not_exist
+             Missing expected/does_not_exist.png
+             Wrote expected/does_not_exist.{TARGET}.actual.png
+image::png_loader PASS
+image::empty_actual FAIL
+   Line 289  Image: gradient
+             Actual image is empty
+image::frontbuffer PASS
+terminate::stops_the_suite FAIL
+   Line 304  fatal: giving up
+ztest: 12 passed, 19 failed, 4 skipped, 1 not run

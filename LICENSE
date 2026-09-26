@@ -2,6 +2,7 @@ MIT License
     nugget/
     psyq2elf/
     samples/
+    ztest/
 
 MPL 2.0
     psyz/src/platform/

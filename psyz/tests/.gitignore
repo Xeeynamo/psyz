@@ -6,3 +6,8 @@ bu10/
 EBOOT.PBP
 PARAM.SFO
 psyz_tests_psp
+
+# ztest runner artifacts
+ztest.args
+ztest.log
+comport.txt

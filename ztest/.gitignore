@@ -1,0 +1,7 @@
+build/
+*.actual.png
+ztest.args
+ztest.log
+comport.txt
+.zrunner.elf
+__pycache__/
