@@ -1,6 +1,12 @@
 #ifndef MALLOC_H
 #define MALLOC_H
-#ifndef __psyz
+#ifdef __psyz
+#if defined(__has_include_next)
+#if __has_include_next(<malloc.h>)
+#include_next <malloc.h>
+#endif
+#endif
+#else
 
 #include <stddef.h>
 

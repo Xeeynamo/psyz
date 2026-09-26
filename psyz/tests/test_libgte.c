@@ -1,0 +1,859 @@
+#include "ztest.h"
+#include <psyz.h>
+#include <kernel.h>
+#include <libgte.h>
+
+ZTEST_SETUP(gte) { InitGeom(); }
+ZTEST_TEARDOWN(gte) { InitGeom(); }
+
+static void EqMatrix(int line, MATRIX* m1, MATRIX* m2) {
+    int i, j;
+    zprintf("called from line %d\n", line);
+    for (i = 0; i < 3; i++) {
+        for (j = 0; j < 3; j++) {
+            if (!zexpect_s16_eq(m2->m[i][j], m1->m[i][j])) {
+                zprintf("Matrix coefficient mismatch at m[%d][%d]\n", i, j);
+            }
+        }
+    }
+    for (i = 0; i < 3; i++) {
+        if (!zexpect_s32_eq(m2->t[i], m1->t[i])) {
+            zprintf("Translation vector mismatch at t[%d]\n", i);
+        }
+    }
+}
+
+typedef struct {
+    MATRIX m;
+    SVECTOR svs[3];
+    int lgs[3];
+    int p;
+    int flag;
+} RTPContext;
+
+static void RTP_Init(RTPContext* ctx) {
+    RTPContext zero = {0};
+    *ctx = zero;
+    InitGeom();
+    SetGeomOffset(0, 0);
+    SetRotMatrix(&ctx->m);
+    SetTransMatrix(&ctx->m);
+}
+
+static long RTP_RotTransPers(RTPContext* ctx) {
+    return RotTransPers(&ctx->svs[0], &ctx->lgs[0], &ctx->p, &ctx->flag);
+}
+
+static long RTP_RotTransPers3(RTPContext* ctx) {
+    return RotTransPers3(&ctx->svs[0], &ctx->svs[1], &ctx->svs[2], &ctx->lgs[0],
+                         &ctx->lgs[1], &ctx->lgs[2], &ctx->p, &ctx->flag);
+}
+
+static void RTP_SetTransM(RTPContext* ctx, long tx, long ty, long tz) {
+    ctx->m.t[0] = tx;
+    ctx->m.t[1] = ty;
+    ctx->m.t[2] = tz;
+    SetTransMatrix(&ctx->m);
+}
+
+static void RTP_SetRotM(
+    RTPContext* ctx, short m00, short m01, short m02, short m10, short m11,
+    short m12, short m20, short m21, short m22) {
+    ctx->m.m[0][0] = m00;
+    ctx->m.m[0][1] = m01;
+    ctx->m.m[0][2] = m02;
+    ctx->m.m[1][0] = m10;
+    ctx->m.m[1][1] = m11;
+    ctx->m.m[1][2] = m12;
+    ctx->m.m[2][0] = m20;
+    ctx->m.m[2][1] = m21;
+    ctx->m.m[2][2] = m22;
+    SetRotMatrix(&ctx->m);
+}
+
+static void RTP_SetSvs(RTPContext* ctx, short tx, short ty, short tz) {
+    ctx->svs[0].vy = tx;
+    ctx->svs[1].vy = ty;
+    ctx->svs[2].vz = tz;
+}
+
+static void CheckRTP_(
+    RTPContext* ctx, unsigned int lgs0, long p_exp, unsigned int flag_exp) {
+    zexpect_s16_eq((short)lgs0, (short)ctx->lgs[0]);
+    zexpect_s16_eq((short)(lgs0 >> 16), (short)(ctx->lgs[0] >> 16));
+    zexpect_s32_eq(p_exp, ctx->p);
+    zexpect_u32_eq(flag_exp, (unsigned int)ctx->flag);
+}
+
+static void CheckRTP3_(RTPContext* ctx, unsigned int lgs0, unsigned int lgs1,
+                       unsigned int lgs2, long p_exp, unsigned int flag_exp) {
+    zexpect_u32_eq(lgs0, (unsigned int)ctx->lgs[0]);
+    zexpect_u32_eq(lgs1, (unsigned int)ctx->lgs[1]);
+    zexpect_u32_eq(lgs2, (unsigned int)ctx->lgs[2]);
+    zexpect_s32_eq(p_exp, ctx->p);
+    zexpect_u32_eq(flag_exp, (unsigned int)ctx->flag);
+}
+
+static void TestRTP_(RTPContext* ctx, long ret_exp, unsigned int lgs0,
+                     long p_exp, unsigned int flag_exp, int line) {
+    zprintf("called from line %d\n", line);
+    zexpect_s32_eq(ret_exp, RTP_RotTransPers(ctx));
+    CheckRTP_(ctx, lgs0, p_exp, flag_exp);
+}
+
+static void TestRTP3_(
+    RTPContext* ctx, long ret_exp, unsigned int lgs0, unsigned int lgs1,
+    unsigned int lgs2, long p_exp, unsigned int flag_exp, int line) {
+    zprintf("called from line %d\n", line);
+    zexpect_s32_eq(ret_exp, RTP_RotTransPers3(ctx));
+    CheckRTP3_(ctx, lgs0, lgs1, lgs2, p_exp, flag_exp);
+}
+
+#define SXY(x, y)                                                              \
+    (((unsigned int)(x) & 0xFFFF) | (((unsigned int)(y) & 0xFFFF) << 16))
+#define MV(x, y, z) x, y, z
+#define CheckRTP3(ctx, lgs0, lgs1, lgs2, p_exp, flag_exp)                      \
+    (zprintf("called from line %d\n", __LINE__),                               \
+     CheckRTP3_(ctx, lgs0, lgs1, lgs2, p_exp, flag_exp))
+#define TestRTP(ctx, ret_exp, lgs0, p_exp, flag_exp)                           \
+    TestRTP_(ctx, ret_exp, lgs0, p_exp, flag_exp, __LINE__)
+#define TestRTP3(ctx, ret_exp, lgs0, lgs1, lgs2, p_exp, flag_exp)              \
+    TestRTP3_(ctx, ret_exp, lgs0, lgs1, lgs2, p_exp, flag_exp, __LINE__)
+
+ZTEST(gte, rsin) {
+    zexpect_s32_eq(0x0000, rsin(0x0000));
+    zexpect_s32_eq(0x0006, rsin(0x0001));
+    zexpect_s32_eq(0x000D, rsin(0x0002));
+    zexpect_s32_eq(0x0065, rsin(0x0010));
+    zexpect_s32_eq(0x061F, rsin(0x0100));
+    zexpect_s32_eq(0x0B50, rsin(0x0200));
+    zexpect_s32_eq(0x1000, rsin(0x0400));
+    zexpect_s32_eq(0x0000, rsin(0x0800));
+    zexpect_s32_eq(0x0000, rsin(0x1000));
+}
+
+ZTEST(gte, trans_matrix) {
+    MATRIX m = {{{0, 1, 2}, {3, 4, 5}, {6, 7, 8}}, {9, 10, 11}};
+    MATRIX exp = {{{0, 1, 2}, {3, 4, 5}, {6, 7, 8}}, {16, 17, 18}};
+    VECTOR t = {16, 17, 18};
+    zexpect_ptr_eq(&m, TransMatrix(&m, &t));
+    EqMatrix(__LINE__, &m, &exp);
+}
+
+ZTEST(gte, rot_matrix) {
+    MATRIX m = {{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, {10, 11, 12}};
+    MATRIX exp = {{{+0x0FFD, -0x0071, +0x006B},
+                   {+0x0073, +0x0FFC, -0x0065},
+                   {-0x0069, +0x0067, +0x0FFE}},
+                  {10, 11, 12}};
+    SVECTOR sv = {16, 17, 18};
+    zexpect_ptr_eq(&m, RotMatrix(&sv, &m));
+    EqMatrix(__LINE__, &m, &exp);
+}
+
+ZTEST(gte, trans_matrix_negative) {
+    MATRIX m = {{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, {0, 0, 0}};
+    VECTOR t = {-1, -2000, 30000};
+    zexpect_ptr_eq(&m, TransMatrix(&m, &t));
+    zexpect_s32_eq(-1, m.t[0]);
+    zexpect_s32_eq(-2000, m.t[1]);
+    zexpect_s32_eq(30000, m.t[2]);
+    zexpect_s16_eq(1, m.m[0][0]);
+    zexpect_s16_eq(9, m.m[2][2]);
+}
+
+ZTEST(gte, scale_matrix_identity) {
+    MATRIX m = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {7, 8, 9}};
+    MATRIX exp = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {7, 8, 9}};
+    VECTOR s = {0x1000, 0x1000, 0x1000};
+    zexpect_ptr_eq(&m, ScaleMatrix(&m, &s));
+    EqMatrix(__LINE__, &m, &exp);
+}
+
+ZTEST(gte, scale_matrix_per_axis) {
+    MATRIX m = {{{0x1000, 0x1000, 0x1000},
+                 {0x1000, 0x1000, 0x1000},
+                 {0x1000, 0x1000, 0x1000}},
+                {0, 0, 0}};
+    VECTOR s = {0x800, 0x2000, 0};
+    zexpect_ptr_eq(&m, ScaleMatrix(&m, &s));
+    for (int i = 0; i < 3; i++) {
+        if (!zexpect_s16_eq(0x800, m.m[i][0])) {
+            zprintf("row %d\n", i);
+        }
+        if (!zexpect_s16_eq(0x2000, m.m[i][1])) {
+            zprintf("row %d\n", i);
+        }
+        if (!zexpect_s16_eq(0, m.m[i][2])) {
+            zprintf("row %d\n", i);
+        }
+    }
+}
+
+ZTEST(gte, scale_matrix_negative) {
+    MATRIX m = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    VECTOR s = {-0x1000, -0x800, 0x1000};
+    ScaleMatrix(&m, &s);
+    zexpect_s16_eq(-0x1000, m.m[0][0]);
+    zexpect_s16_eq(-0x800, m.m[1][1]);
+    zexpect_s16_eq(0x1000, m.m[2][2]);
+}
+
+ZTEST(gte, mul_matrix_identity) {
+    MATRIX a = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    MATRIX b = {{{0x0100, 0x0200, 0x0300},
+                 {0x0400, 0x0500, 0x0600},
+                 {0x0700, 0x0800, 0x0900}},
+                {0, 0, 0}};
+    MATRIX exp = b;
+    zexpect_ptr_eq(&a, MulMatrix(&a, &b));
+    EqMatrix(__LINE__, &a, &exp);
+}
+
+ZTEST(gte, mul_matrix_half_identity) {
+    MATRIX a = {{{0x0800, 0, 0}, {0, 0x0800, 0}, {0, 0, 0x0800}}, {0, 0, 0}};
+    MATRIX b = {{{0x1000, 0x2000, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}},
+                {0, 0, 0}};
+    MATRIX exp = {{{0x0800, 0x1000, 0}, {0, 0x0800, 0}, {0, 0, 0x0800}},
+                  {0, 0, 0}};
+    MulMatrix(&a, &b);
+    EqMatrix(__LINE__, &a, &exp);
+}
+
+ZTEST(gte, mul_matrix_permutation) {
+    MATRIX a = {{{0, 0x1000, 0}, {0x1000, 0, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    MATRIX b = {{{0x0111, 0x0222, 0x0333},
+                 {0x0444, 0x0555, 0x0666},
+                 {0x0777, 0x0888, 0x0999}},
+                {0, 0, 0}};
+    MATRIX exp = {{{0x0444, 0x0555, 0x0666},
+                   {0x0111, 0x0222, 0x0333},
+                   {0x0777, 0x0888, 0x0999}},
+                  {0, 0, 0}};
+    MulMatrix(&a, &b);
+    EqMatrix(__LINE__, &a, &exp);
+}
+
+ZTEST(gte, transpose_matrix) {
+    MATRIX m = {{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, {10, 11, 12}};
+    MATRIX out = {0};
+    // returns the destination, and only the 3x3 part is written
+    zexpect_ptr_eq(&out, TransposeMatrix(&m, &out));
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            if (!zexpect_s16_eq(m.m[j][i], out.m[i][j])) {
+                zprintf("at [%d][%d]\n", i, j);
+            }
+        }
+    }
+}
+
+ZTEST(gte, transpose_matrix_twice_is_identity) {
+    MATRIX m = {{{-1, 2, -3}, {4, -5, 6}, {-7, 8, -9}}, {0, 0, 0}};
+    MATRIX once = {0};
+    MATRIX twice = {0};
+    TransposeMatrix(&m, &once);
+    TransposeMatrix(&once, &twice);
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            if (!zexpect_s16_eq(m.m[i][j], twice.m[i][j])) {
+                zprintf("at [%d][%d]\n", i, j);
+            }
+        }
+    }
+}
+
+ZTEST(gte, transpose_matrix_symmetric_unchanged) {
+    MATRIX m = {{{1, 2, 3}, {2, 4, 5}, {3, 5, 6}}, {0, 0, 0}};
+    MATRIX out = {0};
+    TransposeMatrix(&m, &out);
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            zexpect_s16_eq(m.m[i][j], out.m[i][j]);
+        }
+    }
+}
+
+ZTEST(gte, square_root_0) {
+    zexpect_s32_eq(0, SquareRoot0(0));
+    zexpect_s32_eq(1, SquareRoot0(1));
+    zexpect_s32_eq(1, SquareRoot0(2));
+    zexpect_s32_eq(2, SquareRoot0(4));
+    zexpect_s32_eq(2, SquareRoot0(8));
+    zexpect_s32_eq(3, SquareRoot0(9));
+    zexpect_s32_eq(0x100, SquareRoot0(0x10000));
+    zexpect_s32_eq(0x4000, SquareRoot0(0x10000000));
+}
+
+ZTEST(gte, square_root_12) {
+    zexpect_s32_eq(0, SquareRoot12(0));
+    zexpect_s32_eq(0x40, SquareRoot12(1));
+    zexpect_s32_eq(0x5A, SquareRoot12(2));
+    zexpect_s32_eq(0x80, SquareRoot12(4));
+    zexpect_s32_eq(0xB5, SquareRoot12(8));
+    zexpect_s32_eq(0xC0, SquareRoot12(9));
+    zexpect_s32_eq(0x4000, SquareRoot12(0x10000));
+    zexpect_s32_eq(0x100000, SquareRoot12(0x10000000));
+}
+
+// Some GTE tests are ports from the PCSX Redux regression suite
+// https://github.com/grumpycoders/pcsx-redux/tree/main/src/mips/tests/gte
+
+ZTEST(gte, avsz3_uses_sz123) {
+    zexpect_s32_eq(499, AverageZ3(1000, 2000, 3000));
+}
+
+ZTEST(gte, avsz4_basic) {
+    zexpect_s32_eq(0xA00, AverageZ4(0x1000, 0x2000, 0x3000, 0x4000));
+}
+
+ZTEST(gte, avsz4_stotz_macros) {
+    zskip_targets("ps1"); // the gte_* macros crash the console
+#ifndef __psx__
+    long expected = AverageZ4(0x100, 0x200, 0x300, 0x400);
+    unsigned int otz;
+
+    gte_avsz4();
+    gte_stotz(&otz);
+
+    zexpect_u32_eq(expected, otz);
+#endif
+}
+
+ZTEST(gte, nclip_ccw) {
+    zexpect_s32_eq(10000, NormalClip(0x00000000, 0x00000064, 0x00640000));
+}
+
+ZTEST(gte, nclip_cw) {
+    zexpect_s32_eq(-10000, NormalClip(0x00000000, 0x00640000, 0x00000064));
+}
+
+ZTEST(gte, nclip_collinear) {
+    zexpect_s32_eq(0, NormalClip(0x00000000, 0x00320032, 0x00640064));
+}
+
+ZTEST(gte, nclip_large_coords) {
+    zexpect_s32_eq(-2047, NormalClip(0xFC0003FF, 0x03FFFC00, 0x00000000));
+}
+
+ZTEST(gte, nclip_overflow) {
+    zexpect_s32_eq(-131071, NormalClip(0x7FFF7FFF, 0x7FFF8000, 0x80007FFF));
+}
+
+ZTEST(gte, rtps_identity_center) {
+    RTPContext ctx;
+    RTP_Init(&ctx);
+    RTP_SetRotM(&ctx, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000);
+    RTP_SetTransM(&ctx, 0, 0, 1000);
+    SetGeomOffset(160, 120);
+    SetGeomScreen(200);
+    ctx.svs[0].vx = 0;
+    ctx.svs[0].vy = 0;
+    ctx.svs[0].vz = 0;
+    long sz = RTP_RotTransPers(&ctx);
+    zexpect_s32_eq(1000 >> 2, sz);
+    zexpect_s16_eq(160, (short)ctx.lgs[0]);
+    zexpect_s16_eq(120, (short)(ctx.lgs[0] >> 16));
+}
+
+ZTEST(gte, rtps_offset_vertex) {
+    RTPContext ctx;
+    RTP_Init(&ctx);
+    RTP_SetRotM(&ctx, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000);
+    RTP_SetTransM(&ctx, 0, 0, 0);
+    SetGeomOffset(160, 120);
+    SetGeomScreen(200);
+    ctx.svs[0].vx = 100;
+    ctx.svs[0].vy = 50;
+    ctx.svs[0].vz = 500;
+    RTP_RotTransPers(&ctx);
+    zexpect_s16_eq(199, (short)ctx.lgs[0]);
+    zexpect_s16_eq(139, (short)(ctx.lgs[0] >> 16));
+}
+
+ZTEST(gte, rtps_division_overflow) {
+    RTPContext ctx;
+    RTP_Init(&ctx);
+    RTP_SetRotM(&ctx, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000);
+    RTP_SetTransM(&ctx, 0, 0, 0);
+    SetGeomOffset(0, 0);
+    SetGeomScreen(200);
+    ctx.svs[0].vx = 100;
+    ctx.svs[0].vy = 0;
+    ctx.svs[0].vz = 1;
+    RTP_RotTransPers(&ctx);
+    zexpect_u32_eq(1u, (ctx.flag >> 17) & 1u);
+}
+
+ZTEST(gte, rtps_screen_saturation) {
+    RTPContext ctx;
+    RTP_Init(&ctx);
+    RTP_SetRotM(&ctx, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000);
+    RTP_SetTransM(&ctx, 0, 0, 0);
+    SetGeomOffset(0, 0);
+    SetGeomScreen(200);
+    ctx.svs[0].vx = 0x7FFF;
+    ctx.svs[0].vy = 0;
+    ctx.svs[0].vz = 100;
+    RTP_RotTransPers(&ctx);
+    zexpect_s16_eq(0x3FF, (short)ctx.lgs[0]);
+    zexpect_u32_eq(1u, (ctx.flag >> 14) & 1u);
+}
+
+ZTEST(gte, rtpt_three_vertices) {
+    RTPContext ctx;
+    RTP_Init(&ctx);
+    RTP_SetRotM(&ctx, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000);
+    RTP_SetTransM(&ctx, 0, 0, 0);
+    SetGeomOffset(160, 120);
+    SetGeomScreen(200);
+    ctx.svs[0].vx = 0;
+    ctx.svs[0].vy = 0;
+    ctx.svs[0].vz = 1000;
+    ctx.svs[1].vx = 100;
+    ctx.svs[1].vy = 0;
+    ctx.svs[1].vz = 1000;
+    ctx.svs[2].vx = 0;
+    ctx.svs[2].vy = 100;
+    ctx.svs[2].vz = 1000;
+    RTP_RotTransPers3(&ctx);
+    zexpect_s16_eq(160, (short)ctx.lgs[0]);
+    zexpect_s16_eq(120, (short)(ctx.lgs[0] >> 16));
+    zexpect_s16_eq(120, (short)(ctx.lgs[1] >> 16));
+}
+
+ZTEST(gte, rtpt_sz_fifo) {
+    RTPContext ctx;
+    RTP_Init(&ctx);
+    RTP_SetRotM(&ctx, 0x1000, 0, 0, 0, 0x1000, 0, 0, 0, 0x1000);
+    RTP_SetTransM(&ctx, 0, 0, 0);
+    SetGeomOffset(160, 120);
+    SetGeomScreen(200);
+    ctx.svs[0].vx = 0;
+    ctx.svs[0].vy = 0;
+    ctx.svs[0].vz = 100;
+    ctx.svs[1].vx = 0;
+    ctx.svs[1].vy = 0;
+    ctx.svs[1].vz = 200;
+    ctx.svs[2].vx = 0;
+    ctx.svs[2].vy = 0;
+    ctx.svs[2].vz = 300;
+    long sz = RTP_RotTransPers3(&ctx);
+    zexpect_s32_eq(300 >> 2, sz);
+}
+
+ZTEST(gte, rot_trans_pers_trans_matrix) {
+    RTPContext ctx;
+    RTP_Init(&ctx);
+
+    SetGeomOffset(100, 100);
+    RTP_SetTransM(&ctx, 0, 0, 0);
+    TestRTP(&ctx, 0, SXY(100, 100), 0, 0x80021000);
+    SetGeomOffset(0, 0);
+
+    RTP_SetTransM(&ctx, 0, 0, 0);
+    TestRTP(&ctx, 0, SXY(0, 0), 0, 0x80021000);
+
+    RTP_SetTransM(&ctx, 10, 20, 0);
+    TestRTP(&ctx, 0, SXY(19, 39), 0, 0x80021000);
+
+    RTP_SetTransM(&ctx, -10, -20, 0);
+    TestRTP(&ctx, 0, SXY(-20, -40), 0, 0x80021000);
+
+    // TODO SXY is clipped at abs(0x3FF) but there are no tests for that
+}
+
+ZTEST(gte, rot_trans_pers_rot_matrix) {
+    RTPContext ctx;
+    RTP_Init(&ctx);
+    SetGeomOffset(0, 0);
+
+    RTP_SetRotM(&ctx, MV(0, 0, 0), MV(0, 0, 0), MV(0, 0, 0));
+    TestRTP(&ctx, 0, SXY(0, 0), 0, 0x80021000);
+
+    RTP_SetRotM(&ctx, MV(0x100, 0, 0), MV(0, 0x200, 0), MV(0, 0, 0x300));
+    TestRTP(&ctx, 0, SXY(0, 0), 0, 0x80021000);
+}
+
+ZTEST(gte, rot_trans_pers3_trans_matrix_perspective) {
+    RTPContext ctx;
+    RTP_Init(&ctx);
+
+    RTP_SetTransM(&ctx, 0, 0, 0x40);
+    TestRTP3(&ctx, 0x0010, 0, 0, 0, 0, 0x80021000);
+
+    RTP_SetTransM(&ctx, 0, 0, -4);
+    TestRTP3(&ctx, 0x0000, 0, 0, 0, 0, 0x80061000);
+
+    RTP_SetTransM(&ctx, 0, 0, 0x1A36);
+    TestRTP3(&ctx, 0x068D, 0, 0, 0, 0, 0x1000);
+}
+
+ZTEST(gte, rot_trans_pers3_set_geom_offset) {
+    RTPContext ctx;
+    RTP_Init(&ctx);
+
+    SetGeomOffset(1, 3);
+    TestRTP3(&ctx, 0, 0x00030001, 0x00030001, 0x00030001, 0, 0x80021000);
+
+    SetGeomOffset(0, 0);
+    TestRTP3(&ctx, 0, 0x00000000, 0x00000000, 0x00000000, 0, 0x80021000);
+
+    SetGeomOffset(0x3FF, 0x3FF);
+    TestRTP3(&ctx, 0, 0x03FF03FF, 0x03FF03FF, 0x03FF03FF, 0, 0x80021000);
+
+    SetGeomOffset(0x500, 0x100);
+    TestRTP3(&ctx, 0, 0x010003FF, 0x010003FF, 0x010003FF, 0, 0x80025000);
+
+    SetGeomOffset(0x100, 0x500);
+    TestRTP3(&ctx, 0, 0x03FF0100, 0x03FF0100, 0x03FF0100, 0, 0x80023000);
+
+    SetGeomOffset(0x600, 0x700);
+    TestRTP3(&ctx, 0, 0x03FF03FF, 0x03FF03FF, 0x03FF03FF, 0, 0x80027000);
+
+    SetGeomOffset(160, 120);
+    TestRTP3(&ctx, 0, 0x007800A0, 0x007800A0, 0x007800A0, 0, 0x80021000);
+}
+
+ZTEST(gte, rot_trans_pers3_trans_and_offset) {
+    RTPContext ctx;
+    RTP_Init(&ctx);
+
+    SetGeomOffset(0, 0);
+    RTP_SetTransM(&ctx, 10, 20, 0x100);
+    TestRTP3(&ctx, 0x40, 0x00270013, 0x00270013, 0x00270013, 0, 0x80021000);
+
+    SetGeomOffset(-31, -63);
+    RTP_SetTransM(&ctx, 0x10, 0x20, 0x100);
+    TestRTP3(&ctx, 0x40, 0x00000000, 0x00000000, 0x00000000, 0, 0x80021000);
+
+    SetGeomOffset(100, 120);
+    RTP_SetTransM(&ctx, 50, 60, 0x100);
+    TestRTP3(&ctx, 0x40, 0x00EF00C7, 0x00EF00C7, 0x00EF00C7, 0, 0x80021000);
+
+    SetGeomOffset(0x500, 0x400);
+    RTP_SetTransM(&ctx, 100, 200, 0x100);
+    TestRTP3(&ctx, 0x40, 0x03FF03FF, 0x03FF03FF, 0x03FF03FF, 0, 0x80027000);
+}
+
+ZTEST(gte, rot_trans_pers3_rot_matrix) {
+    RTPContext ctx;
+    RTP_Init(&ctx);
+
+    RTP_SetRotM(&ctx, 0x100, 0x100, 0x100, 0, 0x200, 0x200, 0x200, 0, 0xC00);
+    RTP_SetSvs(&ctx, 0x10, 0x10, 0x10);
+    TestRTP3(&ctx, 0x03, 0x00030001, 0x00030001, 0x00030001, 0, 0x80021000);
+
+    RTP_SetRotM(&ctx, 0x100, 0x400, 0x100, 0, 0x200, 0x200, 0x200, 0, 0xC00);
+    RTP_SetSvs(&ctx, 0x10, 0x10, 0x10);
+    TestRTP3(&ctx, 0x03, 0x00030007, 0x00030007, 0x00030001, 0, 0x80021000);
+
+    RTP_SetRotM(&ctx, 0x100, 0x100, 0x400, 0, 0x200, 0x200, 0x200, 0, 0xC00);
+    RTP_SetSvs(&ctx, 0x10, 0x10, 0x10);
+    TestRTP3(&ctx, 0x03, 0x00030001, 0x00030001, 0x00030007, 0, 0x80021000);
+
+    RTP_SetRotM(&ctx, 0x100, 0x100, 0x100, 0, 0x400, 0x200, 0x200, 0, 0xC00);
+    RTP_SetSvs(&ctx, 0x10, 0x10, 0x10);
+    TestRTP3(&ctx, 0x03, 0x00070001, 0x00070001, 0x00030001, 0, 0x80021000);
+
+    RTP_SetRotM(&ctx, 0x100, 0x100, 0x100, 0, 0x200, 0x400, 0x200, 0, 0xC00);
+    RTP_SetSvs(&ctx, 0x10, 0x10, 0x10);
+    TestRTP3(&ctx, 0x03, 0x00030001, 0x00030001, 0x00070001, 0, 0x80021000);
+
+    RTP_SetRotM(
+        &ctx, 0x100, 0x100, 0x100, 0xFFF, 0x200, 0x200, 0xFFF, 0xFFF, 0xC00);
+    RTP_SetSvs(&ctx, 0x10, 0x10, 0x10);
+    TestRTP3(&ctx, 0x03, 0x00030001, 0x00030001, 0x00030001, 0, 0x80021000);
+
+    RTP_SetRotM(&ctx, -0x100, -0x200, -0x400, 0, -0x800, -0x1000, 0, 0, 0xC00);
+    RTP_SetSvs(&ctx, -0x10, -0x10, -0x10);
+    TestRTP3(&ctx, 0, 0x000F0003, 0x000F0003, 0x001F0007, 0, 0x80061000);
+
+    RTP_SetRotM(&ctx, 0, 0, 0, 0, 0, 0, 0, 0, 0xC00);
+    RTP_SetSvs(&ctx, 0, 0, -1);
+    TestRTP3(&ctx, 0, 0, 0, 0, 0, 0x80061000);
+}
+
+ZTEST(gte, rot_trans_pers_set_geom_offset) {
+    RTPContext ctx;
+    RTP_Init(&ctx);
+
+    SetGeomOffset(1, 3);
+    TestRTP(&ctx, 0, 0x00030001, 0, 0x80021000);
+
+    SetGeomOffset(0, 0);
+    TestRTP(&ctx, 0, 0x00000000, 0, 0x80021000);
+
+    SetGeomOffset(0x3FF, 0x3FF);
+    TestRTP(&ctx, 0, 0x03FF03FF, 0, 0x80021000);
+
+    SetGeomOffset(0x500, 0x100);
+    TestRTP(&ctx, 0, 0x010003FF, 0, 0x80025000);
+
+    SetGeomOffset(0x100, 0x500);
+    TestRTP(&ctx, 0, 0x03FF0100, 0, 0x80023000);
+
+    SetGeomOffset(0x600, 0x700);
+    TestRTP(&ctx, 0, 0x03FF03FF, 0, 0x80027000);
+
+    SetGeomOffset(160, 120);
+    TestRTP(&ctx, 0, 0x007800A0, 0, 0x80021000);
+}
+
+ZTEST(gte, rot_trans_pers_trans_and_offset) {
+    RTPContext ctx;
+    RTP_Init(&ctx);
+
+    SetGeomOffset(0, 0);
+    RTP_SetTransM(&ctx, 10, 20, 0x100);
+    TestRTP(&ctx, 0x40, 0x00270013, 0, 0x80021000);
+
+    SetGeomOffset(-31, -63);
+    RTP_SetTransM(&ctx, 0x10, 0x20, 0x100);
+    TestRTP(&ctx, 0x40, 0x00000000, 0, 0x80021000);
+
+    SetGeomOffset(100, 120);
+    RTP_SetTransM(&ctx, 50, 60, 0x100);
+    TestRTP(&ctx, 0x40, 0x00EF00C7, 0, 0x80021000);
+
+    SetGeomOffset(0x500, 0x400);
+    RTP_SetTransM(&ctx, 100, 200, 0x100);
+    TestRTP(&ctx, 0x40, 0x03FF03FF, 0, 0x80027000);
+}
+
+ZTEST(gte, rcos_rsin) {
+    zexpect_s32_eq(0x1000, rcos(0x0000));
+    zexpect_s32_eq(0x0000, rcos(0x0400));
+    zexpect_s32_eq(-0x1000, rcos(0x0800));
+    zexpect_s32_eq(0x1000, rsin(0x0400));
+    zexpect_s32_eq(rcos(0), rcos(0x1000));
+    zexpect_s32_eq(rsin(0), rsin(0x1000));
+}
+
+ZTEST(gte, rot_matrix_x) {
+    MATRIX m = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    zexpect_ptr_eq(&m, RotMatrixX(0x400, &m));
+    zexpect_s16_eq(0x1000, m.m[0][0]);
+    zexpect_s16_eq(0, m.m[1][1]);
+    zexpect_s16_eq(-0x1000, m.m[1][2]);
+    zexpect_s16_eq(0x1000, m.m[2][1]);
+    zexpect_s16_eq(0, m.m[2][2]);
+}
+
+ZTEST(gte, rot_matrix_y) {
+    MATRIX m = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    zexpect_ptr_eq(&m, RotMatrixY(0x400, &m));
+    zexpect_s16_eq(0, m.m[0][0]);
+    zexpect_s16_eq(0x1000, m.m[0][2]);
+    zexpect_s16_eq(0x1000, m.m[1][1]);
+    zexpect_s16_eq(-0x1000, m.m[2][0]);
+    zexpect_s16_eq(0, m.m[2][2]);
+}
+
+ZTEST(gte, rot_matrix_z) {
+    MATRIX m = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    zexpect_ptr_eq(&m, RotMatrixZ(0x400, &m));
+    zexpect_s16_eq(0, m.m[0][0]);
+    zexpect_s16_eq(-0x1000, m.m[0][1]);
+    zexpect_s16_eq(0x1000, m.m[1][0]);
+    zexpect_s16_eq(0, m.m[1][1]);
+    zexpect_s16_eq(0x1000, m.m[2][2]);
+}
+
+ZTEST(gte, rot_matrix_arbitrary_angles) {
+    MATRIX m = {{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, {10, 11, 12}};
+    MATRIX exp = {{{+0x0212, +0x0061, +0x0FDC},
+                   {-0x041C, -0x0F71, +0x00E8},
+                   {+0x0F52, -0x0431, -0x01E7}},
+                  {10, 11, 12}};
+    SVECTOR sv = {0x123, 0x456, 0x789};
+    zexpect_ptr_eq(&m, RotMatrix(&sv, &m));
+    EqMatrix(__LINE__, &m, &exp);
+}
+
+ZTEST(gte, rot_matrix_negative_and_wrapped_angles) {
+    MATRIX m = {{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, {10, 11, 12}};
+    MATRIX exp = {{{-0x0541, +0x0588, -0x0E10},
+                   {+0x0D03, -0x05EB, -0x0730},
+                   {-0x07B1, -0x0DCC, -0x0290}},
+                  {10, 11, 12}};
+    SVECTOR sv = {-0x321, 0x0ABC, -0x1DEF};
+    zexpect_ptr_eq(&m, RotMatrix(&sv, &m));
+    EqMatrix(__LINE__, &m, &exp);
+}
+
+ZTEST(gte, rot_matrix_yxz_arbitrary_angles) {
+    MATRIX m = {{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, {10, 11, 12}};
+    MATRIX exp = {{{+0x0350, -0x0659, +0x0E4E},
+                   {+0x029F, -0x0E32, -0x06E8},
+                   {+0x0F6E, +0x03C6, -0x01E7}},
+                  {10, 11, 12}};
+    SVECTOR sv = {0x123, 0x456, 0x789};
+    zexpect_ptr_eq(&m, RotMatrixYXZ(&sv, &m));
+    EqMatrix(__LINE__, &m, &exp);
+}
+
+ZTEST(gte, rot_matrix_yxz_negative_and_wrapped_angles) {
+    MATRIX m = {{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, {10, 11, 12}};
+    MATRIX exp = {{{+0x045A, +0x0EA7, -0x04B8},
+                   {+0x03E4, +0x03B1, +0x0F13},
+                   {+0x0EE4, -0x0542, -0x0290}},
+                  {10, 11, 12}};
+    SVECTOR sv = {-0x321, 0x0ABC, -0x1DEF};
+    zexpect_ptr_eq(&m, RotMatrixYXZ(&sv, &m));
+    EqMatrix(__LINE__, &m, &exp);
+}
+
+ZTEST(gte, rot_matrix_yxz_axis_only) {
+    MATRIX m = {0};
+    SVECTOR sv = {0x400, 0, 0};
+    RotMatrixYXZ(&sv, &m);
+    zexpect_s16_eq(-0x1000, m.m[1][2]);
+    zexpect_s16_eq(0, m.m[0][2]);
+    zexpect_s16_eq(0, m.m[2][2]);
+    zexpect_s16_eq(0x1000, m.m[0][0]);
+}
+
+ZTEST(gte, rot_matrix_x_arbitrary_angle) {
+    MATRIX m = {{{+0x0F00, -0x0234, +0x0123},
+                 {+0x0456, +0x0E12, -0x0789},
+                 {-0x0321, +0x0654, +0x0FA0}},
+                {7, 8, 9}};
+    MATRIX exp = {{{+0x0F00, -0x0234, +0x0123},
+                   {+0x0543, +0x09F6, -0x0D8B},
+                   {-0x00F4, +0x0BC8, +0x0AD7}},
+                  {7, 8, 9}};
+    zexpect_ptr_eq(&m, RotMatrixX(0x123, &m));
+    EqMatrix(__LINE__, &m, &exp);
+}
+
+ZTEST(gte, rot_matrix_x_negative_angle) {
+    MATRIX m = {{{+0x0F00, -0x0234, +0x0123},
+                 {+0x0456, +0x0E12, -0x0789},
+                 {-0x0321, +0x0654, +0x0FA0}},
+                {7, 8, 9}};
+    MATRIX exp = {{{+0x0F00, -0x0234, +0x0123},
+                   {-0x04D6, -0x0CB0, +0x0A3F},
+                   {+0x024A, -0x08C8, -0x0E00}},
+                  {7, 8, 9}};
+    zexpect_ptr_eq(&m, RotMatrixX(-0x789, &m));
+    EqMatrix(__LINE__, &m, &exp);
+}
+
+ZTEST(gte, rot_matrix_y_arbitrary_angle) {
+    MATRIX m = {{{+0x0F00, -0x0234, +0x0123},
+                 {+0x0456, +0x0E12, -0x0789},
+                 {-0x0321, +0x0654, +0x0FA0}},
+                {7, 8, 9}};
+    MATRIX exp = {{{+0x0C2E, +0x00BE, +0x07C5},
+                   {+0x0456, +0x0E12, -0x0789},
+                   {-0x094D, +0x06A8, +0x0D9A}},
+                  {7, 8, 9}};
+    zexpect_ptr_eq(&m, RotMatrixY(0x123, &m));
+    EqMatrix(__LINE__, &m, &exp);
+}
+
+ZTEST(gte, rot_matrix_y_negative_angle) {
+    MATRIX m = {{{+0x0F00, -0x0234, +0x0123},
+                 {+0x0456, +0x0E12, -0x0789},
+                 {-0x0321, +0x0654, +0x0FA0}},
+                {7, 8, 9}};
+    MATRIX exp = {{{-0x0E2F, +0x0104, -0x03F5},
+                   {+0x0456, +0x0E12, -0x0789},
+                   {+0x05CD, -0x06A0, -0x0F29}},
+                  {7, 8, 9}};
+    zexpect_ptr_eq(&m, RotMatrixY(-0x789, &m));
+    EqMatrix(__LINE__, &m, &exp);
+}
+
+ZTEST(gte, rot_matrix_z_arbitrary_angle) {
+    MATRIX m = {{{+0x0F00, -0x0234, +0x0123},
+                 {+0x0456, +0x0E12, -0x0789},
+                 {-0x0321, +0x0654, +0x0FA0}},
+                {7, 8, 9}};
+    MATRIX exp = {{{+0x0BA8, -0x0810, +0x0447},
+                   {+0x0A62, +0x0BBD, -0x064F},
+                   {-0x0321, +0x0654, +0x0FA0}},
+                  {7, 8, 9}};
+    zexpect_ptr_eq(&m, RotMatrixZ(0x123, &m));
+    EqMatrix(__LINE__, &m, &exp);
+}
+
+ZTEST(gte, rot_matrix_z_negative_angle) {
+    MATRIX m = {{{+0x0F00, -0x0234, +0x0123},
+                 {+0x0456, +0x0E12, -0x0789},
+                 {-0x0321, +0x0654, +0x0FA0}},
+                {7, 8, 9}};
+    MATRIX exp = {{{-0x0DF7, +0x04B8, -0x027D},
+                   {-0x06FE, -0x0D70, +0x0734},
+                   {-0x0321, +0x0654, +0x0FA0}},
+                  {7, 8, 9}};
+    zexpect_ptr_eq(&m, RotMatrixZ(-0x789, &m));
+    EqMatrix(__LINE__, &m, &exp);
+}
+
+ZTEST(gte, rot_matrix_angle_wraps_full_turn) {
+    SVECTOR base = {0x123, 0x456, 0x789};
+    SVECTOR wrapped = {0x123 + 0x1000, 0x456 - 0x1000, 0x789 + 0x2000};
+    MATRIX a = {0}, b = {0};
+    RotMatrix(&base, &a);
+    RotMatrix(&wrapped, &b);
+    EqMatrix(__LINE__, &a, &b);
+    MATRIX c = {0}, d = {0};
+    RotMatrixYXZ(&base, &c);
+    RotMatrixYXZ(&wrapped, &d);
+    EqMatrix(__LINE__, &c, &d);
+}
+
+ZTEST(gte, rot_matrix_zero) {
+    MATRIX m = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    MATRIX exp = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    RotMatrixX(0, &m);
+    RotMatrixY(0, &m);
+    RotMatrixZ(0, &m);
+    EqMatrix(__LINE__, &m, &exp);
+}
+
+ZTEST(gte, apply_matrix_identity) {
+    MATRIX m = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    SVECTOR in = {100, -200, 300};
+    VECTOR out = {0};
+    ApplyMatrix(&m, &in, &out);
+    zexpect_s32_eq(100, out.vx);
+    zexpect_s32_eq(-200, out.vy);
+    zexpect_s32_eq(300, out.vz);
+}
+
+ZTEST(gte, apply_matrix_permutation) {
+    MATRIX m = {{{0, 0x1000, 0}, {0, 0, 0x1000}, {0x1000, 0, 0}}, {0, 0, 0}};
+    SVECTOR in = {1, 2, 3};
+    VECTOR out = {0};
+    ApplyMatrix(&m, &in, &out);
+    zexpect_s32_eq(2, out.vx);
+    zexpect_s32_eq(3, out.vy);
+    zexpect_s32_eq(1, out.vz);
+}
+
+ZTEST(gte, apply_matrix_ignores_translation) {
+    MATRIX m = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}},
+                {1000, 2000, 3000}};
+    SVECTOR in = {5, 6, 7};
+    VECTOR out = {0};
+    ApplyMatrix(&m, &in, &out);
+    zexpect_s32_eq(5, out.vx);
+    zexpect_s32_eq(6, out.vy);
+    zexpect_s32_eq(7, out.vz);
+}
+
+ZTEST(gte, rot_trans_applies_translation) {
+    MATRIX m = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {10, 20, 30}};
+    SVECTOR in = {1, 2, 3};
+    VECTOR out = {0};
+    int flag = 0;
+    SetRotMatrix(&m);
+    SetTransMatrix(&m);
+    RotTrans(&in, &out, &flag);
+    zexpect_s32_eq(11, out.vx);
+    zexpect_s32_eq(22, out.vy);
+    zexpect_s32_eq(33, out.vz);
+}

@@ -20,6 +20,9 @@
 extern "C" {
 #endif
 
+// A native PS1 build uses PSY-Q's own file I/O.
+#ifndef __psx__
+
 #define open psyz_open
 #define close psyz_close
 #define lseek psyz_lseek
@@ -44,6 +47,8 @@ long psyz_read(long fd, void* buf, long n);
 long psyz_write(long fd, void* buf, long n);
 long psyz_ioctl(long fd, long com, long arg);
 #endif
+
+#endif // __psx__
 
 #ifdef _MSC_VER
 #define __builtin_memcpy memcpy

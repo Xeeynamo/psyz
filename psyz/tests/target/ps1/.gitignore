@@ -1,0 +1,8 @@
+*.o
+*.d
+*.dep
+*.elf
+*.map
+*.ps-exe
+comport.txt
+__pycache__/

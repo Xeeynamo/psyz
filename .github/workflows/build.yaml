@@ -25,6 +25,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: ztest self-test
+        run: make -C ztest test-native
       - name: Test PsyZ
         working-directory: psyz/
         run: make test
@@ -61,6 +63,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: ztest self-test (${{ matrix.compiler.name }})
+        run: |
+          cmake -S ztest -B ztest/build/win ${{ matrix.compiler.toolset }}
+          cmake --build ztest/build/win --config Release
+          python ztest/zrunner.py native --exe ztest/build/win/Release/ztest_selftest.exe --workdir ztest/selftest --selftest ztest/selftest/selftest.expected.txt
       - name: Test PsyZ on Windows (${{ matrix.compiler.name }})
         working-directory: psyz/
         run: ./${{ matrix.compiler.script }}
@@ -89,6 +96,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: ztest self-test
+        run: make -C ztest test-native
       - name: Test PsyZ
         working-directory: psyz/
         run: make test
@@ -145,6 +154,8 @@ jobs:
             echo "PPSSPPHeadless failed to start (exit $status)"
             exit 1
           fi
+      - name: ztest self-test on PSP
+        run: make -C ztest test-psp-emu
       - name: Test PsyZ on PSP
         working-directory: psyz/
         run: make test-psp-emu
@@ -166,7 +177,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-failures-psp
-          path: psyz/tests/expected/*.actual.png
+          path: |
+            psyz/tests/expected/*.actual.png
+            ztest/selftest/expected/*.actual.png
           if-no-files-found: ignore
 
   build-ios:

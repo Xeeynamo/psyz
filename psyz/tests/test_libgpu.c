@@ -1,174 +1,133 @@
-#include <cstdlib>
-#include <cstring>
-#include <gtest/gtest.h>
-extern "C" {
+#include <stdlib.h>
+#include <string.h>
 #include <psyz.h>
 #include <kernel.h>
 #include <libetc.h>
 #include <libgpu.h>
-}
+
+#include "ztest.h"
 
 #include "res/4bpp.h"
 #include "res/16bpp.h"
 #include "res/uv4bpp.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#define STBI_WINDOWS_UTF8
-#define STBI_NO_HDR
-#define STBI_NO_LINEAR
-#define STBI_ONLY_PNG
-#define STBI_SUPPORT_ZLIB
-#define STBI_MAX_DIMENSIONS 1024
-#include "stb_image.h"
-#include "../src/dbgserver/stb_image_write.h"
-
 #ifndef LEN
 #define LEN(x) ((s32)(sizeof(x) / sizeof(*(x))))
 #endif
 
-class gpu_Test : public testing::Test {
-    static float img_eq(const unsigned char* a, const unsigned char* b,
-                        const size_t len, const int tolerance) {
-        size_t matches = 0;
-        for (size_t i = 0; i < len; ++i) {
-            // normalize both images to RGB5551
-            const int l = (static_cast<int>(a[i]) & 0xF8) >> 3;
-            const int r = (static_cast<int>(b[i]) & 0xF8) >> 3;
-            if (std::abs(l - r) <= tolerance)
-                matches++;
-        }
-        return static_cast<float>(matches) / static_cast<float>(len);
-    }
-
-  protected:
-    static const int OT_LENGTH = 1;
-    static const int OTSIZE = 1 << OT_LENGTH;
-    static const int SCREEN_WIDTH = 256;
-    static const int SCREEN_HEIGHT = 240;
-    typedef struct DB {
-        DRAWENV draw;
-        DISPENV disp;
-        OT_TYPE ot[OTSIZE];
-        POLY_F4 f4[8];
-        POLY_FT4 ft4[8];
-        POLY_G4 g4[4];
-        POLY_GT4 gt4[4];
-        LINE_G2 lineg2[4];
-        LINE_G3 lineg3[2];
-        LINE_G4 lineg4[2];
-        SPRT sprt[4];
-        TILE tile[4];
-        DR_MODE drmode[2];
-        DR_TWIN twin[4];
-    } DB;
-    DB db[2];
-    DB* cdb;
-
-    void SetUp() override {
-        Psyz_VideoSetDitheringMode(PSYZ_DITHER_OFF);
-        Psyz_VideoSetInternalResolution(1);
-        SetDefDrawEnv(&db[0].draw, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-        SetDefDispEnv(&db[0].disp, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-        SetDefDrawEnv(
-            &db[1].draw, SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-        SetDefDispEnv(
-            &db[1].disp, SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-        db[0].draw.dtd = db[1].draw.dtd = 0; // disable dithering by default
-        ResetGraph(0);
-        PutDrawEnv(&db[0].draw);
-        PutDispEnv(&db[0].disp);
-        ClearOTagR(db[0].ot, OTSIZE);
-        ClearOTagR(db[1].ot, OTSIZE);
-        SetDispMask(1);
-        RECT clearRect = {0, 0, 0x7FFF, 0x7FFF};
-        ClearImage(&clearRect, 0, 0, 0);
-        DrawSync(0);
-        cdb = &db[0];
-    }
-    void TearDown() override { ResetGraph(0); }
-
-    static void WriteToFile(const char* filename, void* data, size_t len) {
-        FILE* f = fopen(filename, "wb");
-        ASSERT_TRUE(f != nullptr);
-        fwrite(data, 1, len, f);
-        fclose(f);
-    }
-    static void AssertFrame(
-        const char* png_path, int tolerance = 0, float precision = 1.0f) {
-#ifdef __PSP__
-        // GU_COLOR_5551 is slightly brighter than PS1, account for error margin
-        if (tolerance < 2) {
-            tolerance = 2;
-        }
-#endif
-        char filename[FILENAME_MAX];
-        char filenameAct[FILENAME_MAX];
-        int exp_w, exp_h, act_w, act_h, ch;
-        snprintf(filename, sizeof(filename), "expected/%s.png", png_path);
-        unsigned char* exp_d = stbi_load(filename, &exp_w, &exp_h, &ch, 3);
-        ch = 3;
-        ASSERT_NE(exp_d, nullptr) << "for " << png_path;
-        unsigned char* act_d = Psyz_VideoAllocCapturedFrame(&act_w, &act_h);
-        ASSERT_NE(act_d, nullptr) << "for " << png_path;
-        ASSERT_EQ(exp_w, act_w) << "for " << png_path;
-        ASSERT_EQ(exp_h, act_h) << "for " << png_path;
-        auto eq = img_eq(exp_d, act_d, exp_w * exp_h * ch, tolerance);
-        snprintf(filenameAct, sizeof(filenameAct), "expected/%s.actual.png",
-                 png_path);
-        if (eq < precision) {
-            stbi_write_png(filenameAct, act_w, act_h, ch, act_d, act_w * ch);
-        } else {
-            remove(filenameAct);
-        }
-        EXPECT_GE(eq, precision) << "for " << png_path;
-        stbi_image_free(exp_d);
-        free(act_d);
-    }
-
-    void Present(const char* golden) {
-        DrawOTag(cdb->ot);
-        DrawSync(0);
-        VSync(0);
-        PutDispEnv(&cdb->disp);
-        AssertFrame(golden);
-    }
-
-    static int LoadTim(void* data, u_short* outTpage, u_short* outClut) {
-        if (OpenTIM((u_long*)data)) {
-            return 1;
-        }
-        TIM_IMAGE tim;
-        if (!ReadTIM(&tim)) {
-            return 1;
-        }
-        LoadImage(tim.prect, tim.paddr);
-        if (outTpage) {
-            *outTpage = GetTPage((int)tim.mode, 0, tim.prect->x, tim.prect->y);
-        }
-        if (tim.caddr) {
-            LoadImage(tim.crect, tim.caddr);
-            if (outClut) {
-                *outClut = GetClut(tim.crect->x, tim.crect->y);
-            }
-        }
-        return 0;
-    }
-
-    static void SetPolyF4Img(
-        POLY_FT4* poly, int x, int y, int w, int h, int u, int v, u_short tpage,
-        u_short clut, int semitrans) {
-        SetPolyFT4(poly);
-        setXYWH(poly, x, y, w, h);
-        setRGB0(poly, 255, 128, 128);
-        setUVWH(poly, u, v, w, h);
-        setSemiTrans(poly, semitrans);
-        poly->tpage = tpage;
-        poly->clut = clut;
-    }
+enum {
+    OT_LENGTH = 1,
+    OTSIZE = 1 << OT_LENGTH,
+    SCREEN_WIDTH = 256,
+    SCREEN_HEIGHT = 240,
 };
 
-TEST_F(gpu_Test, fnt_print) {
+typedef struct DBuf {
+    DRAWENV draw;
+    DISPENV disp;
+    OT_TYPE ot[OTSIZE];
+    POLY_F4 f4[8];
+    POLY_FT4 ft4[8];
+    POLY_G4 g4[4];
+    POLY_GT4 gt4[4];
+    LINE_G2 lineg2[4];
+    LINE_G3 lineg3[2];
+    LINE_G4 lineg4[2];
+    SPRT sprt[4];
+    TILE tile[4];
+    DR_MODE drmode[2];
+    DR_TWIN twin[4];
+} DBuf;
+
+static DBuf db[2];
+static DBuf* cdb;
+
+static void gpu_setup(void) {
+    RECT clearRect = {0, 0, 0x7FFF, 0x7FFF};
+    Psyz_VideoSetDitheringMode(PSYZ_DITHER_OFF);
+    Psyz_VideoSetInternalResolution(1);
+    SetDefDrawEnv(&db[0].draw, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    SetDefDispEnv(&db[0].disp, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    SetDefDrawEnv(&db[1].draw, SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    SetDefDispEnv(&db[1].disp, SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    db[0].draw.dtd = db[1].draw.dtd = 0; // disable dithering by default
+    ResetGraph(0);
+    PutDrawEnv(&db[0].draw);
+    PutDispEnv(&db[0].disp);
+    ClearOTagR(db[0].ot, OTSIZE);
+    ClearOTagR(db[1].ot, OTSIZE);
+    SetDispMask(1);
+    ClearImage(&clearRect, 0, 0, 0);
+    DrawSync(0);
+    cdb = &db[0];
+}
+
+static void gpu_teardown(void) { ResetGraph(0); }
+
+static const zimage_cmp* frame_cmp(int tol, float prec) {
+    static zimage_cmp cmp;
+#ifdef __PSP__
+    // GU_COLOR_5551 is slightly brighter than PS1, account for error margin
+    if (tol < 2) {
+        tol = 2;
+    }
+#endif
+#ifdef __psx__
+    // real hardware is the reference, its frames must be identical
+    tol = 0;
+    prec = 1.0f;
+#endif
+    cmp = *zimage_r5g5b5_with_tol_prec(tol, prec);
+    return &cmp;
+}
+
+#define ASSERT_FRAME(name, tol, prec)                                          \
+    zexpect_image_eq(name, zimage_frontbuffer(), frame_cmp(tol, prec))
+
+static void Present(const char* golden) {
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+    ASSERT_FRAME(golden, 0, 1.0f);
+}
+
+static int LoadTim(void* data, u_short* outTpage, u_short* outClut) {
+    TIM_IMAGE tim;
+    if (OpenTIM((u_long*)data)) {
+        return 1;
+    }
+    if (!ReadTIM(&tim)) {
+        return 1;
+    }
+    LoadImage(tim.prect, tim.paddr);
+    if (outTpage) {
+        *outTpage = GetTPage((int)tim.mode, 0, tim.prect->x, tim.prect->y);
+    }
+    if (tim.caddr) {
+        LoadImage(tim.crect, tim.caddr);
+        if (outClut) {
+            *outClut = GetClut(tim.crect->x, tim.crect->y);
+        }
+    }
+    return 0;
+}
+
+static void SetPolyF4Img(POLY_FT4* poly, int x, int y, int w, int h, int u,
+                         int v, u_short tpage, u_short clut, int semitrans) {
+    SetPolyFT4(poly);
+    setXYWH(poly, x, y, w, h);
+    setRGB0(poly, 255, 128, 128);
+    setUVWH(poly, u, v, w, h);
+    setSemiTrans(poly, semitrans);
+    poly->tpage = tpage;
+    poly->clut = clut;
+}
+
+ZTEST_SETUP(gpu) { gpu_setup(); }
+ZTEST_TEARDOWN(gpu) { gpu_teardown(); }
+
+ZTEST(gpu, fnt_print) {
     FntLoad(960, 256);
     SetDumpFnt(FntOpen(4, 4, SCREEN_WIDTH, SCREEN_HEIGHT, 0, 512));
     ClearImage(&cdb->draw.clip, 60, 120, 120);
@@ -178,10 +137,10 @@ TEST_F(gpu_Test, fnt_print) {
     VSync(0);
     PutDrawEnv(&cdb->draw);
     PutDispEnv(&cdb->disp);
-    AssertFrame("fnt_print");
+    ASSERT_FRAME("fnt_print", 0, 1.0f);
 }
 
-TEST_F(gpu_Test, draw_ft4) {
+ZTEST(gpu, draw_ft4) {
     u_short tpage, clut;
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
@@ -202,10 +161,10 @@ TEST_F(gpu_Test, draw_ft4) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("draw_ft4");
+    ASSERT_FRAME("draw_ft4", 0, 1.0f);
 }
 
-TEST_F(gpu_Test, draw_ft4_colored) {
+ZTEST(gpu, draw_ft4_colored) {
     u_short tpage, clut;
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
@@ -226,10 +185,11 @@ TEST_F(gpu_Test, draw_ft4_colored) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("draw_ft4_colored");
+    ASSERT_FRAME("draw_ft4_colored", 0, 1.0f);
 }
 
-TEST_F(gpu_Test, draw_gt4) {
+ZTEST(gpu, draw_gt4) {
+    zskip_targets("pcsx-redux"); // differs from real hardware
     u_short tpage, clut;
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
@@ -253,23 +213,16 @@ TEST_F(gpu_Test, draw_gt4) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("draw_gt4", 1);
+    ASSERT_FRAME("draw_gt4", 1, 1.0f);
 }
 
-// Reproduces SOTN MenuDrawLine: a 1px rectangle border drawn as four
-// LINE_G2 (GP0 0x50) segments. Dumps the captured frame so the corners can
-// be inspected for endpoint gaps.
-static void SetBorderLine(LINE_G2* l, int x0, int y0, int x1, int y1, int c) {
-    SetLineG2(l);
-    setRGB0(l, c, c, c);
-    l->r1 = l->g1 = l->b1 = (u_char)c;
-    l->x0 = (short)x0;
-    l->y0 = (short)y0;
-    l->x1 = (short)x1;
-    l->y1 = (short)y1;
-}
+ZTEST(gpu, gouraud_line_after_flush) {
+    int w, h;
+    unsigned char* d;
+    const unsigned char* p87;
+    const unsigned char* p88;
+    const unsigned char* p;
 
-TEST_F(gpu_Test, gouraud_line_after_flush) {
     SetPolyF4(&cdb->f4[0]);
     setXYWH(&cdb->f4[0], 16, 16, 64, 64);
     setRGB0(&cdb->f4[0], 0, 0, 255);
@@ -291,32 +244,26 @@ TEST_F(gpu_Test, gouraud_line_after_flush) {
     VSync(0);
     PutDispEnv(&cdb->disp);
 
-    int w, h;
-    unsigned char* d = Psyz_VideoAllocCapturedFrame(&w, &h);
-    ASSERT_NE(d, nullptr);
+    d = Psyz_VideoAllocCapturedFrame(&w, &h);
+    zassert_ptr_ne(NULL, d);
 
     // Linux and Windows renders the line at y:87, macOS does it at y:88
-    const unsigned char* p87 = d + 3 * (87 * w + 48);
-    const unsigned char* p88 = d + 3 * (88 * w + 48);
+    p87 = d + 3 * (87 * w + 48);
+    p88 = d + 3 * (88 * w + 48);
 
-    const unsigned char* p = (p87[0] + p87[1] > p87[2]) ? p87 : p88;
-    EXPECT_GT(p[0] + p[1], p[2]) << "line should be red/green mix, not blue";
-    EXPECT_GT(p[0] + p[1], 128) << "line color lost after flush";
-    EXPECT_LT(p[2], 64) << "line B should be near zero";
+    p = (p87[0] + p87[1] > p87[2]) ? p87 : p88;
+    zprintf("line should be red/green mix, not blue\n");
+    zexpect_s32_gt(p[2], p[0] + p[1]);
+    zprintf("line color lost after flush\n");
+    zexpect_s32_gt(128, p[0] + p[1]);
+    zprintf("line B should be near zero\n");
+    zexpect_s32_lt(64, p[2]);
     free(d);
 }
 
-TEST_F(gpu_Test, draw_lines) {
-#ifdef __PSP__
-#ifdef IS_PPSSPP_EMU
-    GTEST_SKIP() << "Known failure on PPSSPP";
-#endif
-// native line geometry has a different rasterization algorihm, and using
-// triangles to represent lines is too expensive for the Graphics Engine.
-#define VARIANT ".psp"
-#else
-#define VARIANT ""
-#endif
+ZTEST(gpu, draw_lines) {
+    zskip_targets("pcsx-redux"); // differs from real hardware
+    zskip_targets("ppsspp");
     ClearImage(&cdb->draw.clip, 0, 0, 0);
     ClearOTag(cdb->ot, OTSIZE);
 
@@ -345,11 +292,16 @@ TEST_F(gpu_Test, draw_lines) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("draw_lines" VARIANT, 1, 0.9993f);
+    // PSP has its own golden: native line geometry has a different
+    // rasterization algorithm, and using triangles for lines is too expensive
+    // for the GE.
+    ASSERT_FRAME("draw_lines", 1, 0.9993f);
 }
 
-TEST_F(gpu_Test, set_draw_area) {
+ZTEST(gpu, set_draw_area) {
     u_short tpage, clut;
+    DR_AREA drArea;
+    RECT area = {4, 8, 56, 48};
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
     }
@@ -363,9 +315,7 @@ TEST_F(gpu_Test, set_draw_area) {
     cdb->ft4[0].tpage = tpage;
     cdb->ft4[0].clut = clut;
 
-    DR_AREA drArea;
     AddPrim(cdb->ot, &drArea);
-    RECT area = {4, 8, 56, 48};
     SetDrawArea(&drArea, &area);
 
     setRECT(&cdb->draw.clip, 32, 24, 160, 128);
@@ -377,10 +327,10 @@ TEST_F(gpu_Test, set_draw_area) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("set_draw_area");
+    ASSERT_FRAME("set_draw_area", 0, 1.0f);
 }
 
-TEST_F(gpu_Test, swap_buffer) {
+ZTEST(gpu, swap_buffer) {
     u_short tpage, clut;
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
@@ -407,22 +357,24 @@ TEST_F(gpu_Test, swap_buffer) {
 
         DrawSync(0);
         VSync(0);
-        AssertFrame((fbidx & 1) ? "swap_buffer_fb2" : "swap_buffer_fb1");
+        ASSERT_FRAME(
+            (fbidx & 1) ? "swap_buffer_fb2" : "swap_buffer_fb1", 0, 1.0f);
     }
 }
 
-TEST_F(gpu_Test, drawenv_clear_vram) {
+ZTEST(gpu, drawenv_clear_vram) {
     const char* ci = getenv("CI");
     const char* os = getenv("OS");
-    if (ci && strcmp(ci, "1") == 0 && os && strcmp(os, "linux") == 0) {
-        GTEST_SKIP() << "Skipped on Linux CI";
-    }
     u_short tpage, clut;
+    DRAWENV drawEnv;
+    if (ci && strcmp(ci, "1") == 0 && os && strcmp(os, "linux") == 0) {
+        zskip("Skipped on Linux CI");
+    }
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
     }
 
-    DRAWENV drawEnv = {};
+    memset(&drawEnv, 0, sizeof(drawEnv));
     drawEnv.clip.x = 964;
     drawEnv.clip.y = 16;
     drawEnv.clip.w = 8;
@@ -453,15 +405,16 @@ TEST_F(gpu_Test, drawenv_clear_vram) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-#ifdef __PSP__
-    AssertFrame("drawenv_clear_vram", 2, 0.995);
-#else
-    AssertFrame("drawenv_clear_vram");
-#endif
+    if (ztest_is_target("psp")) {
+        ASSERT_FRAME("drawenv_clear_vram", 2, 0.995f);
+    } else {
+        ASSERT_FRAME("drawenv_clear_vram", 0, 1.0f);
+    }
 }
 
-TEST_F(gpu_Test, move_image) {
+ZTEST(gpu, move_image) {
     u_short tpage, clut;
+    RECT rect = {16, 16, 64, 64};
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
     }
@@ -480,25 +433,22 @@ TEST_F(gpu_Test, move_image) {
     ClearImage(&cdb->draw.clip, 60, 120, 120);
     DrawOTag(cdb->ot);
 
-    RECT rect = {16, 16, 64, 64};
     MoveImage(&rect, 144, 144);
     DrawSync(0);
 
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("move_image");
+    ASSERT_FRAME("move_image", 0, 1.0f);
 }
 
-TEST_F(gpu_Test, move_image_overlap) {
-#ifdef __PSP__
-    GTEST_SKIP() << "move_image unimplemented on PSP";
-#endif
+ZTEST(gpu, move_image_overlap) {
     u_short tpage, clut;
+    RECT rect = {960, 0, 16, 64};
+    zskip_targets("psp");
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
     }
 
-    RECT rect = {960, 0, 16, 64};
     MoveImage(&rect, 962, 8);
     rect.x = 962;
     rect.y = 8;
@@ -520,19 +470,20 @@ TEST_F(gpu_Test, move_image_overlap) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("move_image_overlap");
+    ASSERT_FRAME("move_image_overlap", 0, 1.0f);
 }
 
-TEST_F(gpu_Test, move_image_internal_res) {
-#ifdef __PSP__
-    GTEST_SKIP() << "no internal resolution scaling supported";
-    return;
-#endif
-    ASSERT_EQ(Psyz_VideoSetInternalResolution(0), -1);
-    ASSERT_EQ(Psyz_VideoSetInternalResolution(2), 0);
-    ASSERT_EQ(Psyz_VideoGetInternalResolution(), 2);
-
+ZTEST(gpu, move_image_internal_res) {
     u_short tpage, clut;
+    RECT rect = {16, 16, 64, 64};
+    u_short pattern[16 * 16];
+    u_short readback[16 * 16];
+    RECT rectStore = {704, 320, 16, 16};
+    zskip_targets("psp;ps1");
+    zassert_s32_eq(-1, Psyz_VideoSetInternalResolution(0));
+    zassert_s32_eq(0, Psyz_VideoSetInternalResolution(2));
+    zassert_s32_eq(2, Psyz_VideoGetInternalResolution());
+
     if (LoadTim(img_4bpp, &tpage, &clut)) {
         return;
     }
@@ -551,39 +502,35 @@ TEST_F(gpu_Test, move_image_internal_res) {
     ClearImage(&cdb->draw.clip, 60, 120, 120);
     DrawOTag(cdb->ot);
 
-    RECT rect = {16, 16, 64, 64};
     MoveImage(&rect, 144, 144);
     DrawSync(0);
 
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("move_image");
+    ASSERT_FRAME("move_image", 0, 1.0f);
 
-    u_short pattern[16 * 16];
-    u_short readback[16 * 16];
     for (int i = 0; i < 16 * 16; i++) {
         pattern[i] = (u_short)(i * 0x1235);
     }
-    RECT rectStore = {704, 320, 16, 16};
     LoadImage(&rectStore, (u_long*)pattern);
     DrawSync(0);
     StoreImage(&rectStore, (u_long*)readback);
     DrawSync(0);
-    EXPECT_EQ(memcmp(pattern, readback, sizeof(pattern)), 0);
+    zexpect_u8array_eq(pattern, readback, sizeof(pattern));
 
-    ASSERT_EQ(Psyz_VideoSetInternalResolution(1), 0);
-    ASSERT_EQ(Psyz_VideoGetInternalResolution(), 1);
+    zassert_s32_eq(0, Psyz_VideoSetInternalResolution(1));
+    zassert_s32_eq(1, Psyz_VideoGetInternalResolution());
     VSync(0);
-    AssertFrame("move_image");
+    ASSERT_FRAME("move_image", 0, 1.0f);
 }
 
-TEST_F(gpu_Test, disp_mask_preserves_vram) {
+ZTEST(gpu, disp_mask_preserves_vram) {
     u_short pattern[16 * 16];
     u_short readback[16 * 16];
+    RECT rect = {704, 320, 16, 16};
     for (int i = 0; i < 16 * 16; i++) {
         pattern[i] = (u_short)(i * 0x1235);
     }
-    RECT rect = {704, 320, 16, 16};
     LoadImage(&rect, (u_long*)pattern);
     DrawSync(0);
 
@@ -593,34 +540,32 @@ TEST_F(gpu_Test, disp_mask_preserves_vram) {
     memset(readback, 0, sizeof(readback));
     StoreImage(&rect, (u_long*)readback);
     DrawSync(0);
-    EXPECT_EQ(memcmp(pattern, readback, sizeof(pattern)), 0)
-        << "SetDispMask(0) must not alter VRAM";
+    zprintf("SetDispMask(0) must not alter VRAM\n");
+    zexpect_u8array_eq(pattern, readback, sizeof(pattern));
 
     SetDispMask(1);
     VSync(0);
     memset(readback, 0, sizeof(readback));
     StoreImage(&rect, (u_long*)readback);
     DrawSync(0);
-    EXPECT_EQ(memcmp(pattern, readback, sizeof(pattern)), 0)
-        << "VRAM must survive the display being re-enabled";
+    zprintf("VRAM must survive the display being re-enabled\n");
+    zexpect_u8array_eq(pattern, readback, sizeof(pattern));
 }
 
-TEST_F(gpu_Test, blit) {
+ZTEST(gpu, blit) {
     TIM_IMAGE tim;
     RECT rect = {16, 16, 64, 64};
     OpenTIM((u_long*)img_16bpp);
     ReadTIM(&tim);
     LoadImage(&rect, tim.paddr);
     VSync(0);
-    AssertFrame("blit");
+    ASSERT_FRAME("blit", 0, 1.0f);
 }
 
-TEST_F(gpu_Test, draw_disp_env) {
-#ifdef __PSP__
+ZTEST(gpu, draw_disp_env) {
     // Can't draw on the same buffer that is also displayed
-    GTEST_SKIP() << "Unsupported on PSP";
-    return;
-#endif
+    zskip_targets("psp");
+
     // Set different buffers for draw and disp
     SetDefDrawEnv(&db[0].draw, 0, 0, 256, 240);
     SetDefDispEnv(&db[0].disp, 256, 0, 256, 240);
@@ -647,19 +592,19 @@ TEST_F(gpu_Test, draw_disp_env) {
     ClearImage(&db[0].draw.clip, 0xFF, 0, 0);
     DrawSync(0);
     VSync(0);
-    AssertFrame("draw_disp_env_0");
+    ASSERT_FRAME("draw_disp_env_0", 0, 1.0f);
 
     // Back buffer now becomes front buffer, displays red
     PutDispEnv(&db[1].disp);
     DrawSync(0);
     VSync(0);
-    AssertFrame("draw_disp_env_1");
+    ASSERT_FRAME("draw_disp_env_1", 0, 1.0f);
 
     // Front buffer is swapped again, display green
     PutDispEnv(&db[0].disp);
     DrawSync(0);
     VSync(0);
-    AssertFrame("draw_disp_env_2");
+    ASSERT_FRAME("draw_disp_env_2", 0, 1.0f);
 
     // Now back buffer and front buffer are the same, display blue
     PutDispEnv(&db[0].disp);
@@ -667,16 +612,17 @@ TEST_F(gpu_Test, draw_disp_env) {
     ClearImage(&db[1].draw.clip, 0, 0, 0xFF);
     DrawSync(0);
     VSync(0);
-    AssertFrame("draw_disp_env_3");
+    ASSERT_FRAME("draw_disp_env_3", 0, 1.0f);
 }
 
-TEST_F(gpu_Test, clear_screen_draw_offset_bugfix) {
+ZTEST(gpu, clear_screen_draw_offset_bugfix) {
+    DRAWENV draw;
     SetTile(&cdb->tile[0]);
     setRGB0(&cdb->tile[0], 255, 0, 0);
     setXY0(&cdb->tile[0], 0, 0);
     setWH(&cdb->tile[0], 128, 128);
 
-    DRAWENV draw = cdb->draw;
+    draw = cdb->draw;
     draw.ofs[0] = 128;
     draw.ofs[1] = 128;
     PutDrawEnv(&draw);
@@ -690,16 +636,18 @@ TEST_F(gpu_Test, clear_screen_draw_offset_bugfix) {
     DrawSync(0);
     VSync(0);
 
-    AssertFrame("clear_screen_draw_offset_bugfix");
+    ASSERT_FRAME("clear_screen_draw_offset_bugfix", 0, 1.0f);
 }
 
 // TODO: test is actually failing
-TEST_F(gpu_Test, load_move_image_priority) {
+ZTEST(gpu, load_move_image_priority) {
     TIM_IMAGE tim;
+    RECT rectMoveNull = {16, 16, 64, 64};
+    RECT rectBlit = {16, 16, 64, 64};
+    RECT rectMoveImage = {16, 16, 64, 64};
     OpenTIM((u_long*)img_16bpp);
     ReadTIM(&tim);
 
-    RECT rectMoveNull = {16, 16, 64, 64};
     MoveImage(&rectMoveNull, 16, 80);
 
     SetTile(&cdb->tile[0]);
@@ -709,12 +657,10 @@ TEST_F(gpu_Test, load_move_image_priority) {
     ClearOTag(cdb->ot, OTSIZE);
     AddPrim(cdb->ot, &db[0].tile[0]);
 
-    RECT rectBlit = {16, 16, 64, 64};
     LoadImage(&rectBlit, tim.paddr);
 
     DrawOTag(cdb->ot);
 
-    RECT rectMoveImage = {16, 16, 64, 64};
     MoveImage(&rectMoveImage, 80, 16);
 
     DrawSync(0);
@@ -723,10 +669,10 @@ TEST_F(gpu_Test, load_move_image_priority) {
     cdb->disp.disp.y = 0;
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("load_move_image_priority", 0, 0.9825f);
+    ASSERT_FRAME("load_move_image_priority", 0, 0.9825f);
 }
 
-TEST_F(gpu_Test, flipped_xy) {
+ZTEST(gpu, flipped_xy) {
     u_short tpage, clut;
     if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
         return;
@@ -768,10 +714,10 @@ TEST_F(gpu_Test, flipped_xy) {
     VSync(0);
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("flipped_xy", 1);
+    ASSERT_FRAME("flipped_xy", 1, 1.0f);
 }
 
-TEST_F(gpu_Test, flipped_uv) {
+ZTEST(gpu, flipped_uv) {
     u_short tpage, clut;
     if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
         return;
@@ -819,10 +765,10 @@ TEST_F(gpu_Test, flipped_uv) {
     VSync(0);
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("flipped_uv", 1);
+    ASSERT_FRAME("flipped_uv", 1, 1.0f);
 }
 
-TEST_F(gpu_Test, flipped_xy_uv) {
+ZTEST(gpu, flipped_xy_uv) {
     u_short tpage, clut;
     if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
         return;
@@ -870,19 +816,21 @@ TEST_F(gpu_Test, flipped_xy_uv) {
     VSync(0);
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("flipped_xy_uv", 1);
+    ASSERT_FRAME("flipped_xy_uv", 1, 1.0f);
 }
 
-TEST_F(gpu_Test, alpha_blend) {
+ZTEST(gpu, alpha_blend) {
+    zskip_targets("pcsx-redux"); // differs from real hardware
     u_short tpage, clut;
+    TIM_IMAGE tim;
+    u_short* pal;
     if (OpenTIM((u_long*)img_4bpp)) {
         return;
     }
-    TIM_IMAGE tim;
     if (!ReadTIM(&tim)) {
         return;
     }
-    u_short* pal = (u_short*)tim.caddr;
+    pal = (u_short*)tim.caddr;
     for (int i = 0; i < tim.crect->w * tim.crect->h; i++) {
         if (i == 2) // skip key color index
             continue;
@@ -916,10 +864,10 @@ TEST_F(gpu_Test, alpha_blend) {
     VSync(0);
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("alpha_blend", 1);
+    ASSERT_FRAME("alpha_blend", 1, 1.0f);
 }
 
-TEST_F(gpu_Test, s11_coord_truncation) {
+ZTEST(gpu, s11_coord_truncation) {
     ClearImage(&cdb->draw.clip, 60, 120, 120);
     DrawSync(0);
 
@@ -935,25 +883,26 @@ TEST_F(gpu_Test, s11_coord_truncation) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
-    AssertFrame("s11_coord_truncation");
+    ASSERT_FRAME("s11_coord_truncation", 0, 1.0f);
 }
 
-TEST_F(gpu_Test, untextured_transp_poly_take_abr_from_drawenv) {
+ZTEST(gpu, untextured_transp_poly_take_abr_from_drawenv) {
+    const int16_t bx[4] = {8, 88, 8, 88};
+    const int16_t by[4] = {8, 8, 88, 88};
     ClearImage(&cdb->draw.clip, 0x60, 0x60, 0x60);
     DrawSync(0);
 
-    const int16_t bx[4] = {8, 88, 8, 88};
-    const int16_t by[4] = {8, 8, 88, 88};
     for (int i = 0; i < 4; i++) {
+        POLY_F4 poly;
+        unsigned* words;
         Psyz_GpuWriteGP0(_get_mode(1, 0, getTPage(0, i, 0, 0)));
 
-        POLY_F4 poly;
         SetPolyF4(&poly);
         SetSemiTrans(&poly, 1);
         setRGB0(&poly, 0x80, 0x40, 0xC0);
         setXYWH(&poly, bx[i], by[i], 64, 64);
 
-        unsigned* words = (unsigned*)&poly + sizeof(OT_TYPE) / sizeof(unsigned);
+        words = (unsigned*)&poly + sizeof(OT_TYPE) / sizeof(unsigned);
         Psyz_GpuWriteGP0(*words++);
         Psyz_GpuWriteGP0(*words++);
         Psyz_GpuWriteGP0(*words++);
@@ -964,24 +913,11 @@ TEST_F(gpu_Test, untextured_transp_poly_take_abr_from_drawenv) {
     VSync(0);
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("abr_untextured");
+    ASSERT_FRAME("abr_untextured", 0, 1.0f);
 }
 
-TEST_F(gpu_Test, uv_minification) {
-#ifdef __PSP__
-#ifdef IS_PPSSPP_EMU
-    GTEST_SKIP() << "Known failure on PPSSPP";
-#endif
-    // Has a slightly different minification algorithm, but the feature works
-#define VARIANT ".psp"
-#else
-#define VARIANT ""
-#endif
+ZTEST(gpu, uv_minification) {
     u_short tpage, clut;
-    if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
-        return;
-    }
-
     static const struct {
         short x, y, w, h;
     } cases[] = {// 64 texels into 32 pixels: 2x minified
@@ -992,6 +928,10 @@ TEST_F(gpu_Test, uv_minification) {
                  {8, 88, 21, 21},
                  // 1:1 for reference
                  {88, 88, 64, 64}};
+    zskip_targets("ppsspp");
+    if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
+        return;
+    }
 
     ClearOTag(cdb->ot, OTSIZE);
     for (int i = 0; i < LEN(cases); i++) {
@@ -1011,18 +951,12 @@ TEST_F(gpu_Test, uv_minification) {
     VSync(0);
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("uv_minification" VARIANT, 0, 0.9995f);
+    // PSP has its own golden: a slightly different minification algorithm
+    ASSERT_FRAME("uv_minification", 0, 0.9995f);
 }
 
-TEST_F(gpu_Test, texture_window_tiling) {
-#ifdef __PSP__
-    GTEST_SKIP() << "texture window unimplemented on PSP";
-#endif
+ZTEST(gpu, texture_window_tiling) {
     u_short tpage, clut;
-    if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
-        return;
-    }
-
     static const struct {
         short x, y;
         RECT win;
@@ -1036,9 +970,14 @@ TEST_F(gpu_Test, texture_window_tiling) {
         // 16x16 window: 4x4 repeats
         {88, 88, {0, 0, 16, 16}},
     };
+    zskip_targets("psp");
+    if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
+        return;
+    }
 
     ClearOTag(cdb->ot, OTSIZE);
     for (int i = 0; i < LEN(cases); i++) {
+        RECT win;
         SetPolyFT4(&cdb->ft4[i]);
         setXYWH(&cdb->ft4[i], cases[i].x, cases[i].y, 64, 64);
         setRGB0(&cdb->ft4[i], 128, 128, 128);
@@ -1047,7 +986,7 @@ TEST_F(gpu_Test, texture_window_tiling) {
         cdb->ft4[i].tpage = tpage;
         cdb->ft4[i].clut = clut;
 
-        RECT win = cases[i].win;
+        win = cases[i].win;
         SetTexWindow(&cdb->twin[i], &win);
 
         AddPrim(cdb->ot, &cdb->ft4[i]);
@@ -1060,21 +999,14 @@ TEST_F(gpu_Test, texture_window_tiling) {
     VSync(0);
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("texture_window_tiling");
+    ASSERT_FRAME("texture_window_tiling", 0, 1.0f);
 }
 
-TEST_F(gpu_Test, texture_window_offset) {
-#ifdef __PSP__
-    GTEST_SKIP() << "texture window unimplemented on PSP";
-#endif
+ZTEST(gpu, texture_window_offset) {
     // Same 32x32 window size in every quadrant, moved around the page. The
     // offset bits replace the masked-off UV bits, so each quadrant tiles a
     // different 32x32 patch of the texture.
     u_short tpage, clut;
-    if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
-        return;
-    }
-
     static const struct {
         short x, y;
         RECT win;
@@ -1084,9 +1016,14 @@ TEST_F(gpu_Test, texture_window_offset) {
         {8, 88, {0, 32, 32, 32}},
         {88, 88, {32, 32, 32, 32}},
     };
+    zskip_targets("psp");
+    if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
+        return;
+    }
 
     ClearOTag(cdb->ot, OTSIZE);
     for (int i = 0; i < LEN(cases); i++) {
+        RECT win;
         SetPolyFT4(&cdb->ft4[i]);
         setXYWH(&cdb->ft4[i], cases[i].x, cases[i].y, 64, 64);
         setRGB0(&cdb->ft4[i], 128, 128, 128);
@@ -1095,7 +1032,7 @@ TEST_F(gpu_Test, texture_window_offset) {
         cdb->ft4[i].tpage = tpage;
         cdb->ft4[i].clut = clut;
 
-        RECT win = cases[i].win;
+        win = cases[i].win;
         SetTexWindow(&cdb->twin[i], &win);
 
         AddPrim(cdb->ot, &cdb->ft4[i]);
@@ -1108,18 +1045,11 @@ TEST_F(gpu_Test, texture_window_offset) {
     VSync(0);
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("texture_window_offset");
+    ASSERT_FRAME("texture_window_offset", 0, 1.0f);
 }
 
-TEST_F(gpu_Test, texture_window_non_square) {
-#ifdef __PSP__
-    GTEST_SKIP() << "texture window unimplemented on PSP";
-#endif
+ZTEST(gpu, texture_window_non_square) {
     u_short tpage, clut;
-    if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
-        return;
-    }
-
     static const struct {
         short x, y;
         u_char u, v;
@@ -1134,9 +1064,14 @@ TEST_F(gpu_Test, texture_window_non_square) {
         // window offset not aligned to window size
         {88, 88, 0, 0, {8, 8, 32, 32}},
     };
+    zskip_targets("psp");
+    if (LoadTim(img_uv_4bpp, &tpage, &clut)) {
+        return;
+    }
 
     ClearOTag(cdb->ot, OTSIZE);
     for (int i = 0; i < LEN(cases); i++) {
+        RECT win;
         SetPolyFT4(&cdb->ft4[i]);
         setXYWH(&cdb->ft4[i], cases[i].x, cases[i].y, 64, 64);
         setRGB0(&cdb->ft4[i], 128, 128, 128);
@@ -1145,7 +1080,7 @@ TEST_F(gpu_Test, texture_window_non_square) {
         cdb->ft4[i].tpage = tpage;
         cdb->ft4[i].clut = clut;
 
-        RECT win = cases[i].win;
+        win = cases[i].win;
         SetTexWindow(&cdb->twin[i], &win);
 
         AddPrim(cdb->ot, &cdb->ft4[i]);
@@ -1158,10 +1093,10 @@ TEST_F(gpu_Test, texture_window_non_square) {
     VSync(0);
     PutDispEnv(&cdb->disp);
 
-    AssertFrame("texture_window_non_square");
+    ASSERT_FRAME("texture_window_non_square", 0, 1.0f);
 }
 
-TEST_F(gpu_Test, marge_prim) {
+ZTEST(gpu, marge_prim) {
     SetPolyF4(&cdb->f4[0]);
     setXYWH(&cdb->f4[0], 16, 16, 64, 64);
     setRGB0(&cdb->f4[0], 0, 0, 255);
@@ -1185,46 +1120,46 @@ TEST_F(gpu_Test, marge_prim) {
     Present("marge_prim");
 }
 
-class dither_Test : public gpu_Test {
-  protected:
-    static const int DR = 47;
-    static const int DG = 123;
-    static const int DB = 239;
-    static const int DBG = 91;
-    static const int TEX_X = 512;
-    static const int TEX_Y = 256;
-    static const int TEX_SIZE = 64;
-
-    void SetUp() override {
-        gpu_Test::SetUp();
-        Psyz_VideoSetDitheringMode(PSYZ_DITHER_AUTO);
-        cdb->draw.dtd = 1;
-        PutDrawEnv(&cdb->draw);
-        ClearOTag(cdb->ot, OTSIZE);
-        ClearImage(&cdb->draw.clip, 0, 0, 0);
-    }
-    void TearDown() override { ResetGraph(0); }
-
-    static u_short MakeFlatTPage(void) {
-        RECT tex = {TEX_X, TEX_Y, TEX_SIZE, TEX_SIZE};
-        ClearImage(&tex, 255, 255, 255);
-        DrawSync(0);
-        return GetTPage(2, 0, TEX_X, TEX_Y);
-    }
-
-    static u_short MakeFlatTPageSemiTrans(void) {
-        static u_short texels[TEX_SIZE * TEX_SIZE];
-        for (int i = 0; i < TEX_SIZE * TEX_SIZE; i++) {
-            texels[i] = 0xFFFF; // STP | 31/31/31
-        }
-        RECT tex = {TEX_X, TEX_Y, TEX_SIZE, TEX_SIZE};
-        LoadImage(&tex, (u_long*)texels);
-        DrawSync(0);
-        return GetTPage(2, 0, TEX_X, TEX_Y);
-    }
+enum {
+    DR = 47,
+    DG = 123,
+    DB = 239,
+    DBG = 91,
+    TEX_X = 512,
+    TEX_Y = 256,
+    TEX_SIZE = 64,
 };
 
-TEST_F(dither_Test, dithering_drawenv_disabled) {
+static u_short MakeFlatTPage(void) {
+    RECT tex = {TEX_X, TEX_Y, TEX_SIZE, TEX_SIZE};
+    ClearImage(&tex, 255, 255, 255);
+    DrawSync(0);
+    return GetTPage(2, 0, TEX_X, TEX_Y);
+}
+
+static u_short MakeFlatTPageSemiTrans(void) {
+    static u_short texels[TEX_SIZE * TEX_SIZE];
+    RECT tex = {TEX_X, TEX_Y, TEX_SIZE, TEX_SIZE};
+    for (int i = 0; i < TEX_SIZE * TEX_SIZE; i++) {
+        texels[i] = 0xFFFF; // STP | 31/31/31
+    }
+    LoadImage(&tex, (u_long*)texels);
+    DrawSync(0);
+    return GetTPage(2, 0, TEX_X, TEX_Y);
+}
+
+ZTEST_SETUP(dither) {
+    gpu_setup();
+    Psyz_VideoSetDitheringMode(PSYZ_DITHER_AUTO);
+    cdb->draw.dtd = 1;
+    PutDrawEnv(&cdb->draw);
+    ClearOTag(cdb->ot, OTSIZE);
+    ClearImage(&cdb->draw.clip, 0, 0, 0);
+}
+
+ZTEST_TEARDOWN(dither) { ResetGraph(0); }
+
+ZTEST(dither, dithering_drawenv_disabled) {
     cdb->draw.dtd = 0;
     PutDrawEnv(&cdb->draw);
 
@@ -1238,7 +1173,7 @@ TEST_F(dither_Test, dithering_drawenv_disabled) {
     Present("dithering_drawenv_disabled");
 }
 
-TEST_F(dither_Test, dithering_gouraud_on) {
+ZTEST(dither, dithering_gouraud_on) {
     SetPolyG4(&cdb->g4[0]);
     setXYWH(&cdb->g4[0], 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     setRGB0(&cdb->g4[0], DR, DG, DB);
@@ -1249,7 +1184,7 @@ TEST_F(dither_Test, dithering_gouraud_on) {
     Present("dithering_gouraud_on");
 }
 
-TEST_F(dither_Test, dithering_flat_off) {
+ZTEST(dither, dithering_flat_off) {
     SetPolyF4(&cdb->f4[0]);
     setXYWH(&cdb->f4[0], 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     setRGB0(&cdb->f4[0], DR, DG, DB);
@@ -1257,14 +1192,10 @@ TEST_F(dither_Test, dithering_flat_off) {
     Present("dithering_flat_off");
 }
 
-TEST_F(dither_Test, dithering_flat_blending_on) {
-#ifdef __PSP__
-    // Dithering matrix is fixed in the GPU pipeline, it can't be changed to
-    // reflect the exact identical look on PS1. Current implementation is good.
-#define VARIANT ".psp"
-#else
-#define VARIANT ""
-#endif
+ZTEST(dither, dithering_flat_blending_on) {
+    zskip_targets("pcsx-redux"); // differs from real hardware
+    // PSP has its own golden: the dithering matrix is fixed in the GPU
+    // pipeline, it can't be changed to reflect the exact identical look on PS1.
     u_short tpage = MakeFlatTPage();
     SetPolyFT4(&cdb->ft4[0]);
     setXYWH(&cdb->ft4[0], 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -1274,10 +1205,11 @@ TEST_F(dither_Test, dithering_flat_blending_on) {
     cdb->ft4[0].tpage = tpage;
     cdb->ft4[0].clut = 0;
     AddPrim(cdb->ot, &cdb->ft4[0]);
-    Present("dithering_flat_blending_on" VARIANT);
+    Present("dithering_flat_blending_on");
 }
 
-TEST_F(dither_Test, dithering_lines_on) {
+ZTEST(dither, dithering_lines_on) {
+    zskip_targets("pcsx-redux"); // differs from real hardware
     static LINE_F2 flat[SCREEN_HEIGHT / 2];
     static LINE_G2 grad[SCREEN_HEIGHT / 2];
     int nf = 0, ng = 0;
@@ -1301,7 +1233,7 @@ TEST_F(dither_Test, dithering_lines_on) {
     Present("dithering_lines_on");
 }
 
-TEST_F(dither_Test, dithering_tile_off) {
+ZTEST(dither, dithering_tile_off) {
     SetTile(&cdb->tile[0]);
     setXY0(&cdb->tile[0], 0, 0);
     setWH(&cdb->tile[0], SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -1310,7 +1242,7 @@ TEST_F(dither_Test, dithering_tile_off) {
     Present("dithering_tile_off");
 }
 
-TEST_F(dither_Test, dithering_tile_blending_off) {
+ZTEST(dither, dithering_tile_blending_off) {
     RECT bg = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
     ClearImage(&bg, DBG, DBG, DBG);
     DrawSync(0);
@@ -1322,19 +1254,21 @@ TEST_F(dither_Test, dithering_tile_blending_off) {
     setRGB0(&cdb->tile[0], DR, DG, DB);
     AddPrim(cdb->ot, &cdb->tile[0]);
 
-    SetDrawMode(&cdb->drmode[0], 0, 1, (int)getTPage(0, 0, 0, 0), nullptr);
+    SetDrawMode(&cdb->drmode[0], 0, 1, (int)getTPage(0, 0, 0, 0), NULL);
     AddPrim(cdb->ot, &cdb->drmode[0]);
 
     Present("dithering_tile_blending_off");
 }
 
-TEST_F(dither_Test, dithering_sprite_off) {
+ZTEST(dither, dithering_sprite_off) {
+    enum {
+        COLS = (SCREEN_WIDTH + TEX_SIZE - 1) / TEX_SIZE,
+        ROWS = (SCREEN_HEIGHT + TEX_SIZE - 1) / TEX_SIZE,
+    };
+    SPRT spr[COLS * ROWS];
     cdb->draw.tpage = MakeFlatTPage();
     PutDrawEnv(&cdb->draw);
 
-    static const int COLS = (SCREEN_WIDTH + TEX_SIZE - 1) / TEX_SIZE;
-    static const int ROWS = (SCREEN_HEIGHT + TEX_SIZE - 1) / TEX_SIZE;
-    SPRT spr[COLS * ROWS];
     for (int i = COLS * ROWS - 1; i >= 0; i--) {
         SPRT* s = &spr[i];
         SetSprt(s);
@@ -1350,17 +1284,20 @@ TEST_F(dither_Test, dithering_sprite_off) {
     Present("dithering_sprite_off");
 }
 
-TEST_F(dither_Test, dithering_sprite_blending_off) {
+ZTEST(dither, dithering_sprite_blending_off) {
+    zskip_targets("pcsx-redux"); // differs from real hardware
+    enum {
+        COLS = (SCREEN_WIDTH + TEX_SIZE - 1) / TEX_SIZE,
+        ROWS = (SCREEN_HEIGHT + TEX_SIZE - 1) / TEX_SIZE,
+    };
+    RECT bg = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
+    SPRT spr[COLS * ROWS];
     cdb->draw.tpage = MakeFlatTPageSemiTrans() | (0 << 5);
     PutDrawEnv(&cdb->draw);
 
-    RECT bg = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
     ClearImage(&bg, DBG, DBG, DBG);
     DrawSync(0);
 
-    static const int COLS = (SCREEN_WIDTH + TEX_SIZE - 1) / TEX_SIZE;
-    static const int ROWS = (SCREEN_HEIGHT + TEX_SIZE - 1) / TEX_SIZE;
-    SPRT spr[COLS * ROWS];
     for (int i = COLS * ROWS - 1; i >= 0; i--) {
         SPRT* s = &spr[i];
         SetSprt(s);
@@ -1376,11 +1313,13 @@ TEST_F(dither_Test, dithering_sprite_blending_off) {
     Present("dithering_sprite_blending_off");
 }
 
-TEST_F(dither_Test, dithering_pattern_alignment) {
-    static const int SIZE = 5; // 5x5 tile
-    static const int BAND_H = 60;
-    static const int GRID_COLS = (SCREEN_WIDTH + SIZE - 1) / SIZE;
-    static const int GRID_ROWS = (BAND_H + SIZE - 1) / SIZE;
+ZTEST(dither, dithering_pattern_alignment) {
+    enum {
+        SIZE = 5, // 5x5 tile
+        BAND_H = 60,
+        GRID_COLS = (SCREEN_WIDTH + SIZE - 1) / SIZE,
+        GRID_ROWS = (BAND_H + SIZE - 1) / SIZE,
+    };
     // static: primitive arrays this size do not fit on the PS1 stack
     static POLY_G4 grid[GRID_COLS * GRID_ROWS];
 
@@ -1409,160 +1348,153 @@ TEST_F(dither_Test, dithering_pattern_alignment) {
     Present("dithering_pattern_alignment");
 }
 
-class horizontal_grid_Test : public gpu_Test {
-  protected:
-    static const int GRID_OPCODE = 0x04;
-    static const int DISP_W = 320;
-    static const int DISP_H = 240;
-    static const int PSX_W = 256;
-    static const int PACK_W = 40;
-    static const int CELL = 8;
-    static const int BAND_H = 16;
-    static const int NATIVE_Y = 48;
-    static const int PSX_Y = 96;
-    static const int GUIDE_Y0 = 40;
-    static const int GUIDE_Y1 = 120;
-
-    typedef struct {
-        O_TAG;
-        u_long code[1];
-    } DR_GRID;
-
-    TILE tiles[96];
-    DR_GRID grids[8];
-    int tile_count;
-    int grid_count;
-    void* tail;
-    static int handler_calls;
-
-    static int HandleGrid(const u_long* words, int available, void* userdata) {
-        (void)userdata;
-        if (available < 1) {
-            return 0;
-        }
-        handler_calls++;
-        if (Psyz_GpuSetHorizontalGrid(
-                (unsigned int)(words[0] & 0xFFFF), DISP_W) < 0) {
-            return 0;
-        }
-        return 1;
-    }
-
-    void SetUp() override {
-#ifdef __PSP__
-        GTEST_SKIP() << "horizontal grid not supported";
-        return;
-#endif
-        gpu_Test::SetUp();
-        SetDefDrawEnv(&cdb->draw, 0, 0, DISP_W, DISP_H);
-        SetDefDispEnv(&cdb->disp, 0, 0, DISP_W, DISP_H);
-        cdb->draw.dtd = 0;
-        PutDrawEnv(&cdb->draw);
-        PutDispEnv(&cdb->disp);
-        ClearOTag(cdb->ot, OTSIZE);
-        ClearImage(&cdb->draw.clip, 0, 0, 0);
-        DrawSync(0);
-        tile_count = 0;
-        grid_count = 0;
-        tail = nullptr;
-        handler_calls = 0;
-        ASSERT_EQ(
-            Psyz_GpuRegisterCommandHandler(GRID_OPCODE, HandleGrid, nullptr),
-            0);
-    }
-
-    void TearDown() override {
-        Psyz_GpuRegisterCommandHandler(GRID_OPCODE, nullptr, nullptr);
-        Psyz_GpuSetHorizontalGrid(1, 1);
-        Psyz_VideoSetInternalResolution(1);
-        gpu_Test::TearDown();
-    }
-
-    void Append(void* prim) {
-        if (tail) {
-            setaddr(tail, prim);
-        } else {
-            setaddr(cdb->ot, prim);
-        }
-        tail = prim;
-        termPrim(prim);
-    }
-
-    void AddGrid(int source_width) {
-        DR_GRID* grid = &grids[grid_count++];
-        setlen(grid, 1);
-        grid->code[0] =
-            ((u_long)GRID_OPCODE << 24) | ((u_long)source_width & 0xFFFF);
-        Append(grid);
-    }
-
-    void AddRect(int x, int y, int w, int h, int r, int g, int b) {
-        TILE* tile = &tiles[tile_count++];
-        SetTile(tile);
-        setXY0(tile, x, y);
-        setWH(tile, w, h);
-        setRGB0(tile, r, g, b);
-        Append(tile);
-    }
-
-    void DrawBands() {
-        static const unsigned char native[5][3] = {
-            {0x40, 0x50, 0xE0},
-            {0x40, 0xB0, 0xE0},
-            {0x40, 0xD0, 0x80},
-            {0x80, 0xD0, 0x40},
-            {0xD0, 0xC0, 0x40}};
-        static const unsigned char psx[4][3] = {
-            {0xE0, 0x80, 0x40},
-            {0xD0, 0x40, 0x60},
-            {0xB0, 0x40, 0xD0},
-            {0x70, 0x40, 0xD0}};
-        int i;
-
-        AddGrid(DISP_W);
-        for (i = 0; i < DISP_W / CELL; i++) {
-            const unsigned char* c = native[i % 5];
-            AddRect(i * CELL, NATIVE_Y, CELL, BAND_H, c[0], c[1], c[2]);
-        }
-
-        AddGrid(PSX_W);
-        for (i = 0; i < PSX_W / CELL; i++) {
-            const unsigned char* c = psx[i % 4];
-            AddRect(i * CELL, PSX_Y, CELL, BAND_H, c[0], c[1], c[2]);
-        }
-
-        AddGrid(DISP_W);
-        for (i = 0; i < DISP_W; i += PACK_W) {
-            AddRect(i, GUIDE_Y0, 1, GUIDE_Y1 - GUIDE_Y0, 255, 255, 255);
-        }
-    }
+enum {
+    GRID_OPCODE = 0x04,
+    DISP_W = 320,
+    DISP_H = 240,
+    PSX_W = 256,
+    PACK_W = 40,
+    CELL = 8,
+    BAND_H = 16,
+    NATIVE_Y = 48,
+    PSX_Y = 96,
+    GUIDE_Y0 = 40,
+    GUIDE_Y1 = 120,
 };
 
-int horizontal_grid_Test::handler_calls = 0;
+typedef struct {
+    O_TAG;
+    u_long code[1];
+} DR_GRID;
 
-TEST_F(horizontal_grid_Test, horizontal_grid) {
+static TILE tiles[96];
+static DR_GRID grids[8];
+static int tile_count;
+static int grid_count;
+static void* tail;
+static int handler_calls;
+
+static int HandleGrid(const u_long* words, int available, void* userdata) {
+    (void)userdata;
+    if (available < 1) {
+        return 0;
+    }
+    handler_calls++;
+    if (Psyz_GpuSetHorizontalGrid((unsigned int)(words[0] & 0xFFFF), DISP_W) <
+        0) {
+        return 0;
+    }
+    return 1;
+}
+
+static void Append(void* prim) {
+    if (tail) {
+        setaddr(tail, prim);
+    } else {
+        setaddr(cdb->ot, prim);
+    }
+    tail = prim;
+    termPrim(prim);
+}
+
+static void AddGrid(int source_width) {
+    DR_GRID* grid = &grids[grid_count++];
+    setlen(grid, 1);
+    grid->code[0] =
+        ((u_long)GRID_OPCODE << 24) | ((u_long)source_width & 0xFFFF);
+    Append(grid);
+}
+
+static void AddRect(int x, int y, int w, int h, int r, int g, int b) {
+    TILE* tile = &tiles[tile_count++];
+    SetTile(tile);
+    setXY0(tile, x, y);
+    setWH(tile, w, h);
+    setRGB0(tile, r, g, b);
+    Append(tile);
+}
+
+static void DrawBands(void) {
+    static const unsigned char native[5][3] = {
+        {0x40, 0x50, 0xE0},
+        {0x40, 0xB0, 0xE0},
+        {0x40, 0xD0, 0x80},
+        {0x80, 0xD0, 0x40},
+        {0xD0, 0xC0, 0x40}};
+    static const unsigned char psx[4][3] = {
+        {0xE0, 0x80, 0x40},
+        {0xD0, 0x40, 0x60},
+        {0xB0, 0x40, 0xD0},
+        {0x70, 0x40, 0xD0}};
+    int i;
+
+    AddGrid(DISP_W);
+    for (i = 0; i < DISP_W / CELL; i++) {
+        const unsigned char* c = native[i % 5];
+        AddRect(i * CELL, NATIVE_Y, CELL, BAND_H, c[0], c[1], c[2]);
+    }
+
+    AddGrid(PSX_W);
+    for (i = 0; i < PSX_W / CELL; i++) {
+        const unsigned char* c = psx[i % 4];
+        AddRect(i * CELL, PSX_Y, CELL, BAND_H, c[0], c[1], c[2]);
+    }
+
+    AddGrid(DISP_W);
+    for (i = 0; i < DISP_W; i += PACK_W) {
+        AddRect(i, GUIDE_Y0, 1, GUIDE_Y1 - GUIDE_Y0, 255, 255, 255);
+    }
+}
+
+ZTEST_SETUP(horizontal_grid) {
+    zskip_targets("psp;ps1");
+    gpu_setup();
+    SetDefDrawEnv(&cdb->draw, 0, 0, DISP_W, DISP_H);
+    SetDefDispEnv(&cdb->disp, 0, 0, DISP_W, DISP_H);
+    cdb->draw.dtd = 0;
+    PutDrawEnv(&cdb->draw);
+    PutDispEnv(&cdb->disp);
+    ClearOTag(cdb->ot, OTSIZE);
+    ClearImage(&cdb->draw.clip, 0, 0, 0);
+    DrawSync(0);
+    tile_count = 0;
+    grid_count = 0;
+    tail = NULL;
+    handler_calls = 0;
+    zassert_s32_eq(
+        0, Psyz_GpuRegisterCommandHandler(GRID_OPCODE, HandleGrid, NULL));
+}
+
+ZTEST_TEARDOWN(horizontal_grid) {
+    Psyz_GpuRegisterCommandHandler(GRID_OPCODE, NULL, NULL);
+    Psyz_GpuSetHorizontalGrid(1, 1);
+    Psyz_VideoSetInternalResolution(1);
+    gpu_teardown();
+}
+
+ZTEST(horizontal_grid, horizontal_grid) {
     DrawBands();
     Present("horizontal_grid");
-    EXPECT_EQ(handler_calls, 3);
+    zexpect_s32_eq(3, handler_calls);
 }
 
 // 2x and 4x reproduce the 1x golden
-TEST_F(horizontal_grid_Test, horizontal_grid_internal_res_2) {
-    ASSERT_EQ(Psyz_VideoSetInternalResolution(2), 0);
+ZTEST(horizontal_grid, horizontal_grid_internal_res_2) {
+    zassert_s32_eq(0, Psyz_VideoSetInternalResolution(2));
     DrawBands();
     Present("horizontal_grid");
 }
 
-TEST_F(horizontal_grid_Test, horizontal_grid_internal_res_4) {
-    ASSERT_EQ(Psyz_VideoSetInternalResolution(4), 0);
+ZTEST(horizontal_grid, horizontal_grid_internal_res_4) {
+    zassert_s32_eq(0, Psyz_VideoSetInternalResolution(4));
     DrawBands();
     Present("horizontal_grid");
 }
 
-TEST_F(horizontal_grid_Test, horizontal_grid_invalid_args) {
-    EXPECT_EQ(Psyz_GpuSetHorizontalGrid(0, DISP_W), -1);
-    EXPECT_EQ(Psyz_GpuSetHorizontalGrid(DISP_W, 0), -1);
-    EXPECT_EQ(Psyz_GpuSetHorizontalGrid(PSX_W, DISP_W), 0);
-    EXPECT_EQ(Psyz_GpuSetHorizontalGrid(1, 1), 0);
-    EXPECT_EQ(Psyz_GpuRegisterCommandHandler(0x100, HandleGrid, nullptr), -1);
+ZTEST(horizontal_grid, horizontal_grid_invalid_args) {
+    zexpect_s32_eq(-1, Psyz_GpuSetHorizontalGrid(0, DISP_W));
+    zexpect_s32_eq(-1, Psyz_GpuSetHorizontalGrid(DISP_W, 0));
+    zexpect_s32_eq(0, Psyz_GpuSetHorizontalGrid(PSX_W, DISP_W));
+    zexpect_s32_eq(0, Psyz_GpuSetHorizontalGrid(1, 1));
+    zexpect_s32_eq(-1, Psyz_GpuRegisterCommandHandler(0x100, HandleGrid, NULL));
 }
