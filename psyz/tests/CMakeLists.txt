@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10..3.31)
+cmake_minimum_required(VERSION 3.21..3.31)
 project(psyz_tests)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -37,9 +37,9 @@ endif()
 include(FetchContent)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-# Force GoogleTest to use dynamic runtime library
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+    # Force GoogleTest to use dynamic runtime library
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 endif()
 
 FetchContent_Declare(

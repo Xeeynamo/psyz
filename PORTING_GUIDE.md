@@ -110,7 +110,7 @@ To integrate PSY-Z into your project:
 3. Set the `__psyz` compile definition
 
 ```cmake
-cmake_minimum_required(VERSION 3.10..3.31)
+cmake_minimum_required(VERSION 3.21..3.31)
 
 project(mygame)
 
