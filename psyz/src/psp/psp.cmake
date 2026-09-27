@@ -11,6 +11,10 @@ endif()
 
 include("$ENV{PSPDEV}/psp/share/pspdev.cmake")
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
 string(APPEND CMAKE_C_FLAGS_INIT " -G0")
 string(APPEND CMAKE_CXX_FLAGS_INIT " -G0")
 

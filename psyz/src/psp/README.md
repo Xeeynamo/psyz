@@ -31,6 +31,8 @@ cmake --build build/psyz_psp
 
 Copy the generated `build/psyz_psp/EBOOT.PBP` to `ms0:/PSP/GAME/YOUR_GAME/EBOOT.PBP`.
 
+The default for `CMAKE_BUILD_TYPE` is `Release`, which builds with `-O3`. Generally `-O0` delivers unacceptable levels of performance. For gprof or debugging, use `CMAKE_BUILD_TYPE=Debug` or force `-O0` instead.
+
 ### Debugging
 
 ```sh
