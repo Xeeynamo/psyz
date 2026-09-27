@@ -1,4 +1,7 @@
 #include <assert.h>
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
 #include <psyz.h>
 #include <psyz/log.h>
 #include <libgpu.h>
@@ -1464,6 +1467,10 @@ static unsigned int gte_divide(unsigned short h, unsigned short sz3) {
     // h >= sz3*2 check above guarantees sz3 != 0 here
 #if defined(__GNUC__) || defined(__clang__)
     unsigned z = (unsigned)__builtin_clz((unsigned)sz3) - 16u;
+#elif defined(_MSC_VER)
+    unsigned long idx;
+    _BitScanReverse(&idx, sz3);
+    unsigned z = 15u - (unsigned)idx;
 #else
     unsigned z = 0;
     unsigned x = sz3;
@@ -2441,7 +2448,18 @@ extern short s_rsqrt_table[];
 static long vector_normal(short x, short y, short z, int out[3]) {
     int sq = (int)((unsigned)(x * x) + (unsigned)(y * y) + (unsigned)(z * z));
     unsigned u = sq < 0 ? ~(unsigned)sq : (unsigned)sq;
+#if defined(__GNUC__) || defined(__clang__)
     int lz = u ? __builtin_clz(u) : 32;
+#elif defined(_MSC_VER)
+    unsigned long idx;
+    int lz = _BitScanReverse(&idx, u) ? 31 - (int)idx : 32;
+#else
+    int lz = 0;
+    while (lz < 32 && !(u & 0x80000000u)) {
+        u <<= 1;
+        lz++;
+    }
+#endif
     int idx, f;
     lz &= ~1;
     idx = (lz >= 24 ? sq << (lz - 24) : sq >> (24 - lz)) - 0x40;
