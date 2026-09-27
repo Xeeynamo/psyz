@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <psyz.h>
 #include <kernel.h>
@@ -1497,4 +1498,67 @@ ZTEST(horizontal_grid, horizontal_grid_invalid_args) {
     zexpect_s32_eq(0, Psyz_GpuSetHorizontalGrid(PSX_W, DISP_W));
     zexpect_s32_eq(0, Psyz_GpuSetHorizontalGrid(1, 1));
     zexpect_s32_eq(-1, Psyz_GpuRegisterCommandHandler(0x100, HandleGrid, NULL));
+}
+
+static volatile int vsync_callback_count;
+static void CountVSync(void) { vsync_callback_count++; }
+
+ZTEST(gpu, vsync_callback_runs_every_frame) {
+    vsync_callback_count = 0;
+    VSyncCallback(CountVSync);
+    VSync(0);
+    VSync(0);
+    VSync(0);
+    VSyncCallback(NULL);
+    zexpect_s32_ge(2, vsync_callback_count);
+    vsync_callback_count = 0;
+    VSync(0);
+    zexpect_s32_eq(0, vsync_callback_count);
+}
+
+static volatile int vsync_order[16];
+static volatile int vsync_order_len;
+static void RecordCh0(void) {
+    if (vsync_order_len < 16) {
+        vsync_order[vsync_order_len++] = 0;
+    }
+}
+static void RecordCh3(void) {
+    if (vsync_order_len < 16) {
+        vsync_order[vsync_order_len++] = 3;
+    }
+}
+static void RecordCh7(void) {
+    if (vsync_order_len < 16) {
+        vsync_order[vsync_order_len++] = 7;
+    }
+}
+
+ZTEST(gpu, vsync_callback_uses_channel_4) {
+    zexpect_s32_eq(0, VSyncCallback(CountVSync));
+    zexpect_s32_eq((int)(intptr_t)CountVSync, VSyncCallbacks(4, NULL));
+    zexpect_s32_eq(0, VSyncCallback(NULL));
+}
+
+ZTEST(gpu, vsync_callbacks_returns_previous) {
+    zexpect_s32_eq(0, VSyncCallbacks(2, RecordCh0));
+    zexpect_s32_eq((int)(intptr_t)RecordCh0, VSyncCallbacks(2, RecordCh3));
+    zexpect_s32_eq((int)(intptr_t)RecordCh3, VSyncCallbacks(2, NULL));
+    zexpect_s32_eq(0, VSyncCallbacks(2, NULL));
+}
+
+ZTEST(gpu, vsync_callbacks_run_in_channel_order) {
+    VSyncCallbacks(7, RecordCh7);
+    VSyncCallbacks(0, RecordCh0);
+    VSyncCallbacks(3, RecordCh3);
+    VSync(0);
+    vsync_order_len = 0;
+    VSync(0);
+    VSyncCallbacks(7, NULL);
+    VSyncCallbacks(0, NULL);
+    VSyncCallbacks(3, NULL);
+    zexpect_s32_ge(3, vsync_order_len);
+    zexpect_s32_eq(0, vsync_order[0]);
+    zexpect_s32_eq(3, vsync_order[1]);
+    zexpect_s32_eq(7, vsync_order[2]);
 }

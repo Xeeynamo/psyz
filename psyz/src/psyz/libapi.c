@@ -50,7 +50,7 @@ PsyzVSyncCb Psyz_SetVSyncCb(PsyzVSyncCb cb) {
     return prev;
 }
 
-extern void (*g_VsyncCallback)();
+extern void (*g_VsyncCallbacks[8])();
 int Psyz_VideoVSync(int mode);
 int VSync(int mode) {
     // TODO the implementation is most likely incorrect
@@ -66,8 +66,10 @@ int VSync(int mode) {
     if (g_PsyzVsyncCb) {
         g_PsyzVsyncCb();
     }
-    if (g_VsyncCallback) {
-        g_VsyncCallback();
+    for (int i = 0; i < LEN(g_VsyncCallbacks); i++) {
+        if (g_VsyncCallbacks[i]) {
+            g_VsyncCallbacks[i]();
+        }
     }
     return elapsed;
 }

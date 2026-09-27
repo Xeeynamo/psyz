@@ -1,7 +1,9 @@
 #include <psyz.h>
 #include <libetc.h>
+#include <stdint.h>
 
 #include "libapi.h"
+#include "../internal.h"
 
 #include <psyz/log.h>
 
@@ -47,14 +49,19 @@ unsigned int PadRead(int id) {
 
 void PadStop(void) { NOT_IMPLEMENTED; }
 
-void (*g_VsyncCallback)() = NULL;
+void (*g_VsyncCallbacks[8])() = {NULL};
 
-int VSyncCallback(void (*f)()) {
-    NOT_IMPLEMENTED;
-    return 0;
+int VSyncCallback(void (*f)()) { return VSyncCallbacks(4, f); }
+
+int VSyncCallbacks(int ch, void (*f)()) {
+    void (*prev)();
+    if (ch < 0 || ch >= LEN(g_VsyncCallbacks)) {
+        return 0;
+    }
+    prev = g_VsyncCallbacks[ch];
+    g_VsyncCallbacks[ch] = f;
+    return (int)(intptr_t)prev;
 }
-
-int VSyncCallbacks(int ch, void (*f)()) { NOT_IMPLEMENTED; }
 
 static long video_mode = 0;
 long GetVideoMode() { return video_mode; }
