@@ -1160,6 +1160,11 @@ void SetTransVector(VECTOR* v) {
     M.t[2] = v->vz;
 }
 
+MATRIX* ReadRotMatrix(MATRIX* m) {
+    *m = M;
+    return m;
+}
+
 void SetLightMatrix(MATRIX* m) {
     L1.m[0][0] = m->m[0][0];
     L1.m[0][1] = m->m[0][1];
