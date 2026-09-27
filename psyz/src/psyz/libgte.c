@@ -2186,6 +2186,22 @@ void Psyz_GteLcir(void) { MVMVA(0x04DE012); }
 void Psyz_GteRtps(void) { RTPS(0x4A180001); }
 void Psyz_GteRtpt(void) { RTPT(0x4A280030); }
 void Psyz_GteNclip(void) { NCLIP(); }
+void Psyz_GteRt(void) { MVMVA(0x0480012); }
+void Psyz_GteStlvnl(VECTOR* out) {
+    out->vx = MAC1;
+    out->vy = MAC2;
+    out->vz = MAC3;
+}
+int Psyz_GteReadflg(void) { return (int)FLAG; }
+void Psyz_GteStsxy3G3(void* polyGte) {
+    POLY_G3* poly = (POLY_G3*)polyGte;
+    poly->x0 = SX0;
+    poly->y0 = SY0;
+    poly->x1 = SX1;
+    poly->y1 = SY1;
+    poly->x2 = SX2;
+    poly->y2 = SY2;
+}
 
 void Psyz_GteLdv0(SVECTOR* v) {
     V0.vx = v->vx;

@@ -42,8 +42,8 @@ typedef struct {
  * Vector with 32-bit coordinates.
  */
 typedef struct {
-    int vx, vy, vz;  /**< Vector coordinates */
-    int pad;         /**< System reserved */
+    int vx, vy, vz; /**< Vector coordinates */
+    int pad;        /**< System reserved */
 } VECTOR;
 
 /**
@@ -1830,22 +1830,24 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
                      : "r"(r0))
 
 #define gte_ldv01c(r0)                                                         \
-    __asm__ volatile("lwc2	$0, 0( %0 );"                                       \
-                     "lwc2	$1, 4( %0 );"                                       \
-                     "lwc2	$2, 8( %0 );"                                       \
-                     "lwc2	$3, 12( %0 )"                                       \
-                     :                                                         \
-                     : "r"(r0))
+    __asm__ volatile(                                                          \
+        "lwc2	$0, 0( %0 );"                                                    \
+        "lwc2	$1, 4( %0 );"                                                    \
+        "lwc2	$2, 8( %0 );"                                                    \
+        "lwc2	$3, 12( %0 )"                                                    \
+        :                                                                      \
+        : "r"(r0))
 
 #define gte_ldv3c(r0)                                                          \
-    __asm__ volatile("lwc2	$0, 0( %0 );"                                       \
-                     "lwc2	$1, 4( %0 );"                                       \
-                     "lwc2	$2, 8( %0 );"                                       \
-                     "lwc2	$3, 12( %0 );"                                      \
-                     "lwc2	$4, 16( %0 );"                                      \
-                     "lwc2	$5, 20( %0 )"                                       \
-                     :                                                         \
-                     : "r"(r0))
+    __asm__ volatile(                                                          \
+        "lwc2	$0, 0( %0 );"                                                    \
+        "lwc2	$1, 4( %0 );"                                                    \
+        "lwc2	$2, 8( %0 );"                                                    \
+        "lwc2	$3, 12( %0 );"                                                   \
+        "lwc2	$4, 16( %0 );"                                                   \
+        "lwc2	$5, 20( %0 )"                                                    \
+        :                                                                      \
+        : "r"(r0))
 
 #define gte_rtps()                                                             \
     __asm__ volatile("nop;"                                                    \
@@ -1873,12 +1875,13 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
                      : "memory")
 
 #define gte_stsxy3_gt3(r0)                                                     \
-    __asm__ volatile("swc2	$12, 8( %0 );"                                      \
-                     "swc2	$13, 20( %0 );"                                     \
-                     "swc2	$14, 32( %0 )"                                      \
-                     :                                                         \
-                     : "r"(r0)                                                 \
-                     : "memory")
+    __asm__ volatile(                                                          \
+        "swc2	$12, 8( %0 );"                                                   \
+        "swc2	$13, 20( %0 );"                                                  \
+        "swc2	$14, 32( %0 )"                                                   \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "memory")
 
 #define gte_stszotz(r0)                                                        \
     __asm__ volatile(                                                          \
@@ -1926,8 +1929,43 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
                      "nop;"                                                    \
                      ".word 0x4B68002E")
 
-#define gte_stotz(r0)                                                       \
+#define gte_stotz(r0)                                                          \
     __asm__ volatile("swc2	$7, 0( %0 )" : : "r"(r0) : "memory")
+
+#define gte_rt()                                                               \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4A480012")
+
+#define gte_stlvnl(r0)                                                         \
+    __asm__ volatile(                                                          \
+        "swc2	$25, 0( %0 );"                                                   \
+        "swc2	$26, 4( %0 );"                                                   \
+        "swc2	$27, 8( %0 )"                                                    \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "memory")
+
+#define gte_stflg(r0)                                                          \
+    __asm__ volatile(                                                          \
+        "cfc2	$12, $31;"                                                       \
+        "nop;"                                                                 \
+        "sw	$12, 0( %0 )"                                                      \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "memory")
+
+// gte_readflg doesn't technically exist, but FF7 uses it
+#define gte_readflg(r0) __asm__ volatile("cfc2	%0, $31;nop" : "=r"(r0))
+
+#define gte_stsxy3_g3(r0)                                                      \
+    __asm__ volatile(                                                          \
+        "swc2	$12, 8( %0 );"                                                   \
+        "swc2	$13, 16( %0 );"                                                  \
+        "swc2	$14, 24( %0 )"                                                   \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "memory")
 
 #define gte_SetGeomScreen(r0) __asm__ volatile("ctc2	%0, $26" : : "r"(r0))
 
@@ -1942,7 +1980,8 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
 #define gte_stszotz(x) Psyz_GteStszotz((unsigned int*)(x))
 #define gte_stotz(x) Psyz_GteStotz((unsigned int*)(x))
 #define gte_ldv3(x, y, z) Psyz_GteLdv3(x, y, z)
-#define gte_stsxy3(x, y, z) Psyz_GteStsxy3((unsigned int*)(x), (unsigned int*)(y), (unsigned int*)(z))
+#define gte_stsxy3(x, y, z)                                                    \
+    Psyz_GteStsxy3((unsigned int*)(x), (unsigned int*)(y), (unsigned int*)(z))
 #define gte_rtpt() Psyz_GteRtpt()
 #define gte_nclip() Psyz_GteNclip()
 #define gte_stopz(x) Psyz_GteStopz((int*)(x))
@@ -1950,6 +1989,7 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
 #define gte_ldv01c(x) Psyz_GteLdv01c(x)
 #define gte_ldv3c(x) Psyz_GteLdv3c(x)
 #define gte_stsxy01c(x) Psyz_GteStsxy01c((unsigned int*)(x))
+#define gte_stsxy3_g3(x) Psyz_GteStsxy3G3((POLY_G3*)(x))
 #define gte_stsxy3_gt3(x) Psyz_GteStsxy3Gt3((POLY_GT3*)(x))
 #define gte_avsz3() Psyz_GteAvsz3()
 #define gte_avsz4() Psyz_GteAvsz4()
@@ -1963,6 +2003,10 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
 #define gte_ldtz(x) Psyz_GteLdTz(x)
 #define gte_stclmv(x) Psyz_GteStClmv(x)
 #define gte_strgb(x) Psyz_GteStRgb(x)
+#define gte_rt() Psyz_GteRt()
+#define gte_stlvnl(x) Psyz_GteStlvnl((VECTOR*)(x))
+#define gte_stflg(x) (*(x) = Psyz_GteReadflg())
+#define gte_readflg(x) ((x) = Psyz_GteReadflg())
 #endif
 
 #endif
