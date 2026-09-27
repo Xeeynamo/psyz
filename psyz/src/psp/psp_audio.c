@@ -3,10 +3,11 @@
 #include <pspkernel.h>
 #include <psyz.h>
 #include <psyz/log.h>
+#include <stdint.h>
 #include <string.h>
 
 #define N_CHANNELS 2
-#define BUF_FRAMES 1024 // must be a multiple of 64 for sceAudio
+#define BUF_FRAMES 512 // must be a multiple of 64 for sceAudio
 
 static int chan = -1;
 static SceUID sema = -1;
@@ -14,6 +15,7 @@ static SceUID thid = -1;
 static volatile int stop_requested;
 static volatile int is_paused;
 static int is_audio_init;
+static uintptr_t audio_stack_lo, audio_stack_hi;
 
 static int AudioThread(SceSize args, void* argp) {
     // double-buffered so the SPU can mix one block while the other one plays
@@ -70,6 +72,13 @@ int Psyz_AudioInit(void) {
         chan = -1;
         return -1;
     }
+    SceKernelThreadInfo info;
+    memset(&info, 0, sizeof(info));
+    info.size = sizeof(info);
+    if (sceKernelReferThreadStatus(thid, &info) == 0) {
+        audio_stack_lo = (uintptr_t)info.stack;
+        audio_stack_hi = audio_stack_lo + (uintptr_t)info.stackSize;
+    }
     is_audio_init = 1;
     DEBUGF("audio initialized");
     sceKernelStartThread(thid, 0, NULL);
@@ -88,7 +97,19 @@ void Psyz_AudioDestroy(void) {
     thid = -1;
     sema = -1;
     chan = -1;
+    audio_stack_lo = audio_stack_hi = 0;
     is_audio_init = 0;
+}
+
+static SceUID CurrentThread(void) {
+    // sceKernelGetThreadId is a slow syscall that could introduce latency
+    // spikes during the execution. The following temporary hack allows to
+    // detect the current thread ID via its stack pointer, saving a syscall.
+    uintptr_t sp = (uintptr_t)__builtin_frame_address(0);
+    if (sp - audio_stack_lo < audio_stack_hi - audio_stack_lo) {
+        return thid;
+    }
+    return sceKernelGetThreadId();
 }
 
 static SceUID lock_owner = -1;
@@ -97,7 +118,7 @@ void Psyz_AudioLock(void) {
     if (sema < 0) {
         return;
     }
-    SceUID self = sceKernelGetThreadId();
+    SceUID self = CurrentThread();
     if (lock_owner == self) {
         lock_depth++;
         return;
