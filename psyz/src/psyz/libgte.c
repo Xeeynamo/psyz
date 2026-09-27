@@ -2417,16 +2417,47 @@ long RotAverageNclip4(
     return MAC0;
 }
 
-void VectorNormal(VECTOR* v0, VECTOR* v1) { NOT_IMPLEMENTED; }
+extern short s_rsqrt_table[];
+
+static long vector_normal(short x, short y, short z, int out[3]) {
+    int sq = (int)((unsigned)(x * x) + (unsigned)(y * y) + (unsigned)(z * z));
+    unsigned u = sq < 0 ? ~(unsigned)sq : (unsigned)sq;
+    int lz = u ? __builtin_clz(u) : 32;
+    int idx, f;
+    lz &= ~1;
+    idx = (lz >= 24 ? sq << (lz - 24) : sq >> (24 - lz)) - 0x40;
+    f = idx >= 0 && idx < 192 ? s_rsqrt_table[idx] : 0;
+    lz = ((31 - lz) >> 1) & 31;
+    out[0] = (x * f) >> lz;
+    out[1] = (y * f) >> lz;
+    out[2] = (z * f) >> lz;
+    return sq;
+}
+
+void VectorNormal(VECTOR* v0, VECTOR* v1) {
+    int out[3];
+    vector_normal((short)v0->vx, (short)v0->vy, (short)v0->vz, out);
+    v1->vx = out[0];
+    v1->vy = out[1];
+    v1->vz = out[2];
+}
 
 long VectorNormalS(VECTOR* v0, SVECTOR* v1) {
-    NOT_IMPLEMENTED;
-    return 0;
+    int out[3];
+    long sq = vector_normal((short)v0->vx, (short)v0->vy, (short)v0->vz, out);
+    v1->vx = (short)out[0];
+    v1->vy = (short)out[1];
+    v1->vz = (short)out[2];
+    return sq;
 }
 
 long VectorNormalSS(SVECTOR* v0, SVECTOR* v1) {
-    NOT_IMPLEMENTED;
-    return 0;
+    int out[3];
+    long sq = vector_normal(v0->vx, v0->vy, v0->vz, out);
+    v1->vx = (short)out[0];
+    v1->vy = (short)out[1];
+    v1->vz = (short)out[2];
+    return sq;
 }
 
 MATRIX* TransposeMatrix(MATRIX* m0, MATRIX* m1) {
