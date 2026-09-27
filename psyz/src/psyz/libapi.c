@@ -51,24 +51,28 @@ PsyzVSyncCb Psyz_SetVSyncCb(PsyzVSyncCb cb) {
 }
 
 extern void (*g_VsyncCallbacks[8])();
-int Psyz_VideoVSync(int mode);
+
+// Known limitation: VSync(n) with n > 1 paces a single frame, not n vblanks
 int VSync(int mode) {
-    // TODO the implementation is most likely incorrect
-    int elapsed = (unsigned short)Psyz_VideoVSync(mode);
+    int elapsed, n, i;
     if (mode < 0) {
-        // TODO return vsync, not elapsed
-        return elapsed;
+        return Psyz_VideoVSync(-1);
+    } else if (mode == 1) {
+        return Psyz_VideoVSync(1);
+    } else if (mode > 1) {
+        ERRORF("VSync(n>1) is not fully implemented.");
     }
-    if (mode == 1) {
-        return elapsed;
-    }
+    n = mode > 0 ? mode : 1;
+    elapsed = Psyz_VideoVSync(0);
     ReadPadsOnVsync(); // this is done on vsync by the BIOS
     if (g_PsyzVsyncCb) {
         g_PsyzVsyncCb();
     }
-    for (int i = 0; i < LEN(g_VsyncCallbacks); i++) {
-        if (g_VsyncCallbacks[i]) {
-            g_VsyncCallbacks[i]();
+    for (; n > 0; n--) {
+        for (i = 0; i < LEN(g_VsyncCallbacks); i++) {
+            if (g_VsyncCallbacks[i]) {
+                g_VsyncCallbacks[i]();
+            }
         }
     }
     return elapsed;

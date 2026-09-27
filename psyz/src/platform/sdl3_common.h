@@ -183,8 +183,7 @@ int Psyz_VideoSetAspectMode(PsyzAspectMode mode) {
 
 PsyzAspectMode Psyz_VideoGetAspectMode(void) { return aspect_mode; }
 
-static Uint32 elapsed_from_beginning = 0;
-static Uint32 last_vsync = 0;
+static Uint32 last_vsync_us = 0; // time of the last blocking Psyz_VideoVSync
 
 // frame pacing state
 static double target_frame_rate = VSYNC_NTSC;
@@ -385,7 +384,7 @@ static void Sdl3Common_ApplyPendingTimingReset(void) {
     drift_compensation = 0.0;
     last_frame_time = SDL_GetPerformanceCounter();
     finish_time = last_frame_time;
-    last_vsync = (Uint32)SDL_GetTicks();
+    last_vsync_us = (Uint32)(SDL_GetTicksNS() / 1000);
     if (sdl3_window && is_platform_init_successful) {
         ConfigureVSync(target_frame_rate);
     }
@@ -399,8 +398,7 @@ int Psyz_QuitRequested(void) { return SDL_GetAtomicInt(&quit_requested) != 0; }
 
 // Initialize the timing/vsync state. Call once at the end of InitPlatform.
 static void Sdl3Common_TimingInit(void) {
-    elapsed_from_beginning = (Uint32)SDL_GetTicks();
-    last_vsync = elapsed_from_beginning;
+    last_vsync_us = (Uint32)(SDL_GetTicksNS() / 1000);
     perf_frequency = SDL_GetPerformanceFrequency();
     last_frame_time = SDL_GetPerformanceCounter();
     finish_time = last_frame_time;
@@ -484,20 +482,20 @@ static void WaitForNextFrame(void) {
 }
 
 int Psyz_VideoVSync(int mode) {
-    Uint32 cur;
+    Uint32 now_us;
     unsigned short ret;
     Sdl3Common_ApplyPendingTimingReset();
-    cur = (Uint32)SDL_GetTicks();
-    if (mode >= 0) {
-        ret = (unsigned short)(cur - last_vsync);
-    } else {
-        ret = (unsigned short)gpu_stats.total_frames;
+    if (mode < 0) {
+        return (int)((double)SDL_GetTicksNS() * target_frame_rate / 1e9);
     }
-    last_vsync = cur;
+    // a line is approximated as 64 us
+    now_us = (Uint32)(SDL_GetTicksNS() / 1000);
+    ret = (unsigned short)((now_us - last_vsync_us) >> 6);
     if (mode == 0) {
         PlatformBackend_Present();
         PollEvents();
         WaitForNextFrame();
+        last_vsync_us = (Uint32)(SDL_GetTicksNS() / 1000);
     }
     return ret;
 }

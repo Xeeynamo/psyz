@@ -16,6 +16,7 @@
 #include <pspdisplay.h>
 #include <pspge.h>
 #include <pspgu.h>
+#include <pspthreadman.h>
 #include <psputils.h>
 #include <psyz.h>
 #include <psyz/log.h>
@@ -121,7 +122,8 @@ static bool store_readback_pending;
 static int prev_frame_list_id;
 // set when a finished frame is waiting to be shown
 static bool pending_show;
-static unsigned int last_vsync; // vblank count at the last present, for pacing
+static unsigned int last_vsync_us; // time of the last blocking Psyz_VideoVSync
+static unsigned int boot_vcount;   // display vblank count at platform init
 
 // ===== GU_DIRECT packet emission to bypass sceGu wrappers =====
 typedef struct {
@@ -825,6 +827,7 @@ bool InitPlatform(void) {
     sceDisplayWaitVblankStart();
     sceGuDisplay(GU_TRUE);
 
+    boot_vcount = sceDisplayGetVcount();
     is_init = true;
     UpdateOutputMapping();
     StartFrame();
@@ -889,16 +892,18 @@ static void ShowPendingFrame(void) {
         (void*)(edram_base + FbOffset(show_fb)), FB_STRIDE,
         PSP_DISPLAY_PIXEL_FORMAT_5551, PSP_DISPLAY_SETBUF_IMMEDIATE);
     sceGuDisplay(display_enabled ? GU_TRUE : GU_FALSE);
-    last_vsync = sceDisplayGetVcount();
 }
 
 int Psyz_VideoVSync(int mode) {
     if (!is_init && !InitPlatform()) {
         return 0;
     }
-    unsigned int cur = sceDisplayGetVcount();
-    int ret = (int)((cur - last_vsync) * 1000 / 60); // TODO logic incorrect?
-    last_vsync = cur;
+    if (mode < 0) {
+        return (int)(sceDisplayGetVcount() - boot_vcount);
+    }
+    // a line is approximated as 64 us
+    int ret =
+        (int)(((sceKernelGetSystemTimeLow() - last_vsync_us) >> 6) & 0xFFFF);
     if (mode == 0) {
         WaitPrevFrameGpu();
         ShowPendingFrame();
@@ -919,6 +924,7 @@ int Psyz_VideoVSync(int mode) {
         if (ge_list_executed[0] == prev_frame_list_id) {
             prev_frame_pending = false;
         }
+        last_vsync_us = sceKernelGetSystemTimeLow();
     }
     return ret;
 }

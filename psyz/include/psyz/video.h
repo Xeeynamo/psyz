@@ -205,10 +205,10 @@ unsigned Psyz_VideoGetInternalResolution(void);
  * The interface is very similar to libetc VSync.
  *
  * @param mode Synchronization mode:
- *             - 0: Wait for next vertical blank
+ *             - 0: Present and wait for the next vertical blank
+ *             - 1: Return immediately (non-blocking)
  *             - Negative: Return immediately (non-blocking)
- *             - Positive: Wait for specified number of vertical blanks
- * @return Number of vertical blanks since last call
+ * @return Simulates the SDK VSync return values as closely as possible.
  */
 int Psyz_VideoVSync(int mode);
 
