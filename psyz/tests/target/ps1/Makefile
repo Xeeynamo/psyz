@@ -10,6 +10,7 @@ ARCH := -march=mips1 -mabi=32 -EL -fno-pic -mno-shared -mno-abicalls -mfp32 \
 	-mno-llsc -fno-stack-protector -nostdlib -ffreestanding
 CFLAGS := $(ARCH) -std=gnu11 -Os -g -ffunction-sections -fdata-sections \
 	-mno-gpopt -fno-builtin -Wno-attributes -D__psx__ \
+	-DZTEST_NEED_MEMCPY -DZTEST_NEED_MEMSET \
 	-include $(CURDIR)/ps1_compat.h \
 	-I$(CURDIR) -I$(TESTS) -I$(ZTEST) -I$(TESTS)/../include \
 	-I$(NUGGET)/psyq/include -I$(NUGGET) -I$(ZTEST)/target/ps1/include
