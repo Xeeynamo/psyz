@@ -249,15 +249,11 @@ int psyz_open(const char* devname, int flag) {
     }
 }
 int psyz_close(int fd) { return (int)close((int)fd); }
-long psyz_lseek(long fd, long offset, long flag) {
-    return lseek((int)fd, (off_t)offset, (int)flag);
+unsigned long psyz_lseek(int fd, unsigned int offset, int flag) {
+    return lseek(fd, (off_t)offset, flag);
 }
 long psyz_read(long fd, void* buf, long n) {
     return (long)read((int)fd, buf, (size_t)n);
 }
-long psyz_write(long fd, void* buf, long n) {
-    return (long)write((int)fd, buf, (size_t)n);
-}
-long psyz_ioctl(long fd, long com, long arg) {
-    return ioctl((int)fd, com, arg);
-}
+int psyz_write(int fd, char* buf, int n) { return (int)write(fd, buf, (size_t)n); }
+long psyz_ioctl(int fd, int com, int arg) { return ioctl(fd, com, arg); }

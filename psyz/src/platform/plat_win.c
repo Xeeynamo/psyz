@@ -264,7 +264,7 @@ int psyz_open(const char* devname, int flag, ...) {
 
 int psyz_close(int fd) { return _close(fd); }
 
-long psyz_lseek(int fd, long offset, int flag) {
+unsigned long psyz_lseek(int fd, unsigned int offset, int flag) {
     return _lseek(fd, offset, flag);
 }
 
@@ -274,7 +274,7 @@ int psyz_write(int fd, const void* buf, unsigned int n) {
     return _write(fd, buf, n);
 }
 
-long psyz_ioctl(long fd, long com, long arg) {
+long psyz_ioctl(int fd, int com, int arg) {
     NOT_IMPLEMENTED;
     return -1;
 }

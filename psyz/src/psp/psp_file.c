@@ -250,19 +250,19 @@ int psyz_open(const char* devname, int flag) {
 
 int psyz_close(int fd) { return sceIoClose((SceUID)fd); }
 
-long psyz_lseek(long fd, long offset, long flag) {
-    return (long)sceIoLseek((SceUID)fd, (SceOff)offset, (int)flag);
+unsigned long psyz_lseek(int fd, unsigned int offset, int flag) {
+    return (unsigned long)sceIoLseek((SceUID)fd, (SceOff)offset, flag);
 }
 
 long psyz_read(long fd, void* buf, long n) {
     return (long)sceIoRead((SceUID)fd, buf, (SceSize)n);
 }
 
-long psyz_write(long fd, void* buf, long n) {
-    return (long)sceIoWrite((SceUID)fd, buf, (SceSize)n);
+int psyz_write(int fd, char* buf, int n) {
+    return (int)sceIoWrite((SceUID)fd, buf, (SceSize)n);
 }
 
-long psyz_ioctl(long fd, long com, long arg) {
+long psyz_ioctl(int fd, int com, int arg) {
     (void)fd;
     (void)com;
     (void)arg;

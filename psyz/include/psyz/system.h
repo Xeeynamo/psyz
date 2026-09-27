@@ -35,17 +35,17 @@ extern "C" {
 #ifdef _WIN32
 int psyz_open(const char* devname, int flag, ...);
 int psyz_close(int fd);
-long psyz_lseek(int fd, long offset, int flag);
+unsigned long psyz_lseek(int fd, unsigned int offset, int flag);
 int psyz_read(int fd, void* buf, unsigned int n);
 int psyz_write(int fd, const void* buf, unsigned int n);
-long psyz_ioctl(long fd, long com, long arg);
+long psyz_ioctl(int fd, int com, int arg);
 #else
 int psyz_open(const char* devname, int flag);
 int psyz_close(int fd);
-long psyz_lseek(long fd, long offset, long flag);
+unsigned long psyz_lseek(int fd, unsigned int offset, int flag);
 long psyz_read(long fd, void* buf, long n);
-long psyz_write(long fd, void* buf, long n);
-long psyz_ioctl(long fd, long com, long arg);
+int psyz_write(int fd, char* buf, int n);
+long psyz_ioctl(int fd, int com, int arg);
 #endif
 
 #endif // __psx__
