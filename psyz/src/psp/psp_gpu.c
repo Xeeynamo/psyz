@@ -44,8 +44,9 @@
 #define UNCACHED(p) ((void*)(0x40000000u | (uintptr_t)(p)))
 
 // EDRAM layout (2MB):
-// * Double-buffered 512x272 16-bit framebuffers
+// * Two 512x272 16-bit framebuffers
 // * 1MB for the actual PS1 VRAM
+// * Surface area: the aspect-corrected surfaces, or a third framebuffer
 #define EDRAM_DRAW_OFFSET 0
 #define EDRAM_DISP_OFFSET (FB_STRIDE * PSP_SCREEN_H * 2)
 #define EDRAM_TILES_OFFSET (EDRAM_DISP_OFFSET * 2)
@@ -99,7 +100,7 @@ static int target_w;       // presented width after horizontal aspect scale
 static int pres_x, pres_y; // presented top-left; negative = centered crop
 static int map_ofs_x, map_ofs_y; // base vertex pos, passthrough only
 static PsyzRect draw_area_rect;  // {0,0,0,0} = centered (default)
-static int cur_draw_fb;          // which framebuffer the GE draws to (0/1)
+static int cur_draw_fb;          // which framebuffer the GE draws to (0-2)
 // framebuffer index of the frame finished but not yet displayed
 static int show_fb = -1;
 static int applied_draw_target = -1; // last EDRAM offset given to the GE list
@@ -252,8 +253,7 @@ static void UpdateOutputMapping(void) {
         if (use_surface) {
             SetDrawTarget(EdramSurfaceOffset(surface_idx), surface_stride);
         } else {
-            SetDrawTarget(
-                cur_draw_fb ? EDRAM_DISP_OFFSET : EDRAM_DRAW_OFFSET, FB_STRIDE);
+            SetDrawTarget(FbOffset(cur_draw_fb), FB_STRIDE);
         }
     }
 }
@@ -734,7 +734,7 @@ static void StartFrame(void) {
     bound_clut = NULL;
     tex_memo_valid = false;
 
-    cur_draw_fb ^= 1;
+    cur_draw_fb = (cur_draw_fb + 1) % (use_surface ? 2 : 3);
     sceGuStart(GU_DIRECT, dlist[dlist_idx]);
     last_kick = gu_list->current;
     applied_draw_target = EDRAM_DRAW_OFFSET;
@@ -876,7 +876,9 @@ static void WaitPrevFrameGpu(void) {
 
 // EDRAM byte offset of framebuffer index
 static int FbOffset(int idx) {
-    return idx ? EDRAM_DISP_OFFSET : EDRAM_DRAW_OFFSET;
+    static const int offsets[] = {
+        EDRAM_DRAW_OFFSET, EDRAM_DISP_OFFSET, EDRAM_SURFACE_OFFSET};
+    return offsets[idx];
 }
 
 // point the display at show_fb, which has the frame ready to show on screen
@@ -885,13 +887,18 @@ static void ShowPendingFrame(void) {
         return;
     }
     pending_show = false;
-    if (vsync_mode != PSYZ_VSYNC_LIMITLESS) {
+    bool wait = vsync_mode != PSYZ_VSYNC_LIMITLESS;
+    int when =
+        wait ? PSP_DISPLAY_SETBUF_NEXTFRAME : PSP_DISPLAY_SETBUF_IMMEDIATE;
+    if (display_enabled) {
+        sceDisplaySetFrameBuf((void*)(edram_base + FbOffset(show_fb)),
+                              FB_STRIDE, PSP_DISPLAY_PIXEL_FORMAT_5551, when);
+    } else {
+        sceDisplaySetFrameBuf(NULL, 0, 0, when);
+    }
+    if (wait) {
         sceDisplayWaitVblankStart();
     }
-    sceDisplaySetFrameBuf(
-        (void*)(edram_base + FbOffset(show_fb)), FB_STRIDE,
-        PSP_DISPLAY_PIXEL_FORMAT_5551, PSP_DISPLAY_SETBUF_IMMEDIATE);
-    sceGuDisplay(display_enabled ? GU_TRUE : GU_FALSE);
 }
 
 int Psyz_VideoVSync(int mode) {
