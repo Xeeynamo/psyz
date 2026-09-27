@@ -2379,6 +2379,7 @@ H_cor_tbl = 0x800b8e90;
 H_ln_tbl = 0x800b8ea8;
 K_cor_tbl = 0x800b8ec8;
 rcossin_tbl = 0x800b8ef8;
+s_rsqrt_table = 0x800bcf1c;
 ratan_tbl = 0x800bd5b8;
 rsin_tbl = 0x800bdf00;
 SQRT = 0x800be708;

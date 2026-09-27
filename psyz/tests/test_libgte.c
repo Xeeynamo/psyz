@@ -958,6 +958,87 @@ ZTEST(gte, gte_rt_stores_untruncated_mac) {
     zexpect_u32_eq(0x81800000, flag);
 }
 
+ZTEST(gte, vector_normal) {
+    VECTOR in[] = {{0x1000, 0, 0},
+                   {0x300, 0x400, 0},
+                   {-0x300, 0, 0x400},
+                   {0x10000, 0x10000, 0x10000},
+                   {7, -11, 13}};
+    VECTOR exp[] = {{0x1000, 0, 0},
+                    {2457, 3276, 0},
+                    {-2457, 0, 3276},
+                    {0, 0, 0},
+                    {1564, -2458, 2904}};
+    int i;
+    for (i = 0; i < 5; i++) {
+        VECTOR out = {0};
+        VectorNormal(&in[i], &out);
+        zprintf("vector %d\n", i);
+        zexpect_s32_eq(exp[i].vx, out.vx);
+        zexpect_s32_eq(exp[i].vy, out.vy);
+        zexpect_s32_eq(exp[i].vz, out.vz);
+    }
+}
+
+ZTEST(gte, vector_normal_varied) {
+    VECTOR in[] = {
+        {1, 1, 1},  {100, 200, -300}, {0x7FFF, 0, 0},   {-5000, 3000, 12000},
+        {-1, 0, 0}, {0, 0, 0},        {0x12345, -2, 3}, {20000, 20000, 0}};
+    VECTOR exp[] = {{2364, 2364, 2364}, {1097, 2194, -3292}, {4103, 0, 0},
+                    {-1539, 922, 3691}, {-4096, 0, 0},       {0, 0, 0},
+                    {4115, -1, 1},      {2901, 2901, 0}};
+    int i;
+    for (i = 0; i < 8; i++) {
+        VECTOR out = {0};
+        VectorNormal(&in[i], &out);
+        zexpect_s32_eq(exp[i].vx, out.vx);
+        zexpect_s32_eq(exp[i].vy, out.vy);
+        zexpect_s32_eq(exp[i].vz, out.vz);
+    }
+}
+
+ZTEST(gte, vector_normal_s) {
+    VECTOR in[] = {{1, 1, 1},
+                   {100, 200, -300},
+                   {0x7FFF, 0, 0},
+                   {-5000, 3000, 12000},
+                   {0x12345, -2, 3},
+                   {0, 0, 0},
+                   {0x10000, 0x10000, 0x10000}};
+    SVECTOR exp[] = {{2364, 2364, 2364}, {1097, 2194, -3292}, {4103, 0, 0},
+                     {-1539, 922, 3691}, {4115, -1, 1},       {0, 0, 0},
+                     {0, 0, 0}};
+    long exp_ret[] = {3, 140000, 0x3FFF0001, 178000000, 81522854, 0, 0};
+    int i;
+    for (i = 0; i < 7; i++) {
+        SVECTOR out = {0x5555, 0x5555, 0x5555, 0x5555};
+        zexpect_s32_eq(exp_ret[i], VectorNormalS(&in[i], &out));
+        zexpect_s16_eq(exp[i].vx, out.vx);
+        zexpect_s16_eq(exp[i].vy, out.vy);
+        zexpect_s16_eq(exp[i].vz, out.vz);
+        zexpect_s16_eq(0x5555, out.pad);
+    }
+}
+
+ZTEST(gte, vector_normal_ss) {
+    SVECTOR in[] = {
+        {1, 1, 1},  {100, 200, -300}, {0x7FFF, 0, 0}, {-5000, 3000, 12000},
+        {-1, 0, 0}, {-0x8000, 0, 0},  {0, 0, 0}};
+    SVECTOR exp[] = {{2364, 2364, 2364}, {1097, 2194, -3292}, {4103, 0, 0},
+                     {-1539, 922, 3691}, {-4096, 0, 0},       {-4096, 0, 0},
+                     {0, 0, 0}};
+    long exp_ret[] = {3, 140000, 0x3FFF0001, 178000000, 1, 0x40000000, 0};
+    int i;
+    for (i = 0; i < 7; i++) {
+        SVECTOR out = {0x5555, 0x5555, 0x5555, 0x5555};
+        zexpect_s32_eq(exp_ret[i], VectorNormalSS(&in[i], &out));
+        zexpect_s16_eq(exp[i].vx, out.vx);
+        zexpect_s16_eq(exp[i].vy, out.vy);
+        zexpect_s16_eq(exp[i].vz, out.vz);
+        zexpect_s16_eq(0x5555, out.pad);
+    }
+}
+
 static void SetupProjection(void) {
     MATRIX m = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {0, 0, 1000}};
     SetGeomOffset(160, 120);

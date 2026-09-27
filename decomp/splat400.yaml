@@ -1314,7 +1314,7 @@ segments:
       - [0xB8EC8, data, libgte/cor_06]
       - [0xB8EF8, data, libgte/cstbl]
       - [0xBCEF8, data, libgte/msc00]
-      - [0xBCF08, data, libgte/msc02]
+      - [0xBCF08, .data, libgte/msc02]
       - [0xBD0A8, data, libgte/mtx_006]
       - [0xBD3B8, data, libgte/phn]
       - [0xBD598, data, libgte/ppm]
