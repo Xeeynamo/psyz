@@ -1468,9 +1468,9 @@ static unsigned int gte_divide(unsigned short h, unsigned short sz3) {
 #if defined(__GNUC__) || defined(__clang__)
     unsigned z = (unsigned)__builtin_clz((unsigned)sz3) - 16u;
 #elif defined(_MSC_VER)
-    unsigned long idx;
-    _BitScanReverse(&idx, sz3);
-    unsigned z = 15u - (unsigned)idx;
+    unsigned long bit;
+    _BitScanReverse(&bit, sz3);
+    unsigned z = 15u - (unsigned)bit;
 #else
     unsigned z = 0;
     unsigned x = sz3;
@@ -2451,8 +2451,8 @@ static long vector_normal(short x, short y, short z, int out[3]) {
 #if defined(__GNUC__) || defined(__clang__)
     int lz = u ? __builtin_clz(u) : 32;
 #elif defined(_MSC_VER)
-    unsigned long idx;
-    int lz = _BitScanReverse(&idx, u) ? 31 - (int)idx : 32;
+    unsigned long bit;
+    int lz = _BitScanReverse(&bit, u) ? 31 - (int)bit : 32;
 #else
     int lz = 0;
     while (lz < 32 && !(u & 0x80000000u)) {
