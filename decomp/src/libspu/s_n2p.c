@@ -1,6 +1,8 @@
 #include <common.h>
 #include <libspu.h>
 
+u32 _spu_2pitch(u32 center, u32 note);
+
 inline u32 _spu_2pitch(u32 center, u32 note) {
     u32 p0 = center << 12;
     u32 factor = 0x103B;

@@ -223,7 +223,7 @@ extern s32 _spu_mem_mode_unitM;
 extern SPU_MALLOC* _spu_memList;
 extern s32 _spu_rev_flag;
 extern s32 _spu_rev_offsetaddr;
-extern s8 _spu_rev_param[];
+extern struct rev_param_entry _spu_rev_param[];
 extern s32 _spu_rev_reserve_wa;
 extern s32 _spu_rev_startaddr[];
 extern SpuReverbAttr _spu_rev_attr;

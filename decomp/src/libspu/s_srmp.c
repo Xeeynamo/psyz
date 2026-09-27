@@ -32,10 +32,9 @@ long SpuSetReverbModeParam(SpuReverbAttr* attr) {
         setMode = 1;
         _spu_rev_attr.mode = mode;
         _spu_rev_offsetaddr = _spu_rev_startaddr[_spu_rev_attr.mode];
-        copyReverbEntry((char*)&entry,
-                        (char*)&_spu_rev_param[_spu_rev_attr.mode *
-                                               sizeof(struct rev_param_entry)],
-                        sizeof(struct rev_param_entry));
+        copyReverbEntry(
+            (char*)&entry, (char*)&_spu_rev_param[_spu_rev_attr.mode],
+            sizeof(struct rev_param_entry));
         switch (_spu_rev_attr.mode) {
         case SPU_REV_MODE_ECHO:
             _spu_rev_attr.feedback = 0x7F;
@@ -58,9 +57,7 @@ long SpuSetReverbModeParam(SpuReverbAttr* attr) {
             setDelay = 1;
             if (!setMode) {
                 copyReverbEntry(
-                    (char*)&entry,
-                    (char*)&_spu_rev_param[_spu_rev_attr.mode *
-                                           sizeof(struct rev_param_entry)],
+                    (char*)&entry, (char*)&_spu_rev_param[_spu_rev_attr.mode],
                     sizeof(struct rev_param_entry));
                 entry.flags = SPU_REV_ATTR_MLSAME | SPU_REV_ATTR_MRSAME |
                               SPU_REV_ATTR_MLCOMB1 | SPU_REV_ATTR_DLSAME |
@@ -84,11 +81,9 @@ long SpuSetReverbModeParam(SpuReverbAttr* attr) {
             setFeedback = 1;
             if (!setMode) {
                 if (!setDelay) {
-                    copyReverbEntry(
-                        (char*)&entry,
-                        (char*)&_spu_rev_param[_spu_rev_attr.mode *
-                                               sizeof(struct rev_param_entry)],
-                        sizeof(struct rev_param_entry));
+                    copyReverbEntry((char*)&entry,
+                                    (char*)&_spu_rev_param[_spu_rev_attr.mode],
+                                    sizeof(struct rev_param_entry));
                     entry.flags = SPU_REV_ATTR_VWALL;
                 } else {
                     entry.flags |= SPU_REV_ATTR_VWALL;

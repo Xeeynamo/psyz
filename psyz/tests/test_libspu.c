@@ -1296,6 +1296,29 @@ ZTEST(spu, reverb_unrouted_voice_leaves_work_area_clear) {
     }
 }
 
+ZTEST(spu, SetReverbModeParamLoadsWholePreset) {
+    static const u16 dapf1[SPU_REV_MODE_MAX] = {
+        0x0000, 0x007D, 0x0033, 0x00B1, 0x00E3,
+        0x01A5, 0x033D, 0x0001, 0x0001, 0x0017};
+    static const u16 viir[SPU_REV_MODE_MAX] = {
+        0x0000, 0x6D80, 0x70F0, 0x70F0, 0x6F60,
+        0x6000, 0x7E00, 0x7FFF, 0x7FFF, 0x70F0};
+    SpuReverbAttr attr;
+    int mode;
+    spu_reset_quiet();
+    SpuInit();
+    for (mode = SPU_REV_MODE_OFF; mode < SPU_REV_MODE_MAX; mode++) {
+        memset(&attr, 0, sizeof(attr));
+        attr.mask = SPU_REV_MODE;
+        attr.mode = mode;
+        zassert_s32_eq(0, SpuSetReverbModeParam(&attr));
+        zexpect_u16_eq(dapf1[mode], Psyz_SpuRead(0x1C0));
+        zexpect_u16_eq(viir[mode], Psyz_SpuRead(0x1C4));
+        zexpect_u16_eq(mode ? 0x8000 : 0, Psyz_SpuRead(0x1FC));
+        zexpect_u16_eq(mode ? 0x8000 : 0, Psyz_SpuRead(0x1FE));
+    }
+}
+
 typedef struct tagSpuMalloc {
     u32 addr;
     u32 size;
