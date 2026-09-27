@@ -1143,3 +1143,56 @@ ZTEST(gte, gte_readflg_sign_extends_into_long) {
     zexpect_s32_eq((int)0x81800000, (int)flag);
     zexpect_s32_eq(1, flag < 0);
 }
+
+ZTEST(gte, push_pop_matrix) {
+    MATRIX a = {{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, {10, 20, 30}};
+    MATRIX b = {{{-1, -2, -3}, {-4, -5, -6}, {-7, -8, -9}}, {-10, -20, -30}};
+    MATRIX c = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    MATRIX read = {0};
+    SetRotMatrix(&a);
+    SetTransMatrix(&a);
+    PushMatrix();
+    SetRotMatrix(&b);
+    SetTransMatrix(&b);
+    PushMatrix();
+    SetRotMatrix(&c);
+    SetTransMatrix(&c);
+    PopMatrix();
+    ReadRotMatrix(&read);
+    zexpect_matrix_eq(&b, &read);
+    PopMatrix();
+    ReadRotMatrix(&read);
+    zexpect_matrix_eq(&a, &read);
+}
+
+ZTEST(gte, pop_matrix_on_empty_stack_keeps_matrix) {
+    MATRIX a = {{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, {10, 20, 30}};
+    MATRIX read = {0};
+    SetRotMatrix(&a);
+    SetTransMatrix(&a);
+    PopMatrix();
+    ReadRotMatrix(&read);
+    zexpect_matrix_eq(&a, &read);
+}
+
+ZTEST(gte, push_matrix_holds_20_entries) {
+    MATRIX m = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    MATRIX read = {0};
+    int i;
+    SetRotMatrix(&m);
+    for (i = 0; i < 21; i++) {
+        m.t[0] = i;
+        SetTransMatrix(&m);
+        PushMatrix();
+    }
+    m.t[0] = 99;
+    SetTransMatrix(&m);
+    for (i = 19; i >= 0; i--) {
+        PopMatrix();
+        ReadRotMatrix(&read);
+        zexpect_s32_eq(i, read.t[0]);
+    }
+    PopMatrix();
+    ReadRotMatrix(&read);
+    zexpect_s32_eq(0, read.t[0]);
+}

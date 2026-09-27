@@ -1165,6 +1165,25 @@ MATRIX* ReadRotMatrix(MATRIX* m) {
     return m;
 }
 
+static MATRIX s_matrixStack[20];
+static int s_matrixStackDepth = 0;
+
+void PushMatrix(void) {
+    if (s_matrixStackDepth >= LEN(s_matrixStack)) {
+        ERRORF("Can't push matrix,stack(max 20) is full!");
+        return;
+    }
+    s_matrixStack[s_matrixStackDepth++] = M;
+}
+
+void PopMatrix(void) {
+    if (s_matrixStackDepth <= 0) {
+        ERRORF("Can't pop matrix,stack is empty!");
+        return;
+    }
+    M = s_matrixStack[--s_matrixStackDepth];
+}
+
 void SetLightMatrix(MATRIX* m) {
     L1.m[0][0] = m->m[0][0];
     L1.m[0][1] = m->m[0][1];
