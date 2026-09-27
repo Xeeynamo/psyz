@@ -255,5 +255,7 @@ unsigned long psyz_lseek(int fd, unsigned int offset, int flag) {
 long psyz_read(long fd, void* buf, long n) {
     return (long)read((int)fd, buf, (size_t)n);
 }
-int psyz_write(int fd, char* buf, int n) { return (int)write(fd, buf, (size_t)n); }
+int psyz_write(int fd, char* buf, int n) {
+    return (int)write(fd, buf, (size_t)n);
+}
 long psyz_ioctl(int fd, int com, int arg) { return ioctl(fd, com, arg); }
