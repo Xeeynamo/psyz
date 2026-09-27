@@ -6,21 +6,28 @@
 ZTEST_SETUP(gte) { InitGeom(); }
 ZTEST_TEARDOWN(gte) { InitGeom(); }
 
-static void EqMatrix(int line, MATRIX* m1, MATRIX* m2) {
-    int i, j;
-    zprintf("called from line %d\n", line);
+#define zexpect_matrix_eq(exp, act) zexpect_matrix_eq_(__LINE__, exp, act)
+static int zexpect_matrix_eq_(int line, MATRIX* exp, MATRIX* act) {
+    int i, j, eq = 1;
     for (i = 0; i < 3; i++) {
+        eq &= exp->t[i] == act->t[i];
         for (j = 0; j < 3; j++) {
-            if (!zexpect_s16_eq(m2->m[i][j], m1->m[i][j])) {
-                zprintf("Matrix coefficient mismatch at m[%d][%d]\n", i, j);
-            }
+            eq &= exp->m[i][j] == act->m[i][j];
         }
     }
+    if (eq) {
+        return 1;
+    }
+    ztest__fail(line, 0, "Matrix mismatch");
+    zprintf("  Expected:%21sActual:\n", "");
     for (i = 0; i < 3; i++) {
-        if (!zexpect_s32_eq(m2->t[i], m1->t[i])) {
-            zprintf("Translation vector mismatch at t[%d]\n", i);
-        }
+        zprintf("  %04X %04X %04X  %08X      %04X %04X %04X  %08X\n",
+                (unsigned short)exp->m[i][0], (unsigned short)exp->m[i][1],
+                (unsigned short)exp->m[i][2], (unsigned)exp->t[i],
+                (unsigned short)act->m[i][0], (unsigned short)act->m[i][1],
+                (unsigned short)act->m[i][2], (unsigned)act->t[i]);
     }
+    return 0;
 }
 
 typedef struct {
@@ -137,7 +144,7 @@ ZTEST(gte, trans_matrix) {
     MATRIX exp = {{{0, 1, 2}, {3, 4, 5}, {6, 7, 8}}, {16, 17, 18}};
     VECTOR t = {16, 17, 18};
     zexpect_ptr_eq(&m, TransMatrix(&m, &t));
-    EqMatrix(__LINE__, &m, &exp);
+    zexpect_matrix_eq(&exp, &m);
 }
 
 ZTEST(gte, rot_matrix) {
@@ -148,7 +155,7 @@ ZTEST(gte, rot_matrix) {
                   {10, 11, 12}};
     SVECTOR sv = {16, 17, 18};
     zexpect_ptr_eq(&m, RotMatrix(&sv, &m));
-    EqMatrix(__LINE__, &m, &exp);
+    zexpect_matrix_eq(&exp, &m);
 }
 
 ZTEST(gte, trans_matrix_negative) {
@@ -167,7 +174,7 @@ ZTEST(gte, scale_matrix_identity) {
     MATRIX exp = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {7, 8, 9}};
     VECTOR s = {0x1000, 0x1000, 0x1000};
     zexpect_ptr_eq(&m, ScaleMatrix(&m, &s));
-    EqMatrix(__LINE__, &m, &exp);
+    zexpect_matrix_eq(&exp, &m);
 }
 
 ZTEST(gte, scale_matrix_per_axis) {
@@ -207,7 +214,7 @@ ZTEST(gte, mul_matrix_identity) {
                 {0, 0, 0}};
     MATRIX exp = b;
     zexpect_ptr_eq(&a, MulMatrix(&a, &b));
-    EqMatrix(__LINE__, &a, &exp);
+    zexpect_matrix_eq(&exp, &a);
 }
 
 ZTEST(gte, mul_matrix_half_identity) {
@@ -217,7 +224,7 @@ ZTEST(gte, mul_matrix_half_identity) {
     MATRIX exp = {{{0x0800, 0x1000, 0}, {0, 0x0800, 0}, {0, 0, 0x0800}},
                   {0, 0, 0}};
     MulMatrix(&a, &b);
-    EqMatrix(__LINE__, &a, &exp);
+    zexpect_matrix_eq(&exp, &a);
 }
 
 ZTEST(gte, mul_matrix_permutation) {
@@ -231,7 +238,7 @@ ZTEST(gte, mul_matrix_permutation) {
                    {0x0777, 0x0888, 0x0999}},
                   {0, 0, 0}};
     MulMatrix(&a, &b);
-    EqMatrix(__LINE__, &a, &exp);
+    zexpect_matrix_eq(&exp, &a);
 }
 
 ZTEST(gte, transpose_matrix) {
@@ -668,7 +675,7 @@ ZTEST(gte, rot_matrix_arbitrary_angles) {
                   {10, 11, 12}};
     SVECTOR sv = {0x123, 0x456, 0x789};
     zexpect_ptr_eq(&m, RotMatrix(&sv, &m));
-    EqMatrix(__LINE__, &m, &exp);
+    zexpect_matrix_eq(&exp, &m);
 }
 
 ZTEST(gte, rot_matrix_negative_and_wrapped_angles) {
@@ -679,7 +686,7 @@ ZTEST(gte, rot_matrix_negative_and_wrapped_angles) {
                   {10, 11, 12}};
     SVECTOR sv = {-0x321, 0x0ABC, -0x1DEF};
     zexpect_ptr_eq(&m, RotMatrix(&sv, &m));
-    EqMatrix(__LINE__, &m, &exp);
+    zexpect_matrix_eq(&exp, &m);
 }
 
 ZTEST(gte, rot_matrix_yxz_arbitrary_angles) {
@@ -690,7 +697,7 @@ ZTEST(gte, rot_matrix_yxz_arbitrary_angles) {
                   {10, 11, 12}};
     SVECTOR sv = {0x123, 0x456, 0x789};
     zexpect_ptr_eq(&m, RotMatrixYXZ(&sv, &m));
-    EqMatrix(__LINE__, &m, &exp);
+    zexpect_matrix_eq(&exp, &m);
 }
 
 ZTEST(gte, rot_matrix_yxz_negative_and_wrapped_angles) {
@@ -701,7 +708,7 @@ ZTEST(gte, rot_matrix_yxz_negative_and_wrapped_angles) {
                   {10, 11, 12}};
     SVECTOR sv = {-0x321, 0x0ABC, -0x1DEF};
     zexpect_ptr_eq(&m, RotMatrixYXZ(&sv, &m));
-    EqMatrix(__LINE__, &m, &exp);
+    zexpect_matrix_eq(&exp, &m);
 }
 
 ZTEST(gte, rot_matrix_yxz_axis_only) {
@@ -724,7 +731,7 @@ ZTEST(gte, rot_matrix_x_arbitrary_angle) {
                    {-0x00F4, +0x0BC8, +0x0AD7}},
                   {7, 8, 9}};
     zexpect_ptr_eq(&m, RotMatrixX(0x123, &m));
-    EqMatrix(__LINE__, &m, &exp);
+    zexpect_matrix_eq(&exp, &m);
 }
 
 ZTEST(gte, rot_matrix_x_negative_angle) {
@@ -737,7 +744,7 @@ ZTEST(gte, rot_matrix_x_negative_angle) {
                    {+0x024A, -0x08C8, -0x0E00}},
                   {7, 8, 9}};
     zexpect_ptr_eq(&m, RotMatrixX(-0x789, &m));
-    EqMatrix(__LINE__, &m, &exp);
+    zexpect_matrix_eq(&exp, &m);
 }
 
 ZTEST(gte, rot_matrix_y_arbitrary_angle) {
@@ -750,7 +757,7 @@ ZTEST(gte, rot_matrix_y_arbitrary_angle) {
                    {-0x094D, +0x06A8, +0x0D9A}},
                   {7, 8, 9}};
     zexpect_ptr_eq(&m, RotMatrixY(0x123, &m));
-    EqMatrix(__LINE__, &m, &exp);
+    zexpect_matrix_eq(&exp, &m);
 }
 
 ZTEST(gte, rot_matrix_y_negative_angle) {
@@ -763,7 +770,7 @@ ZTEST(gte, rot_matrix_y_negative_angle) {
                    {+0x05CD, -0x06A0, -0x0F29}},
                   {7, 8, 9}};
     zexpect_ptr_eq(&m, RotMatrixY(-0x789, &m));
-    EqMatrix(__LINE__, &m, &exp);
+    zexpect_matrix_eq(&exp, &m);
 }
 
 ZTEST(gte, rot_matrix_z_arbitrary_angle) {
@@ -776,7 +783,7 @@ ZTEST(gte, rot_matrix_z_arbitrary_angle) {
                    {-0x0321, +0x0654, +0x0FA0}},
                   {7, 8, 9}};
     zexpect_ptr_eq(&m, RotMatrixZ(0x123, &m));
-    EqMatrix(__LINE__, &m, &exp);
+    zexpect_matrix_eq(&exp, &m);
 }
 
 ZTEST(gte, rot_matrix_z_negative_angle) {
@@ -789,7 +796,7 @@ ZTEST(gte, rot_matrix_z_negative_angle) {
                    {-0x0321, +0x0654, +0x0FA0}},
                   {7, 8, 9}};
     zexpect_ptr_eq(&m, RotMatrixZ(-0x789, &m));
-    EqMatrix(__LINE__, &m, &exp);
+    zexpect_matrix_eq(&exp, &m);
 }
 
 ZTEST(gte, rot_matrix_angle_wraps_full_turn) {
@@ -798,11 +805,11 @@ ZTEST(gte, rot_matrix_angle_wraps_full_turn) {
     MATRIX a = {0}, b = {0};
     RotMatrix(&base, &a);
     RotMatrix(&wrapped, &b);
-    EqMatrix(__LINE__, &a, &b);
+    zexpect_matrix_eq(&b, &a);
     MATRIX c = {0}, d = {0};
     RotMatrixYXZ(&base, &c);
     RotMatrixYXZ(&wrapped, &d);
-    EqMatrix(__LINE__, &c, &d);
+    zexpect_matrix_eq(&d, &c);
 }
 
 ZTEST(gte, rot_matrix_zero) {
@@ -811,7 +818,7 @@ ZTEST(gte, rot_matrix_zero) {
     RotMatrixX(0, &m);
     RotMatrixY(0, &m);
     RotMatrixZ(0, &m);
-    EqMatrix(__LINE__, &m, &exp);
+    zexpect_matrix_eq(&exp, &m);
 }
 
 ZTEST(gte, apply_matrix_identity) {
