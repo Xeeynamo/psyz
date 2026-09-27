@@ -315,8 +315,6 @@ ZTEST(gte, avsz4_basic) {
 }
 
 ZTEST(gte, avsz4_stotz_macros) {
-    zskip_targets("ps1"); // the gte_* macros crash the console
-#ifndef __psx__
     long expected = AverageZ4(0x100, 0x200, 0x300, 0x400);
     unsigned int otz;
 
@@ -324,7 +322,6 @@ ZTEST(gte, avsz4_stotz_macros) {
     gte_stotz(&otz);
 
     zexpect_u32_eq(expected, otz);
-#endif
 }
 
 ZTEST(gte, nclip_ccw) {
@@ -863,4 +860,80 @@ ZTEST(gte, rot_trans_applies_translation) {
     zexpect_s32_eq(11, out.vx);
     zexpect_s32_eq(22, out.vy);
     zexpect_s32_eq(33, out.vz);
+}
+
+ZTEST(gte, outer_product_0) {
+    VECTOR a = {1, 2, 3};
+    VECTOR b = {4, 5, 6};
+    VECTOR out = {0};
+    OuterProduct0(&a, &b, &out);
+    zexpect_s32_eq(-3, out.vx);
+    zexpect_s32_eq(6, out.vy);
+    zexpect_s32_eq(-3, out.vz);
+}
+
+ZTEST(gte, outer_product_0_large) {
+    VECTOR a = {-0x8000, 0x7FFF, -0x8000};
+    VECTOR b = {0x7FFF, -0x8000, 0x7FFF};
+    VECTOR out = {0};
+    OuterProduct0(&a, &b, &out);
+    zexpect_s32_eq(-0xFFFF, out.vx);
+    zexpect_s32_eq(0, out.vy);
+    zexpect_s32_eq(0xFFFF, out.vz);
+}
+
+ZTEST(gte, outer_product_0_truncates_inputs_to_s16) {
+    VECTOR a = {0x10001, 0x20002, 0x30003};
+    VECTOR b = {0x40004, 0x50005, 0xFFFF0006};
+    VECTOR out = {0};
+    OuterProduct0(&a, &b, &out);
+    zexpect_s32_eq(-3, out.vx);
+    zexpect_s32_eq(6, out.vy);
+    zexpect_s32_eq(-3, out.vz);
+}
+
+ZTEST(gte, outer_product_12) {
+    VECTOR a = {0x1000, 0, 0};
+    VECTOR b = {0, 0x1000, 0};
+    VECTOR out = {0};
+    OuterProduct12(&a, &b, &out);
+    zexpect_s32_eq(0, out.vx);
+    zexpect_s32_eq(0, out.vy);
+    zexpect_s32_eq(0x1000, out.vz);
+}
+
+ZTEST(gte, outer_product_12_rounds_toward_negative_infinity) {
+    VECTOR a = {1, 0, 0};
+    VECTOR b = {0, -1, 1};
+    VECTOR out = {0};
+    OuterProduct12(&a, &b, &out);
+    zexpect_s32_eq(0, out.vx);
+    zexpect_s32_eq(-1, out.vy);
+    zexpect_s32_eq(-1, out.vz);
+}
+
+ZTEST(gte, outer_product_12_mixed_signs) {
+    VECTOR a = {0x0800, -0x1800, 0x2000};
+    VECTOR b = {-0x3000, 0x0400, 0x1000};
+    VECTOR out = {0};
+    OuterProduct12(&a, &b, &out);
+    zexpect_s32_eq(-0x2000, out.vx);
+    zexpect_s32_eq(-0x6800, out.vy);
+    zexpect_s32_eq(-0x4600, out.vz);
+}
+
+ZTEST(gte, outer_product_preserves_rot_matrix) {
+    MATRIX m = {
+        {{0x100, 0x200, 0x300}, {0x400, 0x500, 0x600}, {0x700, 0x800, 0x900}},
+        {0, 0, 0}};
+    MATRIX read = {0};
+    VECTOR a = {1, 2, 3};
+    VECTOR b = {4, 5, 6};
+    VECTOR out = {0};
+    SetRotMatrix(&m);
+    SetTransMatrix(&m);
+    OuterProduct0(&a, &b, &out);
+    OuterProduct12(&a, &b, &out);
+    ReadRotMatrix(&read);
+    zexpect_matrix_eq(&m, &read);
 }

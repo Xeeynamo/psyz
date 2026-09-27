@@ -1921,7 +1921,12 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
                      "nop;"                                                    \
                      ".word 0x4B58002D")
 
-#define gte_stotz(r0)                                                          \
+#define gte_avsz4()                                                            \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4B68002E")
+
+#define gte_stotz(r0)                                                       \
     __asm__ volatile("swc2	$7, 0( %0 )" : : "r"(r0) : "memory")
 
 #define gte_SetGeomScreen(r0) __asm__ volatile("ctc2	%0, $26" : : "r"(r0))
