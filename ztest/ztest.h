@@ -62,7 +62,11 @@ void ztest__register(ztest_case* c);
 void ztest__register_hook(ztest_hook* h);
 
 #if defined(_MSC_VER)
+// MSVC expands macros inside #pragma section, and a project may #define read
+#pragma push_macro("read")
+#undef read
 #pragma section(".CRT$XCU", read)
+#pragma pop_macro("read")
 #if defined(_M_IX86)
 #define ZTEST__SYM_PREFIX "_"
 #else
