@@ -2110,7 +2110,9 @@ static void EmitClearQuad(int x, int y, int w, int h, u8 r, u8 g, u8 b) {
 #define TRIANGLE 0x20
 
 // real hardware uses XY coords as signed 11-bit
-static short s11(short v) { return (short)(((v & 0x7FF) ^ 1024) - 1024); }
+static inline short s11(short v) {
+    return (short)(((v & 0x7FF) ^ 1024) - 1024);
+}
 
 static int writePacket(PVert* v, int code, int n, u_long* packet, u16* pOut) {
     int w;
