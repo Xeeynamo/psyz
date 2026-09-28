@@ -1490,30 +1490,39 @@ static unsigned int gte_divide(unsigned short h, unsigned short sz3) {
     return (unsigned int)r;
 }
 
-// 44-bit MAC overflow check (MAC1..3). Real GTE has 44-bit accumulators;
-// values outside +-(1<<43) set FLAG bits regardless of clamping. The full
-// value still propagates into the SAR step (so >>sf is on the wrapped 44-bit).
-static inline long long mac_check_44(long long v, unsigned mac_idx) {
-    static const unsigned pos_bits[3] = {
-        FLAG_MAC1_OVF_POS, FLAG_MAC2_OVF_POS, FLAG_MAC3_OVF_POS};
-    static const unsigned neg_bits[3] = {
-        FLAG_MAC1_OVF_NEG, FLAG_MAC2_OVF_NEG, FLAG_MAC3_OVF_NEG};
-    if (v > 0x7FFFFFFFFFFLL)
-        FLAG |= pos_bits[mac_idx];
-    if (v < -0x80000000000LL)
-        FLAG |= neg_bits[mac_idx];
-    // Sign-extend from bit 43: cast to unsigned to make the left shift
-    // well-defined, then arithmetic right-shift back to sign-extend.
-    return (long long)((unsigned long long)v << 20) >> 20;
+static inline int mac_check_44(
+    int t, int a, int b, int c, unsigned mac_idx, int* low) {
+    unsigned w = (unsigned)a + (unsigned)b + (unsigned)c;
+    int q = (a >> 12) + (b >> 12) + (c >> 12);
+    int h = q + (int)((w - ((unsigned)q << 12)) >> 12);
+    int v = (int)((unsigned)t + (unsigned)h);
+    if (((t ^ v) & (h ^ v)) < 0)
+        FLAG |= (h < 0 ? FLAG_MAC1_OVF_NEG : FLAG_MAC1_OVF_POS) >> mac_idx;
+    *low = (int)(((unsigned)t << 12) + w);
+    return v;
 }
 
 // MAC0 32-bit overflow check
-static inline int mac0_check(long long v) {
-    if (v > 0x7FFFFFFFLL)
+static inline int mac0_check(int v, int carry) {
+    if (carry > 0)
         FLAG |= FLAG_MAC0_OVF_POS;
-    if (v < -0x80000000LL)
+    if (carry < 0)
         FLAG |= FLAG_MAC0_OVF_NEG;
-    return (int)v;
+    return v;
+}
+
+static inline int mac0_check_hi(int hi, unsigned lo) {
+    return mac0_check((int)(((unsigned)hi << 16) | lo), (hi + 0x8000) >> 16);
+}
+
+static inline int add_carry(int a, int b, int s) {
+    return ((a ^ s) & (b ^ s)) < 0 ? (a < 0 ? -1 : 1) : 0;
+}
+
+static inline int mul_div(unsigned d, int x, unsigned* lo) {
+    int p = (int)(d & 0xFFFF) * x;
+    *lo = p & 0xFFFF;
+    return (int)(d >> 16) * x + (p >> 16);
 }
 
 // IR1..3 saturation. lm=1 clamps to 0..+7FFF, lm=0 clamps to -8000..+7FFF.
@@ -1535,21 +1544,18 @@ static inline short ir_saturate(int v, int lm, unsigned sat_flag) {
 // lm   → IR saturation lower bound (0 if lm=1, else -8000)
 // depth_cue: compute IR0 from DQA/DQB on the last vertex
 static void RTPS_vertex(SVECTOR* v, int sf, int lm, int depth_cue) {
-    int shift = sf ? 12 : 0;
+    int low1, low2, low3;
 
     // MAC1..3 = (TR<<12 + RT*V) >> sf, with 44-bit overflow detection.
-    long long m1 = (long long)M.t[0] * 4096 + (long long)M.m[0][0] * v->vx +
-                   (long long)M.m[0][1] * v->vy + (long long)M.m[0][2] * v->vz;
-    long long m2 = (long long)M.t[1] * 4096 + (long long)M.m[1][0] * v->vx +
-                   (long long)M.m[1][1] * v->vy + (long long)M.m[1][2] * v->vz;
-    long long m3 = (long long)M.t[2] * 4096 + (long long)M.m[2][0] * v->vx +
-                   (long long)M.m[2][1] * v->vy + (long long)M.m[2][2] * v->vz;
-    m1 = mac_check_44(m1, 0);
-    m2 = mac_check_44(m2, 1);
-    m3 = mac_check_44(m3, 2);
-    MAC1 = (int)(m1 >> shift);
-    MAC2 = (int)(m2 >> shift);
-    MAC3 = (int)(m3 >> shift);
+    int m1 = mac_check_44(M.t[0], M.m[0][0] * v->vx, M.m[0][1] * v->vy,
+                          M.m[0][2] * v->vz, 0, &low1);
+    int m2 = mac_check_44(M.t[1], M.m[1][0] * v->vx, M.m[1][1] * v->vy,
+                          M.m[1][2] * v->vz, 1, &low2);
+    int m3 = mac_check_44(M.t[2], M.m[2][0] * v->vx, M.m[2][1] * v->vy,
+                          M.m[2][2] * v->vz, 2, &low3);
+    MAC1 = sf ? m1 : low1;
+    MAC2 = sf ? m2 : low2;
+    MAC3 = sf ? m3 : low3;
 
     IR1 = ir_saturate(MAC1, lm, FLAG_IR1_SAT);
     IR2 = ir_saturate(MAC2, lm, FLAG_IR2_SAT);
@@ -1557,8 +1563,7 @@ static void RTPS_vertex(SVECTOR* v, int sf, int lm, int depth_cue) {
     // FLAG bit is set based on (MAC3 SAR 12) vs -8000..7fff (without lm).
     {
         int v = MAC3;
-        int sz_check = (int)(m3 >> 12);
-        if (sz_check < -0x8000 || sz_check > 0x7FFF)
+        if (m3 < -0x8000 || m3 > 0x7FFF)
             FLAG |= FLAG_IR3_SAT;
         int lo = lm ? 0 : -0x8000;
         if (v < lo)
@@ -1572,7 +1577,7 @@ static void RTPS_vertex(SVECTOR* v, int sf, int lm, int depth_cue) {
     SZ0 = SZ1;
     SZ1 = SZ2;
     SZ2 = SZ3;
-    int sz_val = (int)(m3 >> 12);
+    int sz_val = m3;
     if (sz_val < 0 || sz_val > 0xFFFF)
         FLAG |= FLAG_SZ3_OTZ_SAT;
     if (sz_val < 0)
@@ -1591,24 +1596,20 @@ static void RTPS_vertex(SVECTOR* v, int sf, int lm, int depth_cue) {
 
     // psx-spx: MAC0 = (div_result*IR1) + OFX, with OFX in 16.16 fixed point
     // (so what's stored as integer pixels here gets shifted back up by 16).
-    long long mac0 = (long long)div_result * IR1 + (long long)OFX * 65536;
-    MAC0 = mac0_check(mac0);
+    // OFX is s16, so the 16.16 sum fits in s32 once split into hi and lo.
+    unsigned lo;
+    int sx_full = OFX + mul_div(div_result, IR1, &lo);
+    MAC0 = mac0_check_hi(sx_full, lo);
     // SX2/SY2 saturation works on the un-truncated 64-bit MAC0 SAR 16, not on
     // the wrapped 32-bit MAC0 register. (psx-spx Lm_G1 acts before MAC0 wrap.)
-    long long sx_full = mac0 >> 16;
-    int sx = (sx_full < -0x400)  ? -0x400
-             : (sx_full > 0x3FF) ? 0x3FF
-                                 : (int)sx_full;
+    int sx = (sx_full < -0x400) ? -0x400 : (sx_full > 0x3FF) ? 0x3FF : sx_full;
     if (sx_full < -0x400 || sx_full > 0x3FF)
         FLAG |= FLAG_SX2_SAT;
     SX2 = (short)sx;
 
-    mac0 = (long long)div_result * IR2 + (long long)OFY * 65536;
-    MAC0 = mac0_check(mac0);
-    long long sy_full = mac0 >> 16;
-    int sy = (sy_full < -0x400)  ? -0x400
-             : (sy_full > 0x3FF) ? 0x3FF
-                                 : (int)sy_full;
+    int sy_full = OFY + mul_div(div_result, IR2, &lo);
+    MAC0 = mac0_check_hi(sy_full, lo);
+    int sy = (sy_full < -0x400) ? -0x400 : (sy_full > 0x3FF) ? 0x3FF : sy_full;
     if (sy_full < -0x400 || sy_full > 0x3FF)
         FLAG |= FLAG_SY2_SAT;
     SY2 = (short)sy;
@@ -1619,9 +1620,12 @@ static void RTPS_vertex(SVECTOR* v, int sf, int lm, int depth_cue) {
 
     if (depth_cue) {
         // MAC0 = div_result*DQA + DQB; IR0 = MAC0 >> 12 saturated 0..1000.
-        long long m0 = (long long)div_result * DQA + (long long)DQB;
-        MAC0 = mac0_check(m0);
-        int ir0 = (int)(m0 >> 12);
+        int hi = mul_div(div_result, DQA, &lo);
+        lo += DQB & 0xFFFF;
+        hi += (DQB >> 16) + (int)(lo >> 16);
+        lo &= 0xFFFF;
+        MAC0 = mac0_check_hi(hi, lo);
+        int ir0 = hi * 16 + (int)(lo >> 12);
         if (ir0 < 0 || ir0 > 0x1000)
             FLAG |= FLAG_IR0_SAT;
         if (ir0 < 0)
@@ -1658,8 +1662,6 @@ static void color_fifo_push(void);
 // Selects matrix (mx), vector (vx), and translation (cv) per psx-spx encoding.
 // Updates MAC1..3, IR1..3, and FLAG.
 static inline void matrix_vec_mul(int sf, int lm, int mx, int vx, int cv) {
-    int shift = sf ? 12 : 0;
-
     short M_sel[3][3];
     switch (mx) {
     case 0:
@@ -1758,34 +1760,26 @@ static inline void matrix_vec_mul(int sf, int lm, int mx, int vx, int cv) {
         break;
     }
 
-    long long m1, m2, m3;
+    int low1, low2, low3;
+    int x1 = M_sel[0][0] * Vx;
+    int x2 = M_sel[1][0] * Vx;
+    int x3 = M_sel[2][0] * Vx;
     if (cv == 2) {
         // FC bug: first multiplication FC<<12 + M[i][0]*V_x is computed, IR
         // gets saturated but is then DISCARDED; the result keeps only the
         // subsequent two M[i][1]*V_y + M[i][2]*V_z terms.
-        long long tmp1 = (long long)t1 * 4096 + (long long)M_sel[0][0] * Vx;
-        long long tmp2 = (long long)t2 * 4096 + (long long)M_sel[1][0] * Vx;
-        long long tmp3 = (long long)t3 * 4096 + (long long)M_sel[2][0] * Vx;
-        (void)mac_check_44(tmp1, 0);
-        (void)mac_check_44(tmp2, 1);
-        (void)mac_check_44(tmp3, 2);
-        m1 = (long long)M_sel[0][1] * Vy + (long long)M_sel[0][2] * Vz;
-        m2 = (long long)M_sel[1][1] * Vy + (long long)M_sel[1][2] * Vz;
-        m3 = (long long)M_sel[2][1] * Vy + (long long)M_sel[2][2] * Vz;
-    } else {
-        m1 = (long long)t1 * 4096 + (long long)M_sel[0][0] * Vx +
-             (long long)M_sel[0][1] * Vy + (long long)M_sel[0][2] * Vz;
-        m2 = (long long)t2 * 4096 + (long long)M_sel[1][0] * Vx +
-             (long long)M_sel[1][1] * Vy + (long long)M_sel[1][2] * Vz;
-        m3 = (long long)t3 * 4096 + (long long)M_sel[2][0] * Vx +
-             (long long)M_sel[2][1] * Vy + (long long)M_sel[2][2] * Vz;
+        (void)mac_check_44(t1, x1, 0, 0, 0, &low1);
+        (void)mac_check_44(t2, x2, 0, 0, 1, &low2);
+        (void)mac_check_44(t3, x3, 0, 0, 2, &low3);
+        t1 = t2 = t3 = 0;
+        x1 = x2 = x3 = 0;
     }
-    m1 = mac_check_44(m1, 0);
-    m2 = mac_check_44(m2, 1);
-    m3 = mac_check_44(m3, 2);
-    MAC1 = (int)(m1 >> shift);
-    MAC2 = (int)(m2 >> shift);
-    MAC3 = (int)(m3 >> shift);
+    int m1 = mac_check_44(t1, x1, M_sel[0][1] * Vy, M_sel[0][2] * Vz, 0, &low1);
+    int m2 = mac_check_44(t2, x2, M_sel[1][1] * Vy, M_sel[1][2] * Vz, 1, &low2);
+    int m3 = mac_check_44(t3, x3, M_sel[2][1] * Vy, M_sel[2][2] * Vz, 2, &low3);
+    MAC1 = sf ? m1 : low1;
+    MAC2 = sf ? m2 : low2;
+    MAC3 = sf ? m3 : low3;
     IR1 = ir_saturate(MAC1, lm, FLAG_IR1_SAT);
     IR2 = ir_saturate(MAC2, lm, FLAG_IR2_SAT);
     IR3 = ir_saturate(MAC3, lm, FLAG_IR3_SAT);
@@ -1873,15 +1867,9 @@ static void OP(unsigned int cmd25) {
     int shift = sf ? 12 : 0;
     int d1 = M.m[0][0], d2 = M.m[1][1], d3 = M.m[2][2];
     FLAG = 0;
-    long long m1 = (long long)d2 * IR3 - (long long)d3 * IR2;
-    long long m2 = (long long)d3 * IR1 - (long long)d1 * IR3;
-    long long m3 = (long long)d1 * IR2 - (long long)d2 * IR1;
-    m1 = mac_check_44(m1, 0);
-    m2 = mac_check_44(m2, 1);
-    m3 = mac_check_44(m3, 2);
-    MAC1 = (int)(m1 >> shift);
-    MAC2 = (int)(m2 >> shift);
-    MAC3 = (int)(m3 >> shift);
+    MAC1 = (d2 * IR3 - d3 * IR2) >> shift;
+    MAC2 = (d3 * IR1 - d1 * IR3) >> shift;
+    MAC3 = (d1 * IR2 - d2 * IR1) >> shift;
     IR1 = ir_saturate(MAC1, lm, FLAG_IR1_SAT);
     IR2 = ir_saturate(MAC2, lm, FLAG_IR2_SAT);
     IR3 = ir_saturate(MAC3, lm, FLAG_IR3_SAT);
@@ -2081,17 +2069,17 @@ static void GPF(unsigned int cmd25) {
 static void GPL(unsigned int cmd25) {
     int sf = (cmd25 >> 19) & 1;
     int lm = (cmd25 >> 10) & 1;
-    int shift = sf ? 12 : 0;
+    int low1, low2, low3;
     FLAG = 0;
-    long long m1 = (long long)MAC1 * (1 << shift) + (long long)IR0 * IR1;
-    long long m2 = (long long)MAC2 * (1 << shift) + (long long)IR0 * IR2;
-    long long m3 = (long long)MAC3 * (1 << shift) + (long long)IR0 * IR3;
-    m1 = mac_check_44(m1, 0);
-    m2 = mac_check_44(m2, 1);
-    m3 = mac_check_44(m3, 2);
-    MAC1 = (int)(m1 >> shift);
-    MAC2 = (int)(m2 >> shift);
-    MAC3 = (int)(m3 >> shift);
+    int m1 = sf ? mac_check_44(MAC1, IR0 * IR1, 0, 0, 0, &low1)
+                : mac_check_44(0, MAC1, IR0 * IR1, 0, 0, &low1);
+    int m2 = sf ? mac_check_44(MAC2, IR0 * IR2, 0, 0, 1, &low2)
+                : mac_check_44(0, MAC2, IR0 * IR2, 0, 1, &low2);
+    int m3 = sf ? mac_check_44(MAC3, IR0 * IR3, 0, 0, 2, &low3)
+                : mac_check_44(0, MAC3, IR0 * IR3, 0, 2, &low3);
+    MAC1 = sf ? m1 : low1;
+    MAC2 = sf ? m2 : low2;
+    MAC3 = sf ? m3 : low3;
     IR1 = ir_saturate(MAC1, lm, FLAG_IR1_SAT);
     IR2 = ir_saturate(MAC2, lm, FLAG_IR2_SAT);
     IR3 = ir_saturate(MAC3, lm, FLAG_IR3_SAT);
@@ -2102,14 +2090,16 @@ static void GPL(unsigned int cmd25) {
 // Normal clipping. MAC0 = SX0*(SY1-SY2) + SX1*(SY2-SY0) + SX2*(SY0-SY1).
 // Each chained addition is checked at MAC0's 32-bit boundary.
 static void NCLIP() {
+    int p0 = SX0 * (SY1 - SY2);
+    int p1 = SX1 * (SY2 - SY0);
+    int p2 = SX2 * (SY0 - SY1);
     FLAG = 0;
-    long long m = 0;
-    m += (long long)SX0 * (SY1 - SY2);
-    MAC0 = mac0_check(m);
-    m += (long long)SX1 * (SY2 - SY0);
-    MAC0 = mac0_check(m);
-    m += (long long)SX2 * (SY0 - SY1);
-    MAC0 = mac0_check(m);
+    int m = (int)((unsigned)p0 + (unsigned)p1);
+    int carry = add_carry(p0, p1, m);
+    mac0_check(m, carry);
+    int m2 = (int)((unsigned)m + (unsigned)p2);
+    carry += add_carry(m, p2, m2);
+    MAC0 = mac0_check(m2, carry);
     FLAG_update_error();
 }
 
