@@ -1274,7 +1274,7 @@ segments:
       - [0xB5500, data, libcd/c_014]
       - [0xB5510, data, libcd/c_015]
       - [0xB5520, data, libcd/cdplay]
-      - [0xB56C0, data, libcd/cdread]
+      - [0xB56C0, .data, libcd/cdread]
       - [0xB5700, data, libcd/cdrom]
       - [0xB5710, .data, libcd/iso9660]
       - [0xB5718, .data, libcd/sys]

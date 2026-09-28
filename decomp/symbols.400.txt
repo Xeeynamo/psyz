@@ -2343,6 +2343,7 @@ DS_active = 0x800b5114;
 CD_comstr = 0x800b5118;
 CD_intstr = 0x800b5198;
 debug_cause = 0x800b54d8;
+ReadAttr = 0x800b56c4; // size:0x3C
 DS_comstr = 0x800b5d08;
 DS_intstr = 0x800b5ec8;
 Vcount = 0x800b70b8;
