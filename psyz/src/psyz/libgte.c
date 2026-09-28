@@ -8,60 +8,96 @@
 #include "../internal.h"
 
 // This GTE implementation is mostly accurate to how the PS1 computes math.
-// Most of the implementation needs 64-bit vars for accuracy, which can be slow
-// on 32-bit hardware where the type `long long` is software emulated.
+// The 44-bit accumulators use native 64-bit math on 64-bit hosts, and a 32-bit
+// form elsewhere, where `long long` arithmetic is software emulated and slow.
 //
-// There are yet no target-specific code paths here. Most consoles such as PS2,
-// Dreamcast or GBA could use different code paths to use hardware accelerated
-// math, while ensuring a decent level of accuracy.
+// Most consoles such as PS2, Dreamcast or GBA could use different code paths
+// to use hardware accelerated math, while ensuring a decent level of accuracy.
 //
 // https://github.com/nicolasnoble/pcsx-redux/tree/main/src/mips/tests/gte
 // The above test suite from Nicolas Noble, one of the main PCSX Redux emulator
 // developers, has been used to verify this GTE emulation is accurate enough.
 
 // https://www.problemkaputt.de/psx-spx.htm#gteoverview
-static SVECTOR V0;         // cop1 0-1
-static SVECTOR V1;         // cop1 2-3
-static SVECTOR V2;         // cop1 4-5
-static CVECTOR RGBC;       // cop1 6
-static unsigned short OTZ; // cop1 7 average Z value
-static short IR0;          // cop1 8 accumulator, interpolate
-static short IR1;          // cop1 9 accumulator, vector x
-static short IR2;          // cop1 10 accumulator, vector y
-static short IR3;          // cop1 11 accumulator, vector z
-static short SX0, SY0;     // cop1 12
-static short SX1, SY1;     // cop1 13
-static short SX2, SY2;     // cop1 14
-static short SXP, SYP;     // cop1 15
+static struct {
+    SVECTOR v0;           // cop1 0-1
+    SVECTOR v1;           // cop1 2-3
+    SVECTOR v2;           // cop1 4-5
+    CVECTOR rgbc;         // cop1 6
+    unsigned short otz;   // cop1 7 average Z value
+    short ir0;            // cop1 8 accumulator, interpolate
+    short ir1;            // cop1 9 accumulator, vector x
+    short ir2;            // cop1 10 accumulator, vector y
+    short ir3;            // cop1 11 accumulator, vector z
+    short sxy[3][2];      // cop1 12-14 screen XY FIFO
+    short sxp, syp;       // cop1 15
+    unsigned short sz[4]; // cop1 16-19 screen Z FIFO
+    int mac0;             // cop1 24 math accumulator (value)
+    int mac1;             // cop1 25 math accumulator (vector)
+    int mac2;             // cop1 26 math accumulator (vector)
+    int mac3;             // cop1 27 math accumulator (vector)
+    unsigned int rgb0;    // cop1 20 color FIFO
+    unsigned int rgb1;    // cop1 21
+    unsigned int rgb2;    // cop1 22
+    unsigned int res1;    // cop1 23 (reserved)
+    MATRIX m;             // cop2 0-7, rotation 3x3 + translation
+    MATRIX l1;            // cop2 8-15 light source 3x3 + bg color
+    MATRIX l2;            // cop2 16-23 light source 3x3 + bg color
+    int ofx;              // cop2 24 screen offset X
+    int ofy;              // cop2 25 screen offset Y
+    unsigned short h;     // cop2 26 projection plane distance
+    short dqa;            // cop2 27 depth queing parameter A (coeff)
+    int dqb;              // cop2 28 depth queing parameter B (offset, s32)
+    short zsf3;           // cop2 29 average Z scale factor
+    short zsf4;           // cop2 30 average Z scale factor
+    unsigned int flag;    // cop2 31
+} gte;
+#define V0 gte.v0
+#define V1 gte.v1
+#define V2 gte.v2
+#define RGBC gte.rgbc
+#define OTZ gte.otz
+#define IR0 gte.ir0
+#define IR1 gte.ir1
+#define IR2 gte.ir2
+#define IR3 gte.ir3
+#define SX0 gte.sxy[0][0]
+#define SY0 gte.sxy[0][1]
+#define SX1 gte.sxy[1][0]
+#define SY1 gte.sxy[1][1]
+#define SX2 gte.sxy[2][0]
+#define SY2 gte.sxy[2][1]
+#define SXP gte.sxp
+#define SYP gte.syp
+#define SZ0 gte.sz[0]
+#define SZ1 gte.sz[1]
+#define SZ2 gte.sz[2]
+#define SZ3 gte.sz[3]
+#define MAC0 gte.mac0
+#define MAC1 gte.mac1
+#define MAC2 gte.mac2
+#define MAC3 gte.mac3
+#define RGB0 gte.rgb0
+#define RGB1 gte.rgb1
+#define RGB2 gte.rgb2
+#define RES1 gte.res1
+#define M gte.m
+#define L1 gte.l1
+#define L2 gte.l2
+#define OFX gte.ofx
+#define OFY gte.ofy
+#define H gte.h
+#define DQA gte.dqa
+#define DQB gte.dqb
+#define ZSF3 gte.zsf3
+#define ZSF4 gte.zsf4
+#define FLAG gte.flag
 // Packs a screen XY register pair the way the GTE data registers hold it.
 // Both halves must be masked: SX/SY are signed, so promoting a negative SX to
 // int would sign-extend over the whole upper half and clobber SY.
 #define SXY(sx, sy)                                                            \
     (((unsigned int)(unsigned short)(sx)) |                                    \
      (((unsigned int)(unsigned short)(sy)) << 16))
-static unsigned short SZ0; // cop1 16 screen Z-coordinate FIFO
-static unsigned short SZ1; // cop1 17 screen Z-coordinate FIFO
-static unsigned short SZ2; // cop1 18 screen Z-coordinate FIFO
-static unsigned short SZ3; // cop1 19 screen Z-coordinate FIFO
-static int MAC0;           // cop1 24 math accumulator (value)
-static int MAC1;           // cop1 25 math accumulator (vector)
-static int MAC2;           // cop1 26 math accumulator (vector)
-static int MAC3;           // cop1 27 math accumulator (vector)
-static unsigned int RGB0;  // cop1 20 color FIFO
-static unsigned int RGB1;  // cop1 21
-static unsigned int RGB2;  // cop1 22
-static unsigned int RES1;  // cop1 23 (reserved)
-static MATRIX M = {0};     // cop2 0-7, rotation 3x3 + translation
-static MATRIX L1 = {0};    // cop2 8-15 light source 3x3 + bg color
-static MATRIX L2 = {0};    // cop2 16-23 light source 3x3 + bg color
-static int OFX;            // cop2 24 screen offset X
-static int OFY;            // cop2 25 screen offset Y
-static unsigned short H;   // cop2 26 projection plane distance
-static short DQA;          // cop2 27 depth queing parameter A (coeff)
-static int DQB;            // cop2 28 depth queing parameter B (offset, s32)
-static short ZSF3;         // cop2 29 average Z scale factor
-static short ZSF4;         // cop2 30 average Z scale factor
-static unsigned int FLAG;  // cop2 31
 
 static unsigned int pack_xy(short x, short y);
 static void MVMVA(unsigned int cmd25);
@@ -1398,22 +1434,26 @@ MATRIX* ScaleMatrix(MATRIX* m, VECTOR* v) {
     return m;
 }
 
+static inline unsigned mat_vec(int sf, int lm, const short (*m)[3], int vx,
+                               int vy, int vz, int t1, int t2, int t3);
+static inline unsigned flag_error(unsigned f);
+
 MATRIX* MulMatrix(MATRIX* m0, MATRIX* m1) {
-    MATRIX saved = M;
     MATRIX r;
+    unsigned f = 0;
     int j;
 
-    M = *m0;
     for (j = 0; j < 3; j++) {
-        V0.vx = m1->m[0][j];
-        V0.vy = m1->m[1][j];
-        V0.vz = m1->m[2][j];
-        MVMVA(0x0086012); // sf=1, mx=0 (RT), v=0 (V0), cv=3 (none), lm=0
+        f = mat_vec(
+            1, 0, m0->m, m1->m[0][j], m1->m[1][j], m1->m[2][j], 0, 0, 0);
         r.m[0][j] = IR1;
         r.m[1][j] = IR2;
         r.m[2][j] = IR3;
     }
-    M = saved;
+    V0.vx = m1->m[0][2];
+    V0.vy = m1->m[1][2];
+    V0.vz = m1->m[2][2];
+    FLAG = flag_error(f);
 
     m0->m[0][0] = r.m[0][0];
     m0->m[0][1] = r.m[0][1];
@@ -1458,9 +1498,10 @@ static const unsigned char unr_table[257] = {
 
 // PSX GTE divider: returns (H << 17) / SZ3 saturated to 1FFFFh, with the
 // hardware's specific Newton-Raphson algorithm. Used by RTPS family.
-static unsigned int gte_divide(unsigned short h, unsigned short sz3) {
+static unsigned int gte_divide(
+    unsigned short h, unsigned short sz3, unsigned* f) {
     if (h >= sz3 * 2) {
-        FLAG |= FLAG_DIV_OVF;
+        *f |= FLAG_DIV_OVF;
         return 0x1FFFF;
     }
     // Count leading zeros of sz3 within a 16-bit window. The early
@@ -1490,18 +1531,6 @@ static unsigned int gte_divide(unsigned short h, unsigned short sz3) {
     return (unsigned int)r;
 }
 
-static inline int mac_check_44(
-    int t, int a, int b, int c, unsigned mac_idx, int* low) {
-    unsigned w = (unsigned)a + (unsigned)b + (unsigned)c;
-    int q = (a >> 12) + (b >> 12) + (c >> 12);
-    int h = q + (int)((w - ((unsigned)q << 12)) >> 12);
-    int v = (int)((unsigned)t + (unsigned)h);
-    if (((t ^ v) & (h ^ v)) < 0)
-        FLAG |= (h < 0 ? FLAG_MAC1_OVF_NEG : FLAG_MAC1_OVF_POS) >> mac_idx;
-    *low = (int)(((unsigned)t << 12) + w);
-    return v;
-}
-
 // MAC0 32-bit overflow check
 static inline int mac0_check(int v, int carry) {
     if (carry > 0)
@@ -1511,19 +1540,23 @@ static inline int mac0_check(int v, int carry) {
     return v;
 }
 
-static inline int mac0_check_hi(int hi, unsigned lo) {
-    return mac0_check((int)(((unsigned)hi << 16) | lo), (hi + 0x8000) >> 16);
-}
-
 static inline int add_carry(int a, int b, int s) {
     return ((a ^ s) & (b ^ s)) < 0 ? (a < 0 ? -1 : 1) : 0;
 }
 
+#if defined(__LP64__) || defined(_WIN64)
+static inline int mul_div(unsigned d, int x, unsigned* lo) {
+    long long p = (long long)(int)d * x;
+    *lo = (unsigned)p & 0xFFFF;
+    return (int)(p >> 16);
+}
+#else
 static inline int mul_div(unsigned d, int x, unsigned* lo) {
     int p = (int)(d & 0xFFFF) * x;
     *lo = p & 0xFFFF;
     return (int)(d >> 16) * x + (p >> 16);
 }
+#endif
 
 // IR1..3 saturation. lm=1 clamps to 0..+7FFF, lm=0 clamps to -8000..+7FFF.
 static inline short ir_saturate(int v, int lm, unsigned sat_flag) {
@@ -1538,251 +1571,220 @@ static inline short ir_saturate(int v, int lm, unsigned sat_flag) {
     return (short)v;
 }
 
-// Perspective Transformation helper.
-// sf=1 → MAC1..3 are >>12 after multiply (typical "fixed" mode)
-// sf=0 → MAC1..3 are >>0  (full-precision mode)
-// lm   → IR saturation lower bound (0 if lm=1, else -8000)
-// depth_cue: compute IR0 from DQA/DQB on the last vertex
-static void RTPS_vertex(SVECTOR* v, int sf, int lm, int depth_cue) {
+static inline int sat_flag(int v, int lo, int hi, unsigned bit, unsigned* f) {
+    int c = v < lo ? lo : v > hi ? hi : v;
+    if (c != v)
+        *f |= bit;
+    return c;
+}
+
+#if defined(__LP64__) || defined(_WIN64)
+static inline int mac44(
+    int t, int a, int b, int c, unsigned mac_idx, int* low, unsigned* f) {
+    long long v = (long long)t * 4096 + a + b + c;
+    if ((unsigned long long)(v + (1LL << 43)) >> 44)
+        *f |= (v < 0 ? FLAG_MAC1_OVF_NEG : FLAG_MAC1_OVF_POS) >> mac_idx;
+    *low = (int)v;
+    return (int)(v >> 12);
+}
+#else
+static inline int mac44(
+    int t, int a, int b, int c, unsigned mac_idx, int* low, unsigned* f) {
+    unsigned w = (unsigned)a + (unsigned)b + (unsigned)c;
+    int q = (a >> 12) + (b >> 12) + (c >> 12);
+    int h = q + (int)((w - ((unsigned)q << 12)) >> 12);
+    int v = (int)((unsigned)t + (unsigned)h);
+    if (((t ^ v) & (h ^ v)) < 0)
+        *f |= (h < 0 ? FLAG_MAC1_OVF_NEG : FLAG_MAC1_OVF_POS) >> mac_idx;
+    *low = (int)(((unsigned)t << 12) + w);
+    return v;
+}
+#endif
+
+static inline int mac0_hi(int hi, unsigned lo, unsigned* f) {
+    int carry = (hi + 0x8000) >> 16;
+    if (carry)
+        *f |= carry > 0 ? FLAG_MAC0_OVF_POS : FLAG_MAC0_OVF_NEG;
+    return (int)(((unsigned)hi << 16) | lo);
+}
+
+static inline unsigned flag_error(unsigned f) {
+    return f & FLAG_ERROR_MASK ? f | FLAG_ERROR : f;
+}
+
+// Perspective transformation of one vertex into FIFO slot n, per psx-spx.
+static inline unsigned rtp_vertex(
+    int vx, int vy, int vz, int sf, int lm, int n, int* div_out) {
+    unsigned f = 0, lo;
     int low1, low2, low3;
+    int ir_lo = lm ? 0 : -0x8000;
+    int m1 = mac44(
+        M.t[0], M.m[0][0] * vx, M.m[0][1] * vy, M.m[0][2] * vz, 0, &low1, &f);
+    int m2 = mac44(
+        M.t[1], M.m[1][0] * vx, M.m[1][1] * vy, M.m[1][2] * vz, 1, &low2, &f);
+    int m3 = mac44(
+        M.t[2], M.m[2][0] * vx, M.m[2][1] * vy, M.m[2][2] * vz, 2, &low3, &f);
+    int mac1 = sf ? m1 : low1;
+    int mac2 = sf ? m2 : low2;
+    int mac3 = sf ? m3 : low3;
+    int ir1 = sat_flag(mac1, ir_lo, 0x7FFF, FLAG_IR1_SAT, &f);
+    int ir2 = sat_flag(mac2, ir_lo, 0x7FFF, FLAG_IR2_SAT, &f);
+    int ir3 = sat_flag(mac3, ir_lo, 0x7FFF, 0, &f); // hardware accurate
+    if (m3 < -0x8000 || m3 > 0x7FFF)
+        f |= FLAG_IR3_SAT;
+    int sz = sat_flag(m3, 0, 0xFFFF, FLAG_SZ3_OTZ_SAT, &f);
+    int div = (int)gte_divide(H, (unsigned short)sz, &f);
+    int sx = OFX + mul_div(div, ir1, &lo);
+    (void)mac0_hi(sx, lo, &f);
+    sx = sat_flag(sx, -0x400, 0x3FF, FLAG_SX2_SAT, &f);
+    int sy = OFY + mul_div(div, ir2, &lo);
+    (void)mac0_hi(sy, lo, &f);
+    sy = sat_flag(sy, -0x400, 0x3FF, FLAG_SY2_SAT, &f);
+    gte.sz[n + 1] = (unsigned short)sz;
+    gte.sxy[n][0] = (short)sx;
+    gte.sxy[n][1] = (short)sy;
+    MAC1 = mac1;
+    MAC2 = mac2;
+    MAC3 = mac3;
+    IR1 = (short)ir1;
+    IR2 = (short)ir2;
+    IR3 = (short)ir3;
+    *div_out = div;
+    return f;
+}
 
-    // MAC1..3 = (TR<<12 + RT*V) >> sf, with 44-bit overflow detection.
-    int m1 = mac_check_44(M.t[0], M.m[0][0] * v->vx, M.m[0][1] * v->vy,
-                          M.m[0][2] * v->vz, 0, &low1);
-    int m2 = mac_check_44(M.t[1], M.m[1][0] * v->vx, M.m[1][1] * v->vy,
-                          M.m[1][2] * v->vz, 1, &low2);
-    int m3 = mac_check_44(M.t[2], M.m[2][0] * v->vx, M.m[2][1] * v->vy,
-                          M.m[2][2] * v->vz, 2, &low3);
-    MAC1 = sf ? m1 : low1;
-    MAC2 = sf ? m2 : low2;
-    MAC3 = sf ? m3 : low3;
+// Depth cue of the last vertex: MAC0 = div*DQA + DQB, IR0 = MAC0 SAR 12
+static inline unsigned rtp_depth(int div) {
+    unsigned f = 0, lo;
+    int hi = mul_div(div, DQA, &lo);
+    lo += DQB & 0xFFFF;
+    hi += (DQB >> 16) + (int)(lo >> 16);
+    lo &= 0xFFFF;
+    MAC0 = mac0_hi(hi, lo, &f);
+    IR0 =
+        (short)sat_flag(hi * 16 + (int)(lo >> 12), 0, 0x1000, FLAG_IR0_SAT, &f);
+    return f;
+}
 
-    IR1 = ir_saturate(MAC1, lm, FLAG_IR1_SAT);
-    IR2 = ir_saturate(MAC2, lm, FLAG_IR2_SAT);
-    // IR3 special: clamped to (-8000..7fff) or (0..7fff per lm), but the
-    // FLAG bit is set based on (MAC3 SAR 12) vs -8000..7fff (without lm).
-    {
-        int v = MAC3;
-        if (m3 < -0x8000 || m3 > 0x7FFF)
-            FLAG |= FLAG_IR3_SAT;
-        int lo = lm ? 0 : -0x8000;
-        if (v < lo)
-            v = lo;
-        if (v > 0x7FFF)
-            v = 0x7FFF;
-        IR3 = (short)v;
-    }
-
-    // SZ FIFO push, then SZ3 = (m3 SAR 12) saturated to 0..ffff.
+static inline void rtps(int sf, int lm) {
     SZ0 = SZ1;
     SZ1 = SZ2;
     SZ2 = SZ3;
-    int sz_val = m3;
-    if (sz_val < 0 || sz_val > 0xFFFF)
-        FLAG |= FLAG_SZ3_OTZ_SAT;
-    if (sz_val < 0)
-        sz_val = 0;
-    if (sz_val > 0xFFFF)
-        sz_val = 0xFFFF;
-    SZ3 = (unsigned short)sz_val;
-
-    int div_result = (int)gte_divide(H, SZ3);
-
-    // SXY FIFO push, then SX2/SY2 from MAC0/10000h saturated to -400h..+3FFh.
     SX0 = SX1;
     SY0 = SY1;
     SX1 = SX2;
     SY1 = SY2;
-
-    // psx-spx: MAC0 = (div_result*IR1) + OFX, with OFX in 16.16 fixed point
-    // (so what's stored as integer pixels here gets shifted back up by 16).
-    // OFX is s16, so the 16.16 sum fits in s32 once split into hi and lo.
-    unsigned lo;
-    int sx_full = OFX + mul_div(div_result, IR1, &lo);
-    MAC0 = mac0_check_hi(sx_full, lo);
-    // SX2/SY2 saturation works on the un-truncated 64-bit MAC0 SAR 16, not on
-    // the wrapped 32-bit MAC0 register. (psx-spx Lm_G1 acts before MAC0 wrap.)
-    int sx = (sx_full < -0x400) ? -0x400 : (sx_full > 0x3FF) ? 0x3FF : sx_full;
-    if (sx_full < -0x400 || sx_full > 0x3FF)
-        FLAG |= FLAG_SX2_SAT;
-    SX2 = (short)sx;
-
-    int sy_full = OFY + mul_div(div_result, IR2, &lo);
-    MAC0 = mac0_check_hi(sy_full, lo);
-    int sy = (sy_full < -0x400) ? -0x400 : (sy_full > 0x3FF) ? 0x3FF : sy_full;
-    if (sy_full < -0x400 || sy_full > 0x3FF)
-        FLAG |= FLAG_SY2_SAT;
-    SY2 = (short)sy;
-
-    // SXP/SYP mirror SXY2 — read of reg 15 (SXYP) returns SXY2 value.
+    int div;
+    unsigned f = rtp_vertex(V0.vx, V0.vy, V0.vz, sf, lm, 2, &div);
     SXP = SX2;
     SYP = SY2;
-
-    if (depth_cue) {
-        // MAC0 = div_result*DQA + DQB; IR0 = MAC0 >> 12 saturated 0..1000.
-        int hi = mul_div(div_result, DQA, &lo);
-        lo += DQB & 0xFFFF;
-        hi += (DQB >> 16) + (int)(lo >> 16);
-        lo &= 0xFFFF;
-        MAC0 = mac0_check_hi(hi, lo);
-        int ir0 = hi * 16 + (int)(lo >> 12);
-        if (ir0 < 0 || ir0 > 0x1000)
-            FLAG |= FLAG_IR0_SAT;
-        if (ir0 < 0)
-            ir0 = 0;
-        if (ir0 > 0x1000)
-            ir0 = 0x1000;
-        IR0 = (short)ir0;
-    }
+    FLAG = flag_error(f | rtp_depth(div));
 }
 
-// Perspective Transformation (single). cmd25 is the full 25-bit cop2 imm.
+static inline void rtpt(int sf, int lm) {
+    unsigned f;
+    int div;
+    SZ0 = SZ3;
+    f = rtp_vertex(V0.vx, V0.vy, V0.vz, sf, lm, 0, &div);
+    f |= rtp_vertex(V1.vx, V1.vy, V1.vz, sf, lm, 1, &div);
+    f |= rtp_vertex(V2.vx, V2.vy, V2.vz, sf, lm, 2, &div);
+    SXP = SX2;
+    SYP = SY2;
+    FLAG = flag_error(f | rtp_depth(div));
+}
+
+// Every libgte wrapper issues RTPS/RTPT with sf=1, lm=0
+static void rtps_std(void) { rtps(1, 0); }
+static void rtpt_std(void) { rtpt(1, 0); }
+
+// Perspective Transformation. cmd25 is the full 25-bit cop2 imm.
 static void RTPS(unsigned int cmd25) {
-    int sf = (cmd25 >> 19) & 1;
-    int lm = (cmd25 >> 10) & 1;
-    FLAG = 0;
-    RTPS_vertex(&V0, sf, lm, 1);
-    FLAG_update_error();
+    rtps((cmd25 >> 19) & 1, (cmd25 >> 10) & 1);
 }
 
-// Perspective Transformation (triple).
 static void RTPT(unsigned int cmd25) {
-    int sf = (cmd25 >> 19) & 1;
-    int lm = (cmd25 >> 10) & 1;
-    FLAG = 0;
-    RTPS_vertex(&V0, sf, lm, 0);
-    RTPS_vertex(&V1, sf, lm, 0);
-    RTPS_vertex(&V2, sf, lm, 1);
-    FLAG_update_error();
+    rtpt((cmd25 >> 19) & 1, (cmd25 >> 10) & 1);
 }
 
 static void color_fifo_push(void);
 
-// Matrix-vector multiply core used by MVMVA, NCS/NCT/NCDS/NCDT/NCCS/NCCT, etc.
-// Selects matrix (mx), vector (vx), and translation (cv) per psx-spx encoding.
-// Updates MAC1..3, IR1..3, and FLAG.
+static inline unsigned mat_vec(int sf, int lm, const short (*m)[3], int vx,
+                               int vy, int vz, int t1, int t2, int t3) {
+    unsigned f = 0;
+    int low1, low2, low3;
+    int ir_lo = lm ? 0 : -0x8000;
+    int m1 = mac44(t1, m[0][0] * vx, m[0][1] * vy, m[0][2] * vz, 0, &low1, &f);
+    int m2 = mac44(t2, m[1][0] * vx, m[1][1] * vy, m[1][2] * vz, 1, &low2, &f);
+    int m3 = mac44(t3, m[2][0] * vx, m[2][1] * vy, m[2][2] * vz, 2, &low3, &f);
+    m1 = sf ? m1 : low1;
+    m2 = sf ? m2 : low2;
+    m3 = sf ? m3 : low3;
+    MAC1 = m1;
+    MAC2 = m2;
+    MAC3 = m3;
+    IR1 = (short)sat_flag(m1, ir_lo, 0x7FFF, FLAG_IR1_SAT, &f);
+    IR2 = (short)sat_flag(m2, ir_lo, 0x7FFF, FLAG_IR2_SAT, &f);
+    IR3 = (short)sat_flag(m3, ir_lo, 0x7FFF, FLAG_IR3_SAT, &f);
+    return f;
+}
+
+// MVMVA operand decoding per psx-spx: matrix mx, vector vx, translation cv
 static inline void matrix_vec_mul(int sf, int lm, int mx, int vx, int cv) {
-    short M_sel[3][3];
+    short garbage[3][3];
+    const short (*m)[3];
+    const int* t;
+    static const int no_t[3] = {0, 0, 0};
+    int x, y, z;
+    unsigned f = 0;
+
     switch (mx) {
     case 0:
-        M_sel[0][0] = M.m[0][0];
-        M_sel[0][1] = M.m[0][1];
-        M_sel[0][2] = M.m[0][2];
-        M_sel[1][0] = M.m[1][0];
-        M_sel[1][1] = M.m[1][1];
-        M_sel[1][2] = M.m[1][2];
-        M_sel[2][0] = M.m[2][0];
-        M_sel[2][1] = M.m[2][1];
-        M_sel[2][2] = M.m[2][2];
+        m = M.m;
         break;
     case 1:
-        M_sel[0][0] = L1.m[0][0];
-        M_sel[0][1] = L1.m[0][1];
-        M_sel[0][2] = L1.m[0][2];
-        M_sel[1][0] = L1.m[1][0];
-        M_sel[1][1] = L1.m[1][1];
-        M_sel[1][2] = L1.m[1][2];
-        M_sel[2][0] = L1.m[2][0];
-        M_sel[2][1] = L1.m[2][1];
-        M_sel[2][2] = L1.m[2][2];
+        m = L1.m;
         break;
     case 2:
-        M_sel[0][0] = L2.m[0][0];
-        M_sel[0][1] = L2.m[0][1];
-        M_sel[0][2] = L2.m[0][2];
-        M_sel[1][0] = L2.m[1][0];
-        M_sel[1][1] = L2.m[1][1];
-        M_sel[1][2] = L2.m[1][2];
-        M_sel[2][0] = L2.m[2][0];
-        M_sel[2][1] = L2.m[2][1];
-        M_sel[2][2] = L2.m[2][2];
+        m = L2.m;
         break;
     default: {
         // mx=3 "garbage matrix" per psx-spx:
-        //   row 0 = (-RGBC.R<<4,  RGBC.R<<4,  IR0)
-        //   row 1 = ( R13,         R13,        R13)
-        //   row 2 = ( R22,         R22,        R22)
+        // row 0 = (-R<<4, R<<4, IR0), row 1 = RT13 x3, row 2 = RT22 x3
         short r = (short)(((unsigned char*)&RGBC)[0] << 4);
-        M_sel[0][0] = (short)-r;
-        M_sel[0][1] = r;
-        M_sel[0][2] = IR0;
-        M_sel[1][0] = M_sel[1][1] = M_sel[1][2] = M.m[0][2];
-        M_sel[2][0] = M_sel[2][1] = M_sel[2][2] = M.m[1][1];
+        garbage[0][0] = (short)-r;
+        garbage[0][1] = r;
+        garbage[0][2] = IR0;
+        garbage[1][0] = garbage[1][1] = garbage[1][2] = M.m[0][2];
+        garbage[2][0] = garbage[2][1] = garbage[2][2] = M.m[1][1];
+        m = garbage;
         break;
     }
     }
-
-    short Vx, Vy, Vz;
     switch (vx) {
     case 0:
-        Vx = V0.vx;
-        Vy = V0.vy;
-        Vz = V0.vz;
+        x = V0.vx, y = V0.vy, z = V0.vz;
         break;
     case 1:
-        Vx = V1.vx;
-        Vy = V1.vy;
-        Vz = V1.vz;
+        x = V1.vx, y = V1.vy, z = V1.vz;
         break;
     case 2:
-        Vx = V2.vx;
-        Vy = V2.vy;
-        Vz = V2.vz;
+        x = V2.vx, y = V2.vy, z = V2.vz;
         break;
     default:
-        Vx = IR1;
-        Vy = IR2;
-        Vz = IR3;
+        x = IR1, y = IR2, z = IR3;
         break;
     }
-
-    int t1, t2, t3;
-    switch (cv) {
-    case 0:
-        t1 = M.t[0];
-        t2 = M.t[1];
-        t3 = M.t[2];
-        break;
-    case 1:
-        t1 = L1.t[0];
-        t2 = L1.t[1];
-        t3 = L1.t[2];
-        break;
-    case 2:
-        t1 = L2.t[0];
-        t2 = L2.t[1];
-        t3 = L2.t[2];
-        break;
-    default:
-        t1 = 0;
-        t2 = 0;
-        t3 = 0;
-        break;
-    }
-
-    int low1, low2, low3;
-    int x1 = M_sel[0][0] * Vx;
-    int x2 = M_sel[1][0] * Vx;
-    int x3 = M_sel[2][0] * Vx;
+    t = cv == 0 ? M.t : cv == 1 ? L1.t : cv == 2 ? L2.t : no_t;
     if (cv == 2) {
-        // FC bug: first multiplication FC<<12 + M[i][0]*V_x is computed, IR
-        // gets saturated but is then DISCARDED; the result keeps only the
-        // subsequent two M[i][1]*V_y + M[i][2]*V_z terms.
-        (void)mac_check_44(t1, x1, 0, 0, 0, &low1);
-        (void)mac_check_44(t2, x2, 0, 0, 1, &low2);
-        (void)mac_check_44(t3, x3, 0, 0, 2, &low3);
-        t1 = t2 = t3 = 0;
-        x1 = x2 = x3 = 0;
+        // FC bug: FC<<12 + M[i][0]*V_x only raises flags, then is discarded
+        int low;
+        mac44(t[0], m[0][0] * x, 0, 0, 0, &low, &f);
+        mac44(t[1], m[1][0] * x, 0, 0, 1, &low, &f);
+        mac44(t[2], m[2][0] * x, 0, 0, 2, &low, &f);
+        x = 0;
+        t = no_t;
     }
-    int m1 = mac_check_44(t1, x1, M_sel[0][1] * Vy, M_sel[0][2] * Vz, 0, &low1);
-    int m2 = mac_check_44(t2, x2, M_sel[1][1] * Vy, M_sel[1][2] * Vz, 1, &low2);
-    int m3 = mac_check_44(t3, x3, M_sel[2][1] * Vy, M_sel[2][2] * Vz, 2, &low3);
-    MAC1 = sf ? m1 : low1;
-    MAC2 = sf ? m2 : low2;
-    MAC3 = sf ? m3 : low3;
-    IR1 = ir_saturate(MAC1, lm, FLAG_IR1_SAT);
-    IR2 = ir_saturate(MAC2, lm, FLAG_IR2_SAT);
-    IR3 = ir_saturate(MAC3, lm, FLAG_IR3_SAT);
+    FLAG |= f | mat_vec(sf, lm, m, x, y, z, t[0], t[1], t[2]);
 }
 
 // Saturate to s16 (-8000..+7FFF) for the intermediate step of depth_cue.
@@ -2071,12 +2073,12 @@ static void GPL(unsigned int cmd25) {
     int lm = (cmd25 >> 10) & 1;
     int low1, low2, low3;
     FLAG = 0;
-    int m1 = sf ? mac_check_44(MAC1, IR0 * IR1, 0, 0, 0, &low1)
-                : mac_check_44(0, MAC1, IR0 * IR1, 0, 0, &low1);
-    int m2 = sf ? mac_check_44(MAC2, IR0 * IR2, 0, 0, 1, &low2)
-                : mac_check_44(0, MAC2, IR0 * IR2, 0, 1, &low2);
-    int m3 = sf ? mac_check_44(MAC3, IR0 * IR3, 0, 0, 2, &low3)
-                : mac_check_44(0, MAC3, IR0 * IR3, 0, 2, &low3);
+    int m1 = sf ? mac44(MAC1, IR0 * IR1, 0, 0, 0, &low1, &FLAG)
+                : mac44(0, MAC1, IR0 * IR1, 0, 0, &low1, &FLAG);
+    int m2 = sf ? mac44(MAC2, IR0 * IR2, 0, 0, 1, &low2, &FLAG)
+                : mac44(0, MAC2, IR0 * IR2, 0, 1, &low2, &FLAG);
+    int m3 = sf ? mac44(MAC3, IR0 * IR3, 0, 0, 2, &low3, &FLAG)
+                : mac44(0, MAC3, IR0 * IR3, 0, 2, &low3, &FLAG);
     MAC1 = sf ? m1 : low1;
     MAC2 = sf ? m2 : low2;
     MAC3 = sf ? m3 : low3;
@@ -2199,10 +2201,13 @@ void Psyz_GteAvsz3(void) { AVSZ3(); }
 void Psyz_GteAvsz4(void) { AVSZ4(); }
 void Psyz_GteDpcs(void) { DPCS(0x0780010); }
 void Psyz_GteLcir(void) { MVMVA(0x04DE012); }
-void Psyz_GteRtps(void) { RTPS(0x4A180001); }
-void Psyz_GteRtpt(void) { RTPT(0x4A280030); }
+void Psyz_GteRtps(void) { rtps_std(); }
+void Psyz_GteRtpt(void) { rtpt_std(); }
 void Psyz_GteNclip(void) { NCLIP(); }
-void Psyz_GteRt(void) { MVMVA(0x0480012); }
+void Psyz_GteRt(void) {
+    FLAG = flag_error(
+        mat_vec(1, 0, M.m, V0.vx, V0.vy, V0.vz, M.t[0], M.t[1], M.t[2]));
+}
 void Psyz_GteStlvnl(VECTOR* out) {
     out->vx = MAC1;
     out->vy = MAC2;
@@ -2300,7 +2305,8 @@ void DpqColor(CVECTOR* v0, long p, CVECTOR* v1) {
 
 void RotTrans(SVECTOR* v0, VECTOR* v1, int* flag) {
     V0 = *v0;
-    MVMVA(0x0080012); // sf=1, mx=0 (RT), v=0 (V0), cv=0 (TR), lm=0
+    FLAG = flag_error(
+        mat_vec(1, 0, M.m, V0.vx, V0.vy, V0.vz, M.t[0], M.t[1], M.t[2]));
     v1->vx = MAC1;
     v1->vy = MAC2;
     v1->vz = MAC3;
@@ -2324,7 +2330,7 @@ void ApplyRotMatrix(SVECTOR* v0, VECTOR* v1) { ApplyMatrix(&M, v0, v1); }
 
 long RotTransPers(SVECTOR* v0, int* sxy, int* p, int* flag) {
     V0 = *v0;
-    RTPS(0x080001);
+    rtps_std();
     *(unsigned int*)sxy = SXY(SX2, SY2);
     *p = IR0;
     *flag = (int)FLAG;
@@ -2336,7 +2342,7 @@ long RotTransPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0, int* sxy1,
     V0 = *v0;
     V1 = *v1;
     V2 = *v2;
-    RTPT(0x080030);
+    rtpt_std();
     *(unsigned int*)sxy0 = SXY(SX0, SY0);
     *(unsigned int*)sxy1 = SXY(SX1, SY1);
     *(unsigned int*)sxy2 = SXY(SX2, SY2);
@@ -2360,7 +2366,7 @@ long RotAverage3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0, int* sxy1,
     V0 = *v0;
     V1 = *v1;
     V2 = *v2;
-    RTPT(0x080030);
+    rtpt_std();
     *(unsigned int*)sxy0 = SXY(SX0, SY0);
     *(unsigned int*)sxy1 = SXY(SX1, SY1);
     *(unsigned int*)sxy2 = SXY(SX2, SY2);
@@ -2375,13 +2381,13 @@ long RotAverage4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, int* sxy0,
     V0 = *v0;
     V1 = *v1;
     V2 = *v2;
-    RTPT(0x080030);
+    rtpt_std();
     *(unsigned int*)sxy0 = SXY(SX0, SY0);
     *(unsigned int*)sxy1 = SXY(SX1, SY1);
     *(unsigned int*)sxy2 = SXY(SX2, SY2);
     int flag1 = (int)FLAG;
     V0 = *v3;
-    RTPS(0x080001);
+    rtps_std();
     *(unsigned int*)sxy3 = SXY(SX2, SY2);
     *p = IR0;
     *flag = flag1 | (int)FLAG;
@@ -2394,7 +2400,7 @@ long RotAverageNclip3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, int* sxy0,
     V0 = *v0;
     V1 = *v1;
     V2 = *v2;
-    RTPT(0x080030);
+    rtpt_std();
     *flag = (int)FLAG;
     NCLIP();
     if (MAC0 > 0) {
@@ -2414,7 +2420,7 @@ long RotAverageNclip4(
     V0 = *v0;
     V1 = *v1;
     V2 = *v2;
-    RTPT(0x080030);
+    rtpt_std();
     int flag1 = (int)FLAG;
     *flag = flag1;
     NCLIP();
@@ -2423,7 +2429,7 @@ long RotAverageNclip4(
         *(unsigned int*)sxy1 = SXY(SX1, SY1);
         *(unsigned int*)sxy2 = SXY(SX2, SY2);
         V0 = *v3;
-        RTPS(0x080001);
+        rtps_std();
         *(unsigned int*)sxy3 = SXY(SX2, SY2);
         *p = IR0;
         *flag = flag1 | (int)FLAG;
