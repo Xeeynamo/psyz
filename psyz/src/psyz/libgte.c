@@ -2281,18 +2281,31 @@ long NormalClip(long sxy0, long sxy1, long sxy2) {
     return MAC0;
 }
 
+#define CMD_SF(cmd) (((cmd) >> 19) & 1)
+#define CMD_LM(cmd) (((cmd) >> 10) & 1)
+
 void NormalColorCol(SVECTOR* v0, CVECTOR* v1, CVECTOR* v2) {
-    Psyz_GteLdv0(v0);
+    int sf = CMD_SF(0x1B04084B), lm = CMD_LM(0x1B04084B);
     Psyz_GteLdRgb(v1);
-    NCCS(0x1B04084B);
+    FLAG = mat_vec(sf, lm, L1.m, v0->vx, v0->vy, v0->vz, 0, 0, 0);
+    matrix_vec_mul(sf, lm, 2, 3, 1);
+    color_apply(sf, lm);
+    color_fifo_push();
+    FLAG_update_error();
+    V0 = *v0;
     Psyz_GteStRgb(v2);
 }
 
 void NormalColorDpq(SVECTOR* v0, CVECTOR* v1, long p, CVECTOR* v2) {
-    Psyz_GteLdv0(v0);
+    int sf = CMD_SF(0x1304E84A), lm = CMD_LM(0x1304E84A);
     Psyz_GteLdRgb(v1);
     IR0 = (short)p;
-    NCDS(0x1304E84A);
+    FLAG = mat_vec(sf, lm, L1.m, v0->vx, v0->vy, v0->vz, 0, 0, 0);
+    matrix_vec_mul(sf, lm, 2, 3, 1);
+    depth_cue_color(sf, lm);
+    color_fifo_push();
+    FLAG_update_error();
+    V0 = *v0;
     Psyz_GteStRgb(v2);
 }
 
