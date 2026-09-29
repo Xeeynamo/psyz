@@ -2381,6 +2381,33 @@ void Psyz_GteStszotz(unsigned int* out) {
 }
 void Psyz_GteStotz(unsigned int* out) { *out = OTZ; }
 void Psyz_GteStopz(int* out) { *out = MAC0; }
+void Psyz_GteRtv0(void) { MVMVA(0x0486012); }
+void Psyz_GteRtv1(void) { MVMVA(0x048E012); }
+void Psyz_GteRtv2(void) { MVMVA(0x0496012); }
+void Psyz_GteStsz(unsigned int* out) { *out = SZ3; }
+void Psyz_GteStsz3(unsigned int* out0, unsigned int* out1, unsigned int* out2) {
+    *out0 = SZ1;
+    *out1 = SZ2;
+    *out2 = SZ3;
+}
+void Psyz_GteStsz4(unsigned int* out0, unsigned int* out1, unsigned int* out2,
+                   unsigned int* out3) {
+    *out0 = SZ0;
+    *out1 = SZ1;
+    *out2 = SZ2;
+    *out3 = SZ3;
+}
+void Psyz_GteStsz3c(unsigned int* out) {
+    out[0] = SZ1;
+    out[1] = SZ2;
+    out[2] = SZ3;
+}
+void Psyz_GteStsz4c(unsigned int* out) {
+    out[0] = SZ0;
+    out[1] = SZ1;
+    out[2] = SZ2;
+    out[3] = SZ3;
+}
 
 long NormalClip(long sxy0, long sxy1, long sxy2) {
     // TODO can this be simplified with an union?

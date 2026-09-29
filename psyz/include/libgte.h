@@ -1969,6 +1969,62 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
 
 #define gte_SetGeomScreen(r0) __asm__ volatile("ctc2	%0, $26" : : "r"(r0))
 
+#define gte_rtv0()                                                             \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4A486012")
+
+#define gte_rtv1()                                                             \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4A48E012")
+
+#define gte_rtv2()                                                             \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4A496012")
+
+#define gte_stsz(r0)                                                           \
+    __asm__ volatile("swc2	$19, 0( %0 )" : : "r"(r0) : "memory")
+
+#define gte_stsz3(r0, r1, r2)                                                  \
+    __asm__ volatile(                                                          \
+        "swc2	$17, 0( %0 );"                                                   \
+        "swc2	$18, 0( %1 );"                                                   \
+        "swc2	$19, 0( %2 )"                                                    \
+        :                                                                      \
+        : "r"(r0), "r"(r1), "r"(r2)                                            \
+        : "memory")
+
+#define gte_stsz4(r0, r1, r2, r3)                                              \
+    __asm__ volatile(                                                          \
+        "swc2	$16, 0( %0 );"                                                   \
+        "swc2	$17, 0( %1 );"                                                   \
+        "swc2	$18, 0( %2 );"                                                   \
+        "swc2	$19, 0( %3 )"                                                    \
+        :                                                                      \
+        : "r"(r0), "r"(r1), "r"(r2), "r"(r3)                                   \
+        : "memory")
+
+#define gte_stsz3c(r0)                                                         \
+    __asm__ volatile(                                                          \
+        "swc2	$17, 0( %0 );"                                                   \
+        "swc2	$18, 4( %0 );"                                                   \
+        "swc2	$19, 8( %0 )"                                                    \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "memory")
+
+#define gte_stsz4c(r0)                                                         \
+    __asm__ volatile(                                                          \
+        "swc2	$16, 0( %0 );"                                                   \
+        "swc2	$17, 4( %0 );"                                                   \
+        "swc2	$18, 8( %0 );"                                                   \
+        "swc2	$19, 12( %0 )"                                                   \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "memory")
+
 #else // __psyz defined
 #define gte_SetGeomScreen SetGeomScreen
 #define gte_SetRotMatrix SetRotMatrix
@@ -2007,6 +2063,17 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
 #define gte_stlvnl(x) Psyz_GteStlvnl((VECTOR*)(x))
 #define gte_stflg(x) (*(x) = Psyz_GteReadflg())
 #define gte_readflg(x) ((x) = Psyz_GteReadflg())
+#define gte_rtv0() Psyz_GteRtv0()
+#define gte_rtv1() Psyz_GteRtv1()
+#define gte_rtv2() Psyz_GteRtv2()
+#define gte_stsz(x) Psyz_GteStsz((unsigned int*)(x))
+#define gte_stsz3(x, y, z)                                                     \
+    Psyz_GteStsz3((unsigned int*)(x), (unsigned int*)(y), (unsigned int*)(z))
+#define gte_stsz4(x, y, z, w)                                                  \
+    Psyz_GteStsz4((unsigned int*)(x), (unsigned int*)(y), (unsigned int*)(z),  \
+                  (unsigned int*)(w))
+#define gte_stsz3c(x) Psyz_GteStsz3c((unsigned int*)(x))
+#define gte_stsz4c(x) Psyz_GteStsz4c((unsigned int*)(x))
 #endif
 
 #endif

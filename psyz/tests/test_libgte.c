@@ -1144,6 +1144,104 @@ ZTEST(gte, gte_readflg_sign_extends_into_long) {
     zexpect_s32_eq(1, flag < 0);
 }
 
+static void RtvSetup(void) {
+    static MATRIX m = {{{0x1000, 0, 0}, {0, 0x800, 0}, {0, 0, 0x2000}},
+                       {100, 200, 300}};
+    static SVECTOR v0 = {10, 20, 30}, v1 = {-40, 50, 7}, v2 = {1000, -3, -500};
+    gte_SetRotMatrix(&m);
+    gte_SetTransMatrix(&m);
+    gte_ldv3(&v0, &v1, &v2);
+}
+
+ZTEST(gte, gte_rtv0_rotates_v0_without_translation) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_rtv0();
+    gte_stlvnl(&out);
+    zexpect_s32_eq(10, out.vx);
+    zexpect_s32_eq(10, out.vy);
+    zexpect_s32_eq(60, out.vz);
+}
+
+ZTEST(gte, gte_rtv1_rotates_v1_without_translation) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_rtv1();
+    gte_stlvnl(&out);
+    zexpect_s32_eq(-40, out.vx);
+    zexpect_s32_eq(25, out.vy);
+    zexpect_s32_eq(14, out.vz);
+}
+
+ZTEST(gte, gte_rtv2_rotates_v2_without_translation) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_rtv2();
+    gte_stlvnl(&out);
+    zexpect_s32_eq(1000, out.vx);
+    zexpect_s32_eq(-2, out.vy);
+    zexpect_s32_eq(-1000, out.vz);
+}
+
+static void SzFifoSetup(void) {
+    SVECTOR a = {0, 0, 11};
+    SVECTOR v0 = {0, 0, 22}, v1 = {0, 0, 33}, v2 = {0, 0, 44};
+    SetupProjection();
+    gte_ldv0(&a);
+    gte_rtps();
+    gte_ldv3(&v0, &v1, &v2);
+    gte_rtpt();
+}
+
+ZTEST(gte, gte_stsz_stores_sz3) {
+    unsigned int sz = 0xDEADBEEF;
+    SzFifoSetup();
+    gte_stsz(&sz);
+    zexpect_u32_eq(1044, sz);
+}
+
+ZTEST(gte, gte_stsz3_stores_sz1_to_sz3) {
+    unsigned int sz1 = 0xDEADBEEF, sz2 = 0xDEADBEEF, sz3 = 0xDEADBEEF;
+    SzFifoSetup();
+    gte_stsz3(&sz1, &sz2, &sz3);
+    zexpect_u32_eq(1022, sz1);
+    zexpect_u32_eq(1033, sz2);
+    zexpect_u32_eq(1044, sz3);
+}
+
+ZTEST(gte, gte_stsz4_stores_sz0_to_sz3) {
+    unsigned int sz0 = 0xDEADBEEF, sz1 = 0xDEADBEEF, sz2 = 0xDEADBEEF,
+                 sz3 = 0xDEADBEEF;
+    SzFifoSetup();
+    gte_stsz4(&sz0, &sz1, &sz2, &sz3);
+    zexpect_u32_eq(1011, sz0);
+    zexpect_u32_eq(1022, sz1);
+    zexpect_u32_eq(1033, sz2);
+    zexpect_u32_eq(1044, sz3);
+}
+
+ZTEST(gte, gte_stsz3c_stores_sz1_to_sz3_contiguously) {
+    unsigned int sz[4] = {0xDEADBEEF, 0xDEADBEEF, 0xDEADBEEF, 0xDEADBEEF};
+    SzFifoSetup();
+    gte_stsz3c(sz);
+    zexpect_u32_eq(1022, sz[0]);
+    zexpect_u32_eq(1033, sz[1]);
+    zexpect_u32_eq(1044, sz[2]);
+    zexpect_u32_eq(0xDEADBEEF, sz[3]);
+}
+
+ZTEST(gte, gte_stsz4c_stores_sz0_to_sz3_contiguously) {
+    unsigned int sz[5] = {0xDEADBEEF, 0xDEADBEEF, 0xDEADBEEF, 0xDEADBEEF,
+                          0xDEADBEEF};
+    SzFifoSetup();
+    gte_stsz4c(sz);
+    zexpect_u32_eq(1011, sz[0]);
+    zexpect_u32_eq(1022, sz[1]);
+    zexpect_u32_eq(1033, sz[2]);
+    zexpect_u32_eq(1044, sz[3]);
+    zexpect_u32_eq(0xDEADBEEF, sz[4]);
+}
+
 ZTEST(gte, push_pop_matrix) {
     MATRIX a = {{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, {10, 20, 30}};
     MATRIX b = {{{-1, -2, -3}, {-4, -5, -6}, {-7, -8, -9}}, {-10, -20, -30}};

@@ -103,6 +103,15 @@ void Psyz_GteStsxy3G3(void* polyG3);
 void Psyz_GteStszotz(unsigned int* out);
 void Psyz_GteStotz(unsigned int* out);
 void Psyz_GteStopz(int* out);
+void Psyz_GteRtv0(void);
+void Psyz_GteRtv1(void);
+void Psyz_GteRtv2(void);
+void Psyz_GteStsz(unsigned int* out);
+void Psyz_GteStsz3(unsigned int* out0, unsigned int* out1, unsigned int* out2);
+void Psyz_GteStsz4(unsigned int* out0, unsigned int* out1, unsigned int* out2,
+                   unsigned int* out3);
+void Psyz_GteStsz3c(unsigned int* out);
+void Psyz_GteStsz4c(unsigned int* out);
 
 #ifdef __cplusplus
 }
