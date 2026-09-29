@@ -491,7 +491,7 @@ static short voice_step(int v) {
     acc += (spu_gauss_tbl[vl + 2] * g2) & ~2047;
     acc += (spu_gauss_tbl[vl + 3] * g3) & ~2047;
     vs->spos += vs->sinc;
-    return clamp16(acc >> 12);
+    return clamp16(acc >> 11);
 }
 
 static inline int voice_vol(unsigned short reg) {
@@ -652,15 +652,13 @@ static void spu_tick(short* out) {
         if (spu.voice[v].env_state == ADSR_OFF) {
             s = 0;
         }
-        // capture buffer stores sample pre-envelope, weirdly only after
-        // processing the ADSR envelope -- this might need a re-test on real HW
+        rxx->voice[v].volumex = (unsigned short)spu.voice[v].env_vol;
+        s = (short)(((int)s * spu.voice[v].env_vol) >> 15);
         if (v == 1) {
             v1_sample = s;
         } else if (v == 3) {
             v3_sample = s;
         }
-        rxx->voice[v].volumex = (unsigned short)spu.voice[v].env_vol;
-        s = (short)(((int)s * spu.voice[v].env_vol) >> 15); // apply ADSR vol
         {
             int voice_left = (s * voice_vol(rxx->voice[v].volume.left)) >> 15;
             int voice_right = (s * voice_vol(rxx->voice[v].volume.right)) >> 15;

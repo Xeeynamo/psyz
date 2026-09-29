@@ -272,8 +272,8 @@ static void spu_voice1_keyon(unsigned int spuAddr, unsigned short pitch) {
     Psyz_SpuWrite(0x188, 1u << 1); // KEY_ON voice 1
 }
 
-static void run_voice1_with_sample(
-    const unsigned char* sample64, unsigned short pitch,
+static void run_voice1_with_envelope(
+    const unsigned char* sample64, unsigned short pitch, unsigned short adsr_lo,
     unsigned char out_capture[kCaptureBytes]) {
     unsigned char upload[128];
     spu_reset_quiet();
@@ -284,12 +284,22 @@ static void run_voice1_with_sample(
     Psyz_SpuWrite(0x180, 0x3FFF);
     Psyz_SpuWrite(0x182, 0x3FFF);
 
-    spu_voice1_keyon(kSampleAddr, pitch);
+    setup_voice1(kSampleAddr, pitch);
+    Psyz_SpuWrite((1 << 4) + 0x08, adsr_lo);
+    Psyz_SpuWrite(0x18C, 0);       // KEY_OFF_LOW
+    Psyz_SpuWrite(0x18E, 0);       // KEY_OFF_HIGH
+    Psyz_SpuWrite(0x188, 1u << 1); // KEY_ON voice 1
     pull_samples_nop(512);
 
     Psyz_SpuMemRead(0x0800, out_capture, kCaptureBytes);
     Psyz_SpuWrite(0x18C, 0xFFFF);
     Psyz_SpuWrite(0x18E, 0xFFFF);
+}
+
+static void run_voice1_with_sample(
+    const unsigned char* sample64, unsigned short pitch,
+    unsigned char out_capture[kCaptureBytes]) {
+    run_voice1_with_envelope(sample64, pitch, 0x000f, out_capture);
 }
 
 // Returns a malloc'd buffer (NULL with *size 0 when the file cannot be opened).
@@ -421,6 +431,12 @@ ZTEST(spu, adpcm_decode_sinewave) {
     unsigned char cap[1024];
     run_voice1_with_sample(kAdpcmSine, 0x1000, cap);
     SPU_EXPECT_GOLDEN(sine, cap);
+}
+
+ZTEST(spu, adpcm_decode_sinewave_full_envelope) {
+    unsigned char cap[1024];
+    run_voice1_with_envelope(kAdpcmSine, 0x1000, 0x00ff, cap);
+    SPU_EXPECT_GOLDEN(sine_full, cap);
 }
 
 ZTEST(spu, adpcm_decode_sinewave_lowpitch) {
