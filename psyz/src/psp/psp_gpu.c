@@ -27,6 +27,7 @@
 
 #include <libgpu.h>
 #include "../draw.h"
+#include "psp.h"
 
 #define PSX_VRAM_W 1024
 #define PSX_VRAM_H 512
@@ -558,10 +559,6 @@ static void InvalidateVram(int x, int y, int w, int h) {
     }
 }
 
-// TODO is this required?! LoadImage and StoreImage are synced via DrawSync
-static u16
-    __attribute__((aligned(64))) page_stage[4][VRAM_TILE_W * VRAM_TILE_H];
-
 // converts one 8bpp or 16bpp PS1 texture page from the VRAM tiles into the
 // entry's main RAM buffer; 16bpp gets the transparency fixup (color 0x0000
 // stays fully transparent, everything else becomes opaque)
@@ -573,39 +570,49 @@ static void AssemblePage(PageEntry* e) {
         vw = PSX_VRAM_W - x; // pages at the right edge of VRAM
     }
     // the page x is 64-aligned, so it covers 1-4 whole tile columns that are
-    // contiguous in EDRAM: fetch them all with a single GE copy
+    // contiguous in EDRAM
     int ntiles = (vw + VRAM_TILE_W - 1) >> 6;
     int t0 = (x >> 6) + (y >> 8) * VRAM_TILES_X;
-    sceKernelDcacheWritebackInvalidateRange(
-        page_stage, ntiles * VRAM_TILE_BYTES);
-    sceGuCopyImage(GU_PSM_5551, 0, 0, VRAM_TILE_W, ntiles * VRAM_TILE_H,
-                   VRAM_TILE_W, EdramTile(t0), 0, 0, VRAM_TILE_W, page_stage);
-    // waits until the copy above lands in page_stage
-    GeSyncCaughtUp();
     u16* buf = PageBuf(e);
-    for (int i = 0; i < h; i++) {
-        for (int j = 0; j < vw; j += VRAM_TILE_W) {
-            const u16* src = &page_stage[j >> 6][i << 6];
-            int n = vw - j < VRAM_TILE_W ? vw - j : VRAM_TILE_W;
-            if (e->bpp == 2) {
-                u16* dst = buf + i * 256 + j;
-                for (int k = 0; k < n; k++) {
-                    u16 c = src[k];
-                    dst[k] = c ? (u16)(c | 0x8000) : 0;
-                }
-            } else {
-                memcpy((u8*)buf + i * 256 + j * 2, src, n * 2);
-            }
-        }
+    if (e->bpp == 1) { // 1 means 8bpp page -- it's not 1bpp! TODO make enum?
         if (vw < w) {
-            if (e->bpp == 2) {
-                memset(buf + i * 256 + vw, 0, (w - vw) * 2);
-            } else {
-                memset((u8*)buf + i * 256 + vw * 2, 0, (w - vw) * 2);
+            for (int i = 0; i < h; i++) {
+                memset16_vfpu((u8*)buf + i * 256 + vw * 2, 0, (w - vw) * 2);
+            }
+            sceKernelDcacheWritebackRange(buf, 256 * 256);
+        }
+        CloseBatch();
+        for (int k = 0; k < ntiles; k++) {
+            sceGuCopyImage(
+                GU_PSM_5551, 0, 0, VRAM_TILE_W, VRAM_TILE_H, VRAM_TILE_W,
+                EdramTile(t0 + k), k * VRAM_TILE_W, 0, w, buf);
+        }
+        sceGuTexSync();
+        return;
+    }
+    // converts the tiles in place once the GE has finished writing them
+    GeSyncCaughtUp();
+    sceKernelDcacheWritebackInvalidateRange(
+        EdramTile(t0), ntiles * VRAM_TILE_BYTES);
+    for (int j = 0; j < vw; j += VRAM_TILE_W) {
+        const psp_u32a* src = (const psp_u32a*)EdramTile(t0 + (j >> 6));
+        for (int i = 0; i < h; i++, src += VRAM_TILE_W / 2) {
+            psp_u32a* dst = (psp_u32a*)(buf + i * 256 + j);
+            psp_dcache_claim_line(dst);
+            psp_dcache_claim_line(dst + 16);
+#pragma GCC unroll 4
+            for (int k = 0; k < VRAM_TILE_W / 2; k++) {
+                u32 c = src[k];
+                dst[k] = c | (((c & 0x7FFF7FFF) + 0x7FFF7FFF) & 0x80008000);
             }
         }
     }
-    sceKernelDcacheWritebackRange(buf, 256 * (e->bpp == 2 ? 512 : 256));
+    if (vw < w) {
+        for (int i = 0; i < h; i++) {
+            memset(buf + i * 256 + vw, 0, (w - vw) * 2);
+        }
+    }
+    sceKernelDcacheWritebackRange(buf, 256 * 512);
 }
 
 static PageEntry* FindOrCreatePage(u8 page, u8 bpp) {
@@ -635,6 +642,7 @@ static PageEntry* FindOrCreatePage(u8 page, u8 bpp) {
     if (found->dirty) {
         AssemblePage(found);
         found->dirty = false;
+        bound_tex = NULL; // rebinding flushes the GE texture cache
     }
     found->last_used = ++cache_clock;
     return found;
@@ -1346,8 +1354,8 @@ void Draw_LoadImage(RECT* rect, u_long* p) {
                pad_stride <= XFER_STRIDE) {
         // width is unaligned, do a mix between CPU copy and DMA copy
         for (int i = 0; i < h; i++) {
-            memcpy(xfer_stage + (size_t)i * pad_stride,
-                   src + (size_t)i * rect->w, w * sizeof(u16));
+            memcpy_vfpu(xfer_stage + (size_t)i * pad_stride,
+                        src + (size_t)i * rect->w, w * sizeof(u16));
         }
         LoadImageGe(x, y, w, h, xfer_stage, pad_stride);
     } else {
@@ -1388,8 +1396,8 @@ void Draw_StoreImage(RECT* rect, u_long* p) {
         StoreImageGe(x, y, w, h, xfer_stage, pad_stride);
         GeSyncCaughtUp();
         for (int i = 0; i < h; i++) {
-            memcpy(dst + (size_t)i * rect->w,
-                   xfer_stage + (size_t)i * pad_stride, w * sizeof(u16));
+            memcpy_vfpu(dst + (size_t)i * rect->w,
+                        xfer_stage + (size_t)i * pad_stride, w * sizeof(u16));
         }
     } else {
         // worst scenario, data is unaligned, perform CPU copy

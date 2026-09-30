@@ -278,7 +278,7 @@ elseif(PSP)
     list(APPEND PSYZ_SOURCES src/psp/psp_misc.c)
     list(APPEND PSYZ_SOURCES src/psp/psp_audio.c)
     list(APPEND PSYZ_SOURCES src/psyz/psyz_spu.c)
-    list(APPEND PSYZ_LIBS pspdebug pspgu pspdisplay pspge pspctrl pspaudio
+    list(APPEND PSYZ_LIBS pspdebug pspgu pspdisplay pspge pspdmac pspctrl pspaudio
         psppower)
     if(PSYZ_PSP_PROFILE)
         list(APPEND PSYZ_LIBS pspprof)
