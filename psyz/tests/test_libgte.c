@@ -6,6 +6,20 @@
 #include <libgpu.h>
 #include <string.h>
 
+#ifdef __psyz
+#define GTE_SET_ZSF3(v) Psyz_GteCtrlWrite(29, (unsigned int)(v))
+#define GTE_SET_ZSF4(v) Psyz_GteCtrlWrite(30, (unsigned int)(v))
+#define GTE_SET_DQA(v) Psyz_GteCtrlWrite(27, (unsigned int)(v))
+#define GTE_SET_DQB(v) Psyz_GteCtrlWrite(28, (unsigned int)(v))
+#define GTE_READ_IR0(v) ((v) = (int)Psyz_GteDataRead(8))
+#else
+#define GTE_SET_ZSF3(v) __asm__ volatile("ctc2	%0, $29" : : "r"(v))
+#define GTE_SET_ZSF4(v) __asm__ volatile("ctc2	%0, $30" : : "r"(v))
+#define GTE_SET_DQA(v) __asm__ volatile("ctc2	%0, $27" : : "r"(v))
+#define GTE_SET_DQB(v) __asm__ volatile("ctc2	%0, $28" : : "r"(v))
+#define GTE_READ_IR0(v) __asm__ volatile("mfc2	%0, $8;nop" : "=r"(v))
+#endif
+
 ZTEST_SETUP(gte) { InitGeom(); }
 ZTEST_TEARDOWN(gte) { InitGeom(); }
 
@@ -1743,4 +1757,28 @@ ZTEST(gte, mvmva_far_color_first_step_ignores_lm) {
     Psyz_GteCommand(0x0084412);
     gte_stflg(&flag);
     zexpect_u32_eq(0, (unsigned int)flag);
+}
+
+typedef struct {
+    int ir0, mac0, flag;
+} DepthResult;
+
+static void RtpsWithDepth(int dqb, DepthResult* r) {
+    SVECTOR v = {10, 20, 30};
+    SetupProjection();
+    GTE_SET_DQA(0);
+    GTE_SET_DQB(dqb);
+    gte_ldv0(&v);
+    gte_rtps();
+    GTE_READ_IR0(r->ir0);
+    gte_stopz(&r->mac0);
+    gte_stflg(&r->flag);
+}
+
+ZTEST(gte, rtps_ir0_flags_fraction_above_limit) {
+    DepthResult r;
+    RtpsWithDepth(0x1000001, &r);
+    zexpect_s32_eq(0x1000, r.ir0);
+    zexpect_s32_eq(0x1000001, r.mac0);
+    zexpect_u32_eq(0x00001000, (unsigned int)r.flag);
 }

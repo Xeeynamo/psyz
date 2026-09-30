@@ -1670,8 +1670,10 @@ static unsigned clz16(unsigned x) {
         if ((unsigned long long)(dq_m + 0x80000000LL) >> 32)                   \
             (f) |= dq_m < 0 ? FLAG_MAC0_OVF_NEG : FLAG_MAC0_OVF_POS;           \
         MAC0 = (int)dq_m;                                                      \
-        SAT_FLAG(dq_ir, (int)(dq_m >> 12), 0, 0x1000, FLAG_IR0_SAT, f);        \
-        IR0 = (short)dq_ir;                                                    \
+        if (dq_m < 0 || dq_m > 0x1000000)                                      \
+            (f) |= FLAG_IR0_SAT;                                               \
+        dq_ir = (int)(dq_m >> 12);                                             \
+        IR0 = (short)CLAMP(dq_ir, 0, 0x1000);                                  \
     } while (0)
 #define NCLIP_CALC(out, x0, y0, x1, y1, x2, y2, f)                             \
     do {                                                                       \
