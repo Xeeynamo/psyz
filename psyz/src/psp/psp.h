@@ -178,17 +178,15 @@ static inline void psp_vfpu_memcpy(
 // 0x8000 bytes. DMA is used only if src and dst share their 0x10 alignment,
 // otherwise it falls back to a VFPU or CPU copy.
 static void* __attribute__((noipa, unused)) psp_dmac_memcpy(
-    void* dst, const void* src, size_t size) {
-    unsigned char* d = (unsigned char*)dst;
-    const unsigned char* s = (const unsigned char*)src;
-    size_t head = -(uintptr_t)d & 63;
+    unsigned char* dst, const unsigned char* src, size_t size) {
+    size_t head = -(uintptr_t)dst & 63;
     size_t lines = (size - head) & ~(size_t)63;
-    if (!(((uintptr_t)d ^ (uintptr_t)s) & 15)) {
+    if (!(((uintptr_t)dst ^ (uintptr_t)src) & 15)) {
         sceKernelDcacheWritebackRange(src + head, lines);
         sceKernelDcacheInvalidateRange(dst + head, lines);
         if (sceDmacMemcpy(dst + head, src + head, lines) >= 0) {
-            memcpy(dst, s, head);
-            memcpy(d + head + lines, s + head + lines, (size - head) & 63);
+            memcpy(dst, src, head);
+            memcpy(dst + head + lines, src + head + lines, (size - head) & 63);
             return dst;
         }
     }
@@ -224,7 +222,7 @@ static inline void* memcpy_vfpu(void* dst, const void* src, size_t size) {
 
 // Fastest memset possible from PSP_VFPU_SET_MIN. size must be a multiple of 16
 // and dst must be 0x10 aligned.
-static inline void psp_vfpu_set16(unsigned char* d, int c, size_t n) {
+static inline void psp_vfpu_set16(unsigned char* dst, int c, size_t size) {
     unsigned v = (unsigned char)c * 0x01010101u;
     __asm__ volatile(
         "mtv %0, S000\n\t"
@@ -233,10 +231,10 @@ static inline void psp_vfpu_set16(unsigned char* d, int c, size_t n) {
         "mtv %0, S003"
         :
         : "r"(v));
-    for (; n && ((uintptr_t)d & 63); n -= 16, d += 16) {
-        __asm__ volatile("sv.q C000, 0(%0)" : : "r"(d) : "memory");
+    for (; size && ((uintptr_t)dst & 63); size -= 16, dst += 16) {
+        __asm__ volatile("sv.q C000, 0(%0)" : : "r"(dst) : "memory");
     }
-    size_t lines = n & ~(size_t)63;
+    size_t lines = size & ~(size_t)63;
     if (lines) {
         __asm__ volatile(
             ".set push\n\t"
@@ -251,45 +249,45 @@ static inline void psp_vfpu_set16(unsigned char* d, int c, size_t n) {
             "bnez %1, 1b\n\t"
             "addiu %0, %0, 64\n\t"
             ".set pop"
-            : "+r"(d), "+r"(lines)
+            : "+r"(dst), "+r"(lines)
             :
             : "memory");
     }
-    for (n &= 63; n; n -= 16, d += 16) {
-        __asm__ volatile("sv.q C000, 0(%0)" : : "r"(d) : "memory");
+    for (size &= 63; size; size -= 16, dst += 16) {
+        __asm__ volatile("sv.q C000, 0(%0)" : : "r"(dst) : "memory");
     }
 }
 
 // fastest memset replacement, requires dst and size to be 0x10 aligned.
-static inline void* memset16_vfpu(void* dst, int c, size_t n) {
-    psp_vfpu_set16((unsigned char*)dst, c, n);
+static inline void* memset16_vfpu(void* dst, int c, size_t size) {
+    psp_vfpu_set16((unsigned char*)dst, c, size);
     return dst;
 }
 
 // slower than memset16_vfpu, but accepts any dst alignment and size.
 // this is still faster than the plain memset.
-static inline void* memset_vfpu(void* dst, int c, size_t n) {
-    unsigned char* d = (unsigned char*)dst;
+static inline void* memset_vfpu(unsigned char* dst, int c, size_t size) {
+    void* ret = dst;
     unsigned v = (unsigned char)c * 0x01010101u;
-    if (n < PSP_VFPU_SET_MIN) {
-        return memset(dst, c, n);
+    if (size < PSP_VFPU_SET_MIN) {
+        return memset(dst, c, size);
     }
-    for (; (uintptr_t)d & 3; n--) {
-        *d++ = (unsigned char)c;
+    for (; (uintptr_t)dst & 3; size--) {
+        *dst++ = (unsigned char)c;
     }
-    for (; (uintptr_t)d & 15; n -= 4, d += 4) {
-        *(psp_u32a*)d = v;
+    for (; (uintptr_t)dst & 15; size -= 4, dst += 4) {
+        *(psp_u32a*)dst = v;
     }
-    size_t mid = n & ~(size_t)15;
-    psp_vfpu_set16(d, c, mid);
-    d += mid;
-    for (n &= 15; n >= 4; n -= 4, d += 4) {
-        *(psp_u32a*)d = v;
+    size_t mid = size & ~(size_t)15;
+    psp_vfpu_set16(dst, c, mid);
+    dst += mid;
+    for (size &= 15; size >= 4; size -= 4, dst += 4) {
+        *(psp_u32a*)dst = v;
     }
-    while (n--) {
-        *d++ = (unsigned char)c;
+    while (size--) {
+        *dst++ = (unsigned char)c;
     }
-    return dst;
+    return ret;
 }
 
 #endif
