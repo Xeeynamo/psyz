@@ -1631,3 +1631,116 @@ ZTEST(gte, gte_ldsz4_feeds_avsz4) {
     gte_stotz(&otz);
     zexpect_u32_eq(0xA00, otz);
 }
+
+static void ZeroIr(void) {
+    SVECTOR zero = {0, 0, 0};
+    gte_ldv0(&zero);
+    gte_rtv0();
+}
+
+ZTEST(gte, dpcs_flags_far_color_difference_saturation) {
+    unsigned int rgb = RGBCD(0, 0, 0, 0x20), out = 0;
+    int flag = 0;
+    gte_SetFarColor(0x1000, 0, 0);
+    gte_ldrgb(&rgb);
+    gte_lddp(0);
+    gte_dpcs();
+    gte_strgb(&out);
+    gte_stflg(&flag);
+    zexpect_u32_eq(rgb, out);
+    zexpect_u32_eq(0x81000000, (unsigned int)flag);
+}
+
+ZTEST(gte, dpcs_far_color_difference_ignores_lm) {
+    unsigned int rgb = RGBCD(100, 0, 0, 0x20), out = 0;
+    int flag = 0;
+    gte_SetFarColor(0, 0, 0);
+    gte_ldrgb(&rgb);
+    gte_lddp(0);
+    Psyz_GteCommand(0x0780410);
+    gte_strgb(&out);
+    gte_stflg(&flag);
+    zexpect_u32_eq(rgb, out);
+    zexpect_u32_eq(0, (unsigned int)flag);
+}
+
+ZTEST(gte, dpcs_flags_far_color_difference_overflow) {
+    unsigned int rgb = RGBCD(1, 0, 0, 0x20), out = 0;
+    int flag = 0;
+    gte_SetFarColor(0x08000000, 0, 0);
+    gte_ldrgb(&rgb);
+    gte_lddp(0);
+    gte_dpcs();
+    gte_strgb(&out);
+    gte_stflg(&flag);
+    zexpect_u32_eq(rgb, out);
+    zexpect_u32_eq(0x89000000, (unsigned int)flag);
+}
+
+ZTEST(gte, dpct_flags_far_color_difference_saturation) {
+    unsigned int c[3] = {RGBCD(0, 0, 0, 0x20), RGBCD(0, 0, 0, 0x20),
+                         RGBCD(0, 0, 0, 0x20)};
+    int flag = 0;
+    gte_SetFarColor(0, 0x1000, 0);
+    gte_ldrgb3c(c);
+    gte_lddp(0);
+    Psyz_GteCommand(0x0F8002A);
+    gte_stflg(&flag);
+    zexpect_u32_eq(0x80800000, (unsigned int)flag);
+}
+
+ZTEST(gte, intpl_flags_far_color_difference_saturation) {
+    unsigned int rgb = RGBCD(0, 0, 0, 0x20);
+    int flag = 0;
+    ZeroIr();
+    gte_SetFarColor(0, 0, 0x1000);
+    gte_ldrgb(&rgb);
+    gte_lddp(0);
+    Psyz_GteCommand(0x0980011);
+    gte_stflg(&flag);
+    zexpect_u32_eq(0x00400000, (unsigned int)flag);
+}
+
+ZTEST(gte, dcpl_flags_far_color_difference_saturation) {
+    unsigned int rgb = RGBCD(0, 0, 0, 0x20);
+    int flag = 0;
+    ZeroIr();
+    gte_SetFarColor(-0x1000, 0, 0);
+    gte_ldrgb(&rgb);
+    gte_lddp(0);
+    Psyz_GteCommand(0x0680029);
+    gte_stflg(&flag);
+    zexpect_u32_eq(0x81000000, (unsigned int)flag);
+}
+
+ZTEST(gte, dcpl_ignores_unused_command_bits) {
+    unsigned int exp_rgb = 0, act_rgb = 0;
+    int exp_flag = 0, act_flag = 0;
+    VECTOR exp_mac, act_mac;
+    DcplSetup();
+    Psyz_GteCommand(0x0680029);
+    gte_strgb(&exp_rgb);
+    gte_stflg(&exp_flag);
+    gte_stlvnl(&exp_mac);
+    DcplSetup();
+    Psyz_GteCommand(0x1F81BE9);
+    gte_strgb(&act_rgb);
+    gte_stflg(&act_flag);
+    gte_stlvnl(&act_mac);
+    zexpect_u32_eq(RGBCD(38, 117, 116, 0x38), act_rgb);
+    zexpect_u32_eq(exp_flag, act_flag);
+    zexpect_s32_eq(exp_mac.vx, act_mac.vx);
+    zexpect_s32_eq(exp_mac.vy, act_mac.vy);
+    zexpect_s32_eq(exp_mac.vz, act_mac.vz);
+}
+
+ZTEST(gte, mvmva_far_color_first_step_ignores_lm) {
+    MATRIX m = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}};
+    int flag = 0;
+    gte_SetRotMatrix(&m);
+    ZeroIr();
+    gte_SetFarColor(-1, 0, 0);
+    Psyz_GteCommand(0x0084412);
+    gte_stflg(&flag);
+    zexpect_u32_eq(0, (unsigned int)flag);
+}

@@ -1966,6 +1966,21 @@ static inline void matrix_vec_mul(int sf, int lm, int mx, int vx, int cv) {
     mat_vec(sf, lm, m, x, y, z, t[0], t[1], t[2]);
 }
 
+static inline int far_color_diff(int fc, int in, int shift, int idx) {
+    long long v = (long long)fc * 4096 - in;
+    int d = (int)(v >> shift);
+    if (v >= (1LL << 43)) {
+        FLAG |= FLAG_MAC1_OVF_POS >> idx;
+    } else if (v < -(1LL << 43)) {
+        FLAG |= FLAG_MAC1_OVF_NEG >> idx;
+    }
+    if (d < -0x8000 || d > 0x7FFF) {
+        FLAG |= FLAG_IR1_SAT >> idx;
+        return d < 0 ? -0x8000 : 0x7FFF;
+    }
+    return d;
+}
+
 // Depth-cue subroutine: MAC_n = inN + IR0 * sat_s16((FC_n<<12 - inN) >> sf*12),
 // shifted right by sf*12. Used by DPCS/DPCT/DCPL/INTPL/NCDS/NCDT/CDP.
 //
@@ -1976,12 +1991,9 @@ static inline void matrix_vec_mul(int sf, int lm, int mx, int vx, int cv) {
     do {                                                                       \
         int dc_s = (sf) ? 12 : 0;                                              \
         int dc_r = (inR), dc_g = (inG), dc_b = (inB);                          \
-        int dc_dr = (int)(((long long)L2.t[0] * 4096 - dc_r) >> dc_s);         \
-        int dc_dg = (int)(((long long)L2.t[1] * 4096 - dc_g) >> dc_s);         \
-        int dc_db = (int)(((long long)L2.t[2] * 4096 - dc_b) >> dc_s);         \
-        dc_dr = CLAMP(dc_dr, -0x8000, 0x7FFF);                                 \
-        dc_dg = CLAMP(dc_dg, -0x8000, 0x7FFF);                                 \
-        dc_db = CLAMP(dc_db, -0x8000, 0x7FFF);                                 \
+        int dc_dr = far_color_diff(L2.t[0], dc_r, dc_s, 0);                    \
+        int dc_dg = far_color_diff(L2.t[1], dc_g, dc_s, 1);                    \
+        int dc_db = far_color_diff(L2.t[2], dc_b, dc_s, 2);                    \
         MAC1 = (dc_r + IR0 * dc_dr) >> dc_s;                                   \
         MAC2 = (dc_g + IR0 * dc_dg) >> dc_s;                                   \
         MAC3 = (dc_b + IR0 * dc_db) >> dc_s;                                   \
