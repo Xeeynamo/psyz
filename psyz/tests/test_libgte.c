@@ -2,6 +2,7 @@
 #include <psyz.h>
 #include <kernel.h>
 #include <libgte.h>
+#include <psyz/gte.h>
 #include <libgpu.h>
 #include <string.h>
 
@@ -1515,4 +1516,73 @@ ZTEST(gte, setgeomoffset_accepts_negative_offset) {
     gte_SetGeomScreen(1000);
     GeomRtps(&v, &sxy);
     zexpect_u32_eq(SXY(69, -13), sxy);
+}
+
+typedef struct {
+    int sxy, sz, mac0, flag;
+    VECTOR mac;
+} RtpsResult;
+
+static void RtpsResultRead(RtpsResult* r) {
+    gte_stsxy(&r->sxy);
+    gte_stsz(&r->sz);
+    gte_stopz(&r->mac0);
+    gte_stflg(&r->flag);
+    gte_stlvnl(&r->mac);
+}
+
+ZTEST(gte, cmd_00_behaves_like_rtps) {
+    SVECTOR v = {100, -50, 300}, other = {-20, 70, 900};
+    RtpsResult exp, act;
+    SetupProjection();
+    gte_ldv0(&v);
+    Psyz_GteCommand(0x0180001);
+    RtpsResultRead(&exp);
+    gte_ldv0(&other);
+    gte_rtps();
+    gte_ldv0(&v);
+    Psyz_GteCommand(0x0180000);
+    RtpsResultRead(&act);
+    zexpect_u32_eq(SXY(236, 81), exp.sxy);
+    zexpect_u32_eq(exp.sxy, act.sxy);
+    zexpect_u32_eq(exp.sz, act.sz);
+    zexpect_s32_eq(exp.mac0, act.mac0);
+    zexpect_u32_eq(exp.flag, act.flag);
+    zexpect_s32_eq(exp.mac.vx, act.mac.vx);
+    zexpect_s32_eq(exp.mac.vy, act.mac.vy);
+    zexpect_s32_eq(exp.mac.vz, act.mac.vz);
+}
+
+static void DcplSetup(void) {
+    MATRIX m = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}};
+    SVECTOR ir = {0x800, 0x400, 0xC00};
+    unsigned int rgb = RGBCD(100, 150, 200, 0x38);
+    gte_SetRotMatrix(&m);
+    gte_ldv0(&ir);
+    gte_rtv0();
+    gte_SetFarColor(20, 250, 60);
+    gte_ldrgb(&rgb);
+    gte_lddp(0x600);
+}
+
+ZTEST(gte, cmd_1a_behaves_like_dcpl) {
+    unsigned int exp_rgb = 0, act_rgb = 0;
+    int exp_flag = 0, act_flag = 0;
+    VECTOR exp_mac, act_mac;
+    DcplSetup();
+    Psyz_GteCommand(0x0680029);
+    gte_strgb(&exp_rgb);
+    gte_stflg(&exp_flag);
+    gte_stlvnl(&exp_mac);
+    DcplSetup();
+    Psyz_GteCommand(0x068001A);
+    gte_strgb(&act_rgb);
+    gte_stflg(&act_flag);
+    gte_stlvnl(&act_mac);
+    zexpect_u32_eq(RGBCD(38, 117, 116, 0x38), exp_rgb);
+    zexpect_u32_eq(exp_rgb, act_rgb);
+    zexpect_u32_eq(exp_flag, act_flag);
+    zexpect_s32_eq(exp_mac.vx, act_mac.vx);
+    zexpect_s32_eq(exp_mac.vy, act_mac.vy);
+    zexpect_s32_eq(exp_mac.vz, act_mac.vz);
 }

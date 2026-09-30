@@ -3123,21 +3123,19 @@ void Psyz_GteCtrlWrite(unsigned idx, unsigned int v) {
 static void NCLIP_cmd(unsigned int cmd) { NCLIP(); }
 static void AVSZ3_cmd(unsigned int cmd) { AVSZ3(); }
 static void AVSZ4_cmd(unsigned int cmd) { AVSZ4(); }
+static void NOOP(unsigned int cmd) { (void)cmd; }
 
+// 0x00 mirrors 0x01, verified on hardware. Undocumented on psx-spx.
+// 0x1A mirrors 0x29, verified on hardware. Also undocumented on psx-spx.
 static void (*const gte_ops[64])(unsigned int cmd) = {
-    [0x01] = RTPS,      [0x06] = NCLIP_cmd, [0x0C] = OP,   [0x10] = DPCS,
-    [0x11] = INTPL,     [0x12] = MVMVA,     [0x13] = NCDS, [0x14] = CDP,
-    [0x16] = NCDT,      [0x1B] = NCCS,      [0x1C] = CC,   [0x1E] = NCS,
-    [0x20] = NCT,       [0x28] = SQR,       [0x29] = DCPL, [0x2A] = DPCT,
-    [0x2D] = AVSZ3_cmd, [0x2E] = AVSZ4_cmd, [0x30] = RTPT, [0x3D] = GPF,
-    [0x3E] = GPL,       [0x3F] = NCCT,
+    RTPS, RTPS,  NOOP,  NOOP, NOOP, NOOP,      NCLIP_cmd, NOOP, // 00-07
+    NOOP, NOOP,  NOOP,  NOOP, OP,   NOOP,      NOOP,      NOOP, // 08-0F
+    DPCS, INTPL, MVMVA, NCDS, CDP,  NOOP,      NCDT,      NOOP, // 10-17
+    NOOP, NOOP,  DCPL,  NCCS, CC,   NOOP,      NCS,       NOOP, // 18-1F
+    NCT,  NOOP,  NOOP,  NOOP, NOOP, NOOP,      NOOP,      NOOP, // 20-27
+    SQR,  DCPL,  DPCT,  NOOP, NOOP, AVSZ3_cmd, AVSZ4_cmd, NOOP, // 28-2F
+    RTPT, NOOP,  NOOP,  NOOP, NOOP, NOOP,      NOOP,      NOOP, // 30-37
+    NOOP, NOOP,  NOOP,  NOOP, NOOP, GPF,       GPL,       NCCT, // 38-3F
 };
 
-void Psyz_GteCommand(unsigned int cmd) {
-    unsigned op = cmd & 0x3F;
-    if (gte_ops[op]) {
-        gte_ops[op](cmd);
-    } else {
-        WARNF("unhandled GTE op:%02X", op);
-    }
-}
+void Psyz_GteCommand(unsigned int cmd) { gte_ops[cmd & 0x3F](cmd); }
