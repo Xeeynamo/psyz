@@ -1340,6 +1340,17 @@ void Psyz_GteStRgb3Gt4(void* polyGt4) {
 
 void Psyz_GteLdDp(long p) { IR0 = (short)p; }
 
+void Psyz_GteLdSz3(long sz1, long sz2, long sz3) {
+    SZ1 = (u16)sz1;
+    SZ2 = (u16)sz2;
+    SZ3 = (u16)sz3;
+}
+
+void Psyz_GteLdSz4(long sz0, long sz1, long sz2, long sz3) {
+    SZ0 = (u16)sz0;
+    Psyz_GteLdSz3(sz1, sz2, sz3);
+}
+
 void Psyz_GteLdClmv(void* p) {
     short* s = (short*)p;
     IR1 = s[0];

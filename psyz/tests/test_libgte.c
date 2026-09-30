@@ -1586,3 +1586,48 @@ ZTEST(gte, cmd_1a_behaves_like_dcpl) {
     zexpect_s32_eq(exp_mac.vy, act_mac.vy);
     zexpect_s32_eq(exp_mac.vz, act_mac.vz);
 }
+
+ZTEST(gte, gte_ldsz3_loads_sz1_to_sz3) {
+    unsigned int sz1 = 0xDEADBEEF, sz2 = 0xDEADBEEF, sz3 = 0xDEADBEEF;
+    gte_ldsz3(1111, 2222, 3333);
+    gte_stsz3(&sz1, &sz2, &sz3);
+    zexpect_u32_eq(1111, sz1);
+    zexpect_u32_eq(2222, sz2);
+    zexpect_u32_eq(3333, sz3);
+}
+
+ZTEST(gte, gte_ldsz4_loads_sz0_to_sz3) {
+    unsigned int sz0 = 0xDEADBEEF, sz1 = 0xDEADBEEF, sz2 = 0xDEADBEEF,
+                 sz3 = 0xDEADBEEF;
+    gte_ldsz4(1111, 2222, 3333, 4444);
+    gte_stsz4(&sz0, &sz1, &sz2, &sz3);
+    zexpect_u32_eq(1111, sz0);
+    zexpect_u32_eq(2222, sz1);
+    zexpect_u32_eq(3333, sz2);
+    zexpect_u32_eq(4444, sz3);
+}
+
+ZTEST(gte, gte_ldsz3_keeps_low_16_bits) {
+    unsigned int sz1 = 0xDEADBEEF, sz2 = 0xDEADBEEF, sz3 = 0xDEADBEEF;
+    gte_ldsz3(0x12345, 0xFFFF, 0x10000);
+    gte_stsz3(&sz1, &sz2, &sz3);
+    zexpect_u32_eq(0x2345, sz1);
+    zexpect_u32_eq(0xFFFF, sz2);
+    zexpect_u32_eq(0, sz3);
+}
+
+ZTEST(gte, gte_ldsz3_feeds_avsz3) {
+    unsigned int otz = 0xDEADBEEF;
+    gte_ldsz3(1000, 2000, 3000);
+    gte_avsz3();
+    gte_stotz(&otz);
+    zexpect_u32_eq(499, otz);
+}
+
+ZTEST(gte, gte_ldsz4_feeds_avsz4) {
+    unsigned int otz = 0xDEADBEEF;
+    gte_ldsz4(0x1000, 0x2000, 0x3000, 0x4000);
+    gte_avsz4();
+    gte_stotz(&otz);
+    zexpect_u32_eq(0xA00, otz);
+}

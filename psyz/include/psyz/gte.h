@@ -93,6 +93,8 @@ void Psyz_GteStRgb3Gt3(void* polyGt3);
 void Psyz_GteStRgb3G4(void* polyG4);
 void Psyz_GteStRgb3Gt4(void* polyGt4);
 void Psyz_GteLdDp(long p);
+void Psyz_GteLdSz3(long sz1, long sz2, long sz3);
+void Psyz_GteLdSz4(long sz0, long sz1, long sz2, long sz3);
 void Psyz_GteNccs(void);
 void Psyz_GteLdClmv(void* p);
 void Psyz_GteStClmv(void* p);

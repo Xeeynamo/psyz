@@ -1891,6 +1891,22 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
 
 #define gte_lddp(r0) __asm__ volatile("mtc2	%0, $8" : : "r"(r0))
 
+#define gte_ldsz3(r0, r1, r2)                                                  \
+    __asm__ volatile("mtc2	%0, $17;"                                           \
+                     "mtc2	%1, $18;"                                           \
+                     "mtc2	%2, $19"                                            \
+                     :                                                         \
+                     : "r"(r0), "r"(r1), "r"(r2))
+
+#define gte_ldsz4(r0, r1, r2, r3)                                              \
+    __asm__ volatile(                                                          \
+        "mtc2	%0, $16;"                                                        \
+        "mtc2	%1, $17;"                                                        \
+        "mtc2	%2, $18;"                                                        \
+        "mtc2	%3, $19"                                                         \
+        :                                                                      \
+        : "r"(r0), "r"(r1), "r"(r2), "r"(r3))
+
 #define gte_ldrgb(r0) __asm__ volatile("lwc2	$6, 0( %0 )" : : "r"(r0))
 
 #define gte_ldrgb3(r0, r1, r2)                                                 \
@@ -2207,6 +2223,8 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
     Psyz_GteLdRgb3((CVECTOR*)(x), (CVECTOR*)(y), (CVECTOR*)(z))
 #define gte_ldrgb3c(x) Psyz_GteLdRgb3c((CVECTOR*)(x))
 #define gte_lddp(x) Psyz_GteLdDp(x)
+#define gte_ldsz3(x, y, z) Psyz_GteLdSz3(x, y, z)
+#define gte_ldsz4(x, y, z, w) Psyz_GteLdSz4(x, y, z, w)
 #define gte_nccs() Psyz_GteNccs()
 #define gte_ldtr(x, y, z) Psyz_GteLdTr(x, y, z)
 #define gte_ldtx(x) Psyz_GteLdTx(x)
