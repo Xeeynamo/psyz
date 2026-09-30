@@ -217,6 +217,58 @@ ZTEST(gpu, draw_gt4) {
     ASSERT_FRAME("draw_gt4", 1, 1.0f);
 }
 
+ZTEST(gpu, draw_sprt_8bpp) {
+    TIM_IMAGE tim;
+    zassert_s32_eq(0, OpenTIM((u_long*)img_4bpp));
+    zassert_ptr_ne(NULL, ReadTIM(&tim));
+
+    static u_short img8bpp[128 * 256];
+    RECT rect = *tim.prect;
+    u_char* src = (u_char*)tim.paddr;
+    u_char* dst = (u_char*)img8bpp;
+    int i;
+    for (i = 0; i < rect.w * rect.h * 2; i++) {
+        dst[i * 2 + 0] = src[i] & 15;
+        dst[i * 2 + 1] = src[i] >> 4;
+    }
+    rect.w *= 2;
+    LoadImage(&rect, (u_long*)img8bpp);
+    LoadImage(tim.crect, tim.caddr);
+
+    u_short tpage, clut;
+    tpage = GetTPage(1, 0, rect.x, rect.y);
+    clut = GetClut(tim.crect->x, tim.crect->y);
+
+    SetSprt(&cdb->sprt[0]);
+    setShadeTex(&cdb->sprt[0], 1);
+    setXY0(&cdb->sprt[0], 16, 16);
+    setWH(&cdb->sprt[0], rect.w * 2, rect.h);
+    setUV0(&cdb->sprt[0], 0, 0);
+    cdb->sprt[0].clut = clut;
+    SetDrawMode(&cdb->drmode[0], 0, 0, tpage, NULL);
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &cdb->sprt[0]);
+    ClearImage(&cdb->draw.clip, 60, 120, 120);
+    AddPrim(cdb->ot, &cdb->drmode[0]);
+    Present("draw_sprt_8bpp");
+}
+
+ZTEST(gpu, draw_sprt_16bpp) {
+    u_short tpage, clut;
+    zassert_s32_eq(0, LoadTim(img_16bpp, &tpage, &clut));
+    SetSprt(&cdb->sprt[0]);
+    setShadeTex(&cdb->sprt[0], 1);
+    setXY0(&cdb->sprt[0], 16, 16);
+    setWH(&cdb->sprt[0], 256, 256); // purposefully bigger than the texture
+    setUV0(&cdb->sprt[0], 0, 0);
+    SetDrawMode(&cdb->drmode[0], 0, 0, tpage, NULL);
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &cdb->sprt[0]);
+    ClearImage(&cdb->draw.clip, 60, 120, 120);
+    AddPrim(cdb->ot, &cdb->drmode[0]);
+    Present("draw_sprt_16bpp");
+}
+
 ZTEST(gpu, gouraud_line_after_flush) {
     int w, h;
     unsigned char* d;
