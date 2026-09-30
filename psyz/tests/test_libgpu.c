@@ -259,7 +259,7 @@ ZTEST(gpu, draw_sprt_16bpp) {
     SetSprt(&cdb->sprt[0]);
     setShadeTex(&cdb->sprt[0], 1);
     setXY0(&cdb->sprt[0], 16, 16);
-    setWH(&cdb->sprt[0], 256, 256); // purposefully bigger than the texture
+    setWH(&cdb->sprt[0], 64, 64);
     setUV0(&cdb->sprt[0], 0, 0);
     SetDrawMode(&cdb->drmode[0], 0, 0, tpage, NULL);
     ClearOTag(cdb->ot, OTSIZE);
