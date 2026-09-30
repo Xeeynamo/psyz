@@ -38,7 +38,7 @@ $(BUILD)/psyz_tests.elf: $(OBJS)
 		-Wl,--end-group $(LIBGCC)
 
 $(BUILD)/%.o: %.c ps1_compat.h | $(BUILD)
-	$(CC) $(CFLAGS) -MMD -c -o $@ $<
+	$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
 
 $(BUILD)/crt0.o: $(NUGGET)/common/crt0/crt0.s | $(BUILD)
 	$(CC) $(ARCH) -Wa,-I$(NUGGET) -c -o $@ $<
