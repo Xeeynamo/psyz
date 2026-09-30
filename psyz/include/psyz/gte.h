@@ -75,6 +75,15 @@ void Psyz_GteCommand(unsigned int cmd);
 
 void Psyz_GteLdRgb(CVECTOR* v);
 void Psyz_GteStRgb(CVECTOR* v);
+void Psyz_GteLdRgb3(CVECTOR* v0, CVECTOR* v1, CVECTOR* v2);
+void Psyz_GteLdRgb3c(CVECTOR* v);
+void Psyz_GteStRgb3(CVECTOR* v0, CVECTOR* v1, CVECTOR* v2);
+void Psyz_GteStRgb3G3(void* polyG3);
+void Psyz_GteStRgb3Gt3(void* polyGt3);
+void Psyz_GteStRgb3G4(void* polyG4);
+void Psyz_GteStRgb3Gt4(void* polyGt4);
+void Psyz_GteLdDp(long p);
+void Psyz_GteNccs(void);
 void Psyz_GteLdClmv(void* p);
 void Psyz_GteStClmv(void* p);
 void Psyz_GteLdTr(long tx, long ty, long tz);

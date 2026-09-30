@@ -1295,6 +1295,51 @@ void SetFogNear(long a, long h) { NOT_IMPLEMENTED; }
 void Psyz_GteLdRgb(CVECTOR* v) { *(unsigned int*)&RGBC = *(unsigned int*)v; }
 void Psyz_GteStRgb(CVECTOR* v) { *(unsigned int*)v = RGB2; }
 
+void Psyz_GteLdRgb3(CVECTOR* v0, CVECTOR* v1, CVECTOR* v2) {
+    RGB0 = *(unsigned int*)v0;
+    RGB1 = *(unsigned int*)v1;
+    RGB2 = *(unsigned int*)v2;
+    *(unsigned int*)&RGBC = RGB2;
+}
+
+void Psyz_GteLdRgb3c(CVECTOR* v) { Psyz_GteLdRgb3(&v[0], &v[1], &v[2]); }
+
+void Psyz_GteStRgb3(CVECTOR* v0, CVECTOR* v1, CVECTOR* v2) {
+    *(unsigned int*)v0 = RGB0;
+    *(unsigned int*)v1 = RGB1;
+    *(unsigned int*)v2 = RGB2;
+}
+
+void Psyz_GteStRgb3G3(void* polyG3) {
+    POLY_G3* poly = (POLY_G3*)polyG3;
+    *(unsigned int*)&poly->r0 = RGB0;
+    *(unsigned int*)&poly->r1 = RGB1;
+    *(unsigned int*)&poly->r2 = RGB2;
+}
+
+void Psyz_GteStRgb3Gt3(void* polyGt3) {
+    POLY_GT3* poly = (POLY_GT3*)polyGt3;
+    *(unsigned int*)&poly->r0 = RGB0;
+    *(unsigned int*)&poly->r1 = RGB1;
+    *(unsigned int*)&poly->r2 = RGB2;
+}
+
+void Psyz_GteStRgb3G4(void* polyG4) {
+    POLY_G4* poly = (POLY_G4*)polyG4;
+    *(unsigned int*)&poly->r0 = RGB0;
+    *(unsigned int*)&poly->r1 = RGB1;
+    *(unsigned int*)&poly->r2 = RGB2;
+}
+
+void Psyz_GteStRgb3Gt4(void* polyGt4) {
+    POLY_GT4* poly = (POLY_GT4*)polyGt4;
+    *(unsigned int*)&poly->r0 = RGB0;
+    *(unsigned int*)&poly->r1 = RGB1;
+    *(unsigned int*)&poly->r2 = RGB2;
+}
+
+void Psyz_GteLdDp(long p) { IR0 = (short)p; }
+
 void Psyz_GteLdClmv(void* p) {
     short* s = (short*)p;
     IR1 = s[0];
@@ -2309,6 +2354,7 @@ void Psyz_GteStsxy3Gt3(void* polyGte) {
 void Psyz_GteAvsz3(void) { AVSZ3(); }
 void Psyz_GteAvsz4(void) { AVSZ4(); }
 void Psyz_GteDpcs(void) { DPCS(0x0780010); }
+void Psyz_GteNccs(void) { NCCS(0x108041B); }
 void Psyz_GteLcir(void) {
     int sf = CMD_SF(0x04DE012), lm = CMD_LM(0x04DE012);
     FLAG = 0;
