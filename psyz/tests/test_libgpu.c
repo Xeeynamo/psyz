@@ -269,6 +269,27 @@ ZTEST(gpu, draw_sprt_16bpp) {
     Present("draw_sprt_16bpp");
 }
 
+ZTEST(gpu, draw_sprt_16bpp_page_past_vram_edge) {
+    TIM_IMAGE tim;
+    zassert_s32_eq(0, OpenTIM((u_long*)img_16bpp));
+    zassert_ptr_ne(NULL, ReadTIM(&tim));
+    RECT rect = *tim.prect;
+    rect.x = 960;
+    rect.y = 0;
+    LoadImage(&rect, tim.paddr);
+    SetSprt(&cdb->sprt[0]);
+    setShadeTex(&cdb->sprt[0], 1);
+    setXY0(&cdb->sprt[0], 16, 16);
+    setWH(&cdb->sprt[0], 64, 64);
+    setUV0(&cdb->sprt[0], 128, 0);
+    SetDrawMode(&cdb->drmode[0], 0, 0, GetTPage(2, 0, 832, 0), NULL);
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &cdb->sprt[0]);
+    ClearImage(&cdb->draw.clip, 60, 120, 120);
+    AddPrim(cdb->ot, &cdb->drmode[0]);
+    Present("draw_sprt_16bpp");
+}
+
 ZTEST(gpu, gouraud_line_after_flush) {
     int w, h;
     unsigned char* d;

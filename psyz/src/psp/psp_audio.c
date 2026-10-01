@@ -5,6 +5,7 @@
 #include <psyz/log.h>
 #include <stdint.h>
 #include <string.h>
+#include "psp.h"
 
 #define N_CHANNELS 2
 #define BUF_FRAMES 512 // must be a multiple of 64 for sceAudio
@@ -25,6 +26,9 @@ static int AudioThread(SceSize args, void* argp) {
     (void)argp;
     while (!stop_requested) {
         Psyz_AudioLock();
+        for (int i = 0; i < (int)sizeof(buf[cur]); i += 64) {
+            psp_dcache_claim_line((char*)buf[cur] + i);
+        }
         if (is_paused) {
             memset(buf[cur], 0, sizeof(buf[cur]));
         } else {

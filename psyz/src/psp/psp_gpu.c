@@ -280,13 +280,15 @@ _Static_assert(sizeof(BVert) == 12, "BVert must be 12 bytes");
 // ===== primitive batching =====
 #define MAX_VERTEX_COUNT 40960
 static BVert __attribute__((aligned(64))) g_vring[2][MAX_VERTEX_COUNT];
-static int vring_used;  // vertices produced this frame
+static int vring_used;  // vertices produced this frrame
 static int batch_start; // first vertex of the pending (unflushed) batch
 static bool warned_vring_budget;
 
 static int batch_prim = GU_TRIANGLES; // GE primitive used for current batch
-static unsigned int* last_kick; // list position of the last stall-address kick
-static int vring_wb_mark;       // first ring vertex not yet written back
+static unsigned int* last_kick;  // list position of the last stall-address kick
+static int vring_wb_mark;        // first ring vertex not yet written back
+static int vring_claim_mark;     // ring vertices below it sit on claimed lines
+static unsigned vring_claim_end; // byte offset where unclaimed ring lines start
 
 // queue commands to GPU, so both CPU and GPU can run asynchronously
 static void KickGe(void) {
@@ -294,13 +296,11 @@ static void KickGe(void) {
         return;
     }
     if (vring_used > vring_wb_mark) {
-        sceKernelDcacheWritebackRange(
-            &g_vring[dlist_idx][vring_wb_mark],
-            (vring_used - vring_wb_mark) * (int)sizeof(BVert));
+        psp_dcache_writeback(&g_vring[dlist_idx][vring_wb_mark],
+                             (vring_used - vring_wb_mark) * (int)sizeof(BVert));
         vring_wb_mark = vring_used;
     }
-    sceKernelDcacheWritebackRange(
-        last_kick, (char*)gu_list->current - (char*)last_kick);
+    psp_dcache_writeback(last_kick, (char*)gu_list->current - (char*)last_kick);
     last_kick = gu_list->current;
     sceGeListUpdateStallAddr(ge_list_executed[0], gu_list->current);
 }
@@ -413,7 +413,7 @@ static void GeSyncCaughtUp(void) {
     CloseBatch();
     int id = (ge_signal_next++ & 0x7FFF) + 1; // never 0, fits a u16 token
     ge_fence_src[0] = (u16)id;
-    sceKernelDcacheWritebackRange(ge_fence_src, sizeof(ge_fence_src));
+    psp_dcache_writeback(ge_fence_src, sizeof(ge_fence_src));
     sceGuCopyImage(GU_PSM_5551, 0, 0, 8, 1, 8, ge_fence_src, 0, 0, 8,
                    edram_base + GE_FENCE_EDRAM_OFFSET);
     KickGe();
@@ -579,7 +579,7 @@ static void AssemblePage(PageEntry* e) {
             for (int i = 0; i < h; i++) {
                 memset16_vfpu((u8*)buf + i * 256 + vw * 2, 0, (w - vw) * 2);
             }
-            sceKernelDcacheWritebackRange(buf, 256 * 256);
+            psp_dcache_writeback(buf, 256 * 256);
         }
         CloseBatch();
         for (int k = 0; k < ntiles; k++) {
@@ -609,10 +609,10 @@ static void AssemblePage(PageEntry* e) {
     }
     if (vw < w) {
         for (int i = 0; i < h; i++) {
-            memset(buf + i * 256 + vw, 0, (w - vw) * 2);
+            memset16_vfpu(buf + i * 256 + vw, 0, (w - vw) * 2);
         }
     }
-    sceKernelDcacheWritebackRange(buf, 256 * 512);
+    psp_dcache_writeback(buf, 256 * 512);
 }
 
 static PageEntry* FindOrCreatePage(u8 page, u8 bpp) {
@@ -692,7 +692,7 @@ static ClutEntry* FindOrCreateClut(u16 clut, u8 bpp) {
                 c && !(c & 0x8000) ? opaque : cut;
             g_clut[idx][CLUT_BLEND_PASS][i] = c & 0x8000 ? opaque : cut;
         }
-        sceKernelDcacheWritebackRange(g_clut[idx], sizeof(g_clut[0]));
+        psp_dcache_writeback(g_clut[idx], sizeof(g_clut[0]));
         found->dirty = false;
     }
     found->last_used = ++cache_clock;
@@ -729,6 +729,8 @@ static void StartFrame(void) {
     warned_list_budget = false;
     vring_used = 0;
     vring_wb_mark = 0;
+    vring_claim_mark = 0;
+    vring_claim_end = 0;
     batch_start = 0;
     batch_prim = GU_TRIANGLES;
     warned_vring_budget = false;
@@ -1300,7 +1302,7 @@ static u16 __attribute__((aligned(64))) xfer_stage[XFER_STRIDE * XFER_ROWS];
 static void LoadImageGe(
     int x, int y, int w, int h, const u16* src, int src_stride) {
     FlushBatch();
-    sceKernelDcacheWritebackRange((void*)src, (((h - 1) * src_stride) + w) * 2);
+    psp_dcache_writeback(src, (((h - 1) * src_stride) + w) * 2);
     int xe = x + w, ye = y + h;
     for (int ty = y >> 8; ty <= (ye - 1) >> 8; ty++) {
         for (int tx = x >> 6; tx <= (xe - 1) >> 6; tx++) {
@@ -1524,6 +1526,26 @@ typedef struct {
     u8 r, g, b, a; // a: 0x80 = semi-transparent primitive, 0xFF = opaque
 } PVert;
 
+// The ring is too big to stay cached: claim the lines ahead of the writer, so
+// filling them never reads RAM. Separe func for BatchAlloc to fit the i-cache.
+#define VRING_CLAIM_AHEAD 512
+static __attribute__((noinline)) void ClaimRingAhead(int first) {
+    unsigned start = ((unsigned)first * sizeof(BVert) + 63) & ~63u;
+    unsigned end = ((unsigned)vring_used * sizeof(BVert) + 63) & ~63u;
+    end += VRING_CLAIM_AHEAD;
+    if (end > sizeof(g_vring[0])) {
+        end = sizeof(g_vring[0]);
+    }
+    if (start < vring_claim_end) {
+        start = vring_claim_end;
+    }
+    for (u8* ring = (u8*)g_vring[dlist_idx]; start < end; start += 64) {
+        psp_dcache_claim_line(ring + start);
+    }
+    vring_claim_end = end;
+    vring_claim_mark = end / sizeof(BVert);
+}
+
 // reserve n ring vertices for prim, close previous batch if primitive change
 static BVert* BatchAlloc(int prim, int n) {
     if (batch_prim != prim) {
@@ -1539,6 +1561,9 @@ static BVert* BatchAlloc(int prim, int n) {
     }
     BVert* out = &g_vring[dlist_idx][vring_used];
     vring_used += n;
+    if (vring_used > vring_claim_mark) {
+        ClaimRingAhead(vring_used - n);
+    }
     return out;
 }
 

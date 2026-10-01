@@ -14,6 +14,7 @@
 PSP_MODULE_INFO(PSYZ_MODULE_NAME, 0, 1, 0);
 
 #include <psputils.h>
+#include "psp.h"
 
 // A PRX that fails to load HOST symbols can't use HOST logging API
 #define LOG_ERROR(str) sceIoWrite(1, (str), sizeof(str));
@@ -90,7 +91,7 @@ static int ResolveHostGlobalVars(void) {
         }
     }
     if (hi > lo) {
-        sceKernelDcacheWritebackRange((void*)lo, hi - lo);
+        psp_dcache_writeback((void*)lo, hi - lo);
         sceKernelIcacheInvalidateRange((void*)lo, hi - lo);
     }
     return 0;
