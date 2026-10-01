@@ -1,4 +1,4 @@
-// Simple PCM to sceAudio, uses the PsyZ SPU software emulation
+// Simple PCM to sceAudio, mixed by the sceSasCore SPU in psp_sas.c
 #include <pspaudio.h>
 #include <pspkernel.h>
 #include <psyz.h>
@@ -18,6 +18,7 @@ static volatile int is_paused;
 static int is_audio_init;
 static uintptr_t audio_stack_lo, audio_stack_hi;
 
+void Psyz_SpuSasPrerender(void);
 static int AudioThread(SceSize args, void* argp) {
     // double-buffered so the SPU can mix one block while the other one plays
     static short __attribute__((aligned(64))) buf[2][BUF_FRAMES * N_CHANNELS];
@@ -25,6 +26,9 @@ static int AudioThread(SceSize args, void* argp) {
     (void)args;
     (void)argp;
     while (!stop_requested) {
+        if (!is_paused) {
+            Psyz_SpuSasPrerender();
+        }
         Psyz_AudioLock();
         for (int i = 0; i < (int)sizeof(buf[cur]); i += 64) {
             psp_dcache_claim_line((char*)buf[cur] + i);
@@ -37,11 +41,6 @@ static int AudioThread(SceSize args, void* argp) {
         Psyz_AudioUnlock();
         sceAudioOutputBlocking(chan, PSP_AUDIO_VOLUME_MAX, buf[cur]);
         cur ^= 1;
-
-        // We don't want the audio thread to hug all CPU. This is required as
-        // SPU mixing is heavy enough to not allow the main thread to run
-        // undisturbed. This needs to remain here until sceSas is implemented.
-        sceKernelDelayThread(1000);
     }
     return 0;
 }

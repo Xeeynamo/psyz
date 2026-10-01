@@ -56,7 +56,8 @@ TTY output channel and prints nothing the game logs.
 | `psp_startup.c` | module info, HOME exit callback                    |
 | `psp_gpu.c`     | `sceGu` hardware accelerated renderer              |
 | `psp_input.c`   | `sceCtrl` digital + analog pad                     |
-| `psp_audio.c`   | software SPU renderer, PCM sent to `sceAudio`      |
+| `psp_audio.c`   | audio thread, PCM sent to `sceAudio`               |
+| `psp_sas.c`     | SPU on the Media Engine through `sceSasCore`       |
 | `psp_file.c`    | native `sceIo*` file I/O and directory enumeration |
 | `psp_log.c`     | log to stderr for psplink/PPSSPP                   |
 | `psp_misc.c`    | no-op stubs, misc stuff                            |
@@ -82,8 +83,6 @@ strictly required.
 
 * `Psyz_PspExitRequested` must become a cross-platform API, wired with SDL3 `QuitPlatform`
 * Add `sceUtilitySavedata` support for game save and psy-z user configuration.
-* Add `sceSas` for audio mixing to offload complexity and computation to the Media Engine.
-    * Or, find a way to offload SPU emulation to the Media Engine.
 * Add `psyz_psp_icon0` to specify the 144x80 PNG icon (optional)
 * Add `psyz_psp_pic1` to specify the 480x272 PNG background (optional)
 * Add `psyz_psp_snd0` to specify the Atrac3 sound playing in the background (optional)
@@ -113,9 +112,19 @@ Games that read back drawn pixels every frame will feel this. Tracking dirty rec
 
 ### SPU emulation
 
-This entirely runs on software. Samples are synthesized via `Psyz_SpuPullSamples` and sent straight to `sceAudio` as PCM 44100Hz 2ch samples. This current implementation mirrors the PC backend.
-s
-The audio backend does not yet support `sceSas`, which passes the complexity and computation cost to the PSP Media Engine.
+`psp_sas.c` offloads the ADPCM voices to `sceSasCore`, which decodes, interpolates, applies the envelope and reverb, and mixes them on the Media Engine.
+
+SAS is the Sony proprietary library stored as a kernel module in their firmware, and it retains most of the features from the PlayStation 1 and 2 SPU.
+
+The current implementation keeps on the main CPU what games can read back: registers, the envelope level of every voice (ENVX), and SPUSTAT. It also retains the CD audio mixing and the control of the main volume. Compared to the emulator `psyz_spu.c`, SAS saves around from 5ms per frame on idle, to 240ms per frame on full SPU load. With SAS as backend, the PsyZ bootlogo jumps from 12fps to 172fps at `-O3`!
+
+* Sample data is read by the Media Engine from a copy of the emulated SPU RAM.
+* Loop flags from the ADPCM samples are are rewritten, since SAS understands a different set of loop flags.
+* Linear phases match the PS1. But exponential phases follow a different curve on SAS than PS1.
+* Reverb is not 1:1 with PS1.
+    * Custom reverb register sets are not supported.
+    * Reverb work area is not written back to the SPU RAM.
+* SAS interpolates linearly rather than with the PS1 Gauss filter.
 
 ### File I/O
 

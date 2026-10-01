@@ -14,8 +14,15 @@ static void spu_setup(void) {
 }
 
 ZTEST_SETUP(spu) {
-    zskip_targets("psp;ps1");
+    zskip_targets("ps1"); // TODO tests must be validated on real hardware!!
+    Psyz_AudioPause();
+    Psyz_AudioLock();
     spu_setup();
+}
+
+ZTEST_TEARDOWN(spu) {
+    Psyz_AudioUnlock();
+    Psyz_AudioUnpause();
 }
 
 ZTEST(spu, SetTransferAddrMasksToRamRange) {
@@ -1281,6 +1288,7 @@ static bool all_zero(const unsigned char* p, size_t n) {
 }
 
 ZTEST(spu, reverb_room_work_area) {
+    zskip_targets("psp"); // can't capture reverb on PSP SAS
     unsigned char work[kRoomWorkBytes] = {0};
     reverb_room_setup(true, true);
     run_reverb_room(kAdpcmSine, kRoomLapFrames, work);

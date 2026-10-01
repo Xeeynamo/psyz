@@ -268,8 +268,7 @@ elseif(PSP)
     # display, the controller and the audio channel are driven directly, so
     # there is no SDL. File I/O talks to the Sony I/O manager natively rather
     # than through newlib (see src/psp/psp_file.c), so plat_unix.c is not used.
-    # The software SPU stays in: the PSP has 24MB of user RAM and its native
-    # output rate matches the 44100Hz the mixer produces.
+    # The SPU runs on the Media Engine through sceSasCore; see src/psp/psp_sas.c.
     list(APPEND PSYZ_SOURCES src/psp/psp_file.c)
     list(APPEND PSYZ_SOURCES src/psp/psp_log.c)
     list(APPEND PSYZ_SOURCES src/psp/psp_module_host.c)
@@ -277,9 +276,9 @@ elseif(PSP)
     list(APPEND PSYZ_SOURCES src/psp/psp_input.c)
     list(APPEND PSYZ_SOURCES src/psp/psp_misc.c)
     list(APPEND PSYZ_SOURCES src/psp/psp_audio.c)
-    list(APPEND PSYZ_SOURCES src/psyz/psyz_spu.c)
+    list(APPEND PSYZ_SOURCES src/psp/psp_sas.c)
     list(APPEND PSYZ_LIBS pspdebug pspgu pspdisplay pspge pspdmac pspctrl pspaudio
-        psppower)
+        psppower pspsascore psputility)
     if(PSYZ_PSP_PROFILE)
         list(APPEND PSYZ_LIBS pspprof)
         set(PSYZ_PSP_PROFILE_CFLAGS -pg)

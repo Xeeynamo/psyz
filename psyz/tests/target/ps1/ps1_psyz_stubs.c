@@ -211,6 +211,11 @@ void Psyz_SpuPullSamples(short* out, int num_frames) {
     (void)num_frames;
 }
 
+void Psyz_AudioPause(void) {}
+void Psyz_AudioUnpause(void) {}
+void Psyz_AudioLock(void) {}
+void Psyz_AudioUnlock(void) {}
+
 int Psyz_GpuRegisterCommandHandler(
     unsigned int opcode, PsyzGpuCommandHandler handler, void* userdata) {}
 
