@@ -30,6 +30,7 @@ import sys
 IMAGE_SYM_UNDEFINED = 0
 IMAGE_SYM_CLASS_EXTERNAL = 2
 IMAGE_FILE_MACHINE_I386 = 0x014C
+IMAGE_SYM_DTYPE_FUNCTION = 2
 
 # .lib magic header
 ARCHIVE_MAGIC = b"!<arch>\n"
@@ -52,8 +53,8 @@ class CoffError(Exception):
     pass
 
 
-def parse_coff_object(blob, path):
-    """Return (machine, {undefined external symbol names}) for one COFF object."""
+def iter_coff_symbols(blob, path):
+    """Return (machine, [(name, value, section, type, storage)]) for one COFF object."""
     if len(blob) < 20:
         raise CoffError("%s: truncated object" % path)
 
@@ -73,10 +74,10 @@ def parse_coff_object(blob, path):
     section_size = struct.calcsize(section_fmt)
 
     if sym_ptr == 0 or sym_count == 0:
-        return machine, set()
+        return machine, []
 
     strtab = blob[sym_ptr + sym_count * record_size:]
-    undefined = set()
+    symbols = []
     index = 0
     while index < sym_count:
         base = sym_ptr + index * record_size
@@ -92,15 +93,35 @@ def parse_coff_object(blob, path):
             name = raw_name.split(b"\x00")[0]
         value = struct.unpack("<I", record[8:12])[0]
         section = struct.unpack(section_fmt, record[12:12 + section_size])[0]
+        sym_type = struct.unpack(
+            "<H", record[12 + section_size:14 + section_size])[0]
         storage = record[record_size - 2]
         aux = record[record_size - 1]
-        # A section number of zero with a non-zero value is a common symbol (a
-        # tentative definition), which is defined here rather than imported.
-        if (section == IMAGE_SYM_UNDEFINED and value == 0 and
-                storage == IMAGE_SYM_CLASS_EXTERNAL):
-            undefined.add(name.decode("ascii", "replace"))
+        symbols.append((name.decode("ascii", "replace"), value, section,
+                        sym_type, storage))
         index += 1 + aux
+    return machine, symbols
+
+
+def parse_coff_object(blob, path):
+    """Return (machine, {undefined external symbol names}) for one COFF object."""
+    machine, symbols = iter_coff_symbols(blob, path)
+    undefined = {name for name, value, section, _, storage in symbols
+                 if section == IMAGE_SYM_UNDEFINED and value == 0 and
+                 storage == IMAGE_SYM_CLASS_EXTERNAL}
     return machine, undefined
+
+
+def defined_externals(blob, path):
+    """Return (machine, {name: is_function}) defined by one COFF object."""
+    machine, symbols = iter_coff_symbols(blob, path)
+    defined = {}
+    for name, value, section, sym_type, storage in symbols:
+        if storage != IMAGE_SYM_CLASS_EXTERNAL:
+            continue
+        if section > 0 or (section == IMAGE_SYM_UNDEFINED and value != 0):
+            defined[name] = section > 0 and (sym_type >> 4) == IMAGE_SYM_DTYPE_FUNCTION
+    return machine, defined
 
 
 def iter_archive_members(blob, path):
@@ -147,24 +168,31 @@ def data_exports(import_lib):
     return imported - index
 
 
-def scan_objects(paths):
-    """Union of undefined externals across objects, plus the target machine."""
-    machine = None
-    undefined = set()
+def iter_objects(paths):
+    """Yields (path, blob) for every object, including archive members."""
     for path in paths:
         with open(path, "rb") as handle:
             blob = handle.read()
         if blob.startswith(ARCHIVE_MAGIC):
-            objects = [body for name, body in iter_archive_members(blob, path)
-                       if name not in ("/", "//", "")]
+            for name, body in iter_archive_members(blob, path):
+                if name not in ("/", "//", ""):
+                    yield path, body
         else:
-            objects = [blob]
-        for body in objects:
-            obj_machine, names = parse_coff_object(body, path)
-            if obj_machine and machine is None:
-                machine = obj_machine
-            undefined |= names
-    return machine, undefined
+            yield path, blob
+
+
+def scan_objects(paths):
+    """Externals the objects use but do not define, plus the target machine."""
+    machine = None
+    undefined = set()
+    defined = set()
+    for path, body in iter_objects(paths):
+        obj_machine, names = parse_coff_object(body, path)
+        if obj_machine and machine is None:
+            machine = obj_machine
+        undefined |= names
+        defined |= set(defined_externals(body, path)[1])
+    return machine, undefined - defined
 
 
 def read_object_list(args):
@@ -227,6 +255,31 @@ def gen_autoimport(args):
     return 0
 
 
+def gen_def(args):
+    machine = None
+    exports = {}
+    with open(args.objs_file, "r", encoding="utf-8") as handle:
+        paths = [line.strip() for line in handle if line.strip()]
+    for path, body in iter_objects(paths):
+        obj_machine, defined = defined_externals(body, path)
+        if obj_machine and machine is None:
+            machine = obj_machine
+        for name, is_function in defined.items():
+            exports[name] = exports.get(name, False) or is_function
+
+    # skip leading underscore for x86 C names for the .def file
+    strip = machine == IMAGE_FILE_MACHINE_I386
+    lines = ["EXPORTS"]
+    for asm_name in sorted(exports):
+        name = asm_name[1:] if strip and asm_name.startswith("_") else asm_name
+        # skip compiler generated and C++ mangled names
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name) or name.startswith("__"):
+            continue
+        lines.append("    %s%s" % (name, "" if exports[asm_name] else " DATA"))
+    write_if_changed(args.output, "\n".join(lines) + "\n")
+    return 0
+
+
 def main(argv):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -243,6 +296,13 @@ def main(argv):
     gen.add_argument("--exclude", action="append",
                      help="regex of names never to rewrite; replaces the defaults")
     gen.set_defaults(func=gen_autoimport)
+
+    exp = sub.add_parser("def",
+                         help="emit the host's .def, tentative definitions included")
+    exp.add_argument("--objs-file", required=True,
+                     help="file listing host objects and archives, one per line")
+    exp.add_argument("--output", required=True)
+    exp.set_defaults(func=gen_def)
 
     args = parser.parse_args(argv)
     try:

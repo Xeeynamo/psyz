@@ -41,12 +41,17 @@ function(psyz_win_export_closure target)
 
     file(GENERATE OUTPUT ${_list} CONTENT "$<JOIN:${_objs},\n>\n")
 
-    set(_nm_arg "")
-    if(NOT MSVC AND CMAKE_NM)
-        set(_nm_arg --nm=${CMAKE_NM})
+    if(MSVC)
+        set(_create_def ${Python3_EXECUTABLE} ${PSYZ_WIN_COFF_TOOL} def
+            --objs-file ${_list} --output ${_def})
+    else()
+        set(_create_def ${CMAKE_COMMAND} -E __create_def ${_def} ${_list})
+        if(CMAKE_NM)
+            list(APPEND _create_def --nm=${CMAKE_NM})
+        endif()
     endif()
     add_custom_command(TARGET ${target} PRE_LINK
-        COMMAND ${CMAKE_COMMAND} -E __create_def ${_def} ${_list} ${_nm_arg}
+        COMMAND ${_create_def}
         COMMENT "Collecting ${target} exports for psyz modules"
         VERBATIM)
 
@@ -58,7 +63,6 @@ function(psyz_win_export_closure target)
     else()
         target_link_options(${target} PRIVATE "${_def}")
     endif()
-    set_property(TARGET ${target} APPEND PROPERTY LINK_DEPENDS ${_def})
 endfunction()
 
 # psyz_win_module_autoimport(<target> <host> <source...>)
