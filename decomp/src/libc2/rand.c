@@ -8,4 +8,4 @@ int rand(void) {
     return (n >> 16) & 0x7FFF;
 }
 
-void srand(int seed) { n = seed; }
+void srand(unsigned int seed) { n = seed; }
