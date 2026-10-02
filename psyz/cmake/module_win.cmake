@@ -42,6 +42,7 @@ function(psyz_win_export_closure target)
     file(GENERATE OUTPUT ${_list} CONTENT "$<JOIN:${_objs},\n>\n")
 
     if(MSVC)
+        find_package(Python3 COMPONENTS Interpreter REQUIRED)
         set(_create_def ${Python3_EXECUTABLE} ${PSYZ_WIN_COFF_TOOL} def
             --objs-file ${_list} --output ${_def})
     else()
