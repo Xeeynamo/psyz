@@ -1,6 +1,11 @@
 #include <common.h>
 #include <libc.h>
 
-INCLUDE_ASM("asm/nonmatchings/libc2/rand", rand);
+static unsigned int n;
 
-INCLUDE_ASM("asm/nonmatchings/libc2/rand", srand);
+int rand(void) {
+    n = n * 0x41C64E6D + 0x3039;
+    return (n >> 16) & 0x7FFF;
+}
+
+void srand(int seed) { n = seed; }

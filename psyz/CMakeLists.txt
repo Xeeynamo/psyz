@@ -169,6 +169,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/vs_vtb.c
     ../decomp/src/libsnd/vs_vtbp.c
     ../decomp/src/libsnd/vs_vtc.c
+    ../decomp/src/libc2/rand.c
     src/psyz/libsnd.c
     src/psyz/libsn.c
     src/psyz/libpress.c

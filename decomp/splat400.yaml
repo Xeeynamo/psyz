@@ -1372,7 +1372,7 @@ segments:
       - [0xD1940, bss, libapi/pad]
       - [0xD1950, bss, libc2/itoa]
       - [0xD1960, bss, libc2/putchar]
-      - [0xD1968, bss, libc2/rand]
+      - [0xD1968, .bss, libc2/rand]
       - [0xD1970, bss, libcard/format]
       - [0xD1C20, bss, libcd/bios]
       - [0xD1C48, bss, libcd/c_002]
