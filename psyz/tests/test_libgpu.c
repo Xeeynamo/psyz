@@ -1635,3 +1635,57 @@ ZTEST(gpu, vsync_callbacks_run_in_channel_order) {
     zexpect_s32_eq(3, vsync_order[1]);
     zexpect_s32_eq(7, vsync_order[2]);
 }
+
+#define STRAY_OPCODE 0x08
+static int stray_calls;
+static int CountStray(const u_long* words, int available, void* userdata) {
+    (void)words;
+    (void)userdata;
+    stray_calls++;
+    return available > 0 ? 1 : 0;
+}
+
+static void DrawLastInQueue(void* prim) {
+    stray_calls = 0;
+    zassert_s32_eq(
+        0, Psyz_GpuRegisterCommandHandler(STRAY_OPCODE, CountStray, NULL));
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, prim);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    Psyz_GpuRegisterCommandHandler(STRAY_OPCODE, NULL, NULL);
+}
+
+ZTEST(gpu, poly_gt4_last_in_queue_consumes_all_words) {
+    u_short tpage, clut;
+    if (LoadTim(img_4bpp, &tpage, &clut)) {
+        return;
+    }
+    POLY_GT4* p = &cdb->gt4[0];
+    SetPolyGT4(p);
+    setXYWH(p, 16, 16, 64, 64);
+    setUVWH(p, 0, 0, 64, 64);
+    setRGB0(p, 128, 128, 128);
+    setRGB1(p, 128, 128, 128);
+    setRGB2(p, 128, 128, 128);
+    setRGB3(p, 128, 128, 128);
+    setSemiTrans(p, 1);
+    p->tpage = tpage;
+    p->clut = clut;
+    p->pad3 = STRAY_OPCODE << 8;
+    DrawLastInQueue(p);
+    zexpect_s32_eq(0, stray_calls);
+}
+
+ZTEST(gpu, poly_g4_last_in_queue_consumes_all_words) {
+    POLY_G4* p = &cdb->g4[0];
+    SetPolyG4(p);
+    setXYWH(p, 16, 16, 64, 64);
+    setRGB0(p, 255, 0, 0);
+    setRGB1(p, 0, 255, 0);
+    setRGB2(p, 0, 0, 255);
+    setRGB3(p, 255, 255, 255);
+    setXY4(p, 16, 16, 80, 16, 16, 80, 80, STRAY_OPCODE << 8);
+    DrawLastInQueue(p);
+    zexpect_s32_eq(0, stray_calls);
+}

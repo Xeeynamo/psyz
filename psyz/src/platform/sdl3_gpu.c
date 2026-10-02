@@ -1069,8 +1069,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
                 nVertices = 3;
                 nIndices = 3;
             }
-            // HACK last rgb are not read by writePacket, so we patch the amount
-            if (isGouraud) {
+            if (isGouraud && wr == 2 + isTextured) {
                 packets--;
                 len++;
             }

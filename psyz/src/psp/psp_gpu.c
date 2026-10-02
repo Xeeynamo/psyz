@@ -2403,8 +2403,7 @@ __attribute__((noinline)) static int PushPolyGeneric(
     } else {
         nVertices = 3;
     }
-    // HACK last rgb are not read by writePacket, so we patch the amount
-    if (isGouraud) {
+    if (isGouraud && wr == 2 + isTextured) {
         packets--;
         len++;
     }
