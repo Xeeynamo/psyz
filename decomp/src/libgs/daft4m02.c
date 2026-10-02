@@ -1,4 +1,6 @@
 #include <common.h>
+#include <libgte.h>
+#include <libgpu.h>
 #include <libgs.h>
 
 INCLUDE_ASM("asm/nonmatchings/libgs/daft4m02", GsA4divTF4NLM);
