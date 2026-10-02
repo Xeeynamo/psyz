@@ -135,6 +135,10 @@ static void DispatchPackets(u_long* buf, int len) {
 }
 
 int Psyz_GpuExeque() {
+    // 32-bit targets dispatch straight into the draw buffer (GPU_Enqueue's
+    // fast path), so it can hold primitives that are not drawn yet: draw
+    // them, rather than drop them, before anything else touches the VRAM.
+    Draw_FlushBuffer();
     Draw_ResetBuffer();
     if (queue_len > 0) {
         DispatchPackets(queue_buf, queue_len);
