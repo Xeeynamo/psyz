@@ -912,8 +912,8 @@ ZTEST(gpu, flipped_xy_uv) {
     ASSERT_FRAME("flipped_xy_uv", 1, 1.0f);
 }
 
-ZTEST(gpu, alpha_blend) {
-    zskip_targets("pcsx-redux"); // differs from real hardware
+static void DrawAlphaBlend(int flip_stp) {
+    static u_short flipped[16];
     u_short tpage, clut;
     TIM_IMAGE tim;
     u_short* pal;
@@ -931,6 +931,14 @@ ZTEST(gpu, alpha_blend) {
     }
     LoadImage(tim.prect, tim.paddr);
     LoadImage(tim.crect, tim.caddr);
+    if (flip_stp) {
+        StoreImage(tim.crect, (u_long*)flipped);
+        DrawSync(0);
+        for (int i = 0; i < 16; i++) {
+            flipped[i] ^= 0x8000;
+        }
+        LoadImage(tim.crect, (u_long*)flipped);
+    }
     tpage = GetTPage((int)tim.mode, 0, tim.prect->x, tim.prect->y);
     clut = GetClut(tim.crect->x, tim.crect->y);
 
@@ -956,8 +964,18 @@ ZTEST(gpu, alpha_blend) {
     DrawSync(0);
     VSync(0);
     PutDispEnv(&cdb->disp);
+}
 
+ZTEST(gpu, alpha_blend) {
+    zskip_targets("pcsx-redux"); // differs from real hardware
+    DrawAlphaBlend(0);
     ASSERT_FRAME("alpha_blend", 1, 1.0f);
+}
+
+ZTEST(gpu, alpha_blend_stp_flipped) {
+    zskip_targets("pcsx-redux"); // differs from real hardware
+    DrawAlphaBlend(1);
+    ASSERT_FRAME("alpha_blend_stp_flipped", 1, 1.0f);
 }
 
 ZTEST(gpu, s11_coord_truncation) {

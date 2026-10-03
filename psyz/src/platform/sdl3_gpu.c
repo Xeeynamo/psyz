@@ -71,8 +71,7 @@ static SDL_GPUBuffer* clear_vbuf = NULL;
 static SDL_GPUTransferBuffer* vtx_transfer = NULL;
 static SDL_GPUTransferBuffer* tex_upload_transfer = NULL;
 static SDL_GPUTransferBuffer* tex_download_transfer = NULL;
-static SDL_GPUGraphicsPipeline* pipe_tri_add = NULL;
-static SDL_GPUGraphicsPipeline* pipe_tri_sub = NULL;
+static SDL_GPUGraphicsPipeline* pipe_tri[BLEND_COUNT];
 static SDL_GPUGraphicsPipeline* pipe_clear = NULL;
 static SDL_GPUCommandBuffer* pending_cmd = NULL;
 
@@ -191,7 +190,7 @@ static SDL_GPUShader* CreateShader(
 }
 
 static SDL_GPUGraphicsPipeline* CreatePsxPipeline(
-    SDL_GPUShader* vs, SDL_GPUShader* fs, bool subtract) {
+    SDL_GPUShader* vs, SDL_GPUShader* fs, BlendMode mode) {
     const SDL_GPUVertexBufferDescription vb_desc = {
         .slot = 0,
         .pitch = sizeof(Vertex),
@@ -215,22 +214,47 @@ static SDL_GPUGraphicsPipeline* CreatePsxPipeline(
          .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4,
          .offset = offsetof(Vertex, twin)},
     };
-    const SDL_GPUBlendOp op =
-        subtract ? SDL_GPU_BLENDOP_REVERSE_SUBTRACT : SDL_GPU_BLENDOP_ADD;
-    const SDL_GPUColorTargetDescription target = {
-        .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
-        .blend_state =
+    // the shader outputs alpha 0 on B-F texels and alpha 1 on opaque ones
+    static const SDL_GPUColorTargetBlendState blend[BLEND_COUNT] = {
+        [BLEND_ADD] =
             {
                 .src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
                 .dst_color_blendfactor =
                     SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                .color_blend_op = op,
+                .color_blend_op = SDL_GPU_BLENDOP_ADD,
                 .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
                 .dst_alpha_blendfactor =
                     SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                .alpha_blend_op = op,
+                .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
                 .enable_blend = true,
             },
+        [BLEND_SUB] =
+            {
+                .src_color_blendfactor =
+                    SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+                .color_blend_op = SDL_GPU_BLENDOP_REVERSE_SUBTRACT,
+                .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
+                .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+                .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
+                .enable_blend = true,
+            },
+        [BLEND_SUB_OPAQUE] =
+            {
+                .src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+                .dst_color_blendfactor =
+                    SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                .color_blend_op = SDL_GPU_BLENDOP_ADD,
+                .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+                .dst_alpha_blendfactor =
+                    SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
+                .enable_blend = true,
+            },
+    };
+    const SDL_GPUColorTargetDescription target = {
+        .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+        .blend_state = blend[mode],
     };
     const SDL_GPUGraphicsPipelineCreateInfo info = {
         .vertex_shader = vs,
@@ -390,8 +414,9 @@ static bool CreateGpuResources(void) {
         clear_frag, clear_frag_len, SDL_GPU_SHADERSTAGE_FRAGMENT, 0, 0);
     bool shaders_ok = psx_vs && psx_fs && clear_vs && clear_fs;
     if (shaders_ok) {
-        pipe_tri_add = CreatePsxPipeline(psx_vs, psx_fs, false);
-        pipe_tri_sub = CreatePsxPipeline(psx_vs, psx_fs, true);
+        for (int i = 0; i < BLEND_COUNT; i++) {
+            pipe_tri[i] = CreatePsxPipeline(psx_vs, psx_fs, (BlendMode)i);
+        }
         pipe_clear = CreateClearPipeline(clear_vs, clear_fs);
     }
     if (psx_vs) {
@@ -406,7 +431,10 @@ static bool CreateGpuResources(void) {
     if (clear_fs) {
         SDL_ReleaseGPUShader(device, clear_fs);
     }
-    return shaders_ok && pipe_tri_add && pipe_tri_sub && pipe_clear;
+    for (int i = 0; i < BLEND_COUNT; i++) {
+        shaders_ok = shaders_ok && pipe_tri[i];
+    }
+    return shaders_ok && pipe_clear;
 }
 
 bool InitPlatform() {
@@ -761,13 +789,11 @@ static void QuitPlatform(void) {
     if (device) {
         SDL_WaitForGPUIdle(device);
         ReleaseFrameFences();
-        if (pipe_tri_add) {
-            SDL_ReleaseGPUGraphicsPipeline(device, pipe_tri_add);
-            pipe_tri_add = NULL;
-        }
-        if (pipe_tri_sub) {
-            SDL_ReleaseGPUGraphicsPipeline(device, pipe_tri_sub);
-            pipe_tri_sub = NULL;
+        for (int i = 0; i < BLEND_COUNT; i++) {
+            if (pipe_tri[i]) {
+                SDL_ReleaseGPUGraphicsPipeline(device, pipe_tri[i]);
+                pipe_tri[i] = NULL;
+            }
         }
         if (pipe_clear) {
             SDL_ReleaseGPUGraphicsPipeline(device, pipe_clear);
@@ -1624,8 +1650,6 @@ void Draw_FlushBuffer(void) {
     // every primitive (including lines, expanded to quads) is a triangle list
     const int prim_size = 3;
     int start = 0;
-    bool cur_subtract = false;
-    bool pipeline_bound = false;
     while (start < n_indices) {
         Vertex* v = &vertex_buf[index_buf[start]];
         bool need_subtract = is_subtract_abr(v);
@@ -1638,16 +1662,24 @@ void Draw_FlushBuffer(void) {
             }
             end += prim_size;
         }
-        if (!pipeline_bound || need_subtract != cur_subtract) {
-            SDL_GPUGraphicsPipeline* pipe =
-                need_subtract ? pipe_tri_sub : pipe_tri_add;
-            SDL_BindGPUGraphicsPipeline(pass, pipe);
-            cur_subtract = need_subtract;
-            pipeline_bound = true;
+        while (need_subtract && start < end) {
+            int group_end = SubtractGroupEnd(start, end);
+            Uint32 count = (Uint32)(group_end - start);
+            SDL_BindGPUGraphicsPipeline(pass, pipe_tri[BLEND_SUB]);
+            SDL_DrawGPUIndexedPrimitives(pass, count, 1, (Uint32)start, 0, 0);
+            if (!is_untextured(&vertex_buf[index_buf[start]])) {
+                SDL_BindGPUGraphicsPipeline(pass, pipe_tri[BLEND_SUB_OPAQUE]);
+                SDL_DrawGPUIndexedPrimitives(
+                    pass, count, 1, (Uint32)start, 0, 0);
+            }
+            start = group_end;
         }
-        SDL_DrawGPUIndexedPrimitives(
-            pass, (Uint32)(end - start), 1, (Uint32)start, 0, 0);
-        start = end;
+        if (start < end) {
+            SDL_BindGPUGraphicsPipeline(pass, pipe_tri[BLEND_ADD]);
+            SDL_DrawGPUIndexedPrimitives(
+                pass, (Uint32)(end - start), 1, (Uint32)start, 0, 0);
+            start = end;
+        }
     }
     SDL_EndGPURenderPass(pass);
     if (internal_res <= 1) {

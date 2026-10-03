@@ -1065,6 +1065,35 @@ static inline bool is_subtract_abr(const Vertex* v) {
     return v->a == 0x80 && (v->t & 0x60) == 0x40;
 }
 
+typedef enum {
+    BLEND_ADD,
+    BLEND_SUB,
+    BLEND_SUB_OPAQUE,
+    BLEND_COUNT,
+} BlendMode;
+
+static inline bool is_untextured(const Vertex* v) { return v->t & 0x8000; }
+static int SubtractGroupEnd(int start, int run_end) {
+    bool untextured = is_untextured(&vertex_buf[index_buf[start]]);
+    int end = start + 3;
+    while (end < run_end) {
+        if (is_untextured(&vertex_buf[index_buf[end]]) != untextured) {
+            break;
+        }
+        if (!untextured) {
+            bool shared = false;
+            for (int i = 0; i < 9; i++) {
+                shared |= index_buf[end + i / 3] == index_buf[end - 3 + i % 3];
+            }
+            if (!shared) {
+                break;
+            }
+        }
+        end += 3;
+    }
+    return end;
+}
+
 void Draw_SetTexpageMode(ParamDrawTexpageMode* p) {
     // implements SetDrawMode, SetDrawEnv
     unsigned short mode = *(u_short*)p;
