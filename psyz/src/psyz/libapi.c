@@ -60,7 +60,11 @@ int VSync(int mode) {
     } else if (mode == 1) {
         return Psyz_VideoVSync(1);
     } else if (mode > 1) {
-        ERRORF("VSync(n>1) is not fully implemented.");
+        static int logged_once = 0;
+        if (!logged_once) {
+            logged_once = 1;
+            WARNF("VSync(n>1) is not fully implemented.");
+        }
     }
     n = mode > 0 ? mode : 1;
     elapsed = Psyz_VideoVSync(0);
