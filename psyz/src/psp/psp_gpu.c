@@ -2000,11 +2000,13 @@ static void EmitPrim(const PVert* v, int n, u16 tpage, u16 clut, bool textured,
         } else {
             memcpy(out, tv, n * sizeof(BVert));
         }
-        GuDrawArrayDirect(is_rect ? GU_SPRITES
-                                  : n == 3 ? GU_TRIANGLES : GU_TRIANGLE_STRIP,
-                          GU_TEXTURE_16BIT | GU_COLOR_5551 | GU_VERTEX_16BIT |
-                              GU_TRANSFORM_2D,
-                          count, out);
+        GuDrawArrayDirect(
+            is_rect  ? GU_SPRITES
+            : n == 3 ? GU_TRIANGLES
+                     : GU_TRIANGLE_STRIP,
+            GU_TEXTURE_16BIT | GU_COLOR_5551 | GU_VERTEX_16BIT |
+                GU_TRANSFORM_2D,
+            count, out);
     }
 }
 
