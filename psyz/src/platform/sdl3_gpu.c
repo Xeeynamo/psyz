@@ -117,6 +117,39 @@ static void SubmitCmd(void) {
     }
 }
 
+// FIX: the fence mechanic solves a out-of-memory on Windows when running a
+// game with SDL_VIDEODRIVER=offscreen and PSYZ_VSYNC_LIMITLESS when the CPU
+// accumulates graphics buffers to submit than what the GPU can process.
+// This is especially relevant when running game replays on GH Actions.
+#define MAX_FRAMES_IN_FLIGHT 2
+static SDL_GPUFence* frame_fences[MAX_FRAMES_IN_FLIGHT];
+static unsigned frame_fence_idx = 0;
+static void SubmitFrame(void) {
+    if (!pending_cmd) {
+        return;
+    }
+    if (swapchain_ok) {
+        SubmitCmd();
+        return;
+    }
+    SDL_GPUFence** fence = &frame_fences[frame_fence_idx];
+    if (*fence) {
+        SDL_WaitForGPUFences(device, true, fence, 1);
+        SDL_ReleaseGPUFence(device, *fence);
+    }
+    *fence = SDL_SubmitGPUCommandBufferAndAcquireFence(pending_cmd);
+    pending_cmd = NULL;
+    frame_fence_idx = (frame_fence_idx + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+static void ReleaseFrameFences(void) {
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        if (frame_fences[i]) {
+            SDL_ReleaseGPUFence(device, frame_fences[i]);
+            frame_fences[i] = NULL;
+        }
+    }
+}
+
 static void SubmitCmdAndWait(void) {
     if (!pending_cmd) {
         return;
@@ -717,7 +750,7 @@ static void PlatformBackend_Present(void) {
         overlay_frame_cb();
     }
     finish_time = SDL_GetPerformanceCounter();
-    SubmitCmd();
+    SubmitFrame();
 }
 
 static void QuitPlatform(void) {
@@ -727,6 +760,7 @@ static void QuitPlatform(void) {
     }
     if (device) {
         SDL_WaitForGPUIdle(device);
+        ReleaseFrameFences();
         if (pipe_tri_add) {
             SDL_ReleaseGPUGraphicsPipeline(device, pipe_tri_add);
             pipe_tri_add = NULL;
