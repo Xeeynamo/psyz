@@ -2467,6 +2467,23 @@ void Psyz_GteStlvl(VECTOR* out) {
     out->vz = IR3;
 }
 
+// each word lands on a control register pair, so the high half spills over
+void Psyz_GteLdopv1(VECTOR* v) {
+    M.m[0][0] = (short)v->vx;
+    M.m[0][1] = (short)(v->vx >> 16);
+    M.m[1][1] = (short)v->vy;
+    M.m[1][2] = (short)(v->vy >> 16);
+    M.m[2][2] = (short)v->vz;
+}
+
+void Psyz_GteLdopv2(VECTOR* v) {
+    IR1 = (short)v->vx;
+    IR2 = (short)v->vy;
+    IR3 = (short)v->vz;
+}
+
+void Psyz_GteOp12(void) { OP(0x178000C); }
+
 int Psyz_GteReadflg(void) { return (int)FLAG; }
 void Psyz_GteStsxy3G3(void* polyGte) {
     POLY_G3* poly = (POLY_G3*)polyGte;

@@ -2134,6 +2134,31 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
         : "r"(r0)                                                              \
         : "memory")
 
+#define gte_ldopv1(r0)                                                         \
+    __asm__ volatile(                                                          \
+        "lw	$12, 0( %0 );"                                                     \
+        "lw	$13, 4( %0 );"                                                     \
+        "ctc2	$12, $0;"                                                        \
+        "lw	$14, 8( %0 );"                                                     \
+        "ctc2	$13, $2;"                                                        \
+        "ctc2	$14, $4"                                                         \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13", "$14")
+
+#define gte_ldopv2(r0)                                                         \
+    __asm__ volatile(                                                          \
+        "lwc2	$11, 8( %0 );"                                                   \
+        "lwc2	$9, 0( %0 );"                                                    \
+        "lwc2	$10, 4( %0 )"                                                    \
+        :                                                                      \
+        : "r"(r0))
+
+#define gte_op12()                                                             \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4B78000C")
+
 #define gte_stflg(r0)                                                          \
     __asm__ volatile(                                                          \
         "cfc2	$12, $31;"                                                       \
@@ -2269,6 +2294,9 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
 #define gte_rtir() Psyz_GteRtir()
 #define gte_ldlv0(x) Psyz_GteLdlv0((VECTOR*)(x))
 #define gte_stlvl(x) Psyz_GteStlvl((VECTOR*)(x))
+#define gte_ldopv1(x) Psyz_GteLdopv1((VECTOR*)(x))
+#define gte_ldopv2(x) Psyz_GteLdopv2((VECTOR*)(x))
+#define gte_op12() Psyz_GteOp12()
 #define gte_stflg(x) (*(x) = Psyz_GteReadflg())
 #define gte_readflg(x) ((x) = Psyz_GteReadflg())
 #define gte_rtv0() Psyz_GteRtv0()

@@ -1312,6 +1312,76 @@ ZTEST(gte, stlvl_stores_saturated_ir) {
     zexpect_s32_eq(-0x3FFF8, mac.vy);
 }
 
+ZTEST(gte, ldopv1_loads_rotation_diagonal) {
+    MATRIX m = {
+        {{0x100, 0x200, 0x300}, {0x400, 0x500, 0x600}, {0x700, 0x800, 0x900}},
+        {10, 20, 30}};
+    MATRIX expected = {
+        {{0x111, 0, 0x300}, {0x400, -0x222, 0}, {0x700, 0x800, 0x333}},
+        {10, 20, 30}};
+    MATRIX read = {0};
+    VECTOR v = {0x111, -0x222 & 0xFFFF, 0x333};
+    SetRotMatrix(&m);
+    SetTransMatrix(&m);
+    gte_ldopv1(&v);
+    ReadRotMatrix(&read);
+    zexpect_matrix_eq(&expected, &read);
+}
+
+ZTEST(gte, ldopv1_spills_high_half_into_next_element) {
+    MATRIX m = {
+        {{0x100, 0x200, 0x300}, {0x400, 0x500, 0x600}, {0x700, 0x800, 0x900}},
+        {10, 20, 30}};
+    MATRIX expected = {
+        {{0x111, 0x1234, 0x300}, {0x400, -2, -1}, {0x700, 0x800, 0x333}},
+        {10, 20, 30}};
+    MATRIX read = {0};
+    VECTOR v = {0x12340111, -2, 0x56780333};
+    SetRotMatrix(&m);
+    SetTransMatrix(&m);
+    gte_ldopv1(&v);
+    ReadRotMatrix(&read);
+    zexpect_matrix_eq(&expected, &read);
+}
+
+ZTEST(gte, ldopv2_loads_ir) {
+    VECTOR v = {0x111, -0x222, 0x333};
+    VECTOR out = {0};
+    gte_ldopv2(&v);
+    gte_stlvl(&out);
+    zexpect_s32_eq(0x111, out.vx);
+    zexpect_s32_eq(-0x222, out.vy);
+    zexpect_s32_eq(0x333, out.vz);
+}
+
+ZTEST(gte, ldopv2_keeps_low_16_bits) {
+    VECTOR v = {0x12345, -0x10002, 0x7FFF8000};
+    VECTOR out = {0};
+    gte_ldopv2(&v);
+    gte_stlvl(&out);
+    zexpect_s32_eq(0x2345, out.vx);
+    zexpect_s32_eq(-2, out.vy);
+    zexpect_s32_eq(-0x8000, out.vz);
+}
+
+ZTEST(gte, op12_macros_match_outer_product_12) {
+    VECTOR a = {0x0C00, -0x0400, 0x0800};
+    VECTOR b = {0x0200, 0x1000, -0x0600};
+    VECTOR expected = {0};
+    VECTOR out = {0};
+    OuterProduct12(&a, &b, &expected);
+    gte_ldopv1(&a);
+    gte_ldopv2(&b);
+    gte_op12();
+    gte_stlvnl(&out);
+    zexpect_s32_eq(expected.vx, out.vx);
+    zexpect_s32_eq(expected.vy, out.vy);
+    zexpect_s32_eq(expected.vz, out.vz);
+    zexpect_s32_eq(-0x680, out.vx);
+    zexpect_s32_eq(0x580, out.vy);
+    zexpect_s32_eq(0xC80, out.vz);
+}
+
 static void SzFifoSetup(void) {
     SVECTOR a = {0, 0, 11};
     SVECTOR v0 = {0, 0, 22}, v1 = {0, 0, 33}, v2 = {0, 0, 44};
