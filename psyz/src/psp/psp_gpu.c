@@ -1992,12 +1992,19 @@ static void EmitPrim(const PVert* v, int n, u16 tpage, u16 clut, bool textured,
         ApplyTexture(tpage, clut, pass ? CLUT_BLEND_PASS : variant);
         ApplyBlend(pass != 0, (tpage >> 5) & 3);
         FlushBatch();
-        BVert* out = GuGetMemoryDirect(n * sizeof(BVert));
-        memcpy(out, tv, n * sizeof(BVert));
-        GuDrawArrayDirect(n == 3 ? GU_TRIANGLES : GU_TRIANGLE_STRIP,
+        int count = is_rect ? 2 : n;
+        BVert* out = GuGetMemoryDirect(count * sizeof(BVert));
+        if (is_rect) {
+            out[0] = tv[0];
+            out[1] = tv[3];
+        } else {
+            memcpy(out, tv, n * sizeof(BVert));
+        }
+        GuDrawArrayDirect(is_rect ? GU_SPRITES
+                                  : n == 3 ? GU_TRIANGLES : GU_TRIANGLE_STRIP,
                           GU_TEXTURE_16BIT | GU_COLOR_5551 | GU_VERTEX_16BIT |
                               GU_TRANSFORM_2D,
-                          n, out);
+                          count, out);
     }
 }
 
