@@ -371,16 +371,16 @@ MATRIX* MulRotMatrix(MATRIX* m);
 MATRIX* TransposeMatrix(MATRIX* m0, MATRIX* m1);
 
 /**
- * @brief Compose matrix
+ * @brief Compose matrices
  *
- * Composes a matrix from rotation, translation and scaling parameters.
+ * Composes two matrices, translation included: m2 = m0 * m1.
  *
- * @param rot Pointer to rotation vector
- * @param trans Pointer to translation vector
- * @param m Pointer to output matrix
- * @return Pointer to matrix
+ * @param m0 Pointer to first matrix
+ * @param m1 Pointer to second matrix
+ * @param m2 Pointer to result matrix
+ * @return Pointer to result matrix
  */
-MATRIX* CompMatrix(SVECTOR* rot, VECTOR* trans, MATRIX* m);
+MATRIX* CompMatrix(MATRIX* m0, MATRIX* m1, MATRIX* m2);
 
 /**
  * @brief Set geometry offset
@@ -2108,6 +2108,32 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
         : "r"(r0)                                                              \
         : "memory")
 
+#define gte_rtir()                                                             \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4A49E012")
+
+#define gte_ldlv0(r0)                                                          \
+    __asm__ volatile(                                                          \
+        "lhu	$13, 4( %0 );"                                                    \
+        "lhu	$12, 0( %0 );"                                                    \
+        "sll	$13, $13, 16;"                                                    \
+        "or	$12, $12, $13;"                                                    \
+        "mtc2	$12, $0;"                                                        \
+        "lwc2	$1, 8( %0 )"                                                     \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13")
+
+#define gte_stlvl(r0)                                                          \
+    __asm__ volatile(                                                          \
+        "swc2	$9, 0( %0 );"                                                    \
+        "swc2	$10, 4( %0 );"                                                   \
+        "swc2	$11, 8( %0 )"                                                    \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "memory")
+
 #define gte_stflg(r0)                                                          \
     __asm__ volatile(                                                          \
         "cfc2	$12, $31;"                                                       \
@@ -2240,6 +2266,9 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
 #define gte_strgb3_gt4(x) Psyz_GteStRgb3Gt4((POLY_GT4*)(x))
 #define gte_rt() Psyz_GteRt()
 #define gte_stlvnl(x) Psyz_GteStlvnl((VECTOR*)(x))
+#define gte_rtir() Psyz_GteRtir()
+#define gte_ldlv0(x) Psyz_GteLdlv0((VECTOR*)(x))
+#define gte_stlvl(x) Psyz_GteStlvl((VECTOR*)(x))
 #define gte_stflg(x) (*(x) = Psyz_GteReadflg())
 #define gte_readflg(x) ((x) = Psyz_GteReadflg())
 #define gte_rtv0() Psyz_GteRtv0()

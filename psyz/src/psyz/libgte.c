@@ -1503,6 +1503,30 @@ MATRIX* RotMatrixYXZ(SVECTOR* r, MATRIX* m) {
     return m;
 }
 
+MATRIX* RotMatrixZYX(SVECTOR* r, MATRIX* m) {
+    int sx, cx, sy, cy, sz, cz;
+    int sysx, sycx;
+
+    rcossin(r->vx, &cx, &sx);
+    rcossin(r->vy, &cy, &sy);
+    rcossin(r->vz, &cz, &sz);
+
+    sysx = (sy * sx) >> 12;
+    sycx = (sy * cx) >> 12;
+
+    m->m[0][0] = (cy * cz) >> 12;
+    m->m[0][1] = ((sysx * cz) >> 12) - ((sz * cx) >> 12);
+    m->m[0][2] = ((sycx * cz) >> 12) + ((sx * sz) >> 12);
+    m->m[1][0] = (sz * cy) >> 12;
+    m->m[1][1] = ((sysx * sz) >> 12) + ((cx * cz) >> 12);
+    m->m[1][2] = ((sycx * sz) >> 12) - ((sx * cz) >> 12);
+    m->m[2][0] = -sy;
+    m->m[2][1] = (sx * cy) >> 12;
+    m->m[2][2] = (cx * cy) >> 12;
+
+    return m;
+}
+
 MATRIX* TransMatrix(MATRIX* m, VECTOR* v) {
     m->t[0] = v->vx;
     m->t[1] = v->vy;
@@ -1550,6 +1574,32 @@ MATRIX* MulMatrix(MATRIX* m0, MATRIX* m1) {
     m0->m[2][1] = r.m[2][1];
     m0->m[2][2] = r.m[2][2];
     return m0;
+}
+
+MATRIX* CompMatrix(MATRIX* m0, MATRIX* m1, MATRIX* m2) {
+    MATRIX r;
+    int j;
+
+    for (j = 0; j < 3; j++) {
+        FLAG = 0;
+        mat_vec(1, 0, m0->m, m1->m[0][j], m1->m[1][j], m1->m[2][j], 0, 0, 0);
+        r.m[0][j] = IR1;
+        r.m[1][j] = IR2;
+        r.m[2][j] = IR3;
+    }
+
+    V0.vx = (short)m1->t[0];
+    V0.vy = (short)m1->t[1];
+    V0.vz = (short)m1->t[2];
+    FLAG = 0;
+    mat_vec(1, 0, m0->m, V0.vx, V0.vy, V0.vz, 0, 0, 0);
+    FLAG_UPDATE_ERROR();
+    r.t[0] = MAC1 + m0->t[0];
+    r.t[1] = MAC2 + m0->t[1];
+    r.t[2] = MAC3 + m0->t[2];
+
+    *m2 = r;
+    return m2;
 }
 
 // RTPS, RTPT, NCLIP, AVSZ3, AVSZ4 are implementations after
@@ -2398,6 +2448,25 @@ void Psyz_GteStlvnl(VECTOR* out) {
     out->vy = MAC2;
     out->vz = MAC3;
 }
+
+void Psyz_GteRtir(void) {
+    FLAG = 0;
+    mat_vec(1, 0, M.m, IR1, IR2, IR3, 0, 0, 0);
+    FLAG_UPDATE_ERROR();
+}
+
+void Psyz_GteLdlv0(VECTOR* v) {
+    V0.vx = (short)v->vx;
+    V0.vy = (short)v->vy;
+    V0.vz = (short)v->vz;
+}
+
+void Psyz_GteStlvl(VECTOR* out) {
+    out->vx = IR1;
+    out->vy = IR2;
+    out->vz = IR3;
+}
+
 int Psyz_GteReadflg(void) { return (int)FLAG; }
 void Psyz_GteStsxy3G3(void* polyGte) {
     POLY_G3* poly = (POLY_G3*)polyGte;

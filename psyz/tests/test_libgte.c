@@ -258,6 +258,39 @@ ZTEST(gte, mul_matrix_permutation) {
     zexpect_matrix_eq(&exp, &a);
 }
 
+ZTEST(gte, comp_matrix_rotates_and_translates) {
+    MATRIX m0 = {{{0, -0x1000, 0}, {0x1000, 0, 0}, {0, 0, 0x1000}},
+                 {100, 200, 300}};
+    MATRIX m1 = {{{0x1000, 0, 0}, {0, 0x0800, 0}, {0, 0, 0x1000}},
+                 {10, 20, 30}};
+    MATRIX exp = {{{0, -0x0800, 0}, {0x1000, 0, 0}, {0, 0, 0x1000}},
+                  {80, 210, 330}};
+    MATRIX m2;
+    zexpect_ptr_eq(&m2, CompMatrix(&m0, &m1, &m2));
+    zexpect_matrix_eq(&exp, &m2);
+}
+
+ZTEST(gte, comp_matrix_keeps_low_16_bits_of_m1_translation) {
+    MATRIX m0 = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    MATRIX m1 = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}},
+                 {0x12345, -0x10002, 0x8000}};
+    MATRIX exp = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}},
+                  {0x2345, -2, -0x8000}};
+    MATRIX m2;
+    CompMatrix(&m0, &m1, &m2);
+    zexpect_matrix_eq(&exp, &m2);
+}
+
+ZTEST(gte, comp_matrix_saturates_rotation) {
+    MATRIX m0 = {{{0x7FFF, 0x7FFF, 0}, {-0x8000, -0x8000, 0}, {0, 0, 0x1000}},
+                 {0, 0, 0}};
+    MATRIX m1 = {{{0x7FFF, 0, 0}, {0x7FFF, 0, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    MATRIX exp = {{{0x7FFF, 0, 0}, {-0x8000, 0, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    MATRIX m2;
+    CompMatrix(&m0, &m1, &m2);
+    zexpect_matrix_eq(&exp, &m2);
+}
+
 ZTEST(gte, transpose_matrix) {
     MATRIX m = {{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, {10, 11, 12}};
     MATRIX out = {0};
@@ -735,6 +768,39 @@ ZTEST(gte, rot_matrix_yxz_axis_only) {
     zexpect_s16_eq(0x1000, m.m[0][0]);
 }
 
+ZTEST(gte, rot_matrix_zyx_arbitrary_angles) {
+    MATRIX m = {{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, {10, 11, 12}};
+    MATRIX exp = {{{+0x0212, -0x095A, -0x0CD1},
+                   {-0x0062, -0x0CF4, +0x0964},
+                   {-0x0FDC, -0x00E9, -0x01E7}},
+                  {10, 11, 12}};
+    SVECTOR sv = {0x123, 0x456, 0x789};
+    zexpect_ptr_eq(&m, RotMatrixZYX(&sv, &m));
+    zexpect_matrix_eq(&exp, &m);
+}
+
+ZTEST(gte, rot_matrix_zyx_negative_and_wrapped_angles) {
+    MATRIX m = {{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, {10, 11, 12}};
+    MATRIX exp = {{{-0x0541, +0x053A, -0x0E30},
+                   {-0x0589, +0x0D4C, +0x06F4},
+                   {+0x0E10, +0x072F, -0x0290}},
+                  {10, 11, 12}};
+    SVECTOR sv = {-0x321, 0x0ABC, -0x1DEF};
+    zexpect_ptr_eq(&m, RotMatrixZYX(&sv, &m));
+    zexpect_matrix_eq(&exp, &m);
+}
+
+ZTEST(gte, rot_matrix_zyx_axis_only) {
+    MATRIX m = {0};
+    SVECTOR sv = {0, 0x400, 0};
+    RotMatrixZYX(&sv, &m);
+    zexpect_s16_eq(0x1000, m.m[0][2]);
+    zexpect_s16_eq(0x1000, m.m[1][1]);
+    zexpect_s16_eq(-0x1000, m.m[2][0]);
+    zexpect_s16_eq(0, m.m[0][0]);
+    zexpect_s16_eq(0, m.m[2][2]);
+}
+
 ZTEST(gte, rot_matrix_x_arbitrary_angle) {
     MATRIX m = {{{+0x0F00, -0x0234, +0x0123},
                  {+0x0456, +0x0E12, -0x0789},
@@ -1196,6 +1262,54 @@ ZTEST(gte, rtv2_rotates_v2_without_translation) {
     zexpect_s32_eq(1000, out.vx);
     zexpect_s32_eq(-2, out.vy);
     zexpect_s32_eq(-1000, out.vz);
+}
+
+ZTEST(gte, ldlv0_keeps_low_16_bits) {
+    MATRIX m = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    VECTOR v = {0x12345, -0x10002, 7};
+    VECTOR out = {0};
+    gte_SetRotMatrix(&m);
+    gte_ldlv0(&v);
+    gte_rtv0();
+    gte_stlvnl(&out);
+    zexpect_s32_eq(0x2345, out.vx);
+    zexpect_s32_eq(-2, out.vy);
+    zexpect_s32_eq(7, out.vz);
+}
+
+ZTEST(gte, rtir_rotates_ir) {
+    MATRIX m = {{{0, 0x1000, 0}, {0x1000, 0, 0}, {0, 0, 0x0800}}, {0, 0, 0}};
+    VECTOR v = {0x100, 0x200, 0x300};
+    VECTOR out = {0};
+    gte_SetRotMatrix(&m);
+    gte_ldlv0(&v);
+    gte_rtv0();
+    gte_stlvl(&out);
+    zexpect_s32_eq(0x200, out.vx);
+    zexpect_s32_eq(0x100, out.vy);
+    zexpect_s32_eq(0x180, out.vz);
+    gte_rtir();
+    gte_stlvl(&out);
+    zexpect_s32_eq(0x100, out.vx);
+    zexpect_s32_eq(0x200, out.vy);
+    zexpect_s32_eq(0xC0, out.vz);
+}
+
+ZTEST(gte, stlvl_stores_saturated_ir) {
+    MATRIX m = {{{0x7FFF, 0, 0}, {0, 0x7FFF, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    VECTOR v = {0x7FFF, -0x8000, 5};
+    VECTOR ir = {0};
+    VECTOR mac = {0};
+    gte_SetRotMatrix(&m);
+    gte_ldlv0(&v);
+    gte_rtv0();
+    gte_stlvl(&ir);
+    gte_stlvnl(&mac);
+    zexpect_s32_eq(0x7FFF, ir.vx);
+    zexpect_s32_eq(-0x8000, ir.vy);
+    zexpect_s32_eq(5, ir.vz);
+    zexpect_s32_eq(0x3FFF0, mac.vx);
+    zexpect_s32_eq(-0x3FFF8, mac.vy);
 }
 
 static void SzFifoSetup(void) {

@@ -25,7 +25,7 @@ typedef struct {
 } TMD;
 #pragma pack(pop)
 
-static u_long* tim;
+static unsigned int* tim;
 static u_long* v_ofs;
 static u_long* n_ofs;
 static u_long* t_prim;
@@ -37,12 +37,12 @@ int get_tmd_addr(
     TMD* tmd, int obj_no, u_long** t_prim, u_long** v_ofs, u_long** n_ofs);
 
 int OpenTIM(u_long* addr) {
-    tim = addr;
+    tim = (unsigned int*)addr;
     return 0;
 }
 
 TIM_IMAGE* ReadTIM(TIM_IMAGE* timimg) {
-    u_long len = get_tim_addr((unsigned int*)tim, timimg);
+    u_long len = get_tim_addr(tim, timimg);
     if (len == -1) {
         return NULL;
     }

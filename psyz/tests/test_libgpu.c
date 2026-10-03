@@ -290,6 +290,25 @@ ZTEST(gpu, draw_sprt_16bpp_page_past_vram_edge) {
     Present("draw_sprt_16bpp");
 }
 
+ZTEST(gpu, read_tim_walks_consecutive_images) {
+    static unsigned int tims[][6] = {
+        {0x10, 2, 16, 0x00100100, 0x00020001, 0x7FFF7FFF},
+        {0x10, 2, 16, 0x00200200, 0x00020001, 0x001F001F},
+        {0},
+    };
+    TIM_IMAGE tim;
+    zassert_s32_eq(0, OpenTIM((u_long*)tims));
+    zassert_ptr_ne(NULL, ReadTIM(&tim));
+    zexpect_ptr_eq(&tims[0][3], tim.prect);
+    zexpect_ptr_eq(&tims[0][5], tim.paddr);
+    zassert_ptr_ne(NULL, ReadTIM(&tim));
+    zexpect_ptr_eq(&tims[1][3], tim.prect);
+    zexpect_ptr_eq(&tims[1][5], tim.paddr);
+    zexpect_s32_eq(0x200, tim.prect->x);
+    zexpect_s32_eq(0x20, tim.prect->y);
+    zexpect_ptr_eq(NULL, ReadTIM(&tim));
+}
+
 ZTEST(gpu, gouraud_line_after_flush) {
     int w, h;
     unsigned char* d;
