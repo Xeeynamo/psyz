@@ -95,7 +95,13 @@ static long chain_handler(void) {
     return 0;
 }
 
+static PsyzVsyncMode saved_vsync_mode;
 ZTEST_SETUP(events) {
+#if !defined(__psx__) && !defined(__PSP__)
+    // All RCNT tests need a frame limiter to pass
+    saved_vsync_mode = Psyz_VideoGetVsyncMode();
+    Psyz_VideoSetVsyncMode(PSYZ_VSYNC_OFF);
+#endif
     ResetCallback();
     ev_opened_len = 0;
     handler_calls = 0;
@@ -114,6 +120,9 @@ ZTEST_TEARDOWN(events) {
     while (ev_opened_len > 0) {
         ev_close(ev_opened[0]);
     }
+#if !defined(__psx__) && !defined(__PSP__)
+    Psyz_VideoSetVsyncMode(saved_vsync_mode);
+#endif
 }
 
 static int wait_handler_calls(int calls, int max_vblanks) {
