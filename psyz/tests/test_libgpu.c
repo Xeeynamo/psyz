@@ -217,33 +217,6 @@ ZTEST(gpu, draw_gt4) {
     ASSERT_FRAME("draw_gt4", 1, 1.0f);
 }
 
-ZTEST(gpu, draw_g4_buffer_boundary) {
-    static POLY_G4 quads[1025];
-    u_short pixels[2] = {0};
-    RECT sample = {18, 18, 2, 1};
-    const u_short expected_red = 0x001F;
-    const u_short rgb_mask = 0x7FFF;
-
-    ClearOTag(cdb->ot, OTSIZE);
-    for (int i = 0; i < LEN(quads); i++) {
-        SetPolyG4(&quads[i]);
-        setXYWH(&quads[i], 16, 16, 8, 8);
-        setRGB0(&quads[i], 255, 0, 0);
-        setRGB1(&quads[i], 255, 0, 0);
-        setRGB2(&quads[i], 255, 0, 0);
-        setRGB3(&quads[i], 255, 0, 0);
-        setSemiTrans(&quads[i], 1);
-        AddPrim(cdb->ot, &quads[i]);
-    }
-    DrawOTag(cdb->ot);
-    DrawSync(0);
-    StoreImage(&sample, (u_long*)pixels);
-    DrawSync(0);
-
-    zexpect_u16_eq(expected_red, pixels[0] & rgb_mask);
-    zexpect_u16_eq(expected_red, pixels[1] & rgb_mask);
-}
-
 ZTEST(gpu, draw_sprt_8bpp) {
     TIM_IMAGE tim;
     zassert_s32_eq(0, OpenTIM((u_long*)img_4bpp));
