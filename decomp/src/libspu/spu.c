@@ -180,6 +180,15 @@ void _spu_FiDMA(void) {
 
 INCLUDE_ASM("asm/nonmatchings/libspu/spu", _spu_Fr_);
 
+#ifdef __psyz
+void Psyz_KernelRaise(unsigned int desc, unsigned int spec);
+void _spu_DmaDone(void) {
+    if (!_spu_transferCallback) {
+        Psyz_KernelRaise(HwSPU, EvSpCOMP);
+    }
+}
+#endif
+
 #ifndef __psyz
 int _spu_t(int arg0, ...) {
     unsigned channelControl;
@@ -268,6 +277,7 @@ unsigned _spu_Fw(unsigned char* addr, unsigned size) {
 #ifdef __psyz
     SPUW(trans_addr, _spu_tsa);
     Psyz_SpuMemWrite(_spu_tsa << _spu_mem_mode_plus, addr, size);
+    _spu_DmaDone();
 #else
     _spu_t(2, _spu_tsa << _spu_mem_mode_plus);
     _spu_t(1);
@@ -280,6 +290,7 @@ unsigned _spu_Fr(unsigned char* addr, unsigned size) {
 #ifdef __psyz
     SPUW(trans_addr, _spu_tsa);
     Psyz_SpuMemRead(_spu_tsa << _spu_mem_mode_plus, addr, size);
+    _spu_DmaDone();
 #else
     _spu_t(2, _spu_tsa << _spu_mem_mode_plus);
     _spu_t(0);

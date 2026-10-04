@@ -1673,24 +1673,33 @@ ZTEST(gpu, vsync_callbacks_run_in_channel_order) {
     zexpect_s32_eq(7, vsync_order[2]);
 }
 
-#define STRAY_OPCODE 0x08
-static int stray_calls;
-static int CountStray(const u_long* words, int available, void* userdata) {
-    (void)words;
-    (void)userdata;
-    stray_calls++;
-    return available > 0 ? 1 : 0;
-}
+// A leaked trailing word decodes as GP0(E5h) and shifts the draw offset.
+#define STRAY_CMD 0xE500
+#define STRAY_ARG 0x10
 
 static void DrawLastInQueue(void* prim) {
-    stray_calls = 0;
-    zassert_s32_eq(
-        0, Psyz_GpuRegisterCommandHandler(STRAY_OPCODE, CountStray, NULL));
-    ClearOTag(cdb->ot, OTSIZE);
-    AddPrim(cdb->ot, prim);
-    DrawOTag(cdb->ot);
+    termPrim(prim);
+    DrawOTag((OT_TYPE*)prim);
     DrawSync(0);
-    Psyz_GpuRegisterCommandHandler(STRAY_OPCODE, NULL, NULL);
+}
+
+static int DrawLastInQueueThenProbe(void* prim) {
+    unsigned char rgb[3];
+    RECT rect = {200, 100, 8, 8};
+    TILE* t = &cdb->tile[0];
+    ClearImage(&rect, 0, 0, 0);
+    DrawLastInQueue(prim);
+    SetTile(t);
+    setXY0(t, rect.x, rect.y);
+    setWH(t, rect.w, rect.h);
+    setRGB0(t, 255, 255, 255);
+    DrawLastInQueue(t);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+    zimage img = zimage_frontbuffer();
+    zimage_get_rgb(&img, rect.x, rect.y, rgb);
+    zimage_free(&img);
+    return rgb[0];
 }
 
 ZTEST(gpu, poly_gt4_last_in_queue_consumes_all_words) {
@@ -1701,7 +1710,7 @@ ZTEST(gpu, poly_gt4_last_in_queue_consumes_all_words) {
     POLY_GT4* p = &cdb->gt4[0];
     SetPolyGT4(p);
     setXYWH(p, 16, 16, 64, 64);
-    setUVWH(p, 0, 0, 64, 64);
+    setUV4(p, 0, 0, 63, 0, 0, 63, STRAY_ARG, 0);
     setRGB0(p, 128, 128, 128);
     setRGB1(p, 128, 128, 128);
     setRGB2(p, 128, 128, 128);
@@ -1709,20 +1718,17 @@ ZTEST(gpu, poly_gt4_last_in_queue_consumes_all_words) {
     setSemiTrans(p, 1);
     p->tpage = tpage;
     p->clut = clut;
-    p->pad3 = STRAY_OPCODE << 8;
-    DrawLastInQueue(p);
-    zexpect_s32_eq(0, stray_calls);
+    p->pad3 = STRAY_CMD;
+    zexpect_s32_ne(0, DrawLastInQueueThenProbe(p));
 }
 
 ZTEST(gpu, poly_g4_last_in_queue_consumes_all_words) {
     POLY_G4* p = &cdb->g4[0];
     SetPolyG4(p);
-    setXYWH(p, 16, 16, 64, 64);
+    setXY4(p, 16, -600, 48, -600, 16, -570, STRAY_ARG, (short)STRAY_CMD);
     setRGB0(p, 255, 0, 0);
     setRGB1(p, 0, 255, 0);
     setRGB2(p, 0, 0, 255);
     setRGB3(p, 255, 255, 255);
-    setXY4(p, 16, 16, 80, 16, 16, 80, 80, STRAY_OPCODE << 8);
-    DrawLastInQueue(p);
-    zexpect_s32_eq(0, stray_calls);
+    zexpect_s32_ne(0, DrawLastInQueueThenProbe(p));
 }

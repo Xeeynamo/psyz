@@ -47,6 +47,7 @@ long SpuClearReverbWorkArea(long rev_mode) {
         SPUW(trans_addr, dstAddr >> _spu_mem_mode_plus);
         Psyz_SpuMemWrite(
             SPUR(trans_addr) << _spu_mem_mode_plus, _spu_zerobuf, size);
+        _spu_DmaDone();
 #else
         _spu_t(2, dstAddr);
         _spu_t(1);

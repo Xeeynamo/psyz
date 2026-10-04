@@ -448,8 +448,8 @@ bool InitPlatform() {
     return true;
 }
 
-static void PlatformBackend_SetDriverVsync(bool enable) {
-    SDL_GL_SetSwapInterval(enable ? 1 : 0);
+static bool PlatformBackend_SetDriverVsync(bool enable) {
+    return SDL_GL_SetSwapInterval(enable ? 1 : 0) && enable;
 }
 
 static void UpdateScissor(void);

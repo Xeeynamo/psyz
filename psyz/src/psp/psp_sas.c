@@ -829,7 +829,6 @@ void Psyz_SpuPullSamples(short* out, int num_frames) {
         memset(out, 0, num_frames * N_CHANNELS * sizeof(short));
         return;
     }
-    Psyz_RcntAdd(num_frames);
     int done = 0;
     while (done < num_frames) {
         grain_acquire();

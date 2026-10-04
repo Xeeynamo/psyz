@@ -109,6 +109,9 @@ void Psyz_GpuWriteGP0(unsigned int word) {
     *(volatile unsigned int*)0x1F801810 = word;
 }
 
+void PS1_EnterCriticalSection(void) { enterCriticalSection(); }
+void PS1_ExitCriticalSection(void) { leaveCriticalSection(); }
+
 static int (*adjust_path_cb)(char* dst, const char* src, int maxlen);
 
 static void copy_path(char* dst, const char* src, int maxlen) {
