@@ -46,8 +46,8 @@ static inline void AtomicAdd(AtomicWord* p, long v) {
 #define DOT_CLOCK_HZ 6711647 // GPU clock / 8, the 320 pixel wide modes
 #define HBLANK_NTSC_HZ 15734
 #define HBLANK_PAL_HZ 15625
-#define MIN_PERIOD_US 32    // faster timers would only spin the host
-#define MAX_TIMER_CATCHUP 8 // ticks owed after the host stalls the thread
+#define MIN_PERIOD_US 32      // faster timers would only spin the host
+#define MAX_CATCHUP_US 200000 // ticks owed past a longer host stall are lost
 
 enum {
     IRQ_VBLANK,
@@ -109,6 +109,7 @@ static unsigned irq_saved_mask;
 static int callbacks_running = 1;
 static long rcnt_auto_ack[4] = {1, 1, 1, 1};
 static RootCounter counters[3];
+static AtomicWord poll_deadline_us;
 
 static PendingEvent pending[32];
 static int pending_len;
@@ -470,15 +471,13 @@ static int ServiceTimers(uint32_t* deadline_us) {
     for (int i = 0; i < LEN(counters); i++) {
         RootCounter* c = &counters[i];
         unsigned bit = 1u << (IRQ_RCNT0 + i);
-        int fired = 0;
         if (!c->period_us || !c->irq) {
             continue;
         }
+        if ((int32_t)(now - c->next_us) > MAX_CATCHUP_US) {
+            CounterRestart(c, now);
+        }
         while (IsDue(c->next_us, now)) {
-            if (++fired > MAX_TIMER_CATCHUP) {
-                CounterRestart(c, now);
-                break;
-            }
             CounterStep(c);
             if (irq_mask & bit) {
                 ServiceLine(IRQ_RCNT0 + i);
@@ -492,6 +491,8 @@ static int ServiceTimers(uint32_t* deadline_us) {
         }
     }
     in_interrupt = 0;
+    AtomicStore(
+        &poll_deadline_us, (long)(triggered ? *deadline_us : now + INT32_MAX));
     ServicePending();
     KernelUnlock();
     return triggered;
@@ -521,9 +522,11 @@ static void StartIrqThread(void) {
 
 void Psyz_KernelPoll(void) {
     uint32_t deadline;
-    if (irq_thread_state < 0 && !OwnsKernel()) {
-        ServiceTimers(&deadline);
+    if (!irq_thread_state || OwnsKernel() ||
+        !IsDue((uint32_t)AtomicLoad(&poll_deadline_us), Psyz_OsNowUs())) {
+        return;
     }
+    ServiceTimers(&deadline);
 }
 
 long SetRCnt(long spec, unsigned short target, long mode) {
@@ -549,6 +552,7 @@ long SetRCnt(long spec, unsigned short target, long mode) {
     c->ticks_per_us_q15 = clock / 15625 * 512 + clock % 15625 * 512 / 15625;
     c->irq = (mode & RCntMdINTR) != 0;
     CounterRestart(c, Psyz_OsNowUs());
+    AtomicStore(&poll_deadline_us, (long)c->last_us);
     KernelUnlock();
     Psyz_OsBellRing(bell_irq);
     return 1;
@@ -578,6 +582,7 @@ long ResetRCnt(long spec) {
     }
     KernelLock();
     CounterRestart(&counters[i], Psyz_OsNowUs());
+    AtomicStore(&poll_deadline_us, (long)counters[i].last_us);
     KernelUnlock();
     Psyz_OsBellRing(bell_irq);
     return 1;

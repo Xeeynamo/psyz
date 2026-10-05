@@ -53,6 +53,7 @@ PsyzVSyncCb Psyz_SetVSyncCb(PsyzVSyncCb cb) {
 // Known limitation: VSync(n) with n > 1 paces a single frame, not n vblanks
 int VSync(int mode) {
     int elapsed, n;
+    Psyz_KernelPoll();
     if (mode < 0) {
         return Psyz_VideoVSync(-1);
     } else if (mode == 1) {

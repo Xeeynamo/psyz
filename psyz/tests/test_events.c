@@ -154,6 +154,26 @@ static int handler_calls_over_vblanks(int vblanks) {
     return handler_calls - start;
 }
 
+static int handler_calls_at_vblank(int vblank, int* calls) {
+    while (VSync(-1) < vblank) {
+    }
+    *calls = handler_calls;
+    return VSync(-1) == vblank;
+}
+
+static int handler_calls_over_vblank_count(int vblanks) {
+    int start, end;
+    int retries = 4;
+    for (;;) {
+        int first = VSync(-1) + 1;
+        int ok = handler_calls_at_vblank(first, &start);
+        ok &= handler_calls_at_vblank(first + vblanks, &end);
+        if (ok || retries-- <= 0) {
+            return end - start;
+        }
+    }
+}
+
 static void rcnt2_start(unsigned short target, long mode) {
     zassert_s32_eq(1, SetRCnt(RCntCNT2, target, mode));
     zassert_s32_eq(1, StartRCnt(RCntCNT2));
@@ -751,7 +771,7 @@ ZTEST(events, rcnt2_fires_at_one_eighth_system_clock) {
         ev_open(RCntCNT2, EvSpINT, EvMdINTR, cb_increase_handler_calls);
     EnableEvent(counted);
     rcnt2_start(AKAO_TARGET, RCntMdINTR);
-    calls = handler_calls_over_vblanks(30);
+    calls = handler_calls_over_vblank_count(30);
     zprintf("%d calls in 30 vblanks, expected %d\n", calls, expected);
     zexpect_s32_ge(expected - 4, calls);
     zexpect_s32_le(expected + 4, calls);
@@ -763,10 +783,10 @@ ZTEST(events, rcnt2_system_clock_mode_fires_eight_times_faster) {
         ev_open(RCntCNT2, EvSpINT, EvMdINTR, cb_increase_handler_calls);
     EnableEvent(counted);
     rcnt2_start(0x8000, RCntMdINTR);
-    slow = handler_calls_over_vblanks(30);
+    slow = handler_calls_over_vblank_count(30);
     StopRCnt(RCntCNT2);
     rcnt2_start(0x8000, RCntMdINTR | RCntMdSC);
-    fast = handler_calls_over_vblanks(30);
+    fast = handler_calls_over_vblank_count(30);
     zprintf("%d calls at clock/8, %d calls at clock\n", slow, fast);
     zexpect_s32_ge(slow * 8 - 12, fast);
     zexpect_s32_le(slow * 8 + 12, fast);
