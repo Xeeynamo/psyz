@@ -7,7 +7,6 @@
 #include <psyz/audio.h>
 #include <psyz/gte.h>
 #include <psyz/system.h>
-#include <psyz/log.h>
 #endif
 
 #ifndef PSYZ_TITLE
@@ -2857,7 +2856,6 @@ int Psyz_Bootlogo(PsyzBootlogoConfig config) {
     VSync(0);
     start = VSync(-1);
     for (frame = 0;; frame++) {
-        INFOF("time: %d", time);
         pad = PadRead(0);
         pad = (pad | pad >> 16) & 0xFFFF;
         if (!pad)
