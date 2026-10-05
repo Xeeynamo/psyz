@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 662.4 490" width="662.4" height="490">
+<title>Psy-Z brand palette</title>
+<style>text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;fill:#cdc7ea}.h{font-size:18px;font-weight:700;letter-spacing:.12em}.n{font-size:15px;font-weight:700}.v{font-size:12px;fill:#7c7599}.u{font-size:12px}</style>
+<rect width="100%%" height="100%%" rx="12" fill="#07060c"/>
+<text x="48" y="52" class="h">Psy-Z brand palette</text>
+<path d="M48,224 L76.8,224 L76.8,166.4 L139.2,166.4 L168,137.6 L168,108.8 L139.2,80 L76.8,80 L48,108.8Z M76.8,137.6 L76.8,108.8 L139.2,108.8 L139.2,137.6Z" fill="#ff3c7d"/>
+<path d="M316.8,108.8 L316.8,80 L225.6,80 L196.8,108.8 L196.8,137.6 L225.6,166.4 L288,166.4 L288,195.2 L196.8,195.2 L196.8,224 L288,224 L316.8,195.2 L316.8,166.4 L288,137.6 L225.6,137.6 L225.6,108.8Z" fill="#ffb020"/>
+<path d="M391.2,224 L420,224 L420,152 L465.6,80 L436.8,80 L405.6,129.26 L374.4,80 L345.6,80 L391.2,152Z" fill="#2ee6c8"/>
+<path d="M494.4,108.8 L573.6,108.8 L494.4,195.2 L494.4,224 L614.4,224 L614.4,195.2 L535.2,195.2 L614.4,108.8 L614.4,80 L494.4,80Z" fill="#6a7bff"/>
+<rect x="48" y="260" width="120" height="48" rx="6" fill="#ff3c7d"/>
+<text x="48" y="334" class="n">Hot Pink</text>
+<text x="48" y="354" class="v">#FF3C7D</text>
+<text x="48" y="372" class="v">RGB 255 60 125</text>
+<rect x="196.8" y="260" width="120" height="48" rx="6" fill="#ffb020"/>
+<text x="196.8" y="334" class="n">Amber</text>
+<text x="196.8" y="354" class="v">#FFB020</text>
+<text x="196.8" y="372" class="v">RGB 255 176 32</text>
+<rect x="345.6" y="260" width="120" height="48" rx="6" fill="#2ee6c8"/>
+<text x="345.6" y="334" class="n">Aqua</text>
+<text x="345.6" y="354" class="v">#2EE6C8</text>
+<text x="345.6" y="372" class="v">RGB 46 230 200</text>
+<rect x="494.4" y="260" width="120" height="48" rx="6" fill="#6a7bff"/>
+<text x="494.4" y="334" class="n">Periwinkle</text>
+<text x="494.4" y="354" class="v">#6A7BFF</text>
+<text x="494.4" y="372" class="v">RGB 106 123 255</text>
+<text x="48" y="410" class="u">Each colour owns one letter of the wordmark. Together they paint the star's</text>
+<text x="48" y="430" class="u">hue wheel, the orbit ring sparks, the four-part bar over the tagline and its</text>
+<text x="48" y="450" class="u">P, S, Y, Z accents.</text>
+</svg>

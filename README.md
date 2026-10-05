@@ -1,4 +1,4 @@
-# PSY-Z
+![PsyZ logo](docs/logo_full_banner.svg)
 
 PSY-Z SDK is a drop-in replacement for the PlayStation 1 Runtime Library called PSY-Q, allowing games designed for the PlayStation 1 to be compiled and run natively on any other platform.
 

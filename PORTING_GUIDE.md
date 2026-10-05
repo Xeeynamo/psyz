@@ -159,6 +159,10 @@ To handle these incompatibilities, PSY-Z provides platform abstraction:
 
 This ensures your code works similarly to a PlayStation 1 and modern platforms with little modification.
 
+### Branding and boot logo
+
+The `Psyz_Bootlogo` API displays a customizable, console-like boot logo that highlights both PsyZ and your game's title. While optional, using the boot logo is a great way to showcase PsyZ and support the project indirectly! Please refer to `samples/bootlogo` to see how to use it.
+
 ## Platform-Specific Considerations
 
 ### Windows with MSVC

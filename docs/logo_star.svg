@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 116.39 119.78" width="466" height="479">
+<title>Psy-Z star</title>
+<defs>
+<linearGradient id="f0" gradientUnits="userSpaceOnUse" x1="5.94" y1="-11.8" x2="4.58" y2="-9.11"><stop offset="0" stop-color="#728ed7"/><stop offset="1" stop-color="#46c5b7"/></linearGradient>
+<linearGradient id="f1" gradientUnits="userSpaceOnUse" x1="22.88" y1="0.67" x2="31.89" y2="0.93"><stop offset="0" stop-color="#aa2753"/><stop offset="1" stop-color="#5f4894"/></linearGradient>
+<linearGradient id="f2" gradientUnits="userSpaceOnUse" x1="61.73" y1="102.91" x2="63.02" y2="105.06"><stop offset="0" stop-color="#164739"/><stop offset="1" stop-color="#143e45"/></linearGradient>
+<linearGradient id="f3" gradientUnits="userSpaceOnUse" x1="96.19" y1="81.28" x2="93.97" y2="79.4"><stop offset="0" stop-color="#193649"/><stop offset="1" stop-color="#0f493f"/></linearGradient>
+<linearGradient id="f4" gradientUnits="userSpaceOnUse" x1="101.34" y1="6.37" x2="114.74" y2="7.21"><stop offset="0" stop-color="#13493b"/><stop offset="1" stop-color="#134045"/></linearGradient>
+<linearGradient id="f5" gradientUnits="userSpaceOnUse" x1="-27.55" y1="29.37" x2="-13.95" y2="14.87"><stop offset="0" stop-color="#1c314c"/><stop offset="1" stop-color="#0f493f"/></linearGradient>
+<linearGradient id="f6" gradientUnits="userSpaceOnUse" x1="13.31" y1="41.19" x2="6.62" y2="20.49"><stop offset="0" stop-color="#ffff56"/><stop offset="1" stop-color="#ffffc8"/></linearGradient>
+<linearGradient id="f7" gradientUnits="userSpaceOnUse" x1="100.63" y1="16.17" x2="108.25" y2="17.4"><stop offset="0" stop-color="#403c17"/><stop offset="1" stop-color="#0e4940"/></linearGradient>
+<linearGradient id="f8" gradientUnits="userSpaceOnUse" x1="-3.14" y1="26.15" x2="-5.39" y2="44.83"><stop offset="0" stop-color="#ffff92"/><stop offset="1" stop-color="#ffc8ce"/></linearGradient>
+<linearGradient id="f9" gradientUnits="userSpaceOnUse" x1="10.03" y1="98.69" x2="10.83" y2="106.6"><stop offset="0" stop-color="#4d3a0b"/><stop offset="1" stop-color="#163c46"/></linearGradient>
+<linearGradient id="f10" gradientUnits="userSpaceOnUse" x1="16.49" y1="-13.41" x2="33.39" y2="-27.14"><stop offset="0" stop-color="#ffb121"/><stop offset="1" stop-color="#81da9f"/></linearGradient>
+<linearGradient id="f11" gradientUnits="userSpaceOnUse" x1="-10.07" y1="66.91" x2="-6.37" y2="42.31"><stop offset="0" stop-color="#d13b7a"/><stop offset="1" stop-color="#e05453"/></linearGradient>
+<linearGradient id="f12" gradientUnits="userSpaceOnUse" x1="102.19" y1="23.58" x2="109.2" y2="25.2"><stop offset="0" stop-color="#403c17"/><stop offset="1" stop-color="#0e4940"/></linearGradient>
+<linearGradient id="f13" gradientUnits="userSpaceOnUse" x1="-2.96" y1="21.64" x2="-5.86" y2="42.87"><stop offset="0" stop-color="#ffff82"/><stop offset="1" stop-color="#ffc8c6"/></linearGradient>
+<linearGradient id="f14" gradientUnits="userSpaceOnUse" x1="1.95" y1="94.91" x2="2.13" y2="103.57"><stop offset="0" stop-color="#52300f"/><stop offset="1" stop-color="#1d2e4d"/></linearGradient>
+<linearGradient id="f15" gradientUnits="userSpaceOnUse" x1="-5.18" y1="17.12" x2="-0.13" y2="0.43"><stop offset="0" stop-color="#fcd72d"/><stop offset="1" stop-color="#8cffc1"/></linearGradient>
+<linearGradient id="f16" gradientUnits="userSpaceOnUse" x1="-1.03" y1="1.99" x2="6.08" y2="-11.7"><stop offset="0" stop-color="#ffbf23"/><stop offset="1" stop-color="#85e9a7"/></linearGradient>
+<linearGradient id="f17" gradientUnits="userSpaceOnUse" x1="94.4" y1="3.01" x2="99.1" y2="3.16"><stop offset="0" stop-color="#473a12"/><stop offset="1" stop-color="#164739"/></linearGradient>
+<linearGradient id="f18" gradientUnits="userSpaceOnUse" x1="-2.34" y1="92.19" x2="-2.49" y2="97.86"><stop offset="0" stop-color="#4e380c"/><stop offset="1" stop-color="#0f493f"/></linearGradient>
+<linearGradient id="f19" gradientUnits="userSpaceOnUse" x1="-12.31" y1="31.11" x2="-21.6" y2="54.59"><stop offset="0" stop-color="#f75659"/><stop offset="1" stop-color="#e73c83"/></linearGradient>
+<linearGradient id="f20" gradientUnits="userSpaceOnUse" x1="-12.36" y1="62.88" x2="-18.32" y2="93.24"><stop offset="0" stop-color="#ff428b"/><stop offset="1" stop-color="#8c7afd"/></linearGradient>
+<linearGradient id="f21" gradientUnits="userSpaceOnUse" x1="55.62" y1="-18.19" x2="85.13" y2="-27.83"><stop offset="0" stop-color="#a67416"/><stop offset="1" stop-color="#458d64"/></linearGradient>
+<linearGradient id="f22" gradientUnits="userSpaceOnUse" x1="39.41" y1="-7.51" x2="6.82" y2="-1.3"><stop offset="0" stop-color="#a55f17"/><stop offset="1" stop-color="#5f3293"/></linearGradient>
+<linearGradient id="f23" gradientUnits="userSpaceOnUse" x1="72.6" y1="4.49" x2="96.66" y2="5.97"><stop offset="0" stop-color="#ad661e"/><stop offset="1" stop-color="#89822e"/></linearGradient>
+<linearGradient id="f24" gradientUnits="userSpaceOnUse" x1="80.34" y1="68.27" x2="59.06" y2="50.18"><stop offset="0" stop-color="#916715"/><stop offset="1" stop-color="#942348"/></linearGradient>
+<linearGradient id="f25" gradientUnits="userSpaceOnUse" x1="-0.23" y1="0.4" x2="-13.26" y2="23.73"><stop offset="0" stop-color="#fffe68"/><stop offset="1" stop-color="#ffbebc"/></linearGradient>
+<linearGradient id="f26" gradientUnits="userSpaceOnUse" x1="54.36" y1="-9.75" x2="79.34" y2="-14.23"><stop offset="0" stop-color="#d1752d"/><stop offset="1" stop-color="#a69d39"/></linearGradient>
+<linearGradient id="f27" gradientUnits="userSpaceOnUse" x1="10.25" y1="103.28" x2="7.51" y2="75.61"><stop offset="0" stop-color="#a68420"/><stop offset="1" stop-color="#b5642b"/></linearGradient>
+<linearGradient id="f28" gradientUnits="userSpaceOnUse" x1="-1.4" y1="2.8" x2="-8.5" y2="16.97"><stop offset="0" stop-color="#ffb420"/><stop offset="1" stop-color="#ff7f4a"/></linearGradient>
+<linearGradient id="f29" gradientUnits="userSpaceOnUse" x1="-21.67" y1="33.67" x2="-6.6" y2="10.25"><stop offset="0" stop-color="#dc346d"/><stop offset="1" stop-color="#dd6b3f"/></linearGradient>
+<linearGradient id="f30" gradientUnits="userSpaceOnUse" x1="20.71" y1="-9.98" x2="44.75" y2="-21.57"><stop offset="0" stop-color="#813f25"/><stop offset="1" stop-color="#7f5911"/></linearGradient>
+<linearGradient id="f31" gradientUnits="userSpaceOnUse" x1="18.78" y1="-11.53" x2="-3.85" y2="2.36"><stop offset="0" stop-color="#683918"/><stop offset="1" stop-color="#671833"/></linearGradient>
+</defs>
+<g stroke-width="0.35" stroke-linejoin="round">
+<polygon points="87.79,29.39 69.65,23.63 91.19,34.4" fill="url(#f0)" stroke="url(#f0)"/>
+<polygon points="23.83,86.34 29.3,89.59 20.94,66.99" fill="url(#f1)" stroke="url(#f1)"/>
+<polygon points="110.39,76.37 96.59,82 86.21,91.15" fill="url(#f2)" stroke="url(#f2)"/>
+<polygon points="68.73,113.78 86.21,91.15 76.67,99.87" fill="url(#f3)" stroke="url(#f3)"/>
+<polygon points="110.39,76.37 101.94,56.66 96.59,82" fill="url(#f4)" stroke="url(#f4)"/>
+<polygon points="68.73,113.78 76.67,99.87 50.49,102.57" fill="url(#f5)" stroke="url(#f5)"/>
+<polygon points="51.49,6 32.82,30.48 50.98,29.02" fill="url(#f6)" stroke="url(#f6)"/>
+<polygon points="93.14,62.77 96.59,82 101.94,56.66" fill="url(#f7)" stroke="url(#f7)"/>
+<polygon points="6,46.2 29.7,47.73 32.82,30.48" fill="url(#f8)" stroke="url(#f8)"/>
+<polygon points="76.67,99.87 58.7,93.74 50.49,102.57" fill="url(#f9)" stroke="url(#f9)"/>
+<polygon points="51.49,6 50.98,29.02 75.1,24.16" fill="url(#f10)" stroke="url(#f10)"/>
+<polygon points="6,46.2 21.61,71.68 29.7,47.73" fill="url(#f11)" stroke="url(#f11)"/>
+<polygon points="104.75,32.18 93.14,62.77 101.94,56.66" fill="url(#f12)" stroke="url(#f12)"/>
+<polygon points="32.82,30.48 29.7,47.73 50.98,29.02" fill="url(#f13)" stroke="url(#f13)"/>
+<polygon points="26.5,102.05 50.49,102.57 58.7,93.74" fill="url(#f14)" stroke="url(#f14)"/>
+<polygon points="104.75,32.18 75.1,24.16 75.11,41.43" fill="url(#f15)" stroke="url(#f15)"/>
+<polygon points="75.11,41.43 75.1,24.16 50.98,29.02" fill="url(#f16)" stroke="url(#f16)"/>
+<polygon points="91.46,95.22 96.59,82 93.14,62.77" fill="url(#f17)" stroke="url(#f17)"/>
+<polygon points="91.46,95.22 58.7,93.74 76.67,99.87" fill="url(#f18)" stroke="url(#f18)"/>
+<polygon points="39.6,73.09 29.7,47.73 21.61,71.68" fill="url(#f19)" stroke="url(#f19)"/>
+<polygon points="26.5,102.05 39.6,73.09 21.61,71.68" fill="url(#f20)" stroke="url(#f20)"/>
+<polygon points="104.75,32.18 75.11,41.43 93.14,62.77" fill="url(#f21)" stroke="url(#f21)"/>
+<polygon points="26.5,102.05 58.7,93.74 39.6,73.09" fill="url(#f22)" stroke="url(#f22)"/>
+<polygon points="68.58,69.55 93.14,62.77 75.11,41.43" fill="url(#f23)" stroke="url(#f23)"/>
+<polygon points="58.7,93.74 68.58,69.55 39.6,73.09" fill="url(#f24)" stroke="url(#f24)"/>
+<polygon points="47.12,44.82 50.98,29.02 29.7,47.73" fill="url(#f25)" stroke="url(#f25)"/>
+<polygon points="91.46,95.22 93.14,62.77 68.58,69.55" fill="url(#f26)" stroke="url(#f26)"/>
+<polygon points="91.46,95.22 68.58,69.55 58.7,93.74" fill="url(#f27)" stroke="url(#f27)"/>
+<polygon points="47.12,44.82 75.11,41.43 50.98,29.02" fill="url(#f28)" stroke="url(#f28)"/>
+<polygon points="47.12,44.82 29.7,47.73 39.6,73.09" fill="url(#f29)" stroke="url(#f29)"/>
+<polygon points="47.12,44.82 68.58,69.55 75.11,41.43" fill="url(#f30)" stroke="url(#f30)"/>
+<polygon points="47.12,44.82 39.6,73.09 68.58,69.55" fill="url(#f31)" stroke="url(#f31)"/>
+</g>
+</svg>

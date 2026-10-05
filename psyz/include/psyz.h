@@ -40,6 +40,7 @@
 #include <psyz/log.h>
 
 #include <psyz/audio.h>
+#include <psyz/bootlogo.h>
 #include <psyz/cd.h>
 #include <psyz/dbgserver.h>
 #include <psyz/dma.h>
