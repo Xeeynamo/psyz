@@ -28,7 +28,7 @@
 #define VSYNC_PAL 50.0
 
 // hooks the including renderer backend must implement
-static void PlatformBackend_SetDriverVsync(bool enable);
+static bool PlatformBackend_SetDriverVsync(bool enable);
 static void PlatformBackend_Present(void);
 static void QuitPlatform(void);
 #ifdef PLATFORM_WEB
@@ -270,8 +270,7 @@ static double GetElapsedMicroseconds(Uint64 start, Uint64 end) {
 
 static void ConfigureVSync(double target_fps) {
     if (vsync_mode == PSYZ_VSYNC_ON) {
-        PlatformBackend_SetDriverVsync(true);
-        use_driver_vsync = true;
+        use_driver_vsync = PlatformBackend_SetDriverVsync(true);
         INFOF("vsync forced ON (driver VSync)");
         return;
     }
@@ -300,8 +299,7 @@ static void ConfigureVSync(double target_fps) {
     bool can_use_driver_vsync =
         fabs((1.0 / detected_framerate) - target_time) < tolerance_us;
 
-    if (can_use_driver_vsync) {
-        PlatformBackend_SetDriverVsync(true);
+    if (can_use_driver_vsync && PlatformBackend_SetDriverVsync(true)) {
         use_driver_vsync = true;
         INFOF("detected %.2f Hz monitor, use driver VSync", detected_framerate);
     } else {

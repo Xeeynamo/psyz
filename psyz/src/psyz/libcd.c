@@ -8,6 +8,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <limits.h>
+#include <kernel.h>
 #include "../internal.h"
 #include "../../decomp/src/libspu/libspu_private.h"
 
@@ -411,6 +412,13 @@ static size_t cd_buf_count = 0; // number of valid frames in buffer
 static int is_playing = 0; // pause or unpause seeking through the CD stream
 static int is_muted = 0;   // return empty samples while CD keeps streaming
 
+static void cd_data_end(void) {
+    if (CD_cbready) {
+        CD_cbready(CdlDataEnd, NULL);
+    }
+    Psyz_KernelRaise(HwCdRom, EvSpTRAP);
+}
+
 // CD audio pull callback — called by SPU when its internal ring buffer
 // runs low. Fills `buf` with up to `max_frames` interleaved stereo frames.
 // One mutex lock per batch rather than per frame.
@@ -450,8 +458,8 @@ static size_t cdda_pull_samples(short* buf, size_t max_frames) {
     }
 end:
     Psyz_AudioUnlock();
-    if (hit_eof && CD_cbready) {
-        CD_cbready(CdlDataEnd, NULL);
+    if (hit_eof) {
+        Psyz_KernelPost(cd_data_end);
     }
     return written;
 }
@@ -675,8 +683,8 @@ end:
         xa.active = 0;
     }
     Psyz_AudioUnlock();
-    if (hit_eof && CD_cbready) {
-        CD_cbready(CdlDataEnd, NULL);
+    if (hit_eof) {
+        Psyz_KernelPost(cd_data_end);
     }
     return written;
 }
@@ -970,7 +978,15 @@ int CD_ready(int mode, u_char* result) {
     }
     return CdlDataReady;
 }
+static int CD_command(u_char com, u_char* param, u_char* result, s32 arg3);
+
 int CD_cw(u_char com, u_char* param, u_char* result, s32 arg3) {
+    int ret = CD_command(com, param, result, arg3);
+    Psyz_KernelRaise(HwCdRom, EvSpTRAP);
+    return ret;
+}
+
+static int CD_command(u_char com, u_char* param, u_char* result, s32 arg3) {
     int total;
     int t;
     int abs_sector;

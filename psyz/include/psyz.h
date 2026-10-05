@@ -50,7 +50,6 @@
 #include <psyz/module.h>
 #include <psyz/spu.h>
 #include <psyz/system.h>
-#include <psyz/timers.h>
 #include <psyz/video.h>
 
 #endif

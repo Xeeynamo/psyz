@@ -498,9 +498,9 @@ bool InitPlatform() {
     return true;
 }
 
-static void PlatformBackend_SetDriverVsync(bool enable) {
+static bool PlatformBackend_SetDriverVsync(bool enable) {
     if (!device || !swapchain_ok) {
-        return;
+        return false;
     }
     SDL_GPUPresentMode mode = SDL_GPU_PRESENTMODE_VSYNC;
     if (!enable) {
@@ -512,8 +512,9 @@ static void PlatformBackend_SetDriverVsync(bool enable) {
             mode = SDL_GPU_PRESENTMODE_MAILBOX;
         }
     }
-    SDL_SetGPUSwapchainParameters(
-        device, sdl3_window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, mode);
+    return SDL_SetGPUSwapchainParameters(
+               device, sdl3_window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, mode) &&
+           enable;
 }
 
 static void UpdateScissor(void);
@@ -1088,7 +1089,8 @@ int Draw_PushPrim(u_long* packets, int max_len) {
     Vertex* v;
 
     // to ensure we always have space, we pretend we want to allocate a quad
-    Draw_EnsureBufferWillNotOverflow(4, 6);
+    // Gouraud read-ahead can write a colour into a fifth vertex slot.
+    Draw_EnsureBufferWillNotOverflow(5, 6);
     v = vertex_cur;
     if (isShadeTex) {
         v->r = (unsigned char)(*packets >> 0);

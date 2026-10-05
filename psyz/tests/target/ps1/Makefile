@@ -21,8 +21,8 @@ LDFLAGS := $(ARCH) -g -static -Wl,--gc-sections -T$(NUGGET)/nooverlay.ld \
 	-T$(NUGGET)/ps-exe.ld -Wl,--oformat=elf32-littlemips \
 	-Wl,-Map=$(BUILD)/psyz_tests.map -L$(NUGGET)/psyq/lib
 
-SRCS := $(TESTS)/test_main.c $(TESTS)/test_libapi.c $(TESTS)/test_libgte.c \
-	$(TESTS)/test_libgpu.c $(TESTS)/test_libspu.c \
+SRCS := $(TESTS)/test_main.c $(TESTS)/test_libapi.c $(TESTS)/test_events.c \
+	$(TESTS)/test_libgte.c $(TESTS)/test_libgpu.c $(TESTS)/test_libspu.c \
 	$(TESTS)/frontbuffer_psyz.c $(ZTEST)/ztest.c ps1_psyz_stubs.c ps1_heap.c
 OBJS := $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o))) $(BUILD)/crt0.o
 

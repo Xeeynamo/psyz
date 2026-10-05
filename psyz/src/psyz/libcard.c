@@ -2,6 +2,7 @@
 #include <libapi.h>
 #include <psyz/log.h>
 #include <sys/stat.h>
+#include "../internal.h"
 
 // 1:valid, 0:invalid
 static inline int validate_chan(long chan) {
@@ -33,58 +34,48 @@ long _card_auto(long val) {
     return val;
 }
 
-long _card_info(long chan) {
+static long last_chan;
+
+// Cards live as host directories and are always plugged in, but there is no
+// multi-tap, so its extra slots time out like an empty port.
+static long card_op(unsigned int sw_desc, long chan) {
     if (!validate_chan(chan)) {
-        // TODO: unset SwCARD/EvSpIOE
-        // TODO: unset SwCARD/EvSpTIMOUT
-        // TODO: unset SwCARD/EvSpNEW
-        // TODO: set SwCARD/EvSpERROR
         return 0;
     }
-    // TODO: set SwCARD/EvSpIOE
-    // TODO: unset SwCARD/EvSpTIMOUT
-    // TODO: unset SwCARD/EvSpNEW
-    // TODO: unset SwCARD/EvSpERROR
-    NOT_IMPLEMENTED;
+    last_chan = chan;
+    unsigned int spec = (chan & 15) ? EvSpTIMOUT : EvSpIOE;
+    if (sw_desc) {
+        Psyz_KernelRaise(sw_desc, spec);
+    }
+    Psyz_KernelRaise(HwCARD, spec);
     return 1;
 }
 
-long _card_load(long chan) {
-    if (!validate_chan(chan)) {
-        // TODO: unset SwCARD/EvSpIOE
-        // TODO: unset SwCARD/EvSpTIMOUT
-        // TODO: unset SwCARD/EvSpNEW
-        // TODO: set SwCARD/EvSpERROR
-        return 0;
-    }
-    // TODO: set SwCARD/EvSpIOE
-    // TODO: unset SwCARD/EvSpTIMOUT
-    // TODO: unset SwCARD/EvSpNEW
-    // TODO: unset SwCARD/EvSpERROR
-    NOT_IMPLEMENTED;
-    return 1;
-}
+long _card_info(long chan) { return card_op(SwCARD, chan); }
 
-void _new_card(void) { NOT_IMPLEMENTED; }
+long _card_load(long chan) { return card_op(SwCARD, chan); }
+
+void _new_card(void) {}
 
 long _card_status(long drv) {
-    NOT_IMPLEMENTED;
-    return 0;
+    (void)drv;
+    return 1;
 }
 
-void InitCARD2(long val) { NOT_IMPLEMENTED; }
-
-long StartCARD2(void) {
-    NOT_IMPLEMENTED;
-    return 0;
+long _card_wait(long drv) {
+    (void)drv;
+    return 1;
 }
 
-long StopCARD2(void) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
+unsigned long _card_chan(void) { return (unsigned long)last_chan; }
 
-void _ExitCard(void) { NOT_IMPLEMENTED; }
+void InitCARD2(long val) { (void)val; }
+
+long StartCARD2(void) { return 1; }
+
+long StopCARD2(void) { return 1; }
+
+void _ExitCard(void) {}
 
 static void _bzero(unsigned char* p, int n) { memset(p, 0, n); }
 
@@ -138,11 +129,15 @@ long _card_sector_write(long chan, long block, unsigned char* buf) {
 }
 
 long _card_write(long chan, long block, unsigned char* buf) {
-    NOT_IMPLEMENTED;
-    return 0;
+    LOG_ONCE("raw sectors are not emulated, only the completion event");
+    (void)block;
+    (void)buf;
+    return card_op(0, chan);
 }
 
 long _card_read(long chan, long block, unsigned char* buf) {
-    NOT_IMPLEMENTED;
-    return 0;
+    LOG_ONCE("raw sectors are not emulated, only the completion event");
+    (void)block;
+    (void)buf;
+    return card_op(0, chan);
 }

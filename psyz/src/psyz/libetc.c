@@ -1,6 +1,5 @@
 #include <psyz.h>
 #include <libetc.h>
-#include <stdint.h>
 
 #include "libapi.h"
 #include "../internal.h"
@@ -49,20 +48,6 @@ unsigned int PadRead(int id) {
 
 void PadStop(void) { NOT_IMPLEMENTED; }
 
-void (*g_VsyncCallbacks[8])() = {NULL};
-
-int VSyncCallback(void (*f)()) { return VSyncCallbacks(4, f); }
-
-int VSyncCallbacks(int ch, void (*f)()) {
-    void (*prev)();
-    if (ch < 0 || ch >= LEN(g_VsyncCallbacks)) {
-        return 0;
-    }
-    prev = g_VsyncCallbacks[ch];
-    g_VsyncCallbacks[ch] = f;
-    return (int)(intptr_t)prev;
-}
-
 static long video_mode = 0;
 long GetVideoMode() { return video_mode; }
 long SetVideoMode(long mode) {
@@ -71,50 +56,9 @@ long SetVideoMode(long mode) {
     return prev;
 }
 
-int SetIntrMask(int arg) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
-int StopCallback(void) { NOT_IMPLEMENTED; }
-int ResetCallback(void) { NOT_IMPLEMENTED; }
 void* DMACallback(int dma, void (*func)()) {
     NOT_IMPLEMENTED;
     return NULL;
-}
-
-#define RCNT2_CLOCK_HZ 4233600 // 1/8 of the ~33.8688 MHz PS1 CPU clock
-
-static struct {
-    unsigned rate_hz;      // tick rate this counter is programmed to, 0=stopped
-    unsigned accum;        // timer accumulating towards 44100 Hz, used to tick
-    void (*handler)(void); // interrupt handler bound to this counter, or NULL
-} rcnt2, rcnt3;
-
-static unsigned set_counter = 0;
-
-void* InterruptCallback(int arg0, void (*cb)()) {
-    if (arg0 < 0 || arg0 >= 0x100) {
-        return NULL;
-    }
-    void (*prev)(void) = NULL;
-    switch (set_counter) {
-    case 2: // RCntCNT2
-        prev = rcnt2.handler;
-        if (cb) {
-            rcnt2.handler = cb;
-            set_counter = 0;
-        }
-        break;
-    case 3: // RCntCNT3
-        prev = rcnt3.handler;
-        if (cb) {
-            rcnt3.handler = cb;
-            set_counter = 0;
-        }
-        break;
-    }
-    return prev;
 }
 
 int InitTAP(char* bufA, long lenA, char* bufB, long lenB) {
@@ -152,55 +96,4 @@ void PadInitMtap(u_char* pad1, u_char* pad2) {
 void PadStartCom(void) {
     // from PSY-Q 4.2
     NOT_IMPLEMENTED;
-}
-
-static unsigned rcnt_counter(long spec) {
-    return (unsigned)(spec & 0xFF); // strip Desc 0xFX000000
-}
-
-long SetRCnt(long spec, unsigned short target, long mode) {
-    set_counter = rcnt_counter(spec);
-    switch (set_counter) {
-    case 2: // RCntCNT2
-        rcnt2.rate_hz = target ? (unsigned)(RCNT2_CLOCK_HZ / target) : 0;
-        rcnt2.accum = 0;
-        break;
-    case 3: // RCntCNT3
-        rcnt3.rate_hz = (GetVideoMode() == MODE_PAL) ? 50 : 60;
-        rcnt3.accum = 0;
-        break;
-    }
-    return 1;
-}
-
-long ResetRCnt(long spec) {
-    switch (rcnt_counter(spec)) {
-    case 2:
-        rcnt2.accum = 0;
-        break;
-    case 3:
-        rcnt3.accum = 0;
-        break;
-    }
-    return 1;
-}
-
-static void rcnt_add(int* accum_state, int rate_hz, int n, void (*cb)(void)) {
-    if (rate_hz <= 0 || !cb) {
-        return;
-    }
-    int accum = *accum_state + rate_hz * n;
-    while (accum >= PSYZ_SPU_SAMPLE_RATE) {
-        accum -= PSYZ_SPU_SAMPLE_RATE;
-        cb();
-    }
-    *accum_state = accum;
-}
-
-void Psyz_RcntAdd(int n) {
-    if (n <= 0) {
-        return;
-    }
-    rcnt_add(&rcnt2.accum, rcnt2.rate_hz, n, rcnt2.handler);
-    rcnt_add(&rcnt3.accum, rcnt3.rate_hz, n, rcnt3.handler);
 }

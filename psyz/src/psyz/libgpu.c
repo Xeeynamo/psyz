@@ -170,7 +170,9 @@ static void GPU_Enqueue(u_long* packets) {
             }
             INFOF("GPU queue full, calling exeque");
             Psyz_GpuExeque();
-        } else if (sizeof(u_long) == 8) {
+        }
+        // a flush empties the queue; the packet that did not fit still goes in
+        if (sizeof(u_long) == 8) {
             // Wow okay, this part is uuuugly...
             // Gpu code is usually written to a u_long array, which will work
             // fine on both 32-bit and 64-bit compiled code.

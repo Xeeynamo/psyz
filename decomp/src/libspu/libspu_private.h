@@ -241,6 +241,9 @@ void _SpuInit(int bHot);
 int _spu_init(int bHot);
 int _SpuIsInAllocateArea_(unsigned);
 void _spu_FiDMA(void);
+#ifdef __psyz
+void _spu_DmaDone(void);
+#endif
 unsigned _spu_Fw(unsigned char* addr, unsigned size);
 unsigned _spu_Fr(unsigned char* addr, unsigned size);
 void _spu_FsetRXX(unsigned offset, unsigned value, unsigned mode);

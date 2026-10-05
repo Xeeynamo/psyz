@@ -50,11 +50,10 @@ PsyzVSyncCb Psyz_SetVSyncCb(PsyzVSyncCb cb) {
     return prev;
 }
 
-extern void (*g_VsyncCallbacks[8])();
-
 // Known limitation: VSync(n) with n > 1 paces a single frame, not n vblanks
 int VSync(int mode) {
-    int elapsed, n, i;
+    int elapsed, n;
+    Psyz_KernelPoll();
     if (mode < 0) {
         return Psyz_VideoVSync(-1);
     } else if (mode == 1) {
@@ -73,11 +72,7 @@ int VSync(int mode) {
         g_PsyzVsyncCb();
     }
     for (; n > 0; n--) {
-        for (i = 0; i < LEN(g_VsyncCallbacks); i++) {
-            if (g_VsyncCallbacks[i]) {
-                g_VsyncCallbacks[i]();
-            }
-        }
+        Psyz_KernelVBlank();
     }
     return elapsed;
 }
@@ -170,138 +165,7 @@ long ReadInitPadFlag(void) {
     return 0;
 }
 
-void ChangeClearPAD(long a) { NOT_IMPLEMENTED; }
-
-static unsigned long event_first_empty = 0;
-static struct EvCB events[0x100] = {0};
-static long GetFirstFreeEvent() {
-    // event_first_empty brings the function to O(1) in an optimistic scenario,
-    // but it does not guarantee it always points to an empty event
-    // Search from event_first_empty to end
-    for (unsigned long i = event_first_empty; i < LEN(events); i++) {
-        if (!events[i].desc) {
-            return (long)i;
-        }
-    }
-    // Search from beginning to event_first_empty (wrap around)
-    for (unsigned long i = 0; i < event_first_empty; i++) {
-        if (!events[i].desc) {
-            return (long)i;
-        }
-    }
-    return -1;
-}
-long OpenEvent(unsigned long desc, long spec, long mode, long (*func)()) {
-    if (!desc) {
-        WARNF("invalid desc %08X", desc);
-        return -1;
-    }
-    long id = GetFirstFreeEvent();
-    if (id < 0) {
-        WARNF("run out of memory");
-        return -1;
-    }
-    struct EvCB* e = &events[id];
-    e->desc = desc;
-    e->spec = (int)spec;
-    e->mode = (int)mode;
-    e->FHandler = func;
-    e->system[0] = 0;
-    e->system[1] = 0;
-    int supported = 1;
-    switch (desc) {
-    case SwCARD:
-        switch (spec) {
-        case EvSpIOE: // always report memory card as connected
-            e->status = 1;
-            break;
-        case EvSpERROR:  // never errors
-        case EvSpTIMOUT: // never report memory card as disconnected
-        case EvSpNEW:    // never block writing after connection
-            e->status = 0;
-            break;
-        default:
-            supported = 0;
-            break;
-        }
-        break;
-    case HwCARD:
-        switch (spec) {
-        case EvSpIOE: // always report end of IO
-            e->status = 1;
-            break;
-        case EvSpERROR:  // never errors
-        case EvSpTIMOUT: // never timeout
-        case EvSpNEW:    // never report a new memory card
-            e->status = 0;
-            break;
-        default:
-            supported = 0;
-            break;
-        }
-        break;
-    default:
-        supported = 0;
-        break;
-    }
-    if (!supported) {
-        e->status = 0;
-        WARNF("unsupported spec:%08X, desc:%04X, mode:%04X", spec, desc, mode);
-    }
-    event_first_empty = id + 1;
-    // Wrap around if event_first_empty is beyond array bounds
-    if (event_first_empty >= LEN(events)) {
-        event_first_empty = 0;
-    }
-    return id;
-}
-long CloseEvent(unsigned long event) {
-    if (event >= LEN(events)) {
-        WARNF("invalid event ID %d", event);
-        return 0;
-    }
-    events[event].desc = 0;
-    event_first_empty = event;
-    return 1;
-}
-long WaitEvent(unsigned long event) {
-    if (event >= LEN(events)) {
-        WARNF("invalid event ID %d", event);
-        return 0;
-    }
-    // never waits
-    return 1;
-}
-long EnableEvent(unsigned long event) {
-    if (event >= LEN(events)) {
-        WARNF("invalid event ID %d", event);
-        return 0;
-    }
-    NOT_IMPLEMENTED;
-    return 1;
-}
-long DisableEvent(unsigned long event) {
-    if (event >= LEN(events)) {
-        WARNF("invalid event ID %d", event);
-        return 0;
-    }
-    NOT_IMPLEMENTED;
-    return 1;
-}
-long TestEvent(unsigned long event) {
-    if (event >= LEN(events)) {
-        WARNF("invalid event ID %d", event);
-        return 0;
-    }
-    return events[event].status;
-}
-
-void PS1_EnterCriticalSection(void) { NOT_IMPLEMENTED; }
-void PS1_ExitCriticalSection(void) { NOT_IMPLEMENTED; }
-
-void DeliverEvent(unsigned ev1, unsigned ev2) { NOT_IMPLEMENTED; }
-
-void UnDeliverEvent(unsigned ev1, unsigned ev2) { NOT_IMPLEMENTED; }
+void ChangeClearPAD(long val) { (void)val; }
 
 void SystemError(char c, long n) {
     NOT_IMPLEMENTED;

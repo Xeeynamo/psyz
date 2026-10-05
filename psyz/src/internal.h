@@ -27,4 +27,18 @@
 // audio pause when the application returns from the background.
 int Psyz_AudioIsPaused(void);
 
+// Delivers a kernel event as an emulated device interrupt would: right away,
+// or at ExitCriticalSection when the caller is inside a critical section.
+void Psyz_KernelRaise(unsigned int desc, unsigned int spec);
+
+// Runs fn as an interrupt on the kernel's interrupt thread. Never blocks, so
+// the audio thread can use it.
+void Psyz_KernelPost(void (*fn)(void));
+
+// Raises the vblank interrupt; VSync calls it once per emulated frame.
+void Psyz_KernelVBlank(void);
+
+// Services due timers when the host has no thread to run them.
+void Psyz_KernelPoll(void);
+
 #endif
