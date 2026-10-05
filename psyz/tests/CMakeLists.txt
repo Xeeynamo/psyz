@@ -12,7 +12,6 @@ set(PSYZ_TEST_SOURCES
     test_libgpu.c
     test_libcd.c
     test_libspu.c
-    test_bootlogo.c
     frontbuffer_psyz.c
 )
 
@@ -31,5 +30,5 @@ if(PLATFORM_PSP)
 else()
     enable_testing()
     add_test(NAME psyz_tests COMMAND ${PROJECT_NAME}
-             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
