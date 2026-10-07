@@ -2,7 +2,7 @@
 cd tests
 if not exist "build\clang" mkdir build\clang
 cd build\clang
-cmake ../.. -T ClangCl -DCMAKE_BUILD_TYPE=Debug || (cd ..\..\.. && exit /b 1)
+cmake ../.. -T ClangCl %* -DCMAKE_BUILD_TYPE=Debug || (cd ..\..\.. && exit /b 1)
 cmake --build . --config Debug || (cd ..\..\.. && exit /b 1)
 copy /Y build\sdl\Debug\SDL3.dll Debug\
 cd ..\..

@@ -466,6 +466,11 @@ end:
 
 #define XA_DECODED_MAX_FRAMES 4032            // 18 blocks * 4 sub * 28 samples
 #define XA_STEP_Q16 ((37800u << 16) / 44100u) // 56173
+// Real hardware keeps reading sectors and discards the ones rejected by the
+// filter, so once the selected file/channel ends playback goes silent. Give up
+// after this many consecutive rejected sectors instead of scanning the disc
+// for the next matching one, which is unrelated audio.
+#define XA_MAX_SECTOR_GAP 64
 
 static struct {
     short decoded[XA_DECODED_MAX_FRAMES * 2];
@@ -480,6 +485,7 @@ static struct {
     short rh_l[4], rh_r[4];
     unsigned int phase; // 16.16 fractional position into the input stream
     int cur_abs_sector; // absolute last sector used, for CdlGetlocL
+    int stream_ended;   // filtered file/channel ran out, emit silence
 } xa;
 
 static void xa_reset_stream(void) {
@@ -490,6 +496,7 @@ static void xa_reset_stream(void) {
     memset(xa.rh_l, 0, sizeof(xa.rh_l));
     memset(xa.rh_r, 0, sizeof(xa.rh_r));
     xa.phase = 0;
+    xa.stream_ended = 0;
 }
 
 static int xa_sector_matches(unsigned char file, unsigned char channel) {
@@ -565,7 +572,8 @@ static int xa_decode_user_mono_4bit(const unsigned char* user) {
 
 static int xa_read_and_decode_sector(void) {
     unsigned char sector[SECTOR_SIZE];
-    while (1) {
+    int gap = 0;
+    while (!xa.stream_ended) {
         const size_t n = fread(sector, 1, SECTOR_SIZE, track_file);
         if (n != SECTOR_SIZE) {
             return 0; // EOF or short read
@@ -575,10 +583,11 @@ static int xa_read_and_decode_sector(void) {
         const unsigned char channel = sector[0x11];
         const unsigned char submode = sector[0x12];
         const unsigned char ci = sector[0x13];
-        if ((submode & 0x44) != 0x44) {
-            continue; // data sector, skip from XA stream
-        }
-        if (!xa_sector_matches(file, channel)) {
+        if ((submode & 0x44) != 0x44 || !xa_sector_matches(file, channel)) {
+            // data sector or filtered out, skip from XA stream
+            if (++gap >= XA_MAX_SECTOR_GAP) {
+                xa.stream_ended = 1;
+            }
             continue;
         }
         const unsigned char* user = &sector[0x18];
@@ -597,6 +606,10 @@ static int xa_read_and_decode_sector(void) {
         xa.decoded_pos = 0;
         return 1;
     }
+    memset(xa.decoded, 0, sizeof(xa.decoded));
+    xa.decoded_count = XA_DECODED_MAX_FRAMES / 2;
+    xa.decoded_pos = 0;
+    return 1;
 }
 
 // Pull next 37800 Hz stereo input frame into the Hermite ring buffers.

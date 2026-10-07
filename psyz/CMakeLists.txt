@@ -310,6 +310,7 @@ endif()
 
 add_library(psyz STATIC ${PSYZ_SOURCES})
 target_compile_definitions(psyz PUBLIC __psyz)
+target_compile_definitions(psyz PRIVATE _FILE_OFFSET_BITS=64)
 if(EMSCRIPTEN)
     target_compile_definitions(psyz PUBLIC PLATFORM_WEB=1)
 endif()
