@@ -63,12 +63,12 @@ void _SsVmInit(char numVoices) {
         _svm_voice[i].unk2e = 0;
         _svm_voice[i].start_pan = 0;
         _svm_voice[i].start_vol = 0;
-        SPUW(voice[i].addr, 0x200);
-        SPUW(voice[i].pitch, 0x1000);
-        SPUW(voice[i].adsr[0], 0x80FF);
-        SPUW(voice[i].volume.left, 0);
-        SPUW(voice[i].volume.right, 0);
-        SPUW(voice[i].adsr[1], 0x4000);
+        SPUWV(i, addr, 0x200);
+        SPUWV(i, pitch, 0x1000);
+        SPUWV(i, adsr[0], 0x80FF);
+        SPUWV(i, volume.left, 0);
+        SPUWV(i, volume.right, 0);
+        SPUWV(i, adsr[1], 0x4000);
         _svm_cur.voice = i;
         _SsVmKeyOffNow(1);
     }
