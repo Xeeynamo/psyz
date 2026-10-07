@@ -32,7 +32,7 @@ short SsUtKeyOn(short vabId, short prog, short tone, short note, short fine,
     _svm_cur.mpan = _svm_pg[prog].mpan;
     _svm_cur.prog_tones = _svm_pg[prog].tones;
 
-    tn = _svm_cur.tone + (_svm_cur.field_7_fake_program * 16);
+    tn = _svm_cur.tone + (_svm_cur.fake_program * 16);
     _svm_cur.tone_prior = _svm_tn[tn].prior;
     _svm_cur.tone_vag_idx = _svm_tn[tn].vag;
     _svm_cur.tone_vol = _svm_tn[tn].vol;
@@ -54,11 +54,11 @@ short SsUtKeyOn(short vabId, short prog, short tone, short note, short fine,
     }
 
     _svm_cur.voice = voice;
-    _svm_voice[voice].unke = 0x21;
+    _svm_voice[voice].seq_sep_no = 0x21;
     _svm_voice[voice].vabId = vabId;
-    _svm_voice[voice].unk10 = _svm_cur.field_7_fake_program;
+    _svm_voice[voice].fake_program = _svm_cur.fake_program;
     _svm_voice[voice].prog = prog;
-    _svm_voice[voice].unk0 = _svm_cur.tone_vag_idx;
+    _svm_voice[voice].vag_idx = _svm_cur.tone_vag_idx;
     _svm_voice[voice].tone = _svm_cur.tone;
     _svm_voice[voice].note = note;
     _svm_voice[voice].unk1b = 1;
@@ -82,7 +82,7 @@ short SsUtKeyOff(short voice, short vabId, short prog, short tone, short note) {
                 _svm_voice[voice].prog == prog &&
                 _svm_voice[voice].tone == tone &&
                 _svm_voice[voice].note == note &&
-                _svm_voice[voice].unk0 == 0xFF) {
+                _svm_voice[voice].vag_idx == 0xFF) {
                 vmNoiseOff(voice);
             } else {
                 _svm_cur.voice = voice;

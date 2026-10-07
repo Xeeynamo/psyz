@@ -5,9 +5,9 @@ void SsUtAllKeyOff(short mode) {
 
     for (i = 0; i < _SsVmMaxVoice; i++) {
         _svm_voice[i].unk2 = 0x18;
-        _svm_voice[i].unk6 = 0;
-        _svm_voice[i].unke = 0xFF;
-        _svm_voice[i].unk10 = 0;
+        _svm_voice[i].key_stat = 0;
+        _svm_voice[i].seq_sep_no = 0xFF;
+        _svm_voice[i].fake_program = 0;
         _svm_voice[i].prog = 0;
         _svm_voice[i].tone = 0xFF;
         SPUWV(i << 19 >> 19, addr, 0x200);

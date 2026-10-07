@@ -63,11 +63,6 @@ void _SsSeqPlay(short arg0, short arg1) { NOT_IMPLEMENTED; }
 
 void _SsSndTempo(short arg0, short arg1) { NOT_IMPLEMENTED; }
 
-short SsSeqOpen(u_long* addr, short vab_id) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
 void SsSetMarkCallback(
     short access_num, short seq_num, SsMarkCallbackProc proc) {
     NOT_IMPLEMENTED;
@@ -80,18 +75,6 @@ void SsSeqSetDecrescendo(short seq_access_num, short vol, long v_time) {
 void _SsVmGetSeqVol(short seq_sep_no, short* voll, short* volr) {
     NOT_IMPLEMENTED;
 }
-
-char _SsVmAlloc(short voice) {
-    NOT_IMPLEMENTED;
-    return -1;
-}
-
-void _SsVmSetSeqVol(
-    short seq_sep_no, unsigned short voll, unsigned short volr, short arg3) {
-    NOT_IMPLEMENTED;
-}
-
-void _SsVmSeqKeyOff(s16 seq_sep_num) { NOT_IMPLEMENTED; }
 
 void vmNoiseOn(char voice) { NOT_IMPLEMENTED; }
 

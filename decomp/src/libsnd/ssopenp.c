@@ -1,7 +1,5 @@
 #include "libsnd_private.h"
 
-typedef void (*sCb)();
-
 short SsSepOpen(unsigned long* addr, short vab_id, short seq_cnt) {
     short bit;
     short i;

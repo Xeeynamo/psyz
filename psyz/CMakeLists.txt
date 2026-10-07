@@ -117,6 +117,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/playmode.c
     ../decomp/src/libsnd/replay.c
     ../decomp/src/libsnd/sepinit.c
+    ../decomp/src/libsnd/seqinit.c
     ../decomp/src/libsnd/sscall.c
     ../decomp/src/libsnd/ssclose.c
     ../decomp/src/libsnd/sscres.c
@@ -127,6 +128,8 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/ssloop.c
     ../decomp/src/libsnd/ssopenp.c
     ../decomp/src/libsnd/ssopenpj.c
+    ../decomp/src/libsnd/ssopenq.c
+    ../decomp/src/libsnd/ssopenqj.c
     ../decomp/src/libsnd/ssplay.c
     ../decomp/src/libsnd/ssquit.c
     ../decomp/src/libsnd/sssattr.c
@@ -152,6 +155,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/ut_ron.c
     ../decomp/src/libsnd/ut_vvol.c
     ../decomp/src/libsnd/vol.c
+    ../decomp/src/libsnd/vm_aloc1.c
     ../decomp/src/libsnd/vm_aloc2.c
     ../decomp/src/libsnd/vm_autop.c
     ../decomp/src/libsnd/vm_doff.c
@@ -162,6 +166,7 @@ set(PSYZ_SOURCES
     ../decomp/src/libsnd/vm_noff.c
     ../decomp/src/libsnd/vm_nowof.c
     ../decomp/src/libsnd/vm_nowon.c
+    ../decomp/src/libsnd/vm_seq.c
     ../decomp/src/libsnd/vm_vsu.c
     ../decomp/src/libsnd/vs_mono.c
     ../decomp/src/libsnd/vs_srv.c

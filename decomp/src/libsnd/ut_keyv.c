@@ -33,7 +33,7 @@ short SsUtKeyOnV(short voice, short vabId, short prog, short tone, short note,
     _svm_cur.mvol = _svm_pg[prog].mvol;
     _svm_cur.mpan = _svm_pg[prog].mpan;
     _svm_cur.prog_tones = _svm_pg[prog].tones;
-    tn = _svm_cur.tone + (_svm_cur.field_7_fake_program * 16);
+    tn = _svm_cur.tone + (_svm_cur.fake_program * 16);
     _svm_cur.tone_prior = _svm_tn[tn].prior;
     _svm_cur.tone_vag_idx = _svm_tn[tn].vag;
     _svm_cur.tone_vol = _svm_tn[tn].vol;
@@ -48,11 +48,11 @@ short SsUtKeyOnV(short voice, short vabId, short prog, short tone, short note,
         return -1;
     }
     _svm_cur.voice = voice;
-    _svm_voice[voice].unke = 0x21;
+    _svm_voice[voice].seq_sep_no = 0x21;
     _svm_voice[voice].vabId = vabId;
-    _svm_voice[voice].unk10 = _svm_cur.field_7_fake_program;
+    _svm_voice[voice].fake_program = _svm_cur.fake_program;
     _svm_voice[voice].prog = prog;
-    _svm_voice[voice].unk0 = _svm_cur.tone_vag_idx;
+    _svm_voice[voice].vag_idx = _svm_cur.tone_vag_idx;
     _svm_voice[voice].tone = _svm_cur.tone;
     _svm_voice[voice].note = note;
     _svm_voice[voice].unk1b = 1;

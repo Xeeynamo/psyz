@@ -4,12 +4,12 @@ void Snd_SetPlayMode(
     short sep_access_num, short seq_num, u8 play_mode, short l_count) {
     struct SeqStruct* score = &_ss_score[sep_access_num][seq_num];
 
-    score->unk0 = score->read_pos;
+    score->seq_ptr = score->read_pos;
     score->next_sep_pos = score->read_pos;
     score->loop_pos = score->read_pos;
     _ss_score[sep_access_num][seq_num].flags &= ~SEQ_FLAG_200;
     _ss_score[sep_access_num][seq_num].flags &= ~SEQ_FLAG_4;
-    score->unk20 = l_count;
+    score->l_count = l_count;
 
     if (play_mode == 1) {
         _ss_score[sep_access_num][seq_num].flags |= SEQ_FLAG_1;

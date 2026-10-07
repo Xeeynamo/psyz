@@ -43,16 +43,16 @@ void _SsVmInit(char numVoices) {
 
     for (i = 0; i < _SsVmMaxVoice; i++) {
         _svm_voice[i].unk2 = 0x18;
-        _svm_voice[i].unk0 = 0xFF;
-        _svm_voice[i].unke = -1;
+        _svm_voice[i].vag_idx = 0xFF;
+        _svm_voice[i].seq_sep_no = -1;
         _svm_voice[i].unk1b = 0;
         _svm_voice[i].unk04 = 0;
-        _svm_voice[i].unk6 = 0;
-        _svm_voice[i].unk10 = 0;
+        _svm_voice[i].key_stat = 0;
+        _svm_voice[i].fake_program = 0;
         _svm_voice[i].prog = 0;
         _svm_voice[i].tone = 0xFF;
-        _svm_voice[i].unk8 = 0;
-        _svm_voice[i].unka = 0x40;
+        _svm_voice[i].voll1 = 0;
+        _svm_voice[i].pan = 0x40;
         _svm_voice[i].auto_vol = 0;
         _svm_voice[i].unk1e = 0;
         _svm_voice[i].unk20 = 0;
@@ -63,12 +63,12 @@ void _SsVmInit(char numVoices) {
         _svm_voice[i].unk2e = 0;
         _svm_voice[i].start_pan = 0;
         _svm_voice[i].start_vol = 0;
-        SPUW(voice[i].addr, 0x200);
-        SPUW(voice[i].pitch, 0x1000);
-        SPUW(voice[i].adsr[0], 0x80FF);
-        SPUW(voice[i].volume.left, 0);
-        SPUW(voice[i].volume.right, 0);
-        SPUW(voice[i].adsr[1], 0x4000);
+        SPUWV(i, addr, 0x200);
+        SPUWV(i, pitch, 0x1000);
+        SPUWV(i, adsr[0], 0x80FF);
+        SPUWV(i, volume.left, 0);
+        SPUWV(i, volume.right, 0);
+        SPUWV(i, adsr[1], 0x4000);
         _svm_cur.voice = i;
         _SsVmKeyOffNow(1);
     }

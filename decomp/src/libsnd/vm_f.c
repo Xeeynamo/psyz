@@ -37,8 +37,8 @@ void _SsVmFlush(void) {
     _svm_envx_ptr = (_svm_envx_ptr + 1) & 0xF;
     _svm_envx_hist[_svm_envx_ptr] = 0;
     for (i = 0; i < _SsVmMaxVoice; i++) {
-        _svm_voice[i].unk6 = SPUR(voice[i].volumex);
-        if (!_svm_voice[i].unk6) {
+        _svm_voice[i].key_stat = SPURV(i, volumex);
+        if (!_svm_voice[i].key_stat) {
             _svm_envx_hist[_svm_envx_ptr] |= 1 << i;
         }
     }
