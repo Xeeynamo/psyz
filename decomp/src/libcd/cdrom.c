@@ -1,4 +1,9 @@
 #include <common.h>
 #include <libcd.h>
+#include "libcd_stream.h"
 
-INCLUDE_ASM("asm/nonmatchings/libcd/cdrom", StSetRing);
+void StSetRing(u_long* ring_addr, u_long ring_size) {
+    StRingAddr = (StHEADER*)ring_addr;
+    StRingSize = ring_size;
+    StClearRing();
+}
