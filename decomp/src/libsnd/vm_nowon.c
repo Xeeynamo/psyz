@@ -33,19 +33,19 @@ void _SsVmKeyOnNow(unsigned short vagCount, unsigned short pitch) {
         chR = (seed * (u16)ss->volr) / 127;
     }
     if (_svm_cur.tone_pan < 64) {
-        chL = (chR * _svm_cur.tone_pan) / 63;
+        chR = (chR * _svm_cur.tone_pan) / 63;
     } else {
-        chR = (chL * (127 - _svm_cur.tone_pan)) / 63;
+        chL = (chL * (127 - _svm_cur.tone_pan)) / 63;
     }
     if (_svm_cur.mpan < 64) {
-        chL = (chR * _svm_cur.mpan) / 63;
+        chR = (chR * _svm_cur.mpan) / 63;
     } else {
-        chR = (chL * (127 - _svm_cur.mpan)) / 63;
+        chL = (chL * (127 - _svm_cur.mpan)) / 63;
     }
     if (_svm_cur.pan < 64) {
-        chL = (chR * _svm_cur.pan) / 63;
+        chR = (chR * _svm_cur.pan) / 63;
     } else {
-        chR = (chL * (127 - _svm_cur.pan)) / 63;
+        chL = (chL * (127 - _svm_cur.pan)) / 63;
     }
     if (_svm_stereo_mono == 1) {
         if (chL < chR) {
