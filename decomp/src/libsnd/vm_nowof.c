@@ -15,7 +15,7 @@ void _SsVmKeyOffNow(int mode) {
     }
     _svm_voice[voice].unk1b = 0;
     _svm_voice[voice].unk04 = 0;
-    _svm_voice[voice].unk0 = 0;
+    _svm_voice[voice].vag_idx = 0;
     _svm_okof1 |= bitsLower;
     _svm_okof2 |= bitsUpper;
     _svm_okon1 &= ~_svm_okof1;

@@ -4,7 +4,7 @@ short SsUtGetVagAtr(short vabId, short prog, short toneNum, VagAtr* vagatrptr) {
     s16 temp_v1;
     if (_svm_vab_used[vabId] == 1) {
         _SsVmVSetUp(vabId, prog);
-        temp_v1 = toneNum + _svm_cur.field_7_fake_program * 0x10;
+        temp_v1 = toneNum + _svm_cur.fake_program * 0x10;
         vagatrptr->prior = _svm_tn[temp_v1].prior;
         vagatrptr->mode = _svm_tn[temp_v1].mode;
         vagatrptr->vol = _svm_tn[temp_v1].vol;

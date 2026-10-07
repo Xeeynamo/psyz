@@ -24,6 +24,7 @@ extern "C" {
 #define NUM_VAB 16
 
 typedef void (*SndSsMarkCallbackProc)(short seq_no, short sep_no, short data);
+typedef void (*sCb)();
 
 #define NUM_CC 13
 #define NUM_DE 20
@@ -41,32 +42,30 @@ struct Unk {
 };
 
 struct SeqStruct {
-    /* 0x00 */ u8* unk0;
+    /* 0x00 */ u8* seq_ptr;
     /* 0x04 */ u8* read_pos;
     /* 0x08 */ u8* next_sep_pos;
     /* 0x0C */ u8* loop_pos;
-    /* 0x10 */ u8 unk10;
-    /* 0x11 */ u8 unk11;
-    /* 0x12 */ u8 channel;
-    /* 0x13 */ u8 unk13;
+    /* 0x10 */ u32 unk10;
     /* 0x14 */ u8 play_mode;
     /* 0x15 */ u8 unk15;
-    /* 0x16 */ u8 unk16;
-    /* 0x17 */ u8 unk17;
+    /* 0x16 */ u8 running_status;
+    /* 0x17 */ u8 channel_idx;
     /* 0x18 */ u8 unk18;
     /* 0x19 */ u8 unk19;
-    /* 0x1A */ u8 unk1A;
+    /* 0x1A */ u8 fn_idx;
     /* 0x1B */ u8 unk1B;
     /* 0x1C */ u8 unk1C;
     /* 0x1D */ u8 unk1D;
     /* 0x1E */ u8 unk1E;
     /* 0x1F */ u8 unk1F;
-    /* 0x20 */ u8 unk20;
+    /* 0x20 */ u8 l_count;
     /* 0x21 */ u8 unk21;
     /* 0x22 */ u8 unk22;
     /* 0x23 */ u8 unk23;
-    /* 0x24 */ u16 unk24;
-    /* 0x26 */ u8 unk26;
+    /* 0x24 */ u8 rhythm_n;
+    /* 0x25 */ u8 rhythm_d;
+    /* 0x26 */ u8 vab_id;
     /* 0x27 */ u8 panpot[16];
     /* 0x37 */ u8 programs[16];
     /* 0x47 */ u8 unk47;
@@ -74,20 +73,22 @@ struct SeqStruct {
     /* 0x4A */ short vol_r;
     /* 0x4C */ s16 unk4C;
     /* 0x4E */ s16 unk4E;
-    /* 0x50 */ s16 unk50;
+    /* 0x50 */ s16 resolution;
     /* 0x52 */ s16 unk52;
     /* 0x54 */ s16 unk54;
     /* 0x56 */ s16 unk56;
-    /* 0x58 */ short voll; // maybe unsigned?
-    /* 0x5A */ short volr; // maybe unsigned?
+    /* 0x58 */ u16 voll;
+    /* 0x5A */ u16 volr;
     /* 0x5C */ s16 unk5C;
     /* 0x5E */ s16 unk5E;
     /* 0x60 */ short vol[16];
-    /* 0x80 */ u32 unk80;
+    /* 0x80 */ s16 channel_mute;
+    /* 0x82 */ u8 unk82;
+    /* 0x83 */ u8 unk83;
     /* 0x84 */ s32 unk84;
-    /* 0x88 */ s32 delta_value;
-    /* 0x8C */ s32 unk8c;
-    /* 0x90 */ s32 unk90;
+    /* 0x88 */ s32 unk88;
+    /* 0x8C */ s32 tempo;
+    /* 0x90 */ s32 delta_value;
     /* 0x94 */ u32 unk94;
     /* 0x98 */ unsigned int flags;
     /* 0x9C */ int v_time_l;
@@ -113,20 +114,20 @@ struct SndSeqTickEnv {
 };
 
 struct SpuVoice {
-    s16 unk0;
+    s16 vag_idx;
     s16 unk2;
     s16 unk04;
-    u16 unk6;
-    s16 unk8;
-    char unka;
+    u16 key_stat;
+    s16 voll1;
+    char pan;
     char unkb;
     s16 note; /* 0xC */
-    s16 unke;
-    s16 unk10;
+    s16 seq_sep_no;
+    s16 fake_program;
     s16 prog;  /* 0x12 */
     s16 tone;  /* 0x14*/
     s16 vabId; /* 0x16 */
-    s16 unk18;
+    s16 priority;
     u8 pad4[1];
     u8 unk1b;
     s16 auto_vol; /* 0x1c */
@@ -151,7 +152,7 @@ struct struct_svm {
     char volume;
     char pan;
     char prog;
-    char field_7_fake_program;
+    char fake_program;
     char field_8_unknown;
     char field_0x9;
     char mvol;
@@ -270,7 +271,7 @@ void _SsSndTempo(short seq_access_num, short arg1);
 void _SsSndStop(short seq_access_num, short arg1);
 void _SsUtResolveADSR(u16 arg0, u16 arg1, struct Unk* arg2);
 void _SsVmSeqKeyOff(s16 seq_sep_num);
-void _SsVmSetSeqVol(
+short _SsVmSetSeqVol(
     short seq_sep_no, unsigned short voll, unsigned short volr, short arg3);
 void _SsVmGetSeqVol(short seq_sep_no, short* voll, short* volr);
 void _spu_setInTransfer(s32);
@@ -279,6 +280,7 @@ void _SsSndSetVolData(
     short sep_access_num, short seq_num, short vol, int v_time);
 void _SsVmDamperOff(void);
 int _SsInitSoundSep(short flag, short i, short vab_id, unsigned long* addr);
+short _SsInitSoundSeq(short seq_no, short vab_id, u8* addr);
 int _SsReadDeltaValue(short seq_access_num, short seq_num);
 char _SsVmAlloc(short voice);
 void vmNoiseOn(char voice);

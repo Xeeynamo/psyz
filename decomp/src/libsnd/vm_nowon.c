@@ -29,8 +29,8 @@ void _SsVmKeyOnNow(unsigned short vagCount, unsigned short pitch) {
         ss = &_ss_score[_svm_cur.seq_sep_no & 0xFF]
                        [(_svm_cur.seq_sep_no >> 8) & 0xFF];
 #endif
-        chL = (seed * (u16)ss->voll) / 127;
-        chR = (seed * (u16)ss->volr) / 127;
+        chL = (seed * ss->voll) / 127;
+        chR = (seed * ss->volr) / 127;
     }
     if (_svm_cur.tone_pan < 64) {
         chR = (chR * _svm_cur.tone_pan) / 63;

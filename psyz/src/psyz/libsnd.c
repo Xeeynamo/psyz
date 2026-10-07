@@ -86,9 +86,10 @@ char _SsVmAlloc(short voice) {
     return -1;
 }
 
-void _SsVmSetSeqVol(
+short _SsVmSetSeqVol(
     short seq_sep_no, unsigned short voll, unsigned short volr, short arg3) {
     NOT_IMPLEMENTED;
+    return seq_sep_no;
 }
 
 void _SsVmSeqKeyOff(s16 seq_sep_num) { NOT_IMPLEMENTED; }

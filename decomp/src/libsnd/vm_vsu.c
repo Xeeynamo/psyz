@@ -13,7 +13,7 @@ int _SsVmVSetUp(short vabId, short prog) {
         _svm_tn = _svm_vab_tn[vabId];
         _svm_cur.vabId = vabId;
         _svm_cur.prog = prog;
-        _svm_cur.field_7_fake_program = _svm_pg[prog].reserved1;
+        _svm_cur.fake_program = _svm_pg[prog].reserved1;
         return 0;
     }
     return -1;

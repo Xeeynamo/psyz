@@ -6,18 +6,18 @@ int _SsReadDeltaValue(short seq_access_num, short seq_num) {
     unsigned char next;
     int result;
 
-    value = *score->unk0++;
+    value = *score->seq_ptr++;
     if (value == 0) {
         return 0;
     }
     if (value & 0x80) {
         value &= 0x7F;
         do {
-            next = *score->unk0++;
+            next = *score->seq_ptr++;
             value = (value << 7) + (next & 0x7F);
         } while (next & 0x80);
     }
     result = value * 10;
-    score->delta_value += result;
+    score->unk88 += result;
     return result;
 }

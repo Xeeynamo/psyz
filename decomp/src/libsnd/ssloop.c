@@ -2,7 +2,7 @@
 
 void SsSetLoop(short access_num, short seq_num, short l_count) {
     struct SeqStruct* score = &_ss_score[access_num][seq_num];
-    score->unk20 = l_count;
+    score->l_count = l_count;
     score->unk21 = 0;
 }
 

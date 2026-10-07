@@ -69,7 +69,7 @@ unsigned short note2pitch2(unsigned short note, unsigned short fine) {
     unsigned short pitch;
     int tone;
 
-    tone = _svm_cur.tone + (_svm_cur.field_7_fake_program * 16);
+    tone = _svm_cur.tone + (_svm_cur.fake_program * 16);
     step = (fine + _svm_tn[tone].shift) / 8;
     octaveBase = 0;
     if (step >= 16) {
