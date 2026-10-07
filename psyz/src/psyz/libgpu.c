@@ -135,6 +135,10 @@ static void DispatchPackets(u_long* buf, int len) {
 }
 
 int Psyz_GpuExeque() {
+    if (sizeof(void*) == 4) {
+        // 32-bit targets dispatch straight into the draw buffer
+        Draw_FlushBuffer();
+    }
     Draw_ResetBuffer();
     if (queue_len > 0) {
         DispatchPackets(queue_buf, queue_len);
