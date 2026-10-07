@@ -9,6 +9,7 @@
 #include "../internal.h"
 #include <SDL3/SDL.h>
 #include "sdl3_common.h"
+#include "sdl3_draw.h"
 
 #if defined(_WIN32)
 #include "shaders/psx_vert_dxil.h"

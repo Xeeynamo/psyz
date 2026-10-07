@@ -26,6 +26,7 @@
 #endif
 
 #include "sdl3_common.h"
+#include "sdl3_draw.h"
 
 // selected at runtime based on the active GL profile; the shader bodies are
 // shared and must stay legal in both GLSL 330 core and GLSL ES 3.00 (the
