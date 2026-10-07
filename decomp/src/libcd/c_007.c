@@ -8,7 +8,7 @@ u_long StFreeRing(u_long* base) {
     s16 nSectors;
     StHEADER* temp_v0;
 
-    temp_a1 = (base - (u_long*)&StRingAddr[StRingSize]) / 504;
+    temp_a1 = ((u32*)base - (u32*)&StRingAddr[StRingSize]) / 504;
     temp_v0 = &StRingAddr[temp_a1];
     nSectors = StRingAddr[temp_a1].nSectors;
     if ((s16)temp_v0->id != 4) {

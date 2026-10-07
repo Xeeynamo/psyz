@@ -214,13 +214,13 @@ typedef struct {
     u_short type;
     u_short secCount;
     u_short nSectors;
-    u_long frameCount;
-    u_long frameSize;
+    u32 frameCount;
+    u32 frameSize;
 
     u_short width;
     u_short height;
-    u_long dummy1;
-    u_long dummy2;
+    u32 dummy1;
+    u32 dummy2;
     CdlLOC loc;
 } StHEADER;
 

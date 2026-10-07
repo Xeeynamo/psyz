@@ -2,8 +2,9 @@
 #include <libcd.h>
 #include "libcd_stream.h"
 
-extern CdlLOC previous_frame_location;
-extern s32 next_frameid;
+CdlLOC previous_frame_location;
+s32 next_frameid;
+static s32 padding_D_800D1C60[2];
 
 void data_ready_callback(void) {
     StHEADER* ptr = &StRingAddr[StRingIdx2];

@@ -2,6 +2,8 @@
 #include <libcd.h>
 #include "libcd_stream.h"
 
+void (*StFunc1)(void), (*StFunc2)(void);
+
 void StClearRing(void) {
     StRingIdx3 = 0;
     StRingIdx2 = 0;
