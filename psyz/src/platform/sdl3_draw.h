@@ -8,7 +8,7 @@ static float GetDrawGridXScale(void) {
     return (float)draw_grid_target_width / (float)draw_grid_source_width;
 }
 
-int Draw_SetHorizontalGrid(
+static int DrawState_SetHorizontalGrid(
     unsigned int source_width, unsigned int target_width) {
     if (source_width == 0 || target_width == 0) {
         return -1;
@@ -178,7 +178,7 @@ static int SubtractGroupEnd(int start, int run_end) {
     return end;
 }
 
-void Draw_SetTexpageMode(ParamDrawTexpageMode* p) {
+static void DrawState_SetTexpageMode(ParamDrawTexpageMode* p) {
     // implements SetDrawMode, SetDrawEnv
     unsigned short mode = *(u_short*)p;
     SetDither((mode & 0x200) ? 1 : 0);
@@ -193,8 +193,8 @@ void Draw_SetTexpageMode(ParamDrawTexpageMode* p) {
         DEBUGF("tex_flip_y not implemented");
     }
 }
-void Draw_SetTextureWindow(unsigned int mask_x, unsigned int mask_y,
-                           unsigned int off_x, unsigned int off_y) {
+static void DrawState_SetTextureWindow(unsigned int mask_x, unsigned int mask_y,
+                                       unsigned int off_x, unsigned int off_y) {
     mask_x &= 0x1F;
     mask_y &= 0x1F;
     cur_twin = TWIN_PACK(
@@ -202,7 +202,7 @@ void Draw_SetTextureWindow(unsigned int mask_x, unsigned int mask_y,
         (unsigned char)((off_x & mask_x) * 8),
         (unsigned char)((off_y & mask_y) * 8));
 }
-void Draw_SetMask(int bit0, int bit1) {
+static void DrawState_SetMask(int bit0, int bit1) {
     if (bit0 || bit1) {
         NOT_IMPLEMENTED;
     }

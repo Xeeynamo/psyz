@@ -10,6 +10,7 @@
 #include <SDL3/SDL.h>
 #include "sdl3_common.h"
 #include "sdl3_draw.h"
+#include "rasterizer.h"
 
 #if defined(_WIN32)
 #include "shaders/psx_vert_dxil.h"
@@ -51,6 +52,10 @@
 #define clear_frag clear_frag_spv
 #define clear_frag_len clear_frag_spv_len
 #endif
+
+static const DrawBackend gpu_rasterizer;
+static const DrawBackend* draw_backend = &gpu_rasterizer;
+static bool rasterizer_locked;
 
 typedef struct {
     int x, y;
@@ -439,6 +444,7 @@ static bool CreateGpuResources(void) {
 }
 
 bool InitPlatform() {
+    rasterizer_locked = true;
     if (is_platform_initialized) {
         return is_platform_init_successful;
     }
@@ -688,6 +694,40 @@ static void ApplyPendingInternalRes(void) {
     INFOF("internal resolution set to %dx (%dx%d)", n, VRAM_W * n, VRAM_H * n);
 }
 
+static bool UploadSoftwareVram(void) {
+    SDL_GPUCommandBuffer* cmd = AcquireCmd();
+    if (!cmd) {
+        return false;
+    }
+    u8* pixels = SDL_MapGPUTransferBuffer(device, tex_upload_transfer, true);
+    if (!pixels) {
+        ERRORF("SDL_MapGPUTransferBuffer: %s", SDL_GetError());
+        return false;
+    }
+    ConvertRgb5551ToRgba8888(
+        SoftwareRasterizer_GetVram(), pixels, VRAM_W * VRAM_H);
+    SDL_UnmapGPUTransferBuffer(device, tex_upload_transfer);
+    SDL_GPUCopyPass* pass = SDL_BeginGPUCopyPass(cmd);
+    if (!pass) {
+        ERRORF("SDL_BeginGPUCopyPass: %s", SDL_GetError());
+        return false;
+    }
+    const SDL_GPUTextureTransferInfo source = {
+        .transfer_buffer = tex_upload_transfer,
+        .pixels_per_row = VRAM_W,
+        .rows_per_layer = VRAM_H,
+    };
+    const SDL_GPUTextureRegion dest = {
+        .texture = vram_render,
+        .w = VRAM_W,
+        .h = VRAM_H,
+        .d = 1,
+    };
+    SDL_UploadToGPUTexture(pass, &source, &dest, false);
+    SDL_EndGPUCopyPass(pass);
+    return true;
+}
+
 static void PlatformBackend_Present(void) {
     if (!sdl3_window && !InitPlatform()) {
         return;
@@ -698,6 +738,9 @@ static void PlatformBackend_Present(void) {
     }
 
     ApplyPendingInternalRes();
+    if (draw_backend == &software_rasterizer && !UploadSoftwareVram()) {
+        return;
+    }
 
     SDL_GPUCommandBuffer* cmd = AcquireCmd();
     if (!cmd) {
@@ -859,6 +902,7 @@ static void QuitPlatform(void) {
 }
 
 void ResetPlatform(void) {
+    SoftwareRasterizer_Reset();
     cur_tpage = 0;
     internal_res = 1;
     QuitPlatform();
@@ -897,6 +941,28 @@ static bool DownloadVramRegionAsRGBA8888(int x, int y, int w, int h, u8* out) {
 }
 
 static unsigned char* AllocRgb888Region(int x, int y, int w, int h) {
+    if (draw_backend == &software_rasterizer) {
+        const u16* vram = SoftwareRasterizer_GetVram();
+        unsigned char* pixels = malloc((size_t)w * h * 3);
+        if (!pixels) {
+            return NULL;
+        }
+        for (int row = 0; row < h; row++) {
+            for (int col = 0; col < w; col++) {
+                int vx = x + col;
+                int vy = y + row;
+                u16 pixel = (unsigned)vx < VRAM_W && (unsigned)vy < VRAM_H
+                                ? vram[vy * VRAM_W + vx]
+                                : 0;
+                size_t at = ((size_t)row * w + col) * 3;
+                pixels[at] = color_5to8(pixel & 31);
+                pixels[at + 1] = color_5to8((pixel >> 5) & 31);
+                pixels[at + 2] = color_5to8((pixel >> 10) & 31);
+            }
+        }
+        return pixels;
+    }
+
     if (!device || !vram_render) {
         ERRORF("GPU device not initialized");
         return NULL;
@@ -963,6 +1029,9 @@ static void UpdateScissor() {
 unsigned Psyz_VideoGetInternalResolution(void) { return internal_res; }
 
 int Psyz_VideoSetInternalResolution(unsigned multiplier) {
+    if (draw_backend == &software_rasterizer) {
+        return multiplier == 1 ? 0 : -1;
+    }
     if (multiplier < 1) {
         return -1;
     }
@@ -1010,7 +1079,7 @@ static void ApplyDisplayPendingChanges() {
     }
 }
 
-void Draw_Reset() { NOT_IMPLEMENTED; }
+static void GpuDraw_Reset() { NOT_IMPLEMENTED; }
 
 void Draw_DisplayEnable(unsigned int on) {
     disp_on = on;
@@ -1073,11 +1142,11 @@ void Draw_SetDisplayMode(DisplayMode* mode) {
     }
 }
 
-int Draw_ExequeSync() { return 0; }
+static int GpuDraw_ExequeSync() { return 0; }
 
 // optimization to avoid sampling the VRAM on an untextured batch draw
 static bool batch_has_texture = false;
-int Draw_PushPrim(u_long* packets, int max_len) {
+static int GpuDraw_PushPrim(u_long* packets, int max_len) {
     int len = max_len;
     int code = (int)(*packets >> 24) & 0xFF;
     bool isPoly = !(code & 0x40);
@@ -1345,16 +1414,16 @@ int Draw_PushPrim(u_long* packets, int max_len) {
     return max_len - len;
 }
 
-void Draw_SetAreaStart(int x, int y) {
+static void GpuDraw_SetAreaStart(int x, int y) {
     draw_area_start.x = x;
     draw_area_start.y = y;
 }
-void Draw_SetAreaEnd(int x, int y) {
+static void GpuDraw_SetAreaEnd(int x, int y) {
     draw_area_end.x = x;
     draw_area_end.y = y;
     UpdateScissor();
 }
-void Draw_SetOffset(int x, int y) {
+static void GpuDraw_SetOffset(int x, int y) {
     Draw_FlushBuffer();
 
     x = x % VRAM_W;
@@ -1369,7 +1438,7 @@ void Draw_SetOffset(int x, int y) {
     draw_offset.y = y;
 }
 
-void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
+static void GpuDraw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
     if (rect->w == 0 || rect->h == 0) {
         return;
     }
@@ -1427,7 +1496,7 @@ void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
     SyncNativeVramToScaled(rect->x, rect->y, rect->w, rect->h);
 }
 
-void Draw_LoadImage(PS1_RECT* rect, u_long* p) {
+static void GpuDraw_LoadImage(PS1_RECT* rect, u_long* p) {
     if (rect->w == 0 || rect->h == 0) {
         return;
     }
@@ -1472,7 +1541,7 @@ void Draw_LoadImage(PS1_RECT* rect, u_long* p) {
     SyncNativeVramToScaled(rect->x, rect->y, rect->w, rect->h);
 }
 
-void Draw_StoreImage(PS1_RECT* rect, u_long* p) {
+static void GpuDraw_StoreImage(PS1_RECT* rect, u_long* p) {
     if (rect->w == 0 || rect->h == 0) {
         return;
     }
@@ -1499,7 +1568,7 @@ void Draw_StoreImage(PS1_RECT* rect, u_long* p) {
     free(rgba);
 }
 
-void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
+static void GpuDraw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
     if (rect->x == x && rect->y == y) {
         return;
     }
@@ -1564,7 +1633,7 @@ void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
     SyncNativeVramToScaled(dst_x, dst_y, copy_w, copy_h);
 }
 
-void Draw_ResetBuffer(void) {
+static void GpuDraw_ResetBuffer(void) {
     n_vertices = 0;
     n_indices = 0;
     vertex_cur = vertex_buf;
@@ -1572,7 +1641,7 @@ void Draw_ResetBuffer(void) {
     batch_has_texture = false;
 }
 
-void Draw_FlushBuffer(void) {
+static void GpuDraw_FlushBuffer(void) {
     if (n_vertices == 0) {
         return;
     }
@@ -1690,4 +1759,128 @@ void Draw_FlushBuffer(void) {
     }
     SyncScaledVramToNative();
     Draw_ResetBuffer();
+}
+
+PsyzRasterizer Psyz_VideoGetRasterizer(void) {
+    return draw_backend == &software_rasterizer ? PSYZ_RASTERIZER_SOFTWARE
+                                                : PSYZ_RASTERIZER_GPU;
+}
+
+int Psyz_VideoSetRasterizer(PsyzRasterizer rasterizer) {
+    if (rasterizer != PSYZ_RASTERIZER_GPU &&
+        rasterizer != PSYZ_RASTERIZER_SOFTWARE) {
+        return -1;
+    }
+    if (rasterizer == Psyz_VideoGetRasterizer()) {
+        return 0;
+    }
+    if (rasterizer_locked || is_platform_initialized) {
+        return -1;
+    }
+    draw_backend = rasterizer == PSYZ_RASTERIZER_SOFTWARE ? &software_rasterizer
+                                                          : &gpu_rasterizer;
+    if (rasterizer == PSYZ_RASTERIZER_SOFTWARE) {
+        set_internal_res = internal_res = 1;
+    }
+    return 0;
+}
+
+static const DrawBackend gpu_rasterizer = {
+    .reset = GpuDraw_Reset,
+    .texpage_mode = DrawState_SetTexpageMode,
+    .texture_window = DrawState_SetTextureWindow,
+    .area_start = GpuDraw_SetAreaStart,
+    .area_end = GpuDraw_SetAreaEnd,
+    .offset = GpuDraw_SetOffset,
+    .horizontal_grid = DrawState_SetHorizontalGrid,
+    .mask = DrawState_SetMask,
+    .clear_image = GpuDraw_ClearImage,
+    .load_image = GpuDraw_LoadImage,
+    .store_image = GpuDraw_StoreImage,
+    .move_image = GpuDraw_MoveImage,
+    .reset_buffer = GpuDraw_ResetBuffer,
+    .flush_buffer = GpuDraw_FlushBuffer,
+    .push_prim = GpuDraw_PushPrim,
+    .exeque_sync = GpuDraw_ExequeSync,
+};
+
+void Draw_Reset(void) {
+    rasterizer_locked = true;
+    draw_backend->reset();
+}
+
+void Draw_SetTexpageMode(ParamDrawTexpageMode* mode) {
+    rasterizer_locked = true;
+    draw_backend->texpage_mode(mode);
+}
+
+void Draw_SetTextureWindow(
+    unsigned int mx, unsigned int my, unsigned int ox, unsigned int oy) {
+    rasterizer_locked = true;
+    draw_backend->texture_window(mx, my, ox, oy);
+}
+
+void Draw_SetAreaStart(int x, int y) {
+    rasterizer_locked = true;
+    draw_backend->area_start(x, y);
+}
+
+void Draw_SetAreaEnd(int x, int y) {
+    rasterizer_locked = true;
+    draw_backend->area_end(x, y);
+}
+
+void Draw_SetOffset(int x, int y) {
+    rasterizer_locked = true;
+    draw_backend->offset(x, y);
+}
+
+int Draw_SetHorizontalGrid(unsigned int source, unsigned int target) {
+    rasterizer_locked = true;
+    return draw_backend->horizontal_grid(source, target);
+}
+
+void Draw_SetMask(int set, int preserve) {
+    rasterizer_locked = true;
+    draw_backend->mask(set, preserve);
+}
+
+void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
+    rasterizer_locked = true;
+    draw_backend->clear_image(rect, r, g, b);
+}
+
+void Draw_LoadImage(PS1_RECT* rect, u_long* data) {
+    rasterizer_locked = true;
+    draw_backend->load_image(rect, data);
+}
+
+void Draw_StoreImage(PS1_RECT* rect, u_long* data) {
+    rasterizer_locked = true;
+    draw_backend->store_image(rect, data);
+}
+
+void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
+    rasterizer_locked = true;
+    draw_backend->move_image(rect, x, y);
+}
+
+void Draw_ResetBuffer(void) {
+    rasterizer_locked = true;
+    draw_backend->reset_buffer();
+}
+
+void Draw_FlushBuffer(void) {
+    rasterizer_locked = true;
+    draw_backend->flush_buffer();
+}
+
+int Draw_PushPrim(u_long* words, int count) {
+    rasterizer_locked = true;
+    return draw_backend->push_prim(words, count);
+}
+
+int Draw_ExequeSync(void) {
+    rasterizer_locked = true;
+    return draw_backend->exeque_sync();
 }
