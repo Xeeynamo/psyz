@@ -1,6 +1,6 @@
 #include "libsnd_private.h"
 
-short SsSeqOpen(unsigned long* addr, short vab_id) {
+short SsSeqOpen(u_long* addr, short vab_id) {
     short bit;
     short flag;
     short ret;

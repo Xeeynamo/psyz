@@ -1,6 +1,6 @@
 #include "libsnd_private.h"
 
-short SsSeqOpenJ(unsigned long* addr, short vab_id) {
+short SsSeqOpenJ(u_long* addr, short vab_id) {
     short bit;
     short flag;
     unsigned char exit_loop;
