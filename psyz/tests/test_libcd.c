@@ -677,10 +677,11 @@ static void mount_bin_cue_pair(
 // All ADPCM blocks use shift_in=0 (so shift=12) and filter=0, and every
 // nibble is 0x1, so each decoded sample = (1 << 12) = 0x1000 (DC). After
 // CD volume (0x3FFF) and main volume (0x3FFF) this comes out as 0x07FE.
-static void build_xa_sector(unsigned char* sector, int sector_idx) {
-    // subheader: file=1, channel=0, submode=0x64 (audio|RT|Form2), CI=0x01
+static void build_xa_sector_file(
+    unsigned char* sector, int sector_idx, unsigned char file) {
+    // subheader: channel=0, submode=0x64 (audio|RT|Form2), CI=0x01
     // (stereo, 37800Hz, 4-bit ADPCM)
-    static const unsigned char sh[4] = {0x01, 0x00, 0x64, 0x01};
+    const unsigned char sh[4] = {file, 0x00, 0x64, 0x01};
     int i, b;
     memset(sector, 0, 2352);
     // sync
@@ -709,6 +710,10 @@ static void build_xa_sector(unsigned char* sector, int sector_idx) {
             blk[i] = 0x11;
     }
     // remaining bytes (0x18+18*128 .. 0x92F) stay zero (padding + EDC)
+}
+
+static void build_xa_sector(unsigned char* sector, int sector_idx) {
+    build_xa_sector_file(sector, sector_idx, 0x01);
 }
 
 static int make_dir(const char* path) {
@@ -933,5 +938,68 @@ ZTEST(libcd_playback, data_read_interrupts_xa_playback) {
             zprintf("XA kept streaming after a data read, sample %d\n", i);
         }
         zassert_s16_eq(0, out[i]);
+    }
+}
+
+ZTEST(libcd_playback, xa_filtered_stream_ends_in_silence) {
+    // Mirrors back-to-back voice clips: a short clip in file 1, the next clip
+    // in file 2, then unrelated audio that happens to reuse file 1 further
+    // into the disc. Once file 1 runs out the filter rejects every sector, so
+    // hardware goes silent instead of jumping to the later file 1 sectors.
+    const int kClip = 8;
+    const int kOther = 128;
+    const int kLater = 8;
+    const int kSectors = kClip + kOther + kLater;
+    const int kClipFrames = kClip * 2352; // output frames at 44100 Hz
+    const int frame_count = kClipFrames * 3;
+    const int kSettle = 64;
+    unsigned short* sample;
+    unsigned char* raw;
+    u_char param[8];
+    CdlLOC loc;
+    short* out;
+    int i;
+    sample = test_calloc(kSectors * 2352 / 2, sizeof(unsigned short));
+    raw = (unsigned char*)sample;
+    for (i = 0; i < kSectors; i++) {
+        unsigned char file = (i < kClip || i >= kClip + kOther) ? 1 : 2;
+        build_xa_sector_file(raw + i * 2352, i, file);
+    }
+    mount_bin_cue_pair(sample, kSectors * 2352 / 2, "MODE2/2352");
+
+    CdReset(1);
+
+    param[0] = CdlModeSpeed | CdlModeRT | CdlModeSF;
+    CdControlB(CdlSetmode, param, NULL);
+    param[0] = 1;
+    param[1] = 0;
+    CdControlB(CdlSetfilter, param, NULL);
+
+    CdIntToPos(0, &loc);
+    CdControl(CdlSetloc, (u_char*)&loc, NULL);
+
+    Psyz_AudioPause();
+    Psyz_AudioLock();
+
+    CdControl(CdlReadN, NULL, NULL);
+
+    out = test_calloc(frame_count * 2, sizeof(short));
+    Psyz_SpuPullSamples(out, frame_count);
+
+    Psyz_AudioUnlock();
+
+    for (i = kSettle; i < kClipFrames - kSettle; ++i) {
+        if (out[i * 2 + 0] != 0x07FE || out[i * 2 + 1] != 0x07FE) {
+            zprintf("clip frame %d unexpected value\n", i);
+        }
+        zassert_s16_eq(0x07FE, out[i * 2 + 0]);
+        zassert_s16_eq(0x07FE, out[i * 2 + 1]);
+    }
+    for (i = kClipFrames + kSettle; i < frame_count; ++i) {
+        if (out[i * 2 + 0] != 0 || out[i * 2 + 1] != 0) {
+            zprintf("frame %d played audio past the end of the clip\n", i);
+        }
+        zassert_s16_eq(0, out[i * 2 + 0]);
+        zassert_s16_eq(0, out[i * 2 + 1]);
     }
 }
