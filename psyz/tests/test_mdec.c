@@ -68,6 +68,13 @@ static void print_words(
 static void capture_hardware(
     uint32_t flags, const uint32_t* data, unsigned count,
     const uint8_t quant[128], const uint16_t scale[64]) {
+    uint32_t padded[192];
+    unsigned padded_count = (count + 31u) & ~31u;
+    memcpy(padded, data, count * sizeof(*padded));
+    for (unsigned i = count; i < padded_count; ++i)
+        padded[i] = 0xFE00FE00u;
+    data = padded;
+    count = padded_count;
     uint32_t quant_words[32], scale_words[32];
     memcpy(quant_words, quant, sizeof(quant_words));
     memcpy(scale_words, scale, sizeof(scale_words));
