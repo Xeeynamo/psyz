@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-test:
+  linux-x86_64:
     runs-on: ubuntu-latest
     env:
       CI: 1
@@ -43,13 +43,28 @@ jobs:
           path: psyz/tests/expected/*.actual.png
           if-no-files-found: ignore
 
-  build-and-test-windows:
+  linux-i686:
+    runs-on: ubuntu-latest
+    env:
+      CI: 1
+      OS: linux
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Test PsyZ
+        working-directory: psyz/
+        run: make test-linux32
+
+  windows:
     runs-on: windows-latest
     env:
       CI: 1
       OS: windows
       SDL_VIDEODRIVER: offscreen
     strategy:
+      fail-fast: false
       matrix:
         compiler:
           - name: MSVC
@@ -58,33 +73,36 @@ jobs:
           - name: ClangCl
             script: test-clang.bat
             toolset: '-T ClangCl'
+        arch:
+          - x64
+          - Win32
     steps:
       - name: Clone repo
         uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: ztest self-test (${{ matrix.compiler.name }})
+      - name: ztest self-test (${{ matrix.compiler.name }}, ${{ matrix.arch }})
         run: |
-          cmake -S ztest -B ztest/build/win ${{ matrix.compiler.toolset }}
+          cmake -S ztest -B ztest/build/win -A ${{ matrix.arch }} ${{ matrix.compiler.toolset }}
           cmake --build ztest/build/win --config Release
           python ztest/zrunner.py native --exe ztest/build/win/Release/ztest_selftest.exe --workdir ztest/selftest --selftest ztest/selftest/selftest.expected.txt
-      - name: Test PsyZ on Windows (${{ matrix.compiler.name }})
+      - name: Test PsyZ on Windows (${{ matrix.arch }}, ${{ matrix.compiler.name }})
         working-directory: psyz/
-        run: ./${{ matrix.compiler.script }}
-      - name: Build and run overlays sample (${{ matrix.compiler.name }})
+        run: ./${{ matrix.compiler.script }} -A ${{ matrix.arch }}
+      - name: Build and run overlays sample (${{ matrix.compiler.name }}, ${{ matrix.arch }})
         run: |
-          cmake -S samples/overlays -B samples/overlays/build ${{ matrix.compiler.toolset }}
+          cmake -S samples/overlays -B samples/overlays/build -A ${{ matrix.arch }} ${{ matrix.compiler.toolset }}
           cmake --build samples/overlays/build --config Debug
           ./samples/overlays/build/Debug/host.exe
       - name: Upload test failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: test-failures-windows-${{ matrix.compiler.name }}
+          name: test-failures-windows-${{ matrix.compiler.name }}-${{ matrix.arch }}
           path: psyz/tests/expected/*.actual.png
           if-no-files-found: ignore
 
-  build-and-test-macos:
+  macos:
     runs-on: macos-latest
     env:
       CI: 1
@@ -114,7 +132,7 @@ jobs:
           path: psyz/tests/expected/*.actual.png
           if-no-files-found: ignore
 
-  build-and-test-psp:
+  psp:
     runs-on: ubuntu-26.04
     env:
       PPSSPP_PKG: ppsspp-1.20.4-4-x86_64.pkg.tar.zst
@@ -182,7 +200,7 @@ jobs:
             ztest/selftest/expected/*.actual.png
           if-no-files-found: ignore
 
-  build-ios:
+  ios:
     runs-on: macos-latest
     env:
       CI: 1

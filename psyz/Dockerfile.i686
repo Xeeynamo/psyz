@@ -1,0 +1,6 @@
+FROM i386/debian:trixie
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake ninja-build python3 pkg-config \
+    libsdl2-dev libxtst-dev mesa-vulkan-drivers libgl1-mesa-dri libegl1 \
+ && rm -rf /var/lib/apt/lists/*
+ENTRYPOINT ["linux32"]
