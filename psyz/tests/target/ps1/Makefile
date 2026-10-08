@@ -10,7 +10,7 @@ ARCH := -march=mips1 -mabi=32 -EL -fno-pic -mno-shared -mno-abicalls -mfp32 \
 	-mno-llsc -fno-stack-protector -nostdlib -ffreestanding
 CFLAGS := $(ARCH) -std=gnu11 -Os -g -ffunction-sections -fdata-sections \
 	-mno-gpopt -fno-builtin -Wno-attributes -D__psx__ \
-	-DZTEST_NEED_MEMCPY -DZTEST_NEED_MEMSET \
+	-DZTEST_NEED_MEMCPY -DZTEST_NEED_MEMSET -DZTEST_LOG_SIZE=65536 \
 	-include $(CURDIR)/ps1_compat.h \
 	-I$(CURDIR) -I$(TESTS) -I$(ZTEST) -I$(TESTS)/../include \
 	-I$(NUGGET)/psyq/include -I$(NUGGET) -I$(ZTEST)/target/ps1/include
@@ -21,8 +21,9 @@ LDFLAGS := $(ARCH) -g -static -Wl,--gc-sections -T$(NUGGET)/nooverlay.ld \
 	-T$(NUGGET)/ps-exe.ld -Wl,--oformat=elf32-littlemips \
 	-Wl,-Map=$(BUILD)/psyz_tests.map -L$(NUGGET)/psyq/lib
 
-SRCS := $(TESTS)/test_main.c $(TESTS)/test_libapi.c $(TESTS)/test_events.c \
-	$(TESTS)/test_libgte.c $(TESTS)/test_libgpu.c $(TESTS)/test_libspu.c \
+TEST_SOURCES ?= test_libapi.c test_events.c test_libgte.c test_libgpu.c \
+	test_libspu.c test_mdec.c
+SRCS := $(TESTS)/test_main.c $(addprefix $(TESTS)/,$(TEST_SOURCES)) \
 	$(TESTS)/frontbuffer_psyz.c $(ZTEST)/ztest.c ps1_psyz_stubs.c ps1_heap.c
 OBJS := $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o))) $(BUILD)/crt0.o
 
