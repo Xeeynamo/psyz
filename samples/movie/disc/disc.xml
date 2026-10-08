@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<iso_project image_name="bunny.bin" cue_sheet="bunny.cue">
+  <track type="data">
+    <identifiers system="PLAYSTATION" volume="BUNNYMDEC" volume_set="BUNNYMDEC" publisher="PSYZ" data_preparer="MKPSXISO" creation_date="2008053000000000+00" modification_date="2008053000000000+00"/>
+    <license file="../generated/system-area.dat"/>
+    <directory_tree date="2008053000000000+00">
+      <file name="SYSTEM.CNF" type="data" source="SYSTEM.CNF" date="2008053000000000+00"/>
+      <file name="MOVIE.EXE" type="data" source="../movie.ps-exe" date="2008053000000000+00"/>
+      <file name="CREDITS.TXT" type="data" source="../CREDITS.txt" date="2008053000000000+00"/>
+      <file name="BUNNY.STR" type="str" source="bunny.str" date="2008053000000000+00"/>
+    </directory_tree>
+  </track>
+</iso_project>

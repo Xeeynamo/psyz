@@ -1,0 +1,17 @@
+diff --git a/psxavenc/decoding.c b/psxavenc/decoding.c
+--- a/psxavenc/decoding.c
++++ b/psxavenc/decoding.c
+@@ -443 +443 @@
+-	int dupe_frames = (int)ceil((pts - av->video_next_pts) / pts_step);
++	int dupe_frames = (int)floor((pts - av->video_next_pts) / pts_step + 0.5);
+diff --git a/psxavenc/filefmt.c b/psxavenc/filefmt.c
+--- a/psxavenc/filefmt.c
++++ b/psxavenc/filefmt.c
+@@ -450 +450,2 @@
+-	for (; !decoder->end_of_input || encoder.state.frame_data_offset < encoder.state.frame_max_size; sector_count++) {
++	for (; !decoder->end_of_input || decoder->video_frame_count ||
++	       encoder.state.frame_data_offset < encoder.state.frame_max_size; sector_count++) {
+@@ -451,0 +453,3 @@
++		if (decoder->end_of_input && !decoder->video_frame_count &&
++		    encoder.state.frame_data_offset >= encoder.state.frame_max_size)
++			break;

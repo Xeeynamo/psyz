@@ -1,0 +1,10 @@
+Big Buck Bunny (c) 2008 Blender Foundation | peach.blender.org
+Licensed under Creative Commons Attribution 3.0:
+https://creativecommons.org/licenses/by/3.0/
+
+Source: bbb_sunflower_1080p_30fps_normal.mp4, Big Buck Bunny Sunflower edition.
+Sunflower edition by Janus Bager Kristensen | https://bbb3d.renderfarming.net/
+
+This sample uses 00:19-00:21, resized to 320x180, padded to 320x192,
+encoded as PlayStation MDEC video with stereo XA ADPCM audio.
+Original credits and license: https://peach.blender.org/about/
