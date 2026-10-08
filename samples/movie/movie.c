@@ -44,18 +44,23 @@ static int next_frame(int slot, unsigned expected) {
     u_long *data, *header;
     unsigned start = VSync(-1);
     while (StGetNext(&data, &header)) {
-        if ((unsigned)(VSync(-1) - start) > 600) return -1;
+        if ((unsigned)(VSync(-1) - start) > 600)
+            return -1;
         VSync(0);
     }
     StHEADER info = *(StHEADER*)header;
     bunny_capture[4] = info.frameCount;
     bunny_capture[5] = info.width | (info.height << 16);
-    int error = info.frameCount != expected || info.width != WIDTH || info.height != HEIGHT;
-    if (!error && DecDCTBufSize(data) >= RUN_WORDS) error = 1;
-    if (!error) error = DecDCTvlc(data, (u_long*)runlevel[slot]);
+    int error = info.frameCount != expected || info.width != WIDTH ||
+                info.height != HEIGHT;
+    if (!error && DecDCTBufSize(data) >= RUN_WORDS)
+        error = 1;
+    if (!error)
+        error = DecDCTvlc(data, (u_long*)runlevel[slot]);
     bunny_capture[6] = error;
-    if (error) printf("frame expected %u got %u, %ux%u, VLC status %d\n",
-                      expected, info.frameCount, info.width, info.height, error);
+    if (error)
+        printf("frame expected %u got %u, %ux%u, VLC status %d\n", expected,
+               info.frameCount, info.width, info.height, error);
     StFreeRing(data);
     return error ? -1 : 0;
 }
@@ -70,53 +75,67 @@ static int play(unsigned loop, const CdlLOC* location) {
     StSetStream(1, 1, FRAMES + 1, NULL, NULL);
     CdMix(&mix);
     if (!CdControl(CdlSetfilter, (u_char*)&filter, NULL) ||
-        !CdControlB(CdlSeekL, (u_char*)location, NULL)) return -1;
+        !CdControlB(CdlSeekL, (u_char*)location, NULL))
+        return -1;
     bunny_capture[0] = 0x42424e59;
     bunny_capture[1] = loop;
     bunny_capture[2] = 0;
     bunny_capture[3] = 1;
     unsigned started = VSync(-1);
     if (!CdRead2(CdlModeSpeed | CdlModeRT | CdlModeSF | CdlModeStream) ||
-        next_frame(slot, 1)) return -1;
+        next_frame(slot, 1))
+        return -1;
     for (unsigned frame = 1; frame <= FRAMES; ++frame) {
         strip.x = 0;
         strip.y = page * 240 + 24;
-        strip.w = 24; strip.h = HEIGHT;
-        slice = 0; output_busy = 1;
+        strip.w = 24;
+        strip.h = HEIGHT;
+        slice = 0;
+        output_busy = 1;
         DecDCTReset(1);
         DecDCTin((u_long*)runlevel[slot], 1);
         DecDCTout((u_long*)pixels, STRIP_WORDS);
 
-        if (frame < FRAMES && next_frame(slot ^ 1, frame + 1)) return -1;
+        if (frame < FRAMES && next_frame(slot ^ 1, frame + 1))
+            return -1;
         unsigned wait_start = VSync(-1);
         while (output_busy) {
-            if ((unsigned)(VSync(-1) - wait_start) > 120) return -1;
+            if ((unsigned)(VSync(-1) - wait_start) > 120)
+                return -1;
         }
-        if (DecDCTinSync(0) || DecDCToutSync(0)) return -1;
+        if (DecDCTinSync(0) || DecDCToutSync(0))
+            return -1;
         DrawSync(0);
-        while ((unsigned)(VSync(-1) - started) < frame * 2) VSync(0);
+        while ((unsigned)(VSync(-1) - started) < frame * 2)
+            VSync(0);
         PutDispEnv(&display[page]);
         bunny_capture[2] = frame;
         VSync(0);
-        slot ^= 1; page ^= 1;
+        slot ^= 1;
+        page ^= 1;
     }
     bunny_capture[3] = 0;
     CdControlB(CdlPause, NULL, NULL);
-    DecDCToutCallback(NULL); StUnSetRing(); DecDCTReset(1);
+    DecDCToutCallback(NULL);
+    StUnSetRing();
+    DecDCTReset(1);
     return 0;
 }
 
 int main(void) {
-    ResetGraph(0); SetVideoMode(MODE_NTSC);
+    ResetGraph(0);
+    SetVideoMode(MODE_NTSC);
 
     DecDCTReset(0);
     RECT clear = {0, 0, 480, 480};
-    ClearImage(&clear, 0, 0, 0); DrawSync(0);
+    ClearImage(&clear, 0, 0, 0);
+    DrawSync(0);
     for (int page = 0; page < 2; ++page) {
         SetDefDispEnv(&display[page], 0, page * 240, WIDTH, 240);
         display[page].isrgb24 = 1;
     }
-    PutDispEnv(&display[0]); SetDispMask(1);
+    PutDispEnv(&display[0]);
+    SetDispMask(1);
     SpuInit();
     SpuCommonAttr common;
     memset(&common, 0, sizeof(common));
@@ -126,15 +145,21 @@ int main(void) {
     common.cd.volume.left = common.cd.volume.right = 0x7fff;
     common.cd.mix = SPU_ON;
     SpuSetCommonAttr(&common);
-    if (!CdInit()) return 1;
+    if (!CdInit())
+        return 1;
     CdlFILE file;
-    if (!CdSearchFile(&file, "\\BUNNY.STR;1")) { printf("BUNNY.STR missing\n"); return 1; }
-    for (unsigned loop = 1; ; ++loop) {
+    if (!CdSearchFile(&file, "\\BUNNY.STR;1")) {
+        printf("BUNNY.STR missing\n");
+        return 1;
+    }
+    for (unsigned loop = 1;; ++loop) {
         if (play(loop, &file.pos)) {
             bunny_capture[3] = 0;
             CdControlB(CdlPause, NULL, NULL);
-            DecDCToutCallback(NULL); StUnSetRing();
-            printf("movie playback failed, loop %u frame %u\n", loop, bunny_capture[2]);
+            DecDCToutCallback(NULL);
+            StUnSetRing();
+            printf("movie playback failed, loop %u frame %u\n", loop,
+                   bunny_capture[2]);
             return 1;
         }
         printf("loop %u: %u frames played\n", loop, FRAMES);
