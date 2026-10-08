@@ -46,6 +46,16 @@ set(PSYZ_SOURCES
     src/psyz/libgte.c
     src/psyz/libgs.c
     src/psyz/libcd.c
+    ../decomp/src/libcd/c_002.c
+    ../decomp/src/libcd/c_003.c
+    ../decomp/src/libcd/c_004.c
+    ../decomp/src/libcd/c_005.c
+    ../decomp/src/libcd/c_007.c
+    ../decomp/src/libcd/c_008.c
+    ../decomp/src/libcd/c_009.c
+    ../decomp/src/libcd/c_010.c
+    ../decomp/src/libcd/cdread2.c
+    ../decomp/src/libcd/cdrom.c
     ../decomp/src/libcd/iso9660.c
     ../decomp/src/libcd/sys.c
     ../decomp/src/libcd/toc.c
@@ -179,6 +189,7 @@ set(PSYZ_SOURCES
     src/psyz/libsnd.c
     src/psyz/libsn.c
     src/psyz/libpress.c
+    ../decomp/src/libpress/libpress.c
 )
 
 # Choose sqrt implementation

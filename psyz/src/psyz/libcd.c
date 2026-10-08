@@ -1264,11 +1264,6 @@ int CdRead(int sectors, u_long* buf, int mode) {
     return 1;
 }
 
-int CdRead2(long mode) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
 int CdReadSync(int mode, u_char* result) {
     (void)mode;
     if (result) {
@@ -1277,19 +1272,4 @@ int CdReadSync(int mode, u_char* result) {
     return 0;
 }
 
-u_long StGetNext(u_long** addr, u_long** header) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
-
-void StSetRing(u_long* ring_addr, u_long ring_size) { NOT_IMPLEMENTED; }
-
-void StSetStream(u_long mode, u_long start_frame, u_long end_frame,
-                 void (*func1)(), void (*func2)()) {
-    NOT_IMPLEMENTED;
-}
-
-u_long StFreeRing(u_long* base) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
+void StCdInterrupt(void) { NOT_IMPLEMENTED; }
