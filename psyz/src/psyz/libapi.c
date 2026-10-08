@@ -62,10 +62,11 @@ int VSync(int mode) {
     }
     n = mode > 0 ? mode : 1;
     elapsed = Psyz_VideoVSync(mode);
-    ReadPadsOnVsync(); // this is done on vsync by the BIOS
+    pads_sampled = 0;
     if (g_PsyzVsyncCb) {
         g_PsyzVsyncCb();
     }
+    ReadPadsOnVsync(); // this is done on vsync by the BIOS
     for (; n > 0; n--) {
         Psyz_KernelVBlank();
     }
