@@ -1,158 +1,191 @@
 #include "mdec.h"
 #include <string.h>
+#include "../internal.h"
 
-static struct MdecTables {
+#define HALFWORD(p) ((unsigned)(p)[0] | (unsigned)(p)[1] << 8)
+#define SIGNED10(v) ((int)((v) & 0x3FF) - (int)((v) & 0x200) * 2)
+#define WRAP(v, bits)                                                          \
+    ((int32_t)(((uint32_t)(v) + (1u << ((bits) - 1))) &                        \
+               ((1u << (bits)) - 1)) -                                         \
+     (1 << ((bits) - 1)))
+#define ODD_COEFFICIENT(magnitude)                                             \
+    ((magnitude) > 1024 ? 2047 : 2 * (int32_t)(magnitude) - 1)
+#define COEFFICIENT(level, magnitude)                                          \
+    ((magnitude) == 0 ? 0                                                      \
+     : (level) < 0    ? -ODD_COEFFICIENT(magnitude)                            \
+                      : ODD_COEFFICIENT(magnitude))
+#define COLOR(luma, chroma) WRAP((luma) * 256 + (chroma), 17)
+
+typedef struct {
     uint8_t luma[64], chroma[64];
-    int16_t scale[64];
-} tables, transfer_tables;
-static uint16_t input_transfer[UINT16_MAX * 2];
-static const uint16_t* input;
-static size_t input_left;
-static uint32_t command;
-static int decode_error;
-static uint8_t macroblock[768];
-static size_t pixel_pos, pixel_size;
+    int16_t vertical[64], horizontal[64];
+} MdecTables;
+
+static MdecTables tables, transfer_tables;
+static uint8_t input[UINT16_MAX * 4];
+static size_t input_pos, input_size;
 
 static const uint8_t scan[64] = {
     0,  1,  8,  16, 9,  2,  3,  10, 17, 24, 32, 25, 18, 11, 4,  5,
     12, 19, 26, 33, 40, 48, 41, 34, 27, 20, 13, 6,  7,  14, 21, 28,
     35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51,
     58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63};
-static int clamp(int v, int lo, int hi) {
-    return v < lo ? lo : v > hi ? hi : v;
-}
-static int signed10(unsigned v) {
-    return (int)(v & 1023) - ((v & 512) ? 1024 : 0);
-}
-static int signed9(int v) { return ((v + 256) & 511) - 256; }
 
-static int64_t floor_shift(int64_t v, int n) {
-    return v >= 0 ? v / ((int64_t)1 << n)
-                  : -((-v + (((int64_t)1 << n) - 1)) / ((int64_t)1 << n));
-}
-static int decode_block(int8_t out[64], const uint8_t quant[64]) {
-    int32_t coefficients[64] = {0}, scratch[64];
-    unsigned word;
-    do {
-        if (!input_left)
-            return -1;
-        word = *input++;
-        --input_left;
-    } while (word == 0xfe00);
-    int scale = word >> 10;
-    unsigned index = 0;
-    for (;;) {
-        int level = signed10(word);
-        int q = index ? quant[index] * scale : quant[0];
-        int value =
-            scale == 0 || q == 0
-                ? level * 32
-                : (int)(index ? floor_shift(level * q, 3) : level * q) * 16 +
-                      (level > 0   ? -8
-                       : level < 0 ? 8
-                                   : 0);
-        coefficients[scale ? scan[index] : index] = clamp(value, -16384, 16383);
-        if (index == 63)
-            break;
-        if (!input_left)
-            return -1;
-        word = *input++;
-        --input_left;
-        if (word == 0xfe00)
-            break;
-        index += (word >> 10) + 1;
-        if (index >= 64)
-            return -1;
+static uint32_t command;
+static int decode_error;
+static uint8_t macroblock[768];
+static size_t pixel_pos, pixel_size;
+
+static void idct(int8_t out[64], const uint8_t positions[64],
+                 const int16_t values[64], unsigned count) {
+    int32_t columns[64] = {0};
+    unsigned used_columns = 0;
+    for (unsigned i = 0; i < count; ++i) {
+        unsigned v = positions[i] >> 3, u = positions[i] & 7;
+        const int16_t* scale = transfer_tables.vertical + v * 8;
+        int32_t* column = columns + u * 8;
+        for (unsigned y = 0; y < 8; ++y)
+            column[y] += values[i] * scale[y] >> 7;
+        used_columns |= 1u << u;
     }
-    for (int pass = 0; pass < 2; ++pass) {
-        for (int row = 0; row < 8; ++row) {
-            for (int col = 0; col < 8; ++col) {
-                int64_t sum = 0;
-                for (int freq = 0; freq < 8; ++freq)
-                    sum +=
-                        (int64_t)coefficients[row + freq * 8] *
-                        floor_shift(transfer_tables.scale[col + freq * 8], 3);
-                int value = (int)floor_shift(sum + 16384, 15);
-                scratch[row * 8 + col] = value;
-            }
+    unsigned column_count = 0;
+    uint8_t column_list[8];
+    for (unsigned u = 0; u < 8; ++u) {
+        if (!(used_columns >> u & 1))
+            continue;
+        column_list[column_count++] = u;
+        for (unsigned y = 0; y < 8; ++y)
+            columns[u * 8 + y] = WRAP(columns[u * 8 + y] >> 4, 13);
+    }
+    for (unsigned y = 0; y < 8; ++y) {
+        int32_t row[8] = {0};
+        for (unsigned i = 0; i < column_count; ++i) {
+            unsigned u = column_list[i];
+            int32_t t = columns[u * 8 + y];
+            const int16_t* scale = transfer_tables.horizontal + u * 8;
+            for (unsigned x = 0; x < 8; ++x)
+                row[x] += t * scale[x] >> 7;
         }
-        memcpy(coefficients, scratch, sizeof(scratch));
+        for (unsigned x = 0; x < 8; ++x)
+            out[y * 8 + x] = CLAMP((WRAP(row[x], 17) + 128) >> 8, -128, 127);
     }
-    for (int i = 0; i < 64; ++i)
-        out[i] = clamp(signed9(scratch[i]), -128, 127);
+}
+
+static int decode_block(int8_t out[64], const uint8_t quant[64]) {
+    uint8_t positions[64];
+    int16_t values[64];
+    unsigned count = 0, halfword;
+    do {
+        if (input_pos == input_size)
+            return -1;
+        halfword = HALFWORD(input + input_pos);
+        input_pos += 2;
+    } while (halfword == 0xfe00);
+    unsigned q_scale = halfword >> 10;
+    int level = SIGNED10(halfword);
+    unsigned magnitude = (unsigned)(level < 0 ? -level : level);
+    positions[count] = 0;
+    values[count++] =
+        q_scale ? COEFFICIENT(level, magnitude * quant[0]) : level * 4;
+    for (unsigned index = 0; index < 63;) {
+        if (input_pos == input_size)
+            return -1;
+        halfword = HALFWORD(input + input_pos);
+        index += (halfword >> 10) + 1;
+        if (index >= 64)
+            break;
+        input_pos += 2;
+        level = SIGNED10(halfword);
+        magnitude = (unsigned)(level < 0 ? -level : level);
+        magnitude =
+            (magnitude * quant[index] * q_scale + (level < 0 ? 7 : 4)) >> 3;
+        positions[count] = q_scale ? scan[index] : index;
+        values[count++] = q_scale ? COEFFICIENT(level, magnitude) : level * 4;
+    }
+    idct(out, positions, values, count);
     return 0;
 }
-static int next_macroblock(void) {
-    int8_t samples[6][64];
-    unsigned depth = (command >> 27) & 3;
-    unsigned signed_output = (command >> 26) & 1;
-    if (depth < 2) {
-        if (decode_block(samples[0], transfer_tables.luma))
-            return -1;
-        for (int i = 0; i < 64; ++i) {
-            if (depth == 1) {
-                macroblock[i] =
-                    (uint8_t)samples[0][i] ^ (signed_output ? 0 : 0x80);
-            } else {
-                uint8_t value = (uint8_t)clamp(samples[0][i] + 8, -128, 127);
-                value = (value >> 4) ^ (signed_output ? 0 : 8);
-                if (i & 1)
-                    macroblock[i / 2] |= value << 4;
-                else
-                    macroblock[i / 2] = value;
+
+static size_t write_mono(
+    const int8_t samples[64], unsigned depth, int signed_output) {
+    if (depth == 1) {
+        for (unsigned i = 0; i < 64; ++i)
+            macroblock[i] = (uint8_t)samples[i] ^ (signed_output ? 0 : 0x80);
+        return 64;
+    }
+    for (unsigned i = 0; i < 32; ++i) {
+        unsigned lo = CLAMP((samples[i * 2] + 8) >> 4, -8, 7) & 15;
+        unsigned hi = CLAMP((samples[i * 2 + 1] + 8) >> 4, -8, 7) & 15;
+        macroblock[i] = (lo | hi << 4) ^ (signed_output ? 0 : 0x88);
+    }
+    return 32;
+}
+
+static size_t write_color(
+    int8_t blocks[6][64], unsigned depth, int signed_output, int bit15) {
+    unsigned byte_flip = signed_output ? 0 : 0x80,
+             rgb555_flip = signed_output ? 0 : 0x4210;
+    unsigned rgb555_bit15 = bit15 ? 0x8000 : 0;
+    for (unsigned cy = 0; cy < 8; ++cy) {
+        for (unsigned cx = 0; cx < 8; ++cx) {
+            int cr = blocks[0][cy * 8 + cx], cb = blocks[1][cy * 8 + cx];
+            int red = 359 * cr, blue = 454 * cb;
+            int green = -88 * cb + (-183 * cr & ~31);
+            for (unsigned dy = 0; dy < 2; ++dy) {
+                for (unsigned dx = 0; dx < 2; ++dx) {
+                    unsigned y = cy * 2 + dy, x = cx * 2 + dx;
+                    const int8_t* luma = blocks[2 + (y >> 3) * 2 + (x >> 3)];
+                    int sample = luma[(y & 7) * 8 + (x & 7)];
+                    int32_t r = COLOR(sample, red), g = COLOR(sample, green);
+                    int32_t b = COLOR(sample, blue);
+                    unsigned p = y * 16 + x;
+                    if (depth == 2) {
+                        macroblock[p * 3] =
+                            (uint8_t)CLAMP((r + 128) >> 8, -128, 127) ^
+                            byte_flip;
+                        macroblock[p * 3 + 1] =
+                            (uint8_t)CLAMP((g + 128) >> 8, -128, 127) ^
+                            byte_flip;
+                        macroblock[p * 3 + 2] =
+                            (uint8_t)CLAMP((b + 128) >> 8, -128, 127) ^
+                            byte_flip;
+                    } else {
+                        unsigned packed =
+                            (CLAMP((r + 1024) >> 11, -16, 15) & 31) |
+                            (CLAMP((g + 1024) >> 11, -16, 15) & 31) << 5 |
+                            (CLAMP((b + 1024) >> 11, -16, 15) & 31) << 10;
+                        packed = (packed ^ rgb555_flip) | rgb555_bit15;
+                        macroblock[p * 2] = (uint8_t)packed;
+                        macroblock[p * 2 + 1] = (uint8_t)(packed >> 8);
+                    }
+                }
             }
         }
-        pixel_pos = 0;
-        pixel_size = depth == 1 ? 64 : 32;
+    }
+    return depth == 2 ? 768 : 512;
+}
+
+static int next_macroblock(void) {
+    int8_t blocks[6][64];
+    unsigned depth = (command >> 27) & 3;
+    int signed_output = (command >> 26) & 1;
+    pixel_pos = 0;
+    if (depth < 2) {
+        if (decode_block(blocks[0], transfer_tables.luma))
+            return -1;
+        pixel_size = write_mono(blocks[0], depth, signed_output);
         return 0;
     }
-    for (int i = 0; i < 6; ++i)
-        if (decode_block(samples[i],
+    for (unsigned i = 0; i < 6; ++i)
+        if (decode_block(blocks[i],
                          i < 2 ? transfer_tables.chroma : transfer_tables.luma))
             return -1;
-    for (int y = 0; y < 16; ++y) {
-        for (int x = 0; x < 16; ++x) {
-            int luma = samples[2 + (y / 8) * 2 + x / 8][(y % 8) * 8 + x % 8];
-            int cr = samples[0][(y / 2) * 8 + x / 2];
-            int cb = samples[1][(y / 2) * 8 + x / 2];
-            int r = clamp(signed9(luma + (int)floor_shift(cr * 359 + 128, 8)),
-                          -128, 127) +
-                    128;
-            int g =
-                clamp(
-                    signed9(luma + (int)floor_shift(
-                                       floor_shift(-88 * cb, 5) * 32 +
-                                           floor_shift(-183 * cr, 3) * 8 + 128,
-                                       8)),
-                    -128, 127) +
-                128;
-            int b = clamp(signed9(luma + (int)floor_shift(cb * 454 + 128, 8)),
-                          -128, 127) +
-                    128;
-            int p = y * 16 + x;
-            if (depth == 2) {
-                macroblock[p * 3] = r ^ (signed_output ? 0x80 : 0);
-                macroblock[p * 3 + 1] = g ^ (signed_output ? 0x80 : 0);
-                macroblock[p * 3 + 2] = b ^ (signed_output ? 0x80 : 0);
-            } else {
-                unsigned packed =
-                    clamp((r + 4) / 8, 0, 31) |
-                    (clamp((g + 4) / 8, 0, 31) << 5) |
-                    (clamp((b + 4) / 8, 0, 31) << 10) |
-                    ((command & (1u << 25)) ? 0x8000 : 0);
-                packed ^= signed_output ? 0x4210 : 0;
-                macroblock[p * 2] = packed;
-                macroblock[p * 2 + 1] = packed >> 8;
-            }
-        }
-    }
-    pixel_pos = 0;
-    pixel_size = depth == 2 ? 768 : 512;
+    pixel_size = write_color(blocks, depth, signed_output, (command >> 25) & 1);
     return 0;
 }
+
 void Psyz_MdecReset(void) {
-    input = NULL;
-    input_left = pixel_pos = pixel_size = 0;
+    input_pos = input_size = pixel_pos = pixel_size = 0;
     command = 0;
     decode_error = 0;
 }
@@ -164,7 +197,7 @@ int Psyz_MdecCommand(uint32_t value, const void* data, size_t words) {
                       : opcode == 3 ? 32
                                     : value & UINT16_MAX;
     if (opcode < 1 || opcode > 3 || words != expected || (!data && words)) {
-        input_left = pixel_pos = pixel_size = 0;
+        input_pos = input_size = pixel_pos = pixel_size = 0;
         decode_error = 1;
         return -1;
     }
@@ -176,15 +209,17 @@ int Psyz_MdecCommand(uint32_t value, const void* data, size_t words) {
     }
     if (opcode == 3) {
         for (unsigned i = 0; i < 64; ++i) {
-            unsigned v = bytes[i * 2] | ((unsigned)bytes[i * 2 + 1] << 8);
-            tables.scale[i] = (int)(v & 32767) - ((v & 32768) ? 32768 : 0);
+            int scale = (int16_t)HALFWORD(bytes + i * 2);
+            tables.vertical[i] = (int16_t)(scale >> 3);
+            tables.horizontal[i] = (int16_t)(scale >> 4);
         }
         return 0;
     }
-    input_left = words * 2;
-    for (size_t i = 0; i < input_left; ++i)
-        input_transfer[i] = bytes[i * 2] | ((unsigned)bytes[i * 2 + 1] << 8);
-    input = input_transfer;
+    if (words) {
+        memcpy(input, bytes, words * 4);
+    }
+    input_pos = 0;
+    input_size = words * 4;
     transfer_tables = tables;
     command = value;
     pixel_pos = pixel_size = 0;
