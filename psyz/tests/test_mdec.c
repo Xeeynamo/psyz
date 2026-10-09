@@ -518,7 +518,7 @@ ZTEST(mdec, output_overrun_and_recovery) {
 
 ZTEST(mdec, truncated_input_fails_read) {
     zskip_targets("ps1");
-    uint32_t data[3], pixels[193];
+    uint32_t data[6], pixels[193];
     make_flat(data, 1);
     memset(pixels, 0xA5, sizeof(pixels));
     zassert_s32_eq(0, Psyz_MdecCommand(0x30000003, data, 3));
@@ -532,9 +532,9 @@ ZTEST(mdec, run_past_last_coefficient_starts_next_block) {
     uint16_t overrun[] = {0x0810, 0x1408, 0xF81F, 0xFE00, 0x0400, 0xFE00,
                           0x0400, 0xFE00, 0x0400, 0xFE00, 0x0400, 0xFE00};
     uint16_t ended[] = {0x0810, 0x1408, 0xFE00, 0xF81F, 0xFE00, 0x0400, 0xFE00,
-                        0x0400, 0xFE00, 0x0400, 0xFE00, 0x0400, 0xFE00};
-    uint32_t data[8], expected[192], actual[192];
-    unsigned count = pack_halfwords(data, ended, 13);
+                        0x0400, 0xFE00, 0x0400, 0xFE00, 0x0400, 0xFE00, 0xFE00};
+    uint32_t data[7], expected[192], actual[192];
+    unsigned count = pack_halfwords(data, ended, 14);
     zassert_s32_eq(0, Psyz_MdecCommand(0x30000000 | count, data, count));
     zassert_s32_eq(0, Psyz_MdecRead(expected, 192));
     count = pack_halfwords(data, overrun, 12);
