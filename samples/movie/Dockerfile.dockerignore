@@ -1,0 +1,15 @@
+**
+!Makefile
+!bin/psyqlib.sh
+!decomp/sdk/Makefile
+!decomp/sdk/Psy-Q_47.zip.sha256
+!decomp/bin/psyq-obj-parser.xz.sha256
+!psyz/include/**
+!samples/movie/build_movie.py
+!samples/movie/psxavenc-*.patch
+!samples/movie/Makefile
+!samples/movie/movie.c
+!samples/movie/CREDITS.txt
+!samples/movie/disc/disc.xml
+!samples/movie/disc/SYSTEM.CNF
+!**/*.mp4

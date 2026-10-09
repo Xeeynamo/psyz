@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import struct
 import subprocess
+import sys
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -17,6 +18,8 @@ PINS = {
                   "a6b11ea86e67c189137ac50a4066044b3fdb0525"),
 }
 COMMANDS = []
+PSXAVENC_PATCHES = [HERE / name for name in
+                   ("psxavenc-flush.patch", "psxavenc-av-free.patch")]
 
 
 def run(command, cwd=ROOT, log=None, env=None):
@@ -24,9 +27,13 @@ def run(command, cwd=ROOT, log=None, env=None):
     COMMANDS.append({"argv": command, "cwd": str(cwd)})
     print("+", " ".join(command), flush=True)
     if log:
-        with Path(log).open("w") as output:
-            subprocess.run(command, cwd=cwd, stdout=output,
-                           stderr=subprocess.STDOUT, check=True, env=env)
+        try:
+            with Path(log).open("w") as output:
+                subprocess.run(command, cwd=cwd, stdout=output,
+                               stderr=subprocess.STDOUT, check=True, env=env)
+        except subprocess.CalledProcessError:
+            print(Path(log).read_text(), file=sys.stderr)
+            raise
     else:
         subprocess.run(command, cwd=cwd, check=True, env=env)
 
@@ -52,12 +59,13 @@ def prepare_tools(jobs):
                  "-DCMAKE_BUILD_TYPE=Release"])
             run(["cmake", "--build", directory / "build", "-j", jobs])
         else:
-            patch = HERE / "psxavenc-flush.patch"
-            applied = subprocess.run(["git", "apply", "--unidiff-zero", "--reverse", "--check", str(patch)],
-                                     cwd=directory, capture_output=True).returncode == 0
-            if not applied:
-                run(["git", "apply", "--unidiff-zero", "--check", patch], cwd=directory)
-                run(["git", "apply", "--unidiff-zero", patch], cwd=directory)
+            for patch in PSXAVENC_PATCHES:
+                applied = subprocess.run(
+                    ["git", "apply", "--unidiff-zero", "--reverse", "--check", str(patch)],
+                    cwd=directory, capture_output=True).returncode == 0
+                if not applied:
+                    run(["git", "apply", "--unidiff-zero", "--check", patch], cwd=directory)
+                    run(["git", "apply", "--unidiff-zero", patch], cwd=directory)
             if not (directory / "build/build.ninja").exists():
                 run(["meson", "setup", directory / "build", directory,
                      "--buildtype=release"])
@@ -101,17 +109,28 @@ def check_stream(path):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source", type=Path, required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--source", type=Path)
+    mode.add_argument("--prepare-tools", action="store_true",
+                      help="build the pinned encoders/disc tools without building a disc")
     parser.add_argument("--psyq", type=Path, default=ROOT / "nugget/psyq")
     parser.add_argument("--prefix", default="mipsel-none-elf")
+    parser.add_argument("--format", default="elf32-littlemips",
+                        help="linker output format (nugget FORMAT)")
     parser.add_argument("--jobs", type=int, default=8)
     args = parser.parse_args()
+    if args.jobs < 1:
+        parser.error("--jobs must be positive")
+    if args.prepare_tools:
+        prepare_tools(args.jobs)
+        return
     args.source = args.source.resolve(); args.psyq = args.psyq.resolve()
     generated = HERE / "generated"; generated.mkdir(exist_ok=True)
     if not args.source.is_file() or not (args.psyq / "lib/libpress.a").is_file():
         parser.error("source MP4 and converted PSYQ include/lib directories are required")
     prepare_tools(args.jobs)
-    run(["git", "submodule", "update", "--init", "nugget"])
+    if not (ROOT / "nugget/common.mk").is_file():
+        run(["git", "submodule", "update", "--init", "nugget"])
     clip = generated / "clip.mkv"
     run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", "19",
          "-i", args.source, "-t", "2", "-map", "0:v:0", "-map", "0:a:0",
@@ -127,7 +146,8 @@ def main():
     (HERE / "disc/bunny.str").write_bytes(b"".join(
         data[i + 16:i + 2352] for i in range(0, len(data), 2352)))
     run(["make", "clean"], cwd=HERE)
-    run(["make", f"PREFIX={args.prefix}", f"PSYQ={args.psyq}"], cwd=HERE,
+    run(["make", f"PREFIX={args.prefix}", f"FORMAT={args.format}",
+         f"PSYQ={args.psyq}"], cwd=HERE,
         log=generated / "ps1-build.log")
     (generated / "system-area.dat").write_bytes(bytes(12 * 2336))
     run([TOOLS / "mkpsxiso/build/mkpsxiso", "-y", "-lba", "bunny.lba", "disc.xml"],
@@ -148,6 +168,7 @@ def main():
                 "encoded": [320, 192], "fps": 30, "xa": "37800 Hz stereo 4-bit file=1 channel=1",
                 "tools": {k: v[1] for k, v in PINS.items()}, "stream": stream,
                 "psxavenc_flush_patch_sha256": sha(HERE / "psxavenc-flush.patch"),
+                "psxavenc_patches_sha256": {p.name: sha(p) for p in PSXAVENC_PATCHES},
                 "ffmpeg": subprocess.check_output(["ffmpeg", "-version"], text=True).splitlines()[0],
                 "compiler": subprocess.check_output([args.prefix + "-gcc", "--version"], text=True).splitlines()[0],
                 "artifacts": {str(p): {"bytes": p.stat().st_size, "sha256": sha(p)} for p in paths},

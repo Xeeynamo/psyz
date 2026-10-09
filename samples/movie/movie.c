@@ -138,7 +138,7 @@ int main(void) {
     SetDispMask(1);
     SpuInit();
     SpuCommonAttr common;
-    memset(&common, 0, sizeof(common));
+    memset((u_char*)&common, 0, sizeof(common));
     common.mask = SPU_COMMON_MVOLL | SPU_COMMON_MVOLR | SPU_COMMON_CDVOLL |
                   SPU_COMMON_CDVOLR | SPU_COMMON_CDMIX;
     common.mvol.left = common.mvol.right = 0x3fff;
