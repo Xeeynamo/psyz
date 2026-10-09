@@ -3,8 +3,156 @@
 #include <libetc.h>
 #include <libgpu.h>
 #include <malloc.h>
+#include <string.h>
+
+#include "../../../src/psyz/mdec.h"
+#include "ztest.h"
 
 #include "common/syscalls/syscalls.h"
+
+static uint32_t psx_mdec_read(unsigned offset) {
+    return *(volatile uint32_t*)(0xBF801820u + offset);
+}
+
+static void psx_mdec_write(unsigned offset, uint32_t value) {
+    *(volatile uint32_t*)(0xBF801820u + offset) = value;
+}
+
+static struct Ps1MdecTables {
+    uint8_t quant[128], scale[128];
+} mdec_tables, mdec_transfer_tables;
+static uint32_t mdec_input[UINT16_MAX];
+static size_t mdec_input_words, mdec_sent;
+static uint32_t mdec_command;
+static int mdec_started, mdec_error;
+static uint8_t mdec_pixels[768];
+static size_t mdec_pixel_pos, mdec_pixel_size;
+
+void Psyz_MdecReset(void) {
+    psx_mdec_write(4, 0x80000000u);
+    mdec_input_words = mdec_sent = 0;
+    mdec_command = 0;
+    mdec_started = mdec_error = 0;
+    mdec_pixel_pos = mdec_pixel_size = 0;
+}
+
+int Psyz_MdecCommand(uint32_t command, const void* data, size_t words) {
+    unsigned opcode = command >> 29;
+    size_t expected = opcode == 2   ? ((command & 1) ? 32 : 16)
+                      : opcode == 3 ? 32
+                                    : command & UINT16_MAX;
+    if (opcode < 1 || opcode > 3 || words != expected || (!data && words)) {
+        Psyz_MdecReset();
+        mdec_error = 1;
+        return -1;
+    }
+    if (opcode == 2) {
+        memcpy(mdec_tables.quant, data, words * 4);
+        return 0;
+    }
+    if (opcode == 3) {
+        memcpy(mdec_tables.scale, data, words * 4);
+        return 0;
+    }
+    Psyz_MdecReset();
+    if (words)
+        memcpy(mdec_input, data, words * 4);
+    mdec_transfer_tables = mdec_tables;
+    mdec_input_words = words;
+    mdec_command = command;
+    return 0;
+}
+
+static int psx_mdec_table(uint32_t command, const uint8_t data[128]) {
+    unsigned sent = 0;
+    for (unsigned poll = 0; poll < 0x100000; ++poll) {
+        uint32_t status = psx_mdec_read(4);
+        if (sent <= 32 && !(status & (sent ? 0x40000000u : 0x20000000u))) {
+            uint32_t word = command;
+            if (sent)
+                memcpy(&word, data + (sent - 1) * 4, 4);
+            psx_mdec_write(0, word);
+            ++sent;
+        }
+        if (sent == 33 && !(psx_mdec_read(4) & 0x20000000u))
+            return 0;
+    }
+    return -1;
+}
+
+static int psx_mdec_next_pixels(void) {
+    if (!mdec_command || !mdec_input_words)
+        return -1;
+    if (!mdec_started) {
+        if (psx_mdec_table(0x40000001, mdec_transfer_tables.quant) ||
+            psx_mdec_table(0x60000000, mdec_transfer_tables.scale))
+            return -1;
+        psx_mdec_write(0, mdec_command);
+        mdec_started = 1;
+    }
+    unsigned depth = (mdec_command >> 27) & 3;
+    const unsigned sizes[] = {8, 16, 192, 128};
+    unsigned words = sizes[depth], received = 0;
+    uint32_t raw[192];
+    for (unsigned idle = 0; received < words; ++idle) {
+        uint32_t status = psx_mdec_read(4);
+        if (mdec_sent < mdec_input_words && !(status & 0x40000000u)) {
+            psx_mdec_write(0, mdec_input[mdec_sent++]);
+            idle = 0;
+        }
+        if (!(status & 0x80000000u)) {
+            raw[received++] = psx_mdec_read(0);
+            idle = 0;
+        }
+        if (idle == 0x100000) {
+            zprintf("MDEC timeout: command=%08X status=%08X input=%u/%u "
+                    "output=%u/%u\n",
+                    mdec_command, status, (unsigned)mdec_sent,
+                    (unsigned)mdec_input_words, received, words);
+            return -1;
+        }
+    }
+    if (depth < 2) {
+        memcpy(mdec_pixels, raw, words * 4);
+    } else {
+        unsigned bytes_per_pixel = depth == 2 ? 3 : 2;
+        for (unsigned tile = 0; tile < 4; ++tile)
+            for (unsigned y = 0; y < 8; ++y)
+                memcpy(mdec_pixels + ((tile / 2 * 8 + y) * 16 + tile % 2 * 8) *
+                                         bytes_per_pixel,
+                       (uint8_t*)raw + (tile * 64 + y * 8) * bytes_per_pixel,
+                       8 * bytes_per_pixel);
+    }
+    mdec_pixel_pos = 0;
+    mdec_pixel_size = words * 4;
+    return 0;
+}
+
+int Psyz_MdecRead(void* data, size_t words) {
+    if ((!data && words) || words > SIZE_MAX / 4) {
+        mdec_error = 1;
+        return -1;
+    }
+    uint8_t* dst = data;
+    size_t left = words * 4;
+    while (left) {
+        if (mdec_error ||
+            (mdec_pixel_pos == mdec_pixel_size && psx_mdec_next_pixels())) {
+            memset(dst, 0, left);
+            psx_mdec_write(4, 0x80000000u);
+            mdec_error = 1;
+            return -1;
+        }
+        size_t count = mdec_pixel_size - mdec_pixel_pos;
+        if (count > left)
+            count = left;
+        memcpy(dst, mdec_pixels + mdec_pixel_pos, count);
+        mdec_pixel_pos += count;
+        dst += count;
+        left -= count;
+    }
+    return 0;
+}
 
 int Psyz_VideoSetDitheringMode(PsyzDitherMode mode) {
     (void)mode;

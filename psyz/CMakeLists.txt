@@ -190,6 +190,7 @@ set(PSYZ_SOURCES
     src/psyz/libsn.c
     src/psyz/libpress.c
     ../decomp/src/libpress/libpress.c
+    src/psyz/mdec.c
 )
 
 # Choose sqrt implementation
