@@ -1461,3 +1461,18 @@ void Draw_FlushBuffer(void) {
     SyncScaledVramToNative();
     Draw_ResetBuffer();
 }
+
+int Draw_SetHorizontalGrid(unsigned int source, unsigned int target) {
+    return DrawState_SetHorizontalGrid(source, target);
+}
+
+void Draw_SetTexpageMode(ParamDrawTexpageMode* mode) {
+    DrawState_SetTexpageMode(mode);
+}
+
+void Draw_SetTextureWindow(
+    unsigned int mx, unsigned int my, unsigned int ox, unsigned int oy) {
+    DrawState_SetTextureWindow(mx, my, ox, oy);
+}
+
+void Draw_SetMask(int set, int preserve) { DrawState_SetMask(set, preserve); }

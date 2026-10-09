@@ -22,6 +22,14 @@ extern "C" {
 void Psyz_SetTitle(const char* str);
 
 typedef enum {
+    PSYZ_RASTERIZER_GPU,
+    PSYZ_RASTERIZER_SOFTWARE,
+} PsyzRasterizer;
+
+PsyzRasterizer Psyz_VideoGetRasterizer(void);
+int Psyz_VideoSetRasterizer(PsyzRasterizer rasterizer);
+
+typedef enum {
     /**
      * Auto-detect use of driver VSync (default)
      * - Tests monitor refresh rate on initialization (adds ~30ms startup time)
