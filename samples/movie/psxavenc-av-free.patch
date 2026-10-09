@@ -1,0 +1,5 @@
+diff --git a/psxavenc/mdec.c b/psxavenc/mdec.c
+--- a/psxavenc/mdec.c
++++ b/psxavenc/mdec.c
+@@ -34,0 +35 @@
++#include <libavutil/mem.h>
