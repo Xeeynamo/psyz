@@ -66,8 +66,8 @@ test-ps1-emu:
 	$(ZTEST_RUN) ps1-emu --exe tests/build/ps1/psyz_tests.ps-exe --workdir tests $(RUNNER_ARGS)
 
 test-ps1-hw:
-	$(MAKE) -C tests/target/ps1
-	$(ZTEST_RUN) ps1-hw --exe tests/build/ps1/psyz_tests.ps-exe --workdir tests --timeout 1500 $(RUNNER_ARGS)
+	$(MAKE) -C tests/target/ps1 packed
+	$(ZTEST_RUN) ps1-hw --exe tests/build/ps1/psyz_tests.upx.ps-exe --workdir tests --timeout 1500 $(RUNNER_ARGS)
 
 # Android runs the suite as a native executable over adb shell.
 ANDROID_HOME ?= $(HOME)/Android/Sdk

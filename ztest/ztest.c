@@ -1235,17 +1235,23 @@ static int zt_after_fail(int abort) {
 // ---------------------------------------------------------------------------
 
 static int zt_case_order(const ztest_case* a, const ztest_case* b) {
-    int c = strcmp(a->file, b->file);
+    int c = a->file == b->file ? 0 : strcmp(a->file, b->file);
     return c ? c : a->line - b->line;
 }
 
+// Cases of one file usually register in order, so resume from the last one.
 void ztest__register(ztest_case* c) {
+    static ztest_case* last;
     ztest_case** p = &zt_cases;
+    if (last && zt_case_order(last, c) <= 0) {
+        p = &last->next;
+    }
     while (*p && zt_case_order(*p, c) <= 0) {
         p = &(*p)->next;
     }
     c->next = *p;
     *p = c;
+    last = c;
 }
 
 void ztest__register_hook(ztest_hook* h) {
@@ -1412,24 +1418,24 @@ static int zt_holds(int op, int c) {
     }
 }
 
-int ztest__s(int line, int op, int abort, long long exp, long long act) {
+int ztest__s(int line, int op, int abort, long exp, long act) {
     if (zt_holds(op, (act > exp) - (act < exp))) {
         return 1;
     }
-    zt_line(line, "Expected: %s%lld  Actual: %lld", zt_ops[op], exp, act);
+    zt_line(line, "Expected: %s%ld  Actual: %ld", zt_ops[op], exp, act);
     return zt_after_fail(abort);
 }
 
-static void zt_fmt_u(char* buf, size_t n, unsigned long long v) {
+static void zt_fmt_u(char* buf, size_t n, unsigned long v) {
     if (v > 9) {
-        ztest_snprintf(buf, n, "%llu (0x%llX)", v, v);
+        ztest_snprintf(buf, n, "%lu (0x%lX)", v, v);
     } else {
-        ztest_snprintf(buf, n, "%llu", v);
+        ztest_snprintf(buf, n, "%lu", v);
     }
 }
 
-int ztest__u(int line, int op, int abort, unsigned long long exp,
-             unsigned long long act) {
+int ztest__u(
+    int line, int op, int abort, unsigned long exp, unsigned long act) {
     char e[48], a[48];
     if (zt_holds(op, (act > exp) - (act < exp))) {
         return 1;

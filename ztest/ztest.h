@@ -144,9 +144,8 @@ void ztest__skip_targets(int line, const char* list);
 
 enum { ZT_EQ, ZT_NE, ZT_GT, ZT_GE, ZT_LT, ZT_LE };
 
-int ztest__s(int line, int op, int abort, long long exp, long long act);
-int ztest__u(int line, int op, int abort, unsigned long long exp,
-             unsigned long long act);
+int ztest__s(int line, int op, int abort, long exp, long act);
+int ztest__u(int line, int op, int abort, unsigned long exp, unsigned long act);
 int ztest__c(int line, int op, int abort, char exp, char act);
 int ztest__str(int line, int op, int abort, const char* exp, const char* act);
 int ztest__p(int line, int op, int abort, const void* exp, const void* act);
@@ -224,226 +223,190 @@ int ztest__image(int line, int op, int abort, const char* name, zimage act,
                  const zimage_cmp* cmp);
 
 #define zassert_s32_eq(exp, act)                                               \
-    ztest__s(__LINE__, ZT_EQ, 1, (long long)(int32_t)(exp),                    \
-             (long long)(int32_t)(act))
+    ztest__s(__LINE__, ZT_EQ, 1, (long)(int32_t)(exp), (long)(int32_t)(act))
 #define zexpect_s32_eq(exp, act)                                               \
-    ztest__s(__LINE__, ZT_EQ, 0, (long long)(int32_t)(exp),                    \
-             (long long)(int32_t)(act))
+    ztest__s(__LINE__, ZT_EQ, 0, (long)(int32_t)(exp), (long)(int32_t)(act))
 #define zassert_s32_ne(exp, act)                                               \
-    ztest__s(__LINE__, ZT_NE, 1, (long long)(int32_t)(exp),                    \
-             (long long)(int32_t)(act))
+    ztest__s(__LINE__, ZT_NE, 1, (long)(int32_t)(exp), (long)(int32_t)(act))
 #define zexpect_s32_ne(exp, act)                                               \
-    ztest__s(__LINE__, ZT_NE, 0, (long long)(int32_t)(exp),                    \
-             (long long)(int32_t)(act))
+    ztest__s(__LINE__, ZT_NE, 0, (long)(int32_t)(exp), (long)(int32_t)(act))
 #define zassert_s32_gt(exp, act)                                               \
-    ztest__s(__LINE__, ZT_GT, 1, (long long)(int32_t)(exp),                    \
-             (long long)(int32_t)(act))
+    ztest__s(__LINE__, ZT_GT, 1, (long)(int32_t)(exp), (long)(int32_t)(act))
 #define zexpect_s32_gt(exp, act)                                               \
-    ztest__s(__LINE__, ZT_GT, 0, (long long)(int32_t)(exp),                    \
-             (long long)(int32_t)(act))
+    ztest__s(__LINE__, ZT_GT, 0, (long)(int32_t)(exp), (long)(int32_t)(act))
 #define zassert_s32_ge(exp, act)                                               \
-    ztest__s(__LINE__, ZT_GE, 1, (long long)(int32_t)(exp),                    \
-             (long long)(int32_t)(act))
+    ztest__s(__LINE__, ZT_GE, 1, (long)(int32_t)(exp), (long)(int32_t)(act))
 #define zexpect_s32_ge(exp, act)                                               \
-    ztest__s(__LINE__, ZT_GE, 0, (long long)(int32_t)(exp),                    \
-             (long long)(int32_t)(act))
+    ztest__s(__LINE__, ZT_GE, 0, (long)(int32_t)(exp), (long)(int32_t)(act))
 #define zassert_s32_lt(exp, act)                                               \
-    ztest__s(__LINE__, ZT_LT, 1, (long long)(int32_t)(exp),                    \
-             (long long)(int32_t)(act))
+    ztest__s(__LINE__, ZT_LT, 1, (long)(int32_t)(exp), (long)(int32_t)(act))
 #define zexpect_s32_lt(exp, act)                                               \
-    ztest__s(__LINE__, ZT_LT, 0, (long long)(int32_t)(exp),                    \
-             (long long)(int32_t)(act))
+    ztest__s(__LINE__, ZT_LT, 0, (long)(int32_t)(exp), (long)(int32_t)(act))
 #define zassert_s32_le(exp, act)                                               \
-    ztest__s(__LINE__, ZT_LE, 1, (long long)(int32_t)(exp),                    \
-             (long long)(int32_t)(act))
+    ztest__s(__LINE__, ZT_LE, 1, (long)(int32_t)(exp), (long)(int32_t)(act))
 #define zexpect_s32_le(exp, act)                                               \
-    ztest__s(__LINE__, ZT_LE, 0, (long long)(int32_t)(exp),                    \
-             (long long)(int32_t)(act))
+    ztest__s(__LINE__, ZT_LE, 0, (long)(int32_t)(exp), (long)(int32_t)(act))
 
 #define zassert_s16_eq(exp, act)                                               \
-    ztest__s(__LINE__, ZT_EQ, 1, (long long)(int16_t)(exp),                    \
-             (long long)(int16_t)(act))
+    ztest__s(__LINE__, ZT_EQ, 1, (long)(int16_t)(exp), (long)(int16_t)(act))
 #define zexpect_s16_eq(exp, act)                                               \
-    ztest__s(__LINE__, ZT_EQ, 0, (long long)(int16_t)(exp),                    \
-             (long long)(int16_t)(act))
+    ztest__s(__LINE__, ZT_EQ, 0, (long)(int16_t)(exp), (long)(int16_t)(act))
 #define zassert_s16_ne(exp, act)                                               \
-    ztest__s(__LINE__, ZT_NE, 1, (long long)(int16_t)(exp),                    \
-             (long long)(int16_t)(act))
+    ztest__s(__LINE__, ZT_NE, 1, (long)(int16_t)(exp), (long)(int16_t)(act))
 #define zexpect_s16_ne(exp, act)                                               \
-    ztest__s(__LINE__, ZT_NE, 0, (long long)(int16_t)(exp),                    \
-             (long long)(int16_t)(act))
+    ztest__s(__LINE__, ZT_NE, 0, (long)(int16_t)(exp), (long)(int16_t)(act))
 #define zassert_s16_gt(exp, act)                                               \
-    ztest__s(__LINE__, ZT_GT, 1, (long long)(int16_t)(exp),                    \
-             (long long)(int16_t)(act))
+    ztest__s(__LINE__, ZT_GT, 1, (long)(int16_t)(exp), (long)(int16_t)(act))
 #define zexpect_s16_gt(exp, act)                                               \
-    ztest__s(__LINE__, ZT_GT, 0, (long long)(int16_t)(exp),                    \
-             (long long)(int16_t)(act))
+    ztest__s(__LINE__, ZT_GT, 0, (long)(int16_t)(exp), (long)(int16_t)(act))
 #define zassert_s16_ge(exp, act)                                               \
-    ztest__s(__LINE__, ZT_GE, 1, (long long)(int16_t)(exp),                    \
-             (long long)(int16_t)(act))
+    ztest__s(__LINE__, ZT_GE, 1, (long)(int16_t)(exp), (long)(int16_t)(act))
 #define zexpect_s16_ge(exp, act)                                               \
-    ztest__s(__LINE__, ZT_GE, 0, (long long)(int16_t)(exp),                    \
-             (long long)(int16_t)(act))
+    ztest__s(__LINE__, ZT_GE, 0, (long)(int16_t)(exp), (long)(int16_t)(act))
 #define zassert_s16_lt(exp, act)                                               \
-    ztest__s(__LINE__, ZT_LT, 1, (long long)(int16_t)(exp),                    \
-             (long long)(int16_t)(act))
+    ztest__s(__LINE__, ZT_LT, 1, (long)(int16_t)(exp), (long)(int16_t)(act))
 #define zexpect_s16_lt(exp, act)                                               \
-    ztest__s(__LINE__, ZT_LT, 0, (long long)(int16_t)(exp),                    \
-             (long long)(int16_t)(act))
+    ztest__s(__LINE__, ZT_LT, 0, (long)(int16_t)(exp), (long)(int16_t)(act))
 #define zassert_s16_le(exp, act)                                               \
-    ztest__s(__LINE__, ZT_LE, 1, (long long)(int16_t)(exp),                    \
-             (long long)(int16_t)(act))
+    ztest__s(__LINE__, ZT_LE, 1, (long)(int16_t)(exp), (long)(int16_t)(act))
 #define zexpect_s16_le(exp, act)                                               \
-    ztest__s(__LINE__, ZT_LE, 0, (long long)(int16_t)(exp),                    \
-             (long long)(int16_t)(act))
+    ztest__s(__LINE__, ZT_LE, 0, (long)(int16_t)(exp), (long)(int16_t)(act))
 
 #define zassert_s8_eq(exp, act)                                                \
-    ztest__s(__LINE__, ZT_EQ, 1, (long long)(int8_t)(exp),                     \
-             (long long)(int8_t)(act))
+    ztest__s(__LINE__, ZT_EQ, 1, (long)(int8_t)(exp), (long)(int8_t)(act))
 #define zexpect_s8_eq(exp, act)                                                \
-    ztest__s(__LINE__, ZT_EQ, 0, (long long)(int8_t)(exp),                     \
-             (long long)(int8_t)(act))
+    ztest__s(__LINE__, ZT_EQ, 0, (long)(int8_t)(exp), (long)(int8_t)(act))
 #define zassert_s8_ne(exp, act)                                                \
-    ztest__s(__LINE__, ZT_NE, 1, (long long)(int8_t)(exp),                     \
-             (long long)(int8_t)(act))
+    ztest__s(__LINE__, ZT_NE, 1, (long)(int8_t)(exp), (long)(int8_t)(act))
 #define zexpect_s8_ne(exp, act)                                                \
-    ztest__s(__LINE__, ZT_NE, 0, (long long)(int8_t)(exp),                     \
-             (long long)(int8_t)(act))
+    ztest__s(__LINE__, ZT_NE, 0, (long)(int8_t)(exp), (long)(int8_t)(act))
 #define zassert_s8_gt(exp, act)                                                \
-    ztest__s(__LINE__, ZT_GT, 1, (long long)(int8_t)(exp),                     \
-             (long long)(int8_t)(act))
+    ztest__s(__LINE__, ZT_GT, 1, (long)(int8_t)(exp), (long)(int8_t)(act))
 #define zexpect_s8_gt(exp, act)                                                \
-    ztest__s(__LINE__, ZT_GT, 0, (long long)(int8_t)(exp),                     \
-             (long long)(int8_t)(act))
+    ztest__s(__LINE__, ZT_GT, 0, (long)(int8_t)(exp), (long)(int8_t)(act))
 #define zassert_s8_ge(exp, act)                                                \
-    ztest__s(__LINE__, ZT_GE, 1, (long long)(int8_t)(exp),                     \
-             (long long)(int8_t)(act))
+    ztest__s(__LINE__, ZT_GE, 1, (long)(int8_t)(exp), (long)(int8_t)(act))
 #define zexpect_s8_ge(exp, act)                                                \
-    ztest__s(__LINE__, ZT_GE, 0, (long long)(int8_t)(exp),                     \
-             (long long)(int8_t)(act))
+    ztest__s(__LINE__, ZT_GE, 0, (long)(int8_t)(exp), (long)(int8_t)(act))
 #define zassert_s8_lt(exp, act)                                                \
-    ztest__s(__LINE__, ZT_LT, 1, (long long)(int8_t)(exp),                     \
-             (long long)(int8_t)(act))
+    ztest__s(__LINE__, ZT_LT, 1, (long)(int8_t)(exp), (long)(int8_t)(act))
 #define zexpect_s8_lt(exp, act)                                                \
-    ztest__s(__LINE__, ZT_LT, 0, (long long)(int8_t)(exp),                     \
-             (long long)(int8_t)(act))
+    ztest__s(__LINE__, ZT_LT, 0, (long)(int8_t)(exp), (long)(int8_t)(act))
 #define zassert_s8_le(exp, act)                                                \
-    ztest__s(__LINE__, ZT_LE, 1, (long long)(int8_t)(exp),                     \
-             (long long)(int8_t)(act))
+    ztest__s(__LINE__, ZT_LE, 1, (long)(int8_t)(exp), (long)(int8_t)(act))
 #define zexpect_s8_le(exp, act)                                                \
-    ztest__s(__LINE__, ZT_LE, 0, (long long)(int8_t)(exp),                     \
-             (long long)(int8_t)(act))
+    ztest__s(__LINE__, ZT_LE, 0, (long)(int8_t)(exp), (long)(int8_t)(act))
 
 #define zassert_u32_eq(exp, act)                                               \
-    ztest__u(__LINE__, ZT_EQ, 1, (unsigned long long)(uint32_t)(exp),          \
-             (unsigned long long)(uint32_t)(act))
+    ztest__u(__LINE__, ZT_EQ, 1, (unsigned long)(uint32_t)(exp),               \
+             (unsigned long)(uint32_t)(act))
 #define zexpect_u32_eq(exp, act)                                               \
-    ztest__u(__LINE__, ZT_EQ, 0, (unsigned long long)(uint32_t)(exp),          \
-             (unsigned long long)(uint32_t)(act))
+    ztest__u(__LINE__, ZT_EQ, 0, (unsigned long)(uint32_t)(exp),               \
+             (unsigned long)(uint32_t)(act))
 #define zassert_u32_ne(exp, act)                                               \
-    ztest__u(__LINE__, ZT_NE, 1, (unsigned long long)(uint32_t)(exp),          \
-             (unsigned long long)(uint32_t)(act))
+    ztest__u(__LINE__, ZT_NE, 1, (unsigned long)(uint32_t)(exp),               \
+             (unsigned long)(uint32_t)(act))
 #define zexpect_u32_ne(exp, act)                                               \
-    ztest__u(__LINE__, ZT_NE, 0, (unsigned long long)(uint32_t)(exp),          \
-             (unsigned long long)(uint32_t)(act))
+    ztest__u(__LINE__, ZT_NE, 0, (unsigned long)(uint32_t)(exp),               \
+             (unsigned long)(uint32_t)(act))
 #define zassert_u32_gt(exp, act)                                               \
-    ztest__u(__LINE__, ZT_GT, 1, (unsigned long long)(uint32_t)(exp),          \
-             (unsigned long long)(uint32_t)(act))
+    ztest__u(__LINE__, ZT_GT, 1, (unsigned long)(uint32_t)(exp),               \
+             (unsigned long)(uint32_t)(act))
 #define zexpect_u32_gt(exp, act)                                               \
-    ztest__u(__LINE__, ZT_GT, 0, (unsigned long long)(uint32_t)(exp),          \
-             (unsigned long long)(uint32_t)(act))
+    ztest__u(__LINE__, ZT_GT, 0, (unsigned long)(uint32_t)(exp),               \
+             (unsigned long)(uint32_t)(act))
 #define zassert_u32_ge(exp, act)                                               \
-    ztest__u(__LINE__, ZT_GE, 1, (unsigned long long)(uint32_t)(exp),          \
-             (unsigned long long)(uint32_t)(act))
+    ztest__u(__LINE__, ZT_GE, 1, (unsigned long)(uint32_t)(exp),               \
+             (unsigned long)(uint32_t)(act))
 #define zexpect_u32_ge(exp, act)                                               \
-    ztest__u(__LINE__, ZT_GE, 0, (unsigned long long)(uint32_t)(exp),          \
-             (unsigned long long)(uint32_t)(act))
+    ztest__u(__LINE__, ZT_GE, 0, (unsigned long)(uint32_t)(exp),               \
+             (unsigned long)(uint32_t)(act))
 #define zassert_u32_lt(exp, act)                                               \
-    ztest__u(__LINE__, ZT_LT, 1, (unsigned long long)(uint32_t)(exp),          \
-             (unsigned long long)(uint32_t)(act))
+    ztest__u(__LINE__, ZT_LT, 1, (unsigned long)(uint32_t)(exp),               \
+             (unsigned long)(uint32_t)(act))
 #define zexpect_u32_lt(exp, act)                                               \
-    ztest__u(__LINE__, ZT_LT, 0, (unsigned long long)(uint32_t)(exp),          \
-             (unsigned long long)(uint32_t)(act))
+    ztest__u(__LINE__, ZT_LT, 0, (unsigned long)(uint32_t)(exp),               \
+             (unsigned long)(uint32_t)(act))
 #define zassert_u32_le(exp, act)                                               \
-    ztest__u(__LINE__, ZT_LE, 1, (unsigned long long)(uint32_t)(exp),          \
-             (unsigned long long)(uint32_t)(act))
+    ztest__u(__LINE__, ZT_LE, 1, (unsigned long)(uint32_t)(exp),               \
+             (unsigned long)(uint32_t)(act))
 #define zexpect_u32_le(exp, act)                                               \
-    ztest__u(__LINE__, ZT_LE, 0, (unsigned long long)(uint32_t)(exp),          \
-             (unsigned long long)(uint32_t)(act))
+    ztest__u(__LINE__, ZT_LE, 0, (unsigned long)(uint32_t)(exp),               \
+             (unsigned long)(uint32_t)(act))
 
 #define zassert_u16_eq(exp, act)                                               \
-    ztest__u(__LINE__, ZT_EQ, 1, (unsigned long long)(uint16_t)(exp),          \
-             (unsigned long long)(uint16_t)(act))
+    ztest__u(__LINE__, ZT_EQ, 1, (unsigned long)(uint16_t)(exp),               \
+             (unsigned long)(uint16_t)(act))
 #define zexpect_u16_eq(exp, act)                                               \
-    ztest__u(__LINE__, ZT_EQ, 0, (unsigned long long)(uint16_t)(exp),          \
-             (unsigned long long)(uint16_t)(act))
+    ztest__u(__LINE__, ZT_EQ, 0, (unsigned long)(uint16_t)(exp),               \
+             (unsigned long)(uint16_t)(act))
 #define zassert_u16_ne(exp, act)                                               \
-    ztest__u(__LINE__, ZT_NE, 1, (unsigned long long)(uint16_t)(exp),          \
-             (unsigned long long)(uint16_t)(act))
+    ztest__u(__LINE__, ZT_NE, 1, (unsigned long)(uint16_t)(exp),               \
+             (unsigned long)(uint16_t)(act))
 #define zexpect_u16_ne(exp, act)                                               \
-    ztest__u(__LINE__, ZT_NE, 0, (unsigned long long)(uint16_t)(exp),          \
-             (unsigned long long)(uint16_t)(act))
+    ztest__u(__LINE__, ZT_NE, 0, (unsigned long)(uint16_t)(exp),               \
+             (unsigned long)(uint16_t)(act))
 #define zassert_u16_gt(exp, act)                                               \
-    ztest__u(__LINE__, ZT_GT, 1, (unsigned long long)(uint16_t)(exp),          \
-             (unsigned long long)(uint16_t)(act))
+    ztest__u(__LINE__, ZT_GT, 1, (unsigned long)(uint16_t)(exp),               \
+             (unsigned long)(uint16_t)(act))
 #define zexpect_u16_gt(exp, act)                                               \
-    ztest__u(__LINE__, ZT_GT, 0, (unsigned long long)(uint16_t)(exp),          \
-             (unsigned long long)(uint16_t)(act))
+    ztest__u(__LINE__, ZT_GT, 0, (unsigned long)(uint16_t)(exp),               \
+             (unsigned long)(uint16_t)(act))
 #define zassert_u16_ge(exp, act)                                               \
-    ztest__u(__LINE__, ZT_GE, 1, (unsigned long long)(uint16_t)(exp),          \
-             (unsigned long long)(uint16_t)(act))
+    ztest__u(__LINE__, ZT_GE, 1, (unsigned long)(uint16_t)(exp),               \
+             (unsigned long)(uint16_t)(act))
 #define zexpect_u16_ge(exp, act)                                               \
-    ztest__u(__LINE__, ZT_GE, 0, (unsigned long long)(uint16_t)(exp),          \
-             (unsigned long long)(uint16_t)(act))
+    ztest__u(__LINE__, ZT_GE, 0, (unsigned long)(uint16_t)(exp),               \
+             (unsigned long)(uint16_t)(act))
 #define zassert_u16_lt(exp, act)                                               \
-    ztest__u(__LINE__, ZT_LT, 1, (unsigned long long)(uint16_t)(exp),          \
-             (unsigned long long)(uint16_t)(act))
+    ztest__u(__LINE__, ZT_LT, 1, (unsigned long)(uint16_t)(exp),               \
+             (unsigned long)(uint16_t)(act))
 #define zexpect_u16_lt(exp, act)                                               \
-    ztest__u(__LINE__, ZT_LT, 0, (unsigned long long)(uint16_t)(exp),          \
-             (unsigned long long)(uint16_t)(act))
+    ztest__u(__LINE__, ZT_LT, 0, (unsigned long)(uint16_t)(exp),               \
+             (unsigned long)(uint16_t)(act))
 #define zassert_u16_le(exp, act)                                               \
-    ztest__u(__LINE__, ZT_LE, 1, (unsigned long long)(uint16_t)(exp),          \
-             (unsigned long long)(uint16_t)(act))
+    ztest__u(__LINE__, ZT_LE, 1, (unsigned long)(uint16_t)(exp),               \
+             (unsigned long)(uint16_t)(act))
 #define zexpect_u16_le(exp, act)                                               \
-    ztest__u(__LINE__, ZT_LE, 0, (unsigned long long)(uint16_t)(exp),          \
-             (unsigned long long)(uint16_t)(act))
+    ztest__u(__LINE__, ZT_LE, 0, (unsigned long)(uint16_t)(exp),               \
+             (unsigned long)(uint16_t)(act))
 
 #define zassert_u8_eq(exp, act)                                                \
-    ztest__u(__LINE__, ZT_EQ, 1, (unsigned long long)(uint8_t)(exp),           \
-             (unsigned long long)(uint8_t)(act))
+    ztest__u(__LINE__, ZT_EQ, 1, (unsigned long)(uint8_t)(exp),                \
+             (unsigned long)(uint8_t)(act))
 #define zexpect_u8_eq(exp, act)                                                \
-    ztest__u(__LINE__, ZT_EQ, 0, (unsigned long long)(uint8_t)(exp),           \
-             (unsigned long long)(uint8_t)(act))
+    ztest__u(__LINE__, ZT_EQ, 0, (unsigned long)(uint8_t)(exp),                \
+             (unsigned long)(uint8_t)(act))
 #define zassert_u8_ne(exp, act)                                                \
-    ztest__u(__LINE__, ZT_NE, 1, (unsigned long long)(uint8_t)(exp),           \
-             (unsigned long long)(uint8_t)(act))
+    ztest__u(__LINE__, ZT_NE, 1, (unsigned long)(uint8_t)(exp),                \
+             (unsigned long)(uint8_t)(act))
 #define zexpect_u8_ne(exp, act)                                                \
-    ztest__u(__LINE__, ZT_NE, 0, (unsigned long long)(uint8_t)(exp),           \
-             (unsigned long long)(uint8_t)(act))
+    ztest__u(__LINE__, ZT_NE, 0, (unsigned long)(uint8_t)(exp),                \
+             (unsigned long)(uint8_t)(act))
 #define zassert_u8_gt(exp, act)                                                \
-    ztest__u(__LINE__, ZT_GT, 1, (unsigned long long)(uint8_t)(exp),           \
-             (unsigned long long)(uint8_t)(act))
+    ztest__u(__LINE__, ZT_GT, 1, (unsigned long)(uint8_t)(exp),                \
+             (unsigned long)(uint8_t)(act))
 #define zexpect_u8_gt(exp, act)                                                \
-    ztest__u(__LINE__, ZT_GT, 0, (unsigned long long)(uint8_t)(exp),           \
-             (unsigned long long)(uint8_t)(act))
+    ztest__u(__LINE__, ZT_GT, 0, (unsigned long)(uint8_t)(exp),                \
+             (unsigned long)(uint8_t)(act))
 #define zassert_u8_ge(exp, act)                                                \
-    ztest__u(__LINE__, ZT_GE, 1, (unsigned long long)(uint8_t)(exp),           \
-             (unsigned long long)(uint8_t)(act))
+    ztest__u(__LINE__, ZT_GE, 1, (unsigned long)(uint8_t)(exp),                \
+             (unsigned long)(uint8_t)(act))
 #define zexpect_u8_ge(exp, act)                                                \
-    ztest__u(__LINE__, ZT_GE, 0, (unsigned long long)(uint8_t)(exp),           \
-             (unsigned long long)(uint8_t)(act))
+    ztest__u(__LINE__, ZT_GE, 0, (unsigned long)(uint8_t)(exp),                \
+             (unsigned long)(uint8_t)(act))
 #define zassert_u8_lt(exp, act)                                                \
-    ztest__u(__LINE__, ZT_LT, 1, (unsigned long long)(uint8_t)(exp),           \
-             (unsigned long long)(uint8_t)(act))
+    ztest__u(__LINE__, ZT_LT, 1, (unsigned long)(uint8_t)(exp),                \
+             (unsigned long)(uint8_t)(act))
 #define zexpect_u8_lt(exp, act)                                                \
-    ztest__u(__LINE__, ZT_LT, 0, (unsigned long long)(uint8_t)(exp),           \
-             (unsigned long long)(uint8_t)(act))
+    ztest__u(__LINE__, ZT_LT, 0, (unsigned long)(uint8_t)(exp),                \
+             (unsigned long)(uint8_t)(act))
 #define zassert_u8_le(exp, act)                                                \
-    ztest__u(__LINE__, ZT_LE, 1, (unsigned long long)(uint8_t)(exp),           \
-             (unsigned long long)(uint8_t)(act))
+    ztest__u(__LINE__, ZT_LE, 1, (unsigned long)(uint8_t)(exp),                \
+             (unsigned long)(uint8_t)(act))
 #define zexpect_u8_le(exp, act)                                                \
-    ztest__u(__LINE__, ZT_LE, 0, (unsigned long long)(uint8_t)(exp),           \
-             (unsigned long long)(uint8_t)(act))
+    ztest__u(__LINE__, ZT_LE, 0, (unsigned long)(uint8_t)(exp),                \
+             (unsigned long)(uint8_t)(act))
 
 #define zassert_char_eq(exp, act)                                              \
     ztest__c(__LINE__, ZT_EQ, 1, (char)(exp), (char)(act))

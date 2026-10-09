@@ -4,10 +4,12 @@ import re
 import select
 import shutil
 import signal
+import struct
 import subprocess
+import sys
 import time
 
-from .base import Driver, Stream, fail, read_fd
+from .base import Driver, Stream, fail
 
 ANSI = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]")
 
@@ -36,48 +38,113 @@ class Ps1Hw(Driver):
     target = "ps1"
 
     def launch(self, args):
-        nops = [self.executable("nops.exe")]
-        if nops[0].endswith(".exe"):
+        self.nops = [self.executable("nops.exe")]
+        if self.nops[0].endswith(".exe"):
             if not shutil.which("mono"):
                 fail("mono not found in PATH (needed to run nops.exe)")
-            nops.insert(0, "mono")
-        dest = self.opts.serial or "/dev/ttyUSB0"
+            self.nops.insert(0, "mono")
+        self.dest = self.opts.serial or "/dev/ttyUSB0"
         if not os.path.isfile(self.opts.exe):
             fail("PS-EXE not found: %s" % self.opts.exe)
-        if not os.path.exists(dest):
-            fail("serial device %s not found (pass --serial)" % dest)
+        if not os.path.exists(self.dest):
+            fail("serial device %s not found (pass --serial)" % self.dest)
         self.write_args_file(args)
         self.log = os.path.join(self.opts.workdir, "ztest.log")
+        self.pid = None
+        low_latency(self.dest)
+        self.upload()
+        return Stream(self.console())
+
+    def reset(self, wait=True):
+        proc = subprocess.Popen(
+            self.nops + ["/fast", "/reset", "/dest", self.dest],
+            cwd=self.opts.workdir, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, start_new_session=True)
+        if wait:
+            proc.wait(timeout=30)
+
+    def flush_icache(self):
+        """UniROM starts an EXE without flushing the I-cache, so a different
+        EXE runs stale lines of the previous one and crashes. This stub tail
+        calls FlushCache (A0:44) from an uncached address."""
+        stub = os.path.join(self.opts.workdir, "ztest.flush")
+        with open(stub, "wb") as f:
+            f.write(struct.pack("<4I", 0x240A00A0, 0x01400008, 0x24090044, 0))
+        try:
+            for cmd in (["/bin", "ztest.flush", "0xA0010000"],
+                        ["/jal", "0xA0010000"]):
+                subprocess.run(
+                    self.nops + ["/fast"] + cmd + ["/dest", self.dest],
+                    cwd=self.opts.workdir, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL, timeout=2)
+        except subprocess.TimeoutExpired:
+            pass  # UniROM is not answering, the upload retry handles it
+        finally:
+            os.remove(stub)
+
+    def upload(self):
+        # An EXE entered uncached (kseg1) flushes the I-cache itself, like the
+        # UPX unpacker does.
+        with open(self.opts.exe, "rb") as f:
+            f.seek(0x10)
+            if struct.unpack("<I", f.read(4))[0] >> 29 != 5:
+                self.flush_icache()
+        # mono block-buffers a pipe, so nops has to run on a pty. TERM=dumb
+        # stops mono waiting 1s for an answer to its cursor position query.
         with contextlib.suppress(OSError):
             os.remove(self.log)
-        # A fresh UniROM avoids faults left over from the previous program.
-        subprocess.run(nops + ["/fast", "/reset", "/dest", dest],
-                       cwd=self.opts.workdir, stdout=subprocess.DEVNULL,
-                       stderr=subprocess.DEVNULL, timeout=30)
-        time.sleep(3)
-        # mono block-buffers a pipe, so nops has to run on a pty.
         exe = os.path.relpath(self.opts.exe, self.opts.workdir)
         import pty
+        self.started = time.time()
         self.pid, self.fd = pty.fork()
         if self.pid == 0:
             os.chdir(self.opts.workdir)
-            os.execvp(nops[0], nops + ["/fast", "/exe", exe, "/m", "/dest",
-                                       dest])
-        return Stream(self.console())
+            os.environ["TERM"] = "dumb"
+            os.execvp(self.nops[0], self.nops + ["/fast", "/exe", exe, "/m",
+                                                 "/dest", self.dest])
+
+    def kill(self):
+        deadline = time.time() + 0.5
+        with contextlib.suppress(ProcessLookupError, ChildProcessError):
+            os.kill(self.pid, signal.SIGINT)
+            while os.waitpid(self.pid, os.WNOHANG)[0] == 0:
+                if time.time() > deadline:
+                    os.kill(self.pid, signal.SIGTERM)
+                    os.waitpid(self.pid, 0)
+                    break
+                time.sleep(0.01)
+        self.pid = None
+        with contextlib.suppress(OSError):
+            os.close(self.fd)
 
     def console(self):
         """nops injects PCDrv traffic via TTY, so ztest writes its
         output to ztest.log through PCDrv instead; follow that file."""
-        with contextlib.suppress(OSError):
-            os.remove(self.log)
         offset = 0
+        uploading = False
+        retried = False
+        tty = b""
         while True:
             if select.select([self.fd], [], [], 0.05)[0]:
                 try:
-                    if not os.read(self.fd, 4096):
-                        return
+                    data = os.read(self.fd, 4096)
                 except OSError:
                     return
+                if not data:
+                    return
+                tty = (tty + data)[-64:]
+                uploading = uploading or b"Sending chunk" in tty
+            if not uploading and time.time() - self.started > 2:
+                self.kill()
+                if retried:
+                    print("zrunner: PS1 not answering on %s, reset it by hand"
+                          % self.dest, file=sys.stderr)
+                    return
+                retried = True
+                self.reset()
+                time.sleep(4.5)  # UniROM takes 3.5 to 4s to boot
+                self.upload()
+                continue
             try:
                 with open(self.log, "rb") as f:
                     f.seek(offset)
@@ -89,13 +156,28 @@ class Ps1Hw(Driver):
                 yield data
 
     def stop(self):
-        with contextlib.suppress(ProcessLookupError):
-            os.kill(self.pid, signal.SIGINT)
-        time.sleep(0.5)
-        with contextlib.suppress(ProcessLookupError):
-            os.kill(self.pid, signal.SIGTERM)
-        with contextlib.suppress(OSError):
-            os.close(self.fd)
-        with contextlib.suppress(ChildProcessError):
-            os.waitpid(self.pid, 0)
+        if self.pid:
+            self.kill()
+        if not self.clean:
+            self.reset(wait=False)
         super().stop()
+
+
+def low_latency(dest):
+    """FTDI adapters hold short replies for 16ms unless the port asks for low
+    latency, which costs every PCDrv call and upload chunk a round trip."""
+    if not sys.platform.startswith("linux"):
+        return
+    import fcntl
+    import struct
+    TIOCGSERIAL, TIOCSSERIAL, ASYNC_LOW_LATENCY = 0x541E, 0x541F, 1 << 13
+    with contextlib.suppress(OSError):
+        fd = os.open(dest, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+        try:
+            info = bytearray(fcntl.ioctl(fd, TIOCGSERIAL, bytes(128)))
+            flags = struct.unpack_from("i", info, 16)[0]
+            if not flags & ASYNC_LOW_LATENCY:
+                struct.pack_into("i", info, 16, flags | ASYNC_LOW_LATENCY)
+                fcntl.ioctl(fd, TIOCSSERIAL, bytes(info))
+        finally:
+            os.close(fd)

@@ -91,6 +91,7 @@ class Driver:
         self.opts = opts
         self.proc = None
         self.args_file = None
+        self.clean = False
 
     def launch(self, args):
         raise NotImplementedError

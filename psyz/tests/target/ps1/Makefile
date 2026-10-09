@@ -10,7 +10,7 @@ ARCH := -march=mips1 -mabi=32 -EL -fno-pic -mno-shared -mno-abicalls -mfp32 \
 	-mno-llsc -fno-stack-protector -nostdlib -ffreestanding
 CFLAGS := $(ARCH) -std=gnu11 -Os -g -ffunction-sections -fdata-sections \
 	-mno-gpopt -fno-builtin -Wno-attributes -D__psx__ \
-	-DZTEST_NEED_MEMCPY -DZTEST_NEED_MEMSET -DZTEST_LOG_SIZE=65536 \
+	-DZTEST_NEED_MEMCPY -DZTEST_NEED_MEMSET -DZTEST_NEED_STRCMP -DZTEST_LOG_SIZE=65536 \
 	-include $(CURDIR)/ps1_compat.h \
 	-I$(CURDIR) -I$(TESTS) -I$(ZTEST) -I$(TESTS)/../include \
 	-I$(NUGGET)/psyq/include -I$(NUGGET) -I$(ZTEST)/target/ps1/include
@@ -31,8 +31,15 @@ vpath %.c $(TESTS) $(ZTEST) $(CURDIR)
 
 all: $(BUILD)/psyz_tests.ps-exe
 
+packed: $(BUILD)/psyz_tests.upx.ps-exe
+
 $(BUILD)/psyz_tests.ps-exe: $(BUILD)/psyz_tests.elf
 	$(PREFIX)-objcopy -O binary $< $@
+
+$(BUILD)/psyz_tests.upx.ps-exe: $(BUILD)/psyz_tests.ps-exe
+# patch loader address to write on uncached 0xA0 to avoid the PS1 I-cache
+	upx -q --best --force --force-overwrite -o $@ $< >/dev/null
+	printf '\240' | dd of=$@ bs=1 seek=19 conv=notrunc status=none
 
 $(BUILD)/psyz_tests.elf: $(OBJS)
 	$(CC) -o $@ $(OBJS) $(LDFLAGS) -Wl,--start-group $(PSYQ_LIBS) \
@@ -52,4 +59,4 @@ clean:
 
 -include $(OBJS:.o=.d)
 
-.PHONY: all clean
+.PHONY: all packed clean

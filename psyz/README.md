@@ -19,6 +19,8 @@ make test-ps1-emu test-ps1-hw
 make test-android
 ```
 
+`test-ps1-hw` needs `nops.exe` (run through `mono`) and `upx` in `PATH`.
+
 The tests are written with [ztest](../ztest/README.md). Pass options straight to the runner, for example
 `python3 ../ztest/zrunner.py native --exe tests/build/sdl3-gpu-hw/psyz_tests --workdir tests --filter='gpu::*'`.
 When an image comparison fails, the frame is written to `tests/expected/<name>.<target>.actual.png`.

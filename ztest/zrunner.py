@@ -273,6 +273,7 @@ def main():
                 break
             session.feed(data)
     finally:
+        driver.clean = session.done()
         driver.stop()
     driver.collect(session)
 
