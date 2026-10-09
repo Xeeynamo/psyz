@@ -1,7 +1,9 @@
 #include "ztest.h"
 #include <string.h>
-#ifndef __psx__
 #include "../src/psyz/mdec.h"
+#ifdef __psx__
+#include <malloc.h>
+#else
 #include <stdlib.h>
 #endif
 
@@ -27,61 +29,9 @@ static const uint16_t mdec_scale[64] = {
     0x30fb, 0x89be, 0x7641, 0xcf04, 0xcf04, 0x7641, 0x89be, 0x30fb,
     0x18f8, 0xb8e3, 0x6a6d, 0x8275, 0x7d8a, 0x9592, 0x471c, 0xe707};
 
-#ifdef __psx__
-static uint32_t psx_mdec_read(unsigned offset) {
-    return *(volatile uint32_t*)(0xBF801820u + offset);
-}
-
-static void psx_mdec_write(unsigned offset, uint32_t value) {
-    *(volatile uint32_t*)(0xBF801820u + offset) = value;
-}
-
-static int hardware_transfer(
-    uint32_t command, const uint32_t* data, unsigned count, uint32_t* output,
-    unsigned output_words) {
-    unsigned sent = 0, received = 0;
-    for (unsigned poll = 0; poll < 0x100000; ++poll) {
-        uint32_t status = psx_mdec_read(4);
-        if (sent <= count && !(status & (sent ? 0x40000000u : 0x20000000u))) {
-            psx_mdec_write(0, sent ? data[sent - 1] : command);
-            ++sent;
-        }
-        if (received < output_words && !(status & 0x80000000u))
-            output[received++] = psx_mdec_read(0);
-        if (sent == count + 1 && received == output_words &&
-            !(psx_mdec_read(4) & 0x20000000u))
-            return 0;
-    }
-    zprintf("MDEC timeout: command=%08X status=%08X input=%u/%u output=%u/%u\n",
-            command, psx_mdec_read(4), sent, count + 1, received, output_words);
-    psx_mdec_write(4, 0x80000000u);
-    return -1;
-}
-
-static void print_words(
-    const char* name, const uint32_t* data, unsigned count) {
-    zprintf("MDEC %s words=%u\n", name, count);
-    for (unsigned i = 0; i < count; i += 8) {
-        zprintf("%04X:", i);
-        for (unsigned j = i; j < count && j < i + 8; ++j)
-            zprintf(" %08X", data[j]);
-        zprintf("\n");
-    }
-}
-
-static void capture_hardware(
+static void check_repeatable(
     uint32_t flags, const uint32_t* data, unsigned count,
     const uint8_t quant[128], const uint16_t scale[64]) {
-    uint32_t padded[192];
-    unsigned padded_count = (count + 31u) & ~31u;
-    memcpy(padded, data, count * sizeof(*padded));
-    for (unsigned i = count; i < padded_count; ++i)
-        padded[i] = 0xFE00FE00u;
-    data = padded;
-    count = padded_count;
-    uint32_t quant_words[32], scale_words[32];
-    memcpy(quant_words, quant, sizeof(quant_words));
-    memcpy(scale_words, scale, sizeof(scale_words));
     unsigned depth = (flags >> 27) & 3;
     const unsigned sizes[] = {8, 16, 192, 128};
     unsigned words = sizes[depth];
@@ -90,33 +40,18 @@ static void capture_hardware(
     memset(repeated, 0xA5, sizeof(repeated));
     uint32_t command = 0x20000000 | flags | count;
     for (unsigned pass = 0; pass < 2; ++pass) {
-        psx_mdec_write(4, 0x80000000u);
-        zassert_s32_eq(
-            0, hardware_transfer(0x40000001, quant_words, 32, NULL, 0));
-        zassert_s32_eq(
-            0, hardware_transfer(0x60000000, scale_words, 32, NULL, 0));
-        zassert_s32_eq(0, hardware_transfer(command, data, count,
-                                            pass ? repeated : output, words));
-        psx_mdec_write(4, 0x80000000u);
-        if (!pass) {
-            zprintf("MDEC command=%08X output_order=pio\n", command);
-            print_words("quant", quant_words, 32);
-            print_words("scale", scale_words, 32);
-            print_words("input", data, count);
-            print_words("output", output, words);
-        }
+        Psyz_MdecReset();
+        zassert_s32_eq(0, Psyz_MdecCommand(0x40000001, quant, 32));
+        zassert_s32_eq(0, Psyz_MdecCommand(0x60000000, scale, 32));
+        zassert_s32_eq(0, Psyz_MdecCommand(command, data, count));
+        zassert_s32_eq(0, Psyz_MdecRead(pass ? repeated : output, words));
     }
     zexpect_u32_eq(0xA5A5A5A5, output[words]);
     zexpect_u32_eq(0xA5A5A5A5, repeated[words]);
-    for (unsigned i = 0; i < words; ++i) {
-        if (output[i] != repeated[i])
-            zprintf("MDEC command=%08X word=%u first=%08X repeated=%08X\n",
-                    command, i, output[i], repeated[i]);
-        zassert_u32_eq(output[i], repeated[i]);
-    }
+    zexpect_u8array_eq(output, repeated, words * sizeof(*output));
 }
 
-static void hardware_tables(uint8_t quant[128], uint16_t scale[64]) {
+static void default_tables(uint8_t quant[128], uint16_t scale[64]) {
     memcpy(quant, mdec_quant, 64);
     memcpy(quant + 64, mdec_quant, 64);
     memcpy(scale, mdec_scale, 128);
@@ -151,96 +86,95 @@ static unsigned generated_runlevels(
     return count / 2;
 }
 
-ZTEST(mdec, hardware_rgb24) {
+ZTEST(mdec, repeatable_rgb24) {
     uint8_t quant[128];
     uint16_t scale[64];
-    hardware_tables(quant, scale);
-    capture_hardware(2u << 27, mdec_nonflat + 1, 15, quant, scale);
-    capture_hardware(
+    default_tables(quant, scale);
+    check_repeatable(2u << 27, mdec_nonflat + 1, 15, quant, scale);
+    check_repeatable(
         (2u << 27) | (1u << 26), mdec_nonflat + 1, 15, quant, scale);
 }
 
-ZTEST(mdec, hardware_rgb555_flags) {
+ZTEST(mdec, repeatable_rgb555_flags) {
     uint8_t quant[128];
     uint16_t scale[64];
-    hardware_tables(quant, scale);
+    default_tables(quant, scale);
     for (unsigned flags = 0; flags < 4; ++flags)
-        capture_hardware(
+        check_repeatable(
             (3u << 27) | (flags << 25), mdec_nonflat + 1, 15, quant, scale);
 }
 
-ZTEST(mdec, hardware_monochrome) {
+ZTEST(mdec, repeatable_monochrome) {
     const uint32_t data[] = {0x00091010, 0x080407FE, 0xFE0013F0};
     uint8_t quant[128];
     uint16_t scale[64];
-    hardware_tables(quant, scale);
+    default_tables(quant, scale);
     for (unsigned depth = 0; depth < 2; ++depth)
         for (unsigned sign = 0; sign < 2; ++sign)
-            capture_hardware(
+            check_repeatable(
                 (depth << 27) | (sign << 26), data, 3, quant, scale);
 }
 
-ZTEST(mdec, hardware_custom_quantization) {
+ZTEST(mdec, repeatable_custom_quantization) {
     uint8_t quant[128];
     uint16_t scale[64];
-    hardware_tables(quant, scale);
+    default_tables(quant, scale);
     for (unsigned i = 0; i < 128; ++i)
         quant[i] = (i * 17 + 3) & 255;
-    capture_hardware(2u << 27, mdec_nonflat + 1, 15, quant, scale);
-    capture_hardware(3u << 27, mdec_nonflat + 1, 15, quant, scale);
+    check_repeatable(2u << 27, mdec_nonflat + 1, 15, quant, scale);
+    check_repeatable(3u << 27, mdec_nonflat + 1, 15, quant, scale);
 }
 
-ZTEST(mdec, hardware_custom_scale) {
+ZTEST(mdec, repeatable_custom_scale) {
     uint8_t quant[128];
     uint16_t scale[64];
-    hardware_tables(quant, scale);
+    default_tables(quant, scale);
     for (unsigned i = 0; i < 64; ++i)
         scale[i] ^= (i * 13 + 9) & 255;
-    capture_hardware(2u << 27, mdec_nonflat + 1, 15, quant, scale);
-    capture_hardware(3u << 27, mdec_nonflat + 1, 15, quant, scale);
+    check_repeatable(2u << 27, mdec_nonflat + 1, 15, quant, scale);
+    check_repeatable(3u << 27, mdec_nonflat + 1, 15, quant, scale);
 }
 
-ZTEST(mdec, hardware_generated_runlevels) {
+ZTEST(mdec, repeatable_generated_runlevels) {
     const unsigned scales[] = {1, 4, 63};
     uint8_t quant[128];
     uint16_t matrix[64];
     uint32_t data[192];
-    hardware_tables(quant, matrix);
+    default_tables(quant, matrix);
     for (unsigned s = 0; s < 3; ++s) {
         for (unsigned depth = 0; depth < 4; ++depth) {
             unsigned count =
                 generated_runlevels(data, depth < 2 ? 1 : 6, scales[s], 0);
             for (unsigned sign = 0; sign < 2; ++sign)
-                capture_hardware(
+                check_repeatable(
                     (depth << 27) | (sign << 26), data, count, quant, matrix);
         }
     }
 }
 
-ZTEST(mdec, hardware_zero_scale) {
+ZTEST(mdec, repeatable_zero_scale) {
     uint8_t quant[128];
     uint16_t matrix[64];
     uint32_t data[192];
-    hardware_tables(quant, matrix);
+    default_tables(quant, matrix);
     for (unsigned depth = 0; depth < 4; ++depth) {
         unsigned count = generated_runlevels(data, depth < 2 ? 1 : 6, 0, 0);
         for (unsigned sign = 0; sign < 2; ++sign)
-            capture_hardware(
+            check_repeatable(
                 (depth << 27) | (sign << 26), data, count, quant, matrix);
     }
 }
 
-ZTEST(mdec, hardware_full_blocks_without_end_codes) {
+ZTEST(mdec, repeatable_full_blocks_without_end_codes) {
     uint8_t quant[128];
     uint16_t matrix[64];
     uint32_t data[192];
-    hardware_tables(quant, matrix);
+    default_tables(quant, matrix);
     for (unsigned depth = 0; depth < 4; ++depth) {
         unsigned count = generated_runlevels(data, depth < 2 ? 1 : 6, 4, 1);
-        capture_hardware(depth << 27, data, count, quant, matrix);
+        check_repeatable(depth << 27, data, count, quant, matrix);
     }
 }
-#else
 static const uint32_t mdec_rgb24_expected[] = {
     0x87A99191, 0x83769F87, 0x8B82758C, 0x728C8974, 0x7D678A87, 0x7E735D88,
     0x6CA48374, 0x74679C7B, 0xA77B6EA0, 0x7DB08E76, 0x9673B795, 0xA18D6AAA,
@@ -452,6 +386,8 @@ static void check_reference(uint32_t flags, const uint32_t* data, size_t count,
     zexpect_u32_eq(0xA5A5A5A5, pixels[words]);
 }
 
+ZTEST_TEARDOWN(mdec) { Psyz_MdecReset(); }
+
 ZTEST_SETUP(mdec) {
     Psyz_MdecReset();
     load_quant(0);
@@ -605,6 +541,7 @@ ZTEST(mdec, output_overrun_and_recovery) {
 }
 
 ZTEST(mdec, truncated_and_malformed_coefficients) {
+    zskip_targets("ps1");
     uint32_t data[6], pixels[193];
     for (unsigned malformed = 0; malformed < 2; ++malformed) {
         make_flat(data, 1);
@@ -654,6 +591,14 @@ ZTEST(mdec, invalid_output_sizes_leave_destination_untouched) {
     zexpect_s32_eq(0, Psyz_MdecRead(NULL, 0));
 }
 
+ZTEST(mdec, empty_decode_has_no_pixels) {
+    uint32_t pixel = 0xA5A5A5A5;
+    zassert_s32_eq(0, Psyz_MdecCommand(0x30000000, NULL, 0));
+    zexpect_s32_eq(0, Psyz_MdecRead(NULL, 0));
+    zexpect_s32_eq(-1, Psyz_MdecRead(&pixel, 1));
+    zexpect_u32_eq(0, pixel);
+}
+
 ZTEST(mdec, unaligned_input_and_output) {
     uint8_t data[61], pixels[770];
     memcpy(data + 1, mdec_nonflat + 1, 60);
@@ -677,4 +622,3 @@ ZTEST(mdec, maximum_input_count) {
     for (unsigned i = 0; i < 192; ++i)
         zassert_u32_eq(0x80808080, pixels[i]);
 }
-#endif
