@@ -184,12 +184,16 @@ long my_erase(char* path) {
 #include <sys/ioctl.h>
 int psyz_open(const char* devname, int flag) {
     int oflag = O_RDONLY;
+    if (flag & FCREAT) {
+        // as on Windows: creating implies writing
+        flag |= FWRITE;
+    }
     if ((flag & (FREAD | FWRITE)) == (FREAD | FWRITE)) {
-        flag = O_RDWR;
+        oflag = O_RDWR;
     } else if (flag & FREAD) {
-        flag |= O_RDONLY;
+        oflag = O_RDONLY;
     } else if (flag & FWRITE) {
-        flag |= O_WRONLY;
+        oflag = O_WRONLY;
     }
     if (flag & FNBLOCK) {
         DEBUGF("FNBLOCK ignored for %s", devname);
@@ -228,7 +232,7 @@ int psyz_open(const char* devname, int flag) {
     char path[0x100];
     Psyz_AdjustPath(path, devname, sizeof(path));
     if (oflag & O_CREAT) {
-        return creat(path, 0644);
+        return open(path, oflag | O_TRUNC, 0644); // a new file, as creat()
     } else {
         struct stat st;
         if (stat(path, &st) != 0) {

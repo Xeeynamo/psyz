@@ -119,6 +119,22 @@ ZTEST(bu, create_and_write_file) {
     zexpect_u16_eq(expected, actual);
 }
 
+// A save game: the file is created, closed, then reopened to be written.
+ZTEST(bu, write_to_existing_file) {
+    unsigned short expected = 4321, actual;
+    int fd = open("bu00:BASLUS-00000PSYZ01", FWRITE);
+    zexpect_s32_ne(-1, fd);
+    zexpect_s32_eq(sizeof(unsigned short),
+                   write(fd, (char*)&expected, sizeof(unsigned short)));
+    close(fd);
+
+    FILE* f = fopen("bu00/BASLUS-00000PSYZ01", "rb");
+    int read = fread(&actual, 1, sizeof(unsigned short), f);
+    fclose(f);
+    zexpect_s32_eq(sizeof(unsigned short), read);
+    zexpect_u16_eq(expected, actual);
+}
+
 ZTEST(path_adjustment, basic_memory_card_path) {
     char dst[256] = {0};
     Psyz_AdjustPath(dst, "bu00:TESTFILE", sizeof(dst));
