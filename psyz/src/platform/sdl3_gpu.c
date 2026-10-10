@@ -10,6 +10,8 @@
 #include <SDL3/SDL.h>
 #include "sdl3_common.h"
 #include "sdl3_draw.h"
+#include "rgb24.h"
+static bool display_rgb24;
 
 #if defined(_WIN32)
 #include "shaders/psx_vert_dxil.h"
@@ -62,6 +64,8 @@ static SDL_GPUDevice* device = NULL;
 static bool swapchain_ok = false;
 static SDL_GPUTexture* vram_render = NULL;
 static SDL_GPUTexture* vram_sample = NULL;
+static SDL_GPUTexture* rgb24_texture;
+static bool rgb24_dirty = true;
 static SDL_GPUSampler* vram_sampler = NULL;
 static SDL_GPUTexture* scaled_vram_render = NULL;
 static unsigned internal_res = 1;
@@ -536,6 +540,11 @@ static void MarkVramDirty(SDL_Rect r) {
     if (x1 <= x0 || y1 <= y0) {
         return;
     }
+    if (display_rgb24 &&
+        Rgb24RegionOverlaps(display_area.x, display_area.y, display_size.x,
+                            display_size.y, x0, y0, x1 - x0, y1 - y0)) {
+        rgb24_dirty = true;
+    }
     if (vram_dirty.w <= 0 || vram_dirty.h <= 0) {
         vram_dirty = (SDL_Rect){x0, y0, x1 - x0, y1 - y0};
         return;
@@ -688,6 +697,55 @@ static void ApplyPendingInternalRes(void) {
     INFOF("internal resolution set to %dx (%dx%d)", n, VRAM_W * n, VRAM_H * n);
 }
 
+static SDL_GPUTexture* PrepareRgb24(void) {
+    if (rgb24_texture && !rgb24_dirty)
+        return rgb24_texture;
+    u8* rgb = AllocRgb24Region(
+        display_area.x, display_area.y, display_size.x, display_size.y);
+    if (!rgb)
+        return NULL;
+    if (!rgb24_texture) {
+        SDL_GPUTextureCreateInfo info = {
+            .type = SDL_GPU_TEXTURETYPE_2D,
+            .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+            .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
+            .width = VRAM_W,
+            .height = VRAM_H,
+            .layer_count_or_depth = 1,
+            .num_levels = 1,
+        };
+        rgb24_texture = SDL_CreateGPUTexture(device, &info);
+    }
+    u8* map = rgb24_texture
+                  ? SDL_MapGPUTransferBuffer(device, tex_upload_transfer, true)
+                  : NULL;
+    if (!map) {
+        free(rgb);
+        return NULL;
+    }
+    for (int i = 0; i < display_size.x * display_size.y; ++i) {
+        memcpy(map + i * 4, rgb + i * 3, 3);
+        map[i * 4 + 3] = 255;
+    }
+    free(rgb);
+    SDL_UnmapGPUTransferBuffer(device, tex_upload_transfer);
+    SDL_GPUCommandBuffer* cmd = AcquireCmd();
+    if (!cmd)
+        return NULL;
+    SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd);
+    SDL_GPUTextureTransferInfo source = {
+        .transfer_buffer = tex_upload_transfer};
+    SDL_GPUTextureRegion destination = {
+        .texture = rgb24_texture,
+        .w = display_size.x,
+        .h = display_size.y,
+        .d = 1};
+    SDL_UploadToGPUTexture(copy, &source, &destination, false);
+    SDL_EndGPUCopyPass(copy);
+    rgb24_dirty = false;
+    return rgb24_texture;
+}
+
 static void PlatformBackend_Present(void) {
     if (!sdl3_window && !InitPlatform()) {
         return;
@@ -699,6 +757,8 @@ static void PlatformBackend_Present(void) {
 
     ApplyPendingInternalRes();
 
+    SDL_GPUTexture* rgb24_source =
+        display_rgb24 && !debug_show_vram && disp_on ? PrepareRgb24() : NULL;
     SDL_GPUCommandBuffer* cmd = AcquireCmd();
     if (!cmd) {
         return;
@@ -722,11 +782,11 @@ static void PlatformBackend_Present(void) {
                     SDL_BeginGPURenderPass(cmd, &blank_target, 1, NULL);
                 SDL_EndGPURenderPass(blank_pass);
             } else {
-                const Uint32 n = internal_res;
+                const Uint32 n = rgb24_source ? 1 : internal_res;
                 SDL_GPUBlitRegion src = {
-                    .texture = GetRenderTarget(),
-                    .x = (Uint32)display_area.x * n,
-                    .y = (Uint32)display_area.y * n,
+                    .texture = rgb24_source ? rgb24_source : GetRenderTarget(),
+                    .x = rgb24_source ? 0 : (Uint32)display_area.x * n,
+                    .y = rgb24_source ? 0 : (Uint32)display_area.y * n,
                     .w = (Uint32)display_size.x * n,
                     .h = (Uint32)display_size.y * n,
                 };
@@ -800,6 +860,11 @@ static void QuitPlatform(void) {
         if (pipe_clear) {
             SDL_ReleaseGPUGraphicsPipeline(device, pipe_clear);
             pipe_clear = NULL;
+        }
+        if (rgb24_texture) {
+            SDL_ReleaseGPUTexture(device, rgb24_texture);
+            rgb24_texture = NULL;
+            rgb24_dirty = true;
         }
         if (vram_render) {
             SDL_ReleaseGPUTexture(device, vram_render);
@@ -931,7 +996,9 @@ static unsigned char* AllocRgb888Region(int x, int y, int w, int h) {
 unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
     *w = display_size.x;
     *h = display_size.y;
-    return AllocRgb888Region(display_area.x, display_area.y, *w, *h);
+    return display_rgb24
+               ? AllocRgb24Region(display_area.x, display_area.y, *w, *h)
+               : AllocRgb888Region(display_area.x, display_area.y, *w, *h);
 }
 
 unsigned char* Psyz_VideoAllocVramDump(int* w, int* h) {
@@ -1020,6 +1087,8 @@ void Draw_DisplayEnable(unsigned int on) {
 }
 
 void Draw_DisplayArea(unsigned int x, unsigned int y) {
+    if (display_area.x != (int)x || display_area.y != (int)y)
+        rgb24_dirty = true;
     display_area.x = (int)x;
     display_area.y = (int)y;
 
@@ -1038,8 +1107,10 @@ void Draw_DisplayVerticalRange(unsigned int start, int unsigned end) {
 }
 
 void Draw_SetDisplayMode(DisplayMode* mode) {
+    bool previous_rgb24 = display_rgb24;
+    Posi previous_size = display_size;
     // TODO the interlace flag is ignored
-    // TODO rgb24 is ignored, the color output will always max the color space
+    display_rgb24 = mode->rgb24;
     if (mode->reversed) {
         WARNF("reverse mode not supported");
     }
@@ -1065,6 +1136,10 @@ void Draw_SetDisplayMode(DisplayMode* mode) {
         }
     }
     display_size.y = mode->vertical_resolution ? 480 : 240;
+    if (previous_rgb24 != display_rgb24 || previous_size.x != display_size.x ||
+        previous_size.y != display_size.y) {
+        rgb24_dirty = true;
+    }
     ApplyDisplayPendingChanges();
 
     double new_target_fps = mode->pal ? VSYNC_PAL : VSYNC_NTSC;
@@ -1560,7 +1635,6 @@ void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
     }
     SDL_EndGPUCopyPass(copy);
     MarkVramDirty((SDL_Rect){dst_x, dst_y, copy_w, copy_h});
-    MarkVramDirty((SDL_Rect){src_x, src_y, copy_w, copy_h});
     SyncNativeVramToScaled(dst_x, dst_y, copy_w, copy_h);
 }
 

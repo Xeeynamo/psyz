@@ -10,6 +10,7 @@ set(PSYZ_TEST_SOURCES
     test_events.c
     test_libgte.c
     test_libgpu.c
+    test_rgb24.c
     test_libcd.c
     test_libspu.c
     test_mdec.c

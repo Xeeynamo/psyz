@@ -284,7 +284,7 @@ void Psyz_GpuDisplayCommand(unsigned int cmd) {
         LOG_ONCE("DMA direction not implemented");
         break;
     case 5:
-        Draw_DisplayArea(cmd & 0x3FF, (cmd >> 10) & 0x3FF);
+        Draw_DisplayArea(cmd & 0x3FE, (cmd >> 10) & 0x3FF);
         break;
     case 6:
         Draw_DisplayHorizontalRange(cmd & 0xFFF, (cmd >> 12) & 0xFFF);

@@ -27,6 +27,10 @@
 
 #include "sdl3_common.h"
 #include "sdl3_draw.h"
+#include "rgb24.h"
+static bool display_rgb24;
+static GLuint rgb24_texture, rgb24_fbo;
+static bool rgb24_dirty = true;
 
 // selected at runtime based on the active GL profile; the shader bodies are
 // shared and must stay legal in both GLSL 330 core and GLSL ES 3.00 (the
@@ -236,6 +240,15 @@ static GLposi cur_display_size = {-1, -1};
 static GLposi draw_offset = {0, 0};
 static GLposi draw_area_start = {0, 0};
 static GLposi draw_area_end = {0x10000, 0x10000};
+static SDL_Rect scissor_rect = {0, 0, VRAM_W, VRAM_H};
+
+static void MarkRgb24Dirty(int x, int y, int w, int h) {
+    if (display_rgb24 &&
+        Rgb24RegionOverlaps(display_area.x, display_area.y, display_size.x,
+                            display_size.y, x, y, w, h)) {
+        rgb24_dirty = true;
+    }
+}
 
 static bool CreateScaledVramFbo(int n);
 
@@ -496,6 +509,7 @@ static void SyncScaledVramToNative(void) {
     glBlitFramebuffer(
         x0 * internal_res, y0 * internal_res, x1 * internal_res,
         y1 * internal_res, x0, y0, x1, y1, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    MarkRgb24Dirty(x0, y0, x1 - x0, y1 - y0);
     glBindFramebuffer(GL_FRAMEBUFFER, scaled_vram_fbo);
     glEnable(GL_SCISSOR_TEST);
 }
@@ -592,19 +606,51 @@ static void ApplyPendingInternalRes(void) {
     INFOF("internal resolution set to %dx (%dx%d)", n, VRAM_W * n, VRAM_H * n);
 }
 
+static bool PrepareRgb24(void) {
+    if (rgb24_texture && !rgb24_dirty)
+        return true;
+    u8* rgb = AllocRgb24Region(
+        display_area.x, display_area.y, display_size.x, display_size.y);
+    if (!rgb)
+        return false;
+    if (!rgb24_texture) {
+        glGenTextures(1, &rgb24_texture);
+        glGenFramebuffers(1, &rgb24_fbo);
+    }
+    glBindTexture(GL_TEXTURE_2D, rgb24_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, display_size.x, display_size.y, 0,
+                 GL_RGB, GL_UNSIGNED_BYTE, rgb);
+    free(rgb);
+    glBindFramebuffer(GL_FRAMEBUFFER, rgb24_fbo);
+    glFramebufferTexture2D(
+        GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rgb24_texture, 0);
+    rgb24_dirty = false;
+    return true;
+}
+
 static void PlatformBackend_Present(void) {
     if (!sdl3_window && !InitPlatform()) {
         return;
     }
     ApplyPendingInternalRes();
 
-    const int n = (int)internal_res;
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, GetDrawFbo());
+    bool use_rgb24 =
+        display_rgb24 && !debug_show_vram && disp_on && PrepareRgb24();
+    const int n = use_rgb24 ? 1 : (int)internal_res;
+    glBindFramebuffer(
+        GL_READ_FRAMEBUFFER, use_rgb24 ? rgb24_fbo : GetDrawFbo());
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     glDisable(GL_SCISSOR_TEST);
 
     SDL_Rect src = {display_area.x, display_area.y, display_size.x,
                     display_size.y};
+    if (use_rgb24) {
+        src.x = 0;
+        src.y = 0;
+    }
     float game_aspect =
         GetCurrentGameAspectRatio(display_size.x, display_size.y);
     if (debug_show_vram) {
@@ -688,6 +734,11 @@ void ResetPlatform(void) {
         scaled_vram_fbo = 0;
     }
     internal_res = 1;
+    glDeleteTextures(1, &rgb24_texture);
+    rgb24_texture = 0;
+    rgb24_dirty = true;
+    glDeleteFramebuffers(1, &rgb24_fbo);
+    rgb24_fbo = 0;
     free(vram_convert_buf);
     vram_convert_buf = NULL;
     vram_convert_cap = 0;
@@ -737,7 +788,9 @@ static unsigned char* AllocRgb888Region(int x, int y, int w, int h) {
 unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
     *w = display_size.x;
     *h = display_size.y;
-    return AllocRgb888Region(display_area.x, display_area.y, *w, *h);
+    return display_rgb24
+               ? AllocRgb24Region(display_area.x, display_area.y, *w, *h)
+               : AllocRgb888Region(display_area.x, display_area.y, *w, *h);
 }
 
 unsigned char* Psyz_VideoAllocVramDump(int* w, int* h) {
@@ -784,6 +837,8 @@ static void UpdateScissor(void) {
     int sh = height * internal_res;
     glEnable(GL_SCISSOR_TEST);
     glScissor(sx, sy, sw, sh);
+    scissor_rect =
+        (SDL_Rect){draw_area_start.x, draw_area_start.y, width, height};
 }
 static void ApplyDisplayPendingChanges() {
     if (!sdl3_window && !InitPlatform()) {
@@ -827,6 +882,8 @@ void Draw_DisplayEnable(unsigned int on) {
 }
 
 void Draw_DisplayArea(unsigned int x, unsigned int y) {
+    if (display_area.x != (int)x || display_area.y != (int)y)
+        rgb24_dirty = true;
     display_area.x = (GLint)x;
     display_area.y = (GLint)y;
 
@@ -846,8 +903,10 @@ void Draw_DisplayVerticalRange(unsigned int start, int unsigned end) {
 }
 
 void Draw_SetDisplayMode(DisplayMode* mode) {
+    bool previous_rgb24 = display_rgb24;
+    GLposi previous_size = display_size;
     // TODO the interlace flag is ignored
-    // TODO rgb24 is ignored, the color output will always max the color space
+    display_rgb24 = mode->rgb24;
     if (mode->reversed) {
         WARNF("reverse mode not supported");
     }
@@ -873,6 +932,10 @@ void Draw_SetDisplayMode(DisplayMode* mode) {
         }
     }
     display_size.y = mode->vertical_resolution ? 480 : 240;
+    if (previous_rgb24 != display_rgb24 || previous_size.x != display_size.x ||
+        previous_size.y != display_size.y) {
+        rgb24_dirty = true;
+    }
     ApplyDisplayPendingChanges();
 
     double new_target_fps = mode->pal ? VSYNC_PAL : VSYNC_NTSC;
@@ -1216,6 +1279,7 @@ void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
     if (!sdl3_window && !InitPlatform()) {
         return;
     }
+    MarkRgb24Dirty(rect->x, rect->y, rect->w, rect->h);
     glClearColor((float)r / 255.0f, (float)g / 255.0f, (float)b / 255.0f, 0.0f);
     glBindFramebuffer(GL_FRAMEBUFFER, vram_fbo);
     glScissor(rect->x, rect->y, rect->w, rect->h);
@@ -1241,6 +1305,7 @@ void Draw_LoadImage(PS1_RECT* rect, u_long* p) {
     if (!buf) {
         return;
     }
+    MarkRgb24Dirty(rect->x, rect->y, rect->w, rect->h);
     ConvertRgb5551ToRgba8888((const u16*)p, buf, count);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, vram_texture);
@@ -1362,6 +1427,7 @@ void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
         }
     }
     SyncNativeVramToScaled(dst_x, dst_y, copy_w, copy_h);
+    MarkRgb24Dirty(dst_x, dst_y, copy_w, copy_h);
     BindDrawFbo();
     glEnable(GL_SCISSOR_TEST);
 }
@@ -1459,5 +1525,9 @@ void Draw_FlushBuffer(void) {
         }
     }
     SyncScaledVramToNative();
+    if (!HasSeparateDrawTarget()) {
+        MarkRgb24Dirty(
+            scissor_rect.x, scissor_rect.y, scissor_rect.w, scissor_rect.h);
+    }
     Draw_ResetBuffer();
 }
