@@ -1,6 +1,8 @@
 #ifndef PSYZ_RGB24_H
 #define PSYZ_RGB24_H
 
+#include <libgpu.h>
+
 static int Rgb24RegionOverlaps(
     int x, int y, int w, int h, int rx, int ry, int rw, int rh) {
     if (w <= 0 || h <= 0 || w > VRAM_W || h > VRAM_H || x < 0 || x >= VRAM_W ||
@@ -38,7 +40,7 @@ static unsigned char* AllocRgb24Region(int x, int y, int w, int h) {
         return NULL;
     }
     PS1_RECT rect = {x, y + first, words, last - first};
-    Draw_StoreImage(&rect, (u_long*)raw);
+    StoreImage(&rect, (u_long*)raw);
     size_t bytes = (size_t)words * 2;
     if (bytes > (size_t)w * 3) {
         bytes = (size_t)w * 3;

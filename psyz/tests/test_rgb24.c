@@ -14,6 +14,7 @@
 static unsigned char* capture;
 
 ZTEST_SETUP(rgb24) {
+    zskip_targets("psp");
     ResetGraph(0);
     RECT clear = {0, 0, 1024, 512};
     ClearImage(&clear, 0, 0, 0);
