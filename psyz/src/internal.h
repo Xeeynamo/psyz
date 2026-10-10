@@ -41,4 +41,7 @@ void Psyz_KernelVBlank(void);
 // Services due timers when the host has no thread to run them.
 void Psyz_KernelPoll(void);
 
+// Latch completion of a native DMA transfer through the kernel IRQ dispatcher.
+void Psyz_KernelDmaComplete(int channel);
+
 #endif

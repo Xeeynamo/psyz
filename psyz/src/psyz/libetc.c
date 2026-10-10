@@ -56,11 +56,6 @@ long SetVideoMode(long mode) {
     return prev;
 }
 
-void* DMACallback(int dma, void (*func)()) {
-    NOT_IMPLEMENTED;
-    return NULL;
-}
-
 int InitTAP(char* bufA, long lenA, char* bufB, long lenB) {
     LOG_ONCE("forwarding to InitPAD");
     return InitPAD(bufA, lenA, bufB, lenB);

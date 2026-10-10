@@ -121,6 +121,8 @@ static int posted_len;
 static void (*vsync_callbacks[8])(void);
 static void VSyncDispatch(void);
 static void (*irq_callbacks[IRQ_COUNT])(void) = {VSyncDispatch};
+static void (*dma_callbacks[DMA_CHANNEL_OTC + 1])(void);
+static unsigned dma_pending;
 
 static void KernelInit(void) {
     if (kernel_lock) {
@@ -193,6 +195,16 @@ static void ServiceLine(int line) {
     case IRQ_RCNT2:
         DeliverLocked(RCntCNT0 + (line - IRQ_RCNT0), EvSpINT);
         break;
+    case IRQ_DMA: {
+        unsigned completed = dma_pending;
+        dma_pending = 0;
+        for (int i = 0; i < LEN(dma_callbacks); i++) {
+            if ((completed & (1u << i)) && dma_callbacks[i]) {
+                dma_callbacks[i]();
+            }
+        }
+        break;
+    }
     }
     if (irq_callbacks[line]) {
         irq_callbacks[line]();
@@ -250,6 +262,48 @@ static void LatchLine(int line) {
     irq_latched |= 1u << line;
     ServicePending();
     KernelUnlock();
+}
+
+void Psyz_KernelDmaComplete(int channel) {
+    if (channel < 0 || channel >= LEN(dma_callbacks)) {
+        return;
+    }
+    KernelLock();
+    if (dma_callbacks[channel]) {
+        dma_pending |= 1u << channel;
+        irq_latched |= 1u << IRQ_DMA;
+        ServicePending();
+    }
+    KernelUnlock();
+}
+
+void* DMACallback(int channel, void (*callback)()) {
+    void (*previous)(void);
+    if (channel < 0 || channel >= LEN(dma_callbacks)) {
+        return NULL;
+    }
+    KernelLock();
+    previous = dma_callbacks[channel];
+    dma_callbacks[channel] = callback;
+    if (!callback) {
+        dma_pending &= ~(1u << channel);
+        if (!dma_pending) {
+            irq_latched &= ~(1u << IRQ_DMA);
+        }
+    }
+    int active = 0;
+    for (int i = 0; i < LEN(dma_callbacks); i++) {
+        active |= dma_callbacks[i] != NULL;
+    }
+    unsigned* mask = callbacks_running ? &irq_mask : &irq_saved_mask;
+    if (active || irq_callbacks[IRQ_DMA]) {
+        *mask |= 1u << IRQ_DMA;
+    } else {
+        *mask &= ~(1u << IRQ_DMA);
+    }
+    ServicePending();
+    KernelUnlock();
+    return (void*)previous;
 }
 
 void Psyz_KernelRaise(unsigned int desc, unsigned int spec) {
@@ -686,6 +740,8 @@ int ResetCallback(void) {
     }
     memset(irq_callbacks, 0, sizeof(irq_callbacks));
     memset(vsync_callbacks, 0, sizeof(vsync_callbacks));
+    memset(dma_callbacks, 0, sizeof(dma_callbacks));
+    dma_pending = 0;
     irq_callbacks[IRQ_VBLANK] = VSyncDispatch;
     irq_mask = 1u << IRQ_VBLANK;
     irq_latched = 0;
@@ -703,6 +759,7 @@ int StopCallback(void) {
     irq_saved_mask = irq_mask;
     irq_mask = 0;
     irq_latched = 0;
+    dma_pending = 0;
     callbacks_running = 0;
     KernelUnlock();
     return 1;
