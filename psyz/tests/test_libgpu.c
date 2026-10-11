@@ -1066,6 +1066,70 @@ ZTEST(gpu, uv_minification) {
     ASSERT_FRAME("uv_minification", 0, 0.9995f);
 }
 
+// A textured polygon takes no texel outside the range its corners name. The
+// 16x16 tile is surrounded by another color and none of it may be drawn,
+// however the quad is sheared. The UVs are inclusive, u to u+15, as games set
+// them for tiles that share a texture page. With exclusive UVs a quad sheared
+// to the left or upwards still takes the texel past its far edge, because
+// FixupFlipUV reads that shear as a flip: not covered here.
+ZTEST(gpu, sheared_ft4_stays_in_tile) {
+    enum { TEX_X = 640, TEX_Y = 256, TEX_SIZE = 48, TILE = 16 };
+    enum { X = 96, Y = 96, SHOT_X = 56, SHOT_Y = 56, SHOT_SIZE = 96 };
+    enum { INSIDE = 0x03E0, OUTSIDE = 0x7C1F };
+    static const short shear[] = {-24, -16, -9, -1, 0, 1, 9, 16, 24};
+    static u_short texture[TEX_SIZE * TEX_SIZE];
+    static u_short readback[SHOT_SIZE * SHOT_SIZE];
+    RECT texRect = {TEX_X, TEX_Y, TEX_SIZE, TEX_SIZE};
+    RECT shot = {SHOT_X, SHOT_Y, SHOT_SIZE, SHOT_SIZE};
+    POLY_FT4* poly = &cdb->ft4[0];
+    const int uv0 = TILE;
+    const int uv1 = TILE + TILE - 1;
+
+    for (int v = 0; v < TEX_SIZE; v++) {
+        for (int u = 0; u < TEX_SIZE; u++) {
+            int inTile = u >= uv0 && u <= uv1 && v >= uv0 && v <= uv1;
+            texture[v * TEX_SIZE + u] = inTile ? INSIDE : OUTSIDE;
+        }
+    }
+    LoadImage(&texRect, (u_long*)texture);
+    DrawSync(0);
+
+    // axis 0 shifts the bottom edge sideways, axis 1 the right edge down
+    for (int axis = 0; axis < 2; axis++) {
+        for (int i = 0; i < LEN(shear); i++) {
+            int sx = axis == 0 ? shear[i] : 0;
+            int sy = axis == 1 ? shear[i] : 0;
+            int inside = 0;
+            int outside = 0;
+
+            SetPolyFT4(poly);
+            setRGB0(poly, 128, 128, 128);
+            setXY4(poly, X, Y, X + TILE, Y + sy, X + sx, Y + TILE,
+                   X + TILE + sx, Y + TILE + sy);
+            setUV4(poly, uv0, uv0, uv1, uv0, uv0, uv1, uv1, uv1);
+            poly->tpage = GetTPage(2, 0, TEX_X, TEX_Y);
+            poly->clut = 0;
+
+            ClearOTag(cdb->ot, OTSIZE);
+            AddPrim(cdb->ot, poly);
+            ClearImage(&cdb->draw.clip, 0, 0, 0);
+            DrawOTag(cdb->ot);
+            DrawSync(0);
+            StoreImage(&shot, (u_long*)readback);
+            DrawSync(0);
+            for (int j = 0; j < LEN(readback); j++) {
+                u_short color = readback[j] & 0x7FFF;
+                inside += color == INSIDE;
+                outside += color == OUTSIDE;
+            }
+            zprintf("axis %d shear %d: %d texels of the tile, %d outside it\n",
+                    axis, shear[i], inside, outside);
+            zexpect_s32_ne(0, inside);
+            zexpect_s32_eq(0, outside);
+        }
+    }
+}
+
 ZTEST(gpu, texture_window_tiling) {
     u_short tpage, clut;
     static const struct {

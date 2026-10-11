@@ -4,6 +4,7 @@ layout(location = 0) in ivec2 pos;  // SDL_GPU_VERTEXELEMENTFORMAT_SHORT2
 layout(location = 1) in uvec4 tex;  // SDL_GPU_VERTEXELEMENTFORMAT_USHORT4
 layout(location = 2) in vec4 color; // SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM
 layout(location = 3) in uvec4 twin; // SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4
+layout(location = 4) in uvec2 uvMinIn; // SDL_GPU_VERTEXELEMENTFORMAT_USHORT2
 
 layout(set = 1, binding = 0) uniform UBO { vec2 drawOffset; };
 
@@ -20,6 +21,7 @@ layout(location = 8) flat out uint indexMask;    // Mask for color index
 layout(location = 9) flat out uint dither;      // 1 when this primitive dithers
 layout(location = 10) flat out ivec2 pageBase;   // texture page origin, in VRAM pixels
 layout(location = 11) flat out uvec4 texWindow;  // GP0(E2h) as {and.xy, or.zw}
+layout(location = 12) flat out uvec2 uvMin;      // smallest u and v the corners name
 
 void main() {
     float x = ((float(pos.x) + drawOffset.x) / (1024.0 / 2.0)) - 1.0;
@@ -62,4 +64,5 @@ void main() {
     }
     pageBase = ivec2(int((tpage % 32u) % 16u) * 64, int((tpage % 32u) / 16u) * 256);
     texWindow = twin;
+    uvMin = uvMinIn;
 }

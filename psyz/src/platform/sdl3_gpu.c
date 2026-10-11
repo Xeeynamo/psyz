@@ -218,6 +218,10 @@ static SDL_GPUGraphicsPipeline* CreatePsxPipeline(
          .buffer_slot = 0,
          .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4,
          .offset = offsetof(Vertex, twin)},
+        {.location = 4,
+         .buffer_slot = 0,
+         .format = SDL_GPU_VERTEXELEMENTFORMAT_USHORT2,
+         .offset = offsetof(Vertex, umin)},
     };
     // the shader outputs alpha 0 on B-F texels and alpha 1 on opaque ones
     static const SDL_GPUColorTargetBlendState blend[BLEND_COUNT] = {
@@ -1213,6 +1217,22 @@ int Draw_PushPrim(u_long* packets, int max_len) {
             }
 
             if (isTextured) {
+                // the smallest u and v the corners name, read before the flip
+                // fixup moves them: the shader takes no texel below them
+                unsigned short umin = vertex_cur[0].u;
+                unsigned short vmin = vertex_cur[0].v;
+                for (int i = 1; i < nVertices; i++) {
+                    if (vertex_cur[i].u < umin) {
+                        umin = vertex_cur[i].u;
+                    }
+                    if (vertex_cur[i].v < vmin) {
+                        vmin = vertex_cur[i].v;
+                    }
+                }
+                for (int i = 0; i < nVertices; i++) {
+                    vertex_cur[i].umin = umin;
+                    vertex_cur[i].vmin = vmin;
+                }
                 FixupFlipUV(vertex_cur, code & EXTRA_VERTEX);
             } else {
                 clut = -1;
@@ -1404,6 +1424,10 @@ int Draw_PushPrim(u_long* packets, int max_len) {
             vertex_cur[2].v = tv + h;
             vertex_cur[3].u = tu + w;
             vertex_cur[3].v = tv + h;
+            for (int i = 0; i < 4; i++) {
+                vertex_cur[i].umin = tu;
+                vertex_cur[i].vmin = tv;
+            }
         }
         VRGBA(vertex_cur[1]) = VRGBA(vertex_cur[2]) = VRGBA(vertex_cur[3]) =
             VRGBA(vertex_cur[0]);

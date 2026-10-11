@@ -28,6 +28,7 @@ typedef struct {
     unsigned short u, v, c, t;
     unsigned char r, g, b, a;
     unsigned int twin;
+    unsigned short umin, vmin; // smallest u and v the primitive's corners name
 } Vertex;
 
 // ===== SDL3 reserved TPAGE flags, invalid on real hardware =====
