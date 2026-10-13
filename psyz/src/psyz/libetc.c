@@ -1,4 +1,5 @@
 #include <psyz.h>
+#include <psyz/state.h>
 #include <libetc.h>
 
 #include "libapi.h"
@@ -55,6 +56,8 @@ long SetVideoMode(long mode) {
     video_mode = mode;
     return prev;
 }
+
+void Psyz_EtcStateSync(PsyzState* state) { PSYZ_STATE_VAR(state, video_mode); }
 
 int InitTAP(char* bufA, long lenA, char* bufB, long lenB) {
     LOG_ONCE("forwarding to InitPAD");

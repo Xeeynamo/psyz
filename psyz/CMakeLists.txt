@@ -46,6 +46,7 @@ set(PSYZ_SOURCES
     src/psyz/libgte.c
     src/psyz/libgs.c
     src/psyz/libcd.c
+    src/psyz/state.c
     ../decomp/src/libcd/c_002.c
     ../decomp/src/libcd/c_003.c
     ../decomp/src/libcd/c_004.c
