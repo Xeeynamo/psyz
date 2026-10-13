@@ -104,7 +104,7 @@ overridden with `-DZTEST_TARGET=`. `ztest_add_tag("name")` adds names matched by
 |---------|--------------------------------|--------------------------------------|
 | desktop, Android | stdout                | stdio                                |
 | PSP     | `sceIoWrite`                   | `host0:/` through `sceIo`            |
-| PS1     | BIOS TTY, or `ztest.log` over PCDrv on hardware | PCDrv (pcsx-redux break or nops serial) |
+| PS1     | BIOS TTY                       | PCDrv (pcsx-redux, or UniROM serial) |
 | NDS     | gdb breakpoint hooks           | NitroFS reads, gdb dumps writes      |
 | N64     | gdb breakpoint hook, ISViewer  | DragonFS reads, base64 blocks writes |
 
@@ -134,7 +134,7 @@ Supported runners are:
   else the first device listed. With none online it boots the `--avd` headless (default: the first AVD) and
   shuts it down afterwards.
 
-Emulators `PATH`, and can be overridden via `--emulator-path=<file>`. For PlayStation 1, `nops.exe` runs through `mono`. The
+Emulators `PATH`, and can be overridden via `--emulator-path=<file>`. PlayStation 1 hardware needs `pyserial`. The
 debugger for `nds-emu` and `n64-emu` is the first `gdb-multiarch` or `gdb` in `PATH` that knows ARM and MIPS.
 
 Other options:
