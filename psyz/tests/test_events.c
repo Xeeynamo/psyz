@@ -5,6 +5,11 @@
 #include <libapi.h>
 #include <libetc.h>
 #include <libcd.h>
+#if !defined(__psx__) && !defined(__PSP__)
+#include <psyz/audio.h>
+#include <psyz/spu.h>
+#include <psyz/timers.h>
+#endif
 
 long ChangeClearRCnt(long t, long flag);
 
@@ -96,6 +101,7 @@ static long chain_handler(void) {
 }
 
 static PsyzVsyncMode saved_vsync_mode;
+static int spu_clock_active;
 ZTEST_SETUP(events) {
 #if !defined(__psx__) && !defined(__PSP__)
     // All RCNT tests need a frame limiter to pass
@@ -121,6 +127,12 @@ ZTEST_TEARDOWN(events) {
         ev_close(ev_opened[0]);
     }
 #if !defined(__psx__) && !defined(__PSP__)
+    if (spu_clock_active) {
+        spu_clock_active = 0;
+        Psyz_KernelSetClock(PSYZ_CLOCK_HOST);
+        Psyz_AudioUnlock();
+        Psyz_AudioUnpause();
+    }
     Psyz_VideoSetVsyncMode(saved_vsync_mode);
 #endif
 }
@@ -870,6 +882,78 @@ ZTEST(events, akao_deinit_sequence_leaves_nothing_pending) {
     zexpect_s32_eq(0, handler_calls_over_vblanks(3));
     zexpect_s32_eq(0, TestEvent(polled));
 }
+
+#if !defined(__psx__) && !defined(__PSP__)
+#define SPU_HZ 44100
+#define AKAO_TICKS_PER_SECOND 243
+
+static void spu_clock_start(void) {
+    StopCallback();
+    ResetCallback();
+    Psyz_AudioPause();
+    Psyz_AudioLock();
+    Psyz_KernelSetClock(PSYZ_CLOCK_SPU);
+    spu_clock_active = 1;
+}
+
+static void pull_spu_samples(int frames, int batch) {
+    static short buf[SPU_HZ * 2];
+    while (frames > 0) {
+        int n = frames < batch ? frames : batch;
+        Psyz_SpuPullSamples(buf, n);
+        frames -= n;
+    }
+}
+
+static int rcnt2_calls_over_spu_samples(int frames, int batch) {
+    handler_calls = 0;
+    rcnt2_start(AKAO_TARGET, RCntMdINTR);
+    pull_spu_samples(frames, batch);
+    StopRCnt(RCntCNT2);
+    return handler_calls;
+}
+
+ZTEST(events, spu_clock_rcnt2_waits_for_spu_samples) {
+    long counted =
+        ev_open(RCntCNT2, EvSpINT, EvMdINTR, cb_increase_handler_calls);
+    EnableEvent(counted);
+    spu_clock_start();
+    rcnt2_start(AKAO_TARGET, RCntMdINTR);
+    zexpect_s32_eq(0, handler_calls_over_vblanks(30));
+    pull_spu_samples(SPU_HZ, SPU_HZ);
+    zexpect_s32_eq(AKAO_TICKS_PER_SECOND, handler_calls);
+}
+
+ZTEST(events, spu_clock_rcnt2_count_ignores_batch_size) {
+    long counted =
+        ev_open(RCntCNT2, EvSpINT, EvMdINTR, cb_increase_handler_calls);
+    EnableEvent(counted);
+    spu_clock_start();
+    zexpect_s32_eq(
+        AKAO_TICKS_PER_SECOND, rcnt2_calls_over_spu_samples(SPU_HZ, SPU_HZ));
+    zexpect_s32_eq(
+        AKAO_TICKS_PER_SECOND, rcnt2_calls_over_spu_samples(SPU_HZ, 735));
+    zexpect_s32_eq(
+        AKAO_TICKS_PER_SECOND, rcnt2_calls_over_spu_samples(SPU_HZ, 1));
+}
+
+ZTEST(events, host_clock_resumes_rcnt2_after_spu_clock) {
+    long counted =
+        ev_open(RCntCNT2, EvSpINT, EvMdINTR, cb_increase_handler_calls);
+    EnableEvent(counted);
+    spu_clock_start();
+    rcnt2_start(AKAO_TARGET, RCntMdINTR);
+    pull_spu_samples(SPU_HZ / 10, SPU_HZ / 10);
+    StopRCnt(RCntCNT2);
+    spu_clock_active = 0;
+    Psyz_KernelSetClock(PSYZ_CLOCK_HOST);
+    Psyz_AudioUnlock();
+    Psyz_AudioUnpause();
+    handler_calls = 0;
+    rcnt2_start(AKAO_TARGET, RCntMdINTR);
+    zexpect_s32_eq(1, wait_handler_calls(10, 60));
+}
+#endif
 
 ZTEST(events, rcnt3_event_fires_once_per_vblank) {
     long counted =

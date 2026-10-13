@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <string.h>
 #include "spu_voice.h"
+#include "../internal.h"
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 _Static_assert(sizeof(SPU_RXX) == 0x200, "SPU_RXX must be 0x200 bytes");
@@ -399,6 +400,7 @@ static void spu_tick(short* out) {
 }
 
 void Psyz_SpuPullSamples(short* out, int num_frames) {
+    Psyz_KernelSpuSamples(num_frames);
     if (!spu.initialized) {
         memset(out, 0, num_frames * 2 * sizeof(short));
         return;
