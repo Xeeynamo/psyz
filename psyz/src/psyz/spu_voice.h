@@ -2,13 +2,16 @@
 #define PSYZ_SPU_VOICE_H
 
 #include <psyz.h>
+#include <psyz/log.h>
 #include "../../decomp/src/libspu/libspu_private.h"
 #include "spu_gauss.h"
 
 // One ADPCM block decodes to 28 samples
 #define ADPCM_BLOCK_BYTES 16
 #define ADPCM_BLOCK_SAMPLES 28
-#define ENV_KEYON_DELAY_TICKS 6 // latency to simulate PS1 SPU latching a key-on
+#define VOICE_KEYON_HOLD_TICKS 3
+#define ENV_KEYON_DELAY_TICKS 5
+#define ENV_CLOCK_PHASE 41
 
 static inline short clamp16(int v) {
     if (v < -32768)
@@ -18,32 +21,28 @@ static inline short clamp16(int v) {
     return v;
 }
 
-static inline short clamp15(int v) {
-    if (v < -16384)
-        return -16384;
-    if (v > 16383)
-        return 16383;
-    return v;
+static inline int spu_volume(unsigned short reg, int sweep) {
+    if (reg & 0x8000) {
+        LOG_ONCE("volume sweep not implemented");
+        return sweep;
+    }
+    return (short)((reg & 0x7FFF) << 1);
 }
 
 static inline int sign4(int n) { return (n & 0x8) ? (n - 0x10) : n; }
 
 // Decode one 16-byte SPU ADPCM block into 28 short samples. PS1 SPU ADPCM:
-//   block[0]    = shift_filter: low nibble = shift (12-shift_in, or 9 if >12)
-//                               high nibble = filter index (clamped 0..4)
+//   block[0]    = shift_filter: low nibble = shift, high nibble = filter
 //   block[1]    = flags: bit0 = loop-end, bit1 = repeat, bit2 = loop-start
 //   block[2..15]= 14 bytes of 4-bit nibbles (low nibble first)
 static inline void spu_adpcm_decode_block(
     const unsigned char block[ADPCM_BLOCK_BYTES], short* hist1, short* hist2,
     short out[ADPCM_BLOCK_SAMPLES], u8* flags_out) {
-    static const int pos[5] = {0, 60, 115, 98, 122};
-    static const int neg[5] = {0, 0, -52, -55, -60};
+    static const int pos[8] = {0, 60, 115, 98, 122, 0, 0, 0};
+    static const int neg[8] = {0, 0, -52, -55, -60, 0, 0, 0};
 
-    int shift_in = block[0] & 0x0F;
-    int shift = (shift_in > 12) ? 9 : (12 - shift_in);
+    int shift = block[0] & 0x0F;
     int filter = (block[0] >> 4) & 0x07;
-    if (filter > 4)
-        filter = 4;
     int f0 = pos[filter];
     int f1 = neg[filter];
     if (flags_out)
@@ -55,7 +54,9 @@ static inline void spu_adpcm_decode_block(
         unsigned short byte = block[2 + i];
         for (int n = 0; n < 2; n++) {
             int t = sign4((byte >> (n * 4)) & 0x0F);
-            int s = t * (1 << shift) + ((prev * f0) >> 6) + ((prev2 * f1) >> 6);
+            int base =
+                shift > 12 ? (t < 0 ? -128 : 0) : t * (1 << (12 - shift));
+            int s = base + (((prev * f0) >> 5) + ((prev2 * f1) >> 5) >> 1);
             short final = clamp16(s);
             out[i * 2 + n] = final;
             prev2 = prev;
@@ -82,42 +83,40 @@ typedef struct {
     u8 block_flags; // flags byte of the most-recently-decoded block
     u8 sample_idx;  // next sample to consume from samples[] (0..28)
     unsigned spos;  // 16.16 fixed-point counter (1.0 = 0x10000)
-    unsigned sinc;  // pitch_reg << 4 is the per-output-tick increment
     short gwin[4];  // GAUSS interpolation window
     u8 gpos;        // index to next decoded sample in gwin
     u8 active;
     u8 needs_decode;
     int env_vol;          // mirrors SPU_VOICE_REG::volumex
-    unsigned env_counter; // rate divider, increases by 1 for all voice duration
+    unsigned env_counter; // SPU frame clock, steps the envelope rates
     AdsrState env_state;  // voice phase, works like a state machine
     u8 key_off;           // set by key-off; drives the release phase
+    u8 key_off_wait;      // frames before a written key-off sets key_off
     u8 delay_ticks;       // key-on -> envelope-start pipeline latency
+    u8 hold_ticks;        // key-on -> playback-start latency
     u16 adsr_lo;          // mirrors SPU_VOICE_REG::adsr[0]
     u16 adsr_hi;          // mirrors SPU_VOICE_REG::adsr[1]
 } VoiceState;
 
+static inline void spu_voice_decode_one_sample(VoiceState* vs, const u8* ram);
+
 static inline void spu_voice_key_on(
-    VoiceState* vs, volatile SPU_VOICE_REG* reg) {
+    VoiceState* vs, volatile SPU_VOICE_REG* reg, const u8* ram) {
     vs->cur_addr = ((unsigned)reg->addr << 3) & (PSYZ_SPU_RAM_SIZE - 1);
     vs->repeat_addr = ((unsigned)reg->loop_addr << 3) & (PSYZ_SPU_RAM_SIZE - 1);
     vs->hist1 = vs->hist2 = 0;
     vs->sample_idx = ADPCM_BLOCK_SAMPLES; // force decode on first consume
     vs->block_flags = 0;
     vs->needs_decode = 1;
-    // sinc = pitch << 4; pitch=0x1000 -> sinc=0x10000 (1.0 in 16.16)
-    unsigned pitch = reg->pitch;
-    vs->sinc = (pitch & 0x3FFF) << 4;
-    if (vs->sinc == 0)
-        vs->sinc = 1;
 
-    // Start spos at 1.0 so the first voice_step consumes exactly one sample.
-    // The gauss window stays mostly zero-padded for several ticks, producing
-    // the silent warmup-then-ringing pattern observed in PS1 captures
-    vs->spos = 0x10000;
-
-    // We do not reset vs->gpos at key-on for accuracy. On real PS1 hardware,
-    // a voice on will carry the residual state from prior voice activity
+    vs->spos = 0;
+    vs->gpos = 0;
+    vs->hold_ticks = VOICE_KEYON_HOLD_TICKS;
     vs->active = 1;
+    // the first output interpolates the first four samples at phase 0
+    for (int i = 0; i < 4; i++) {
+        spu_voice_decode_one_sample(vs, ram);
+    }
 
     // reset the envelope to a fresh attack from zero
     vs->adsr_lo = reg->adsr[0];
@@ -126,20 +125,15 @@ static inline void spu_voice_key_on(
     vs->env_counter = 0;
     vs->env_state = ADSR_ATTACK;
     vs->key_off = 0;
+    vs->key_off_wait = 0;
     vs->delay_ticks = ENV_KEYON_DELAY_TICKS;
     reg->volumex = 0;
 }
 
-static inline int spu_voice_decode_one_sample(VoiceState* vs, const u8* ram) {
+static inline void spu_voice_decode_one_sample(VoiceState* vs, const u8* ram) {
     if (vs->sample_idx >= ADPCM_BLOCK_SAMPLES) {
         // end of block, and handle loop/end flags
         if (!vs->needs_decode && (vs->block_flags & 0x01)) {
-            if (!(vs->block_flags & 0x02)) {
-                vs->active = 0;
-                vs->gwin[vs->gpos] = 0;
-                vs->gpos = (vs->gpos + 1) & 3;
-                return 0;
-            }
             vs->cur_addr = vs->repeat_addr;
         }
         vs->needs_decode = 1;
@@ -165,7 +159,6 @@ static inline int spu_voice_decode_one_sample(VoiceState* vs, const u8* ram) {
     short s = vs->samples[vs->sample_idx++];
     vs->gwin[vs->gpos] = s;
     vs->gpos = (vs->gpos + 1) & 3;
-    return 1;
 }
 
 // Advance the voice by one output-rate tick (44.1 kHz) and return its
@@ -173,16 +166,19 @@ static inline int spu_voice_decode_one_sample(VoiceState* vs, const u8* ram) {
 static inline short spu_voice_step(
     VoiceState* vs, unsigned pitch_reg, const u8* ram) {
     // for pitch changes during voice on, enable vibrato or bends
-    unsigned pitch = pitch_reg & 0x3FFF;
-    vs->sinc = pitch ? pitch << 4 : 1;
+    if (vs->hold_ticks) {
+        vs->hold_ticks--;
+        return 0;
+    }
+    if ((vs->block_flags & 0x03) == 0x01 && vs->sample_idx >= 20) {
+        vs->active = 0;
+        return 0;
+    }
+    unsigned pitch = pitch_reg > 0x3FFF ? 0x3FFF : pitch_reg;
 
     // consume decoded samples until the pitch counter is below 1.0
     while (vs->spos >= 0x10000) {
-        if (!spu_voice_decode_one_sample(vs, ram)) {
-            // Voice stopped mid-decode; flush remaining ticks as zero.
-            vs->spos = 0;
-            break;
-        }
+        spu_voice_decode_one_sample(vs, ram);
         vs->spos -= 0x10000;
     }
 
@@ -192,13 +188,12 @@ static inline short spu_voice_step(
     int g1 = vs->gwin[(vs->gpos + 1) & 3];
     int g2 = vs->gwin[(vs->gpos + 2) & 3];
     int g3 = vs->gwin[(vs->gpos + 3) & 3];
-    int acc = (spu_gauss_tbl[vl + 0] * g0) & ~2047;
-    acc += (spu_gauss_tbl[vl + 1] * g1) & ~2047;
-    acc += (spu_gauss_tbl[vl + 2] * g2) & ~2047;
-    acc += (spu_gauss_tbl[vl + 3] * g3) & ~2047;
-    vs->spos += vs->sinc;
-    // each tap keeps 11 fractional bits and the taps sum to 0x800: unity gain
-    return clamp16(acc >> 11);
+    int acc = (spu_gauss_tbl[vl + 0] * g0) >> 14;
+    acc += (spu_gauss_tbl[vl + 1] * g1) >> 14;
+    acc += (spu_gauss_tbl[vl + 2] * g2) >> 14;
+    acc += (spu_gauss_tbl[vl + 3] * g3) >> 14;
+    vs->spos += pitch << 4;
+    return clamp16(acc >> 1);
 }
 
 static inline unsigned adsr_denominator(int rate) {
@@ -242,20 +237,20 @@ static inline int spu_voice_envelope_rate(const VoiceState* vs) {
     }
 }
 
-// process voice ADSR envelope by one sample, calculate ADSR envelope volume
-static inline void spu_voice_envelope_step(VoiceState* vs) {
+static inline int adsr_fires(unsigned clock, int rate) {
+    unsigned den = adsr_denominator(rate);
+    return (clock & (den - 1)) == den >> 1;
+}
+
+static inline int spu_voice_envelope_step(VoiceState* vs) {
+    unsigned ctr = vs->env_counter++;
     if (vs->delay_ticks) { // simulate PS1 SPU key on latency
         vs->delay_ticks--;
-        return;
+        return vs->env_vol;
     }
     if (vs->key_off && vs->env_state != ADSR_OFF) {
         vs->env_state = ADSR_RELEASE;
     }
-
-    // the PS1 SPU has an internal counter, shared across all states, that
-    // allows to trigger a change based on the selected ADSR rate
-    unsigned ctr = ++vs->env_counter;
-#define ADSR_FIRES(rate) ((ctr % adsr_denominator(rate)) == 0)
 
     switch (vs->env_state) {
     case ADSR_ATTACK: {
@@ -265,7 +260,7 @@ static inline void spu_voice_envelope_step(VoiceState* vs) {
         if (attack_exp && vs->env_vol >= 0x6000) {
             rate += 8;
         }
-        if (ADSR_FIRES(rate)) {
+        if (adsr_fires(ctr, rate)) {
             vs->env_vol += adsr_num_increase(rate);
             if (vs->env_vol >= 0x7FFF) {
                 vs->env_vol = 0x7FFF;
@@ -277,7 +272,7 @@ static inline void spu_voice_envelope_step(VoiceState* vs) {
     case ADSR_DECAY: {
         int decay_rate = (vs->adsr_lo >> 4) & 0x0F;
         int rate = decay_rate * 4; // decay is always exponential decrease
-        if (ADSR_FIRES(rate)) {
+        if (adsr_fires(ctr, rate)) {
             vs->env_vol += (adsr_num_decrease(rate) * vs->env_vol) >> 15;
             if (vs->env_vol < 0) {
                 vs->env_vol = 0;
@@ -298,14 +293,15 @@ static inline void spu_voice_envelope_step(VoiceState* vs) {
             if (sustain_exp && vs->env_vol >= 0x6000) {
                 rate += 8;
             }
-            if (ADSR_FIRES(rate)) {
+            if (adsr_fires(ctr, rate)) {
                 vs->env_vol += adsr_num_increase(rate);
                 if (vs->env_vol > 0x7FFF) {
                     vs->env_vol = 0x7FFF;
                 }
             }
         } else {
-            if (ADSR_FIRES(rate)) {
+            if (adsr_fires(ctr, rate)) {
+                int prev = vs->env_vol;
                 if (sustain_exp) {
                     vs->env_vol +=
                         (adsr_num_decrease(rate) * vs->env_vol) >> 15;
@@ -313,7 +309,11 @@ static inline void spu_voice_envelope_step(VoiceState* vs) {
                     vs->env_vol += adsr_num_decrease(rate);
                 }
                 if (vs->env_vol < 0) {
+                    int last = vs->env_vol;
                     vs->env_vol = 0;
+                    if (prev > 0) {
+                        return last;
+                    }
                 }
             }
         }
@@ -322,7 +322,7 @@ static inline void spu_voice_envelope_step(VoiceState* vs) {
     case ADSR_RELEASE: {
         int release_rate = vs->adsr_hi & 0x1F;
         int rate = release_rate * 4;
-        if (ADSR_FIRES(rate)) {
+        if (adsr_fires(ctr, rate)) {
             int release_exp = (vs->adsr_hi >> 5) & 1;
             if (release_exp) {
                 vs->env_vol += (adsr_num_decrease(rate) * vs->env_vol) >> 15;
@@ -330,9 +330,11 @@ static inline void spu_voice_envelope_step(VoiceState* vs) {
                 vs->env_vol += adsr_num_decrease(rate);
             }
             if (vs->env_vol <= 0) {
+                int last = vs->env_vol;
                 vs->env_vol = 0;
                 vs->env_state = ADSR_OFF;
                 vs->active = 0;
+                return last;
             }
         }
         break;
@@ -340,7 +342,7 @@ static inline void spu_voice_envelope_step(VoiceState* vs) {
     default:
         break;
     }
-#undef ADSR_FIRES
+    return vs->env_vol;
 }
 
 // Up to n exponential firings of env -= ceil(q * env / 32768), stopping below
@@ -452,6 +454,7 @@ static inline void spu_voice_envelope_advance(VoiceState* vs, unsigned ticks) {
         if (vs->delay_ticks) {
             unsigned n = vs->delay_ticks < ticks ? vs->delay_ticks : ticks;
             vs->delay_ticks -= n;
+            vs->env_counter += n;
             ticks -= n;
             continue;
         }
@@ -468,7 +471,7 @@ static inline void spu_voice_envelope_advance(VoiceState* vs, unsigned ticks) {
         }
         int rate = spu_voice_envelope_rate(vs);
         unsigned den = adsr_denominator(rate);
-        unsigned first = den - (vs->env_counter & (den - 1));
+        unsigned first = (((den >> 1) - vs->env_counter) & (den - 1)) + 1;
         if (first > ticks) {
             vs->env_counter += ticks;
             return;

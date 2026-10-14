@@ -41,6 +41,7 @@ enum { GRAIN_EMPTY, GRAIN_RENDERING, GRAIN_READY };
 static struct {
     unsigned transfer_addr;
     u16 capture_pos;
+    unsigned ticks;
     VoiceState voice[PSYZ_SPU_NUM_VOICES];
     short cd_ring[CD_RING_FRAMES * N_CHANNELS];
     unsigned cd_ring_read;
@@ -139,6 +140,7 @@ static void spu_reset_state(int hot) {
     }
     spu.transfer_addr = 0;
     spu.capture_pos = 0;
+    spu.ticks = 0;
     memset(spu.voice, 0, sizeof(spu.voice));
     memset(spu.cd_ring, 0, sizeof(spu.cd_ring));
     spu.cd_ring_read = spu.cd_ring_count = 0;
@@ -238,7 +240,8 @@ void Psyz_SpuMemWrite(unsigned int offset, const void* src, unsigned int size) {
 static void spu_key_on_voice(int v) {
     VoiceState* vs = &spu.voice[v];
     SasVoice* sv = &sas_voice[v];
-    spu_voice_key_on(vs, &_spu_RXX->rxx.voice[v]);
+    spu_voice_key_on(vs, &_spu_RXX->rxx.voice[v], ram_storage);
+    vs->env_counter = spu.ticks + ENV_CLOCK_PHASE;
     sv->start = vs->cur_addr;
     sv->adsr_lo = vs->adsr_lo;
     sv->adsr_hi = vs->adsr_hi;
@@ -432,7 +435,7 @@ static void sas_voice_params(int v) {
         __sceSasSetVolume(&ctx_storage, v, vol[0], vol[1], vol[2], vol[3]);
         memcpy(sv->vol, vol, sizeof(vol));
     }
-    u16 pitch = rxx->voice[v].pitch & 0x3FFF;
+    u16 pitch = rxx->voice[v].pitch > 0x3FFF ? 0x3FFF : rxx->voice[v].pitch;
     if (!pitch)
         pitch = 1;
     if (!sv->params_valid || pitch != sv->pitch) {
@@ -703,8 +706,8 @@ static void mixer_init(Mixer* m) {
     m->cd_on = rxx->spucnt & SPU_CTRL_MASK_CD_AUDIO_ENABLE;
     m->cd_vol_l = rxx->cd_vol.left;
     m->cd_vol_r = rxx->cd_vol.right;
-    m->main_l = clamp15(rxx->main_vol.left);
-    m->main_r = clamp15(rxx->main_vol.right);
+    m->main_l = spu_volume(rxx->main_vol.left, 0x7FFE);
+    m->main_r = spu_volume(rxx->main_vol.right, 0x7FFE);
     m->cd_idle = 0;
 }
 
@@ -737,12 +740,13 @@ static inline void mix_frame(
         left += (cd_l * m->cd_vol_l) >> 15;
         right += (cd_r * m->cd_vol_r) >> 15;
     }
-    out[0] = clamp16((left * m->main_l) >> 14);
-    out[1] = clamp16((right * m->main_r) >> 14);
+    out[0] = clamp16((left * m->main_l) >> 15);
+    out[1] = clamp16((right * m->main_r) >> 15);
 }
 
 static void capture_advance(unsigned frames) {
     unsigned end = spu.capture_pos + 2 * frames;
+    spu.ticks += frames;
     if (((end >> 9) - (spu.capture_pos >> 9)) & 1) {
         _spu_RXX->rxx.spustat ^= 1u << 11;
     }
@@ -758,10 +762,8 @@ static short tracked_step(int v) {
     if (!vs->active)
         return 0;
     short s = spu_voice_step(vs, _spu_RXX->rxx.voice[v].pitch, ram_storage);
-    spu_voice_envelope_step(vs);
-    if (vs->env_state == ADSR_OFF)
-        return 0;
-    return (short)((s * vs->env_vol) >> 15);
+    int env = spu_voice_envelope_step(vs);
+    return (short)((s * env) >> 15);
 }
 
 static void mix_with_capture(Mixer* m, short* out, const short* sas, int n) {
