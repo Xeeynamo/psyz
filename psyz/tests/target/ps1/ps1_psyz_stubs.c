@@ -172,7 +172,7 @@ static const unsigned char color_5to8[32] = {
     90,  99,  107, 115, 123, 132, 140, 148, 156, 165, 173,
     181, 189, 197, 206, 214, 222, 230, 239, 247, 255};
 
-unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
+zimage zimage_frontbuffer(void) {
     const unsigned VRAM_W = 1024;
     const unsigned VRAM_H = 512;
 
@@ -204,10 +204,9 @@ unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
     }
 
     const int row_px = (cw + 1) & ~1;
-    unsigned long* vram = (unsigned long*)malloc(
-        (unsigned)(row_px * ch) * sizeof(unsigned short));
-    if (vram == 0) {
-        return 0;
+    zimage img = zimage_alloc(row_px, ch, ZIMAGE_R5G5B5);
+    if (img.data == 0) {
+        return img;
     }
 
     RECT r;
@@ -217,20 +216,31 @@ unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
     r.h = (short)ch;
 
     DrawSync(0);
-    StoreImage(&r, vram);
+    StoreImage(&r, (unsigned long*)img.data);
     DrawSync(0);
+    img.width = cw;
+    return img;
+}
 
+unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
+    zimage img = zimage_frontbuffer();
+    if (img.data == 0) {
+        return 0;
+    }
+
+    const int cw = img.width;
+    const int ch = img.height;
     unsigned char* out = (unsigned char*)malloc((unsigned)(cw * ch * 3));
     if (out == 0) {
-        free(vram);
+        zimage_free(&img);
         return 0;
     }
 
     // expand rgb555 to rgb888
-    const unsigned short* src = (const unsigned short*)vram;
     unsigned char* p = out;
     for (int y = 0; y < ch; y++) {
-        const unsigned short* row = &src[y * row_px];
+        const unsigned short* row =
+            (const unsigned short*)(img.data + y * img.stride);
         for (int x = 0; x < cw; x++) {
             const unsigned short c = row[x];
             *p++ = color_5to8[c & 0x1F];
@@ -238,7 +248,7 @@ unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
             *p++ = color_5to8[(c >> 10) & 0x1F];
         }
     }
-    free(vram);
+    zimage_free(&img);
 
     if (w) {
         *w = cw;

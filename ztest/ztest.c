@@ -1896,10 +1896,12 @@ __attribute__((weak)) zimage zimage_frontbuffer(void)
 #endif
 }
 
+// Whether a row of RGB888 pixels equals a row of R5G5B5 ones.
 static int zt_row_same5(
     const unsigned char* e, const unsigned char* a, size_t n) {
-    for (; n; n--) {
-        if ((*e++ ^ *a++) >> 3) {
+    for (; n; n--, e += 3, a += 2) {
+        unsigned v = (e[0] >> 3) | ((e[1] >> 3) << 5) | ((e[2] >> 3) << 10);
+        if (v != ((a[0] | (a[1] << 8)) & 0x7FFF)) {
             return 0;
         }
     }
@@ -1927,11 +1929,10 @@ void zimage_cmp_r5g5b5(const zimage* exp, const zimage* act,
         return;
     }
     for (y = y0; y < y0 + h; y++) {
-        if (exp->format == ZIMAGE_RGB888 && act->format == ZIMAGE_RGB888 &&
-            // This is much faster when comparing framebuffers on console
+        if (exp->format == ZIMAGE_RGB888 && act->format == ZIMAGE_R5G5B5 &&
             zt_row_same5(exp->data + (size_t)y * (size_t)exp->stride + x0 * 3,
-                         act->data + (size_t)y * (size_t)act->stride + x0 * 3,
-                         (size_t)w * 3)) {
+                         act->data + (size_t)y * (size_t)act->stride + x0 * 2,
+                         (size_t)w)) {
             res->matches += (unsigned long)w * 3;
             continue;
         }
