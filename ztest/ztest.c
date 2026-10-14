@@ -326,21 +326,45 @@ static void zt_plat_remove_file(const char* path) { sceIoRemove(path); }
 
 #elif defined(ZT_PS1)
 
-#define ZT_HW8(a) (*(volatile unsigned char*)(a))
 #define ZT_HW16(a) (*(volatile unsigned short*)(a))
 #define ZT_HW32(a) (*(volatile unsigned int*)(a))
 
 static int zt_ps1_redux(void) { return ZT_HW32(0x1F802080) == 0x58534350; }
 
-static void zt_ps1_putchar(int c) {
-    register int n __asm__("t1") = 0x3C;
+static int zt_ps1_write(int fd, const char* buf, int len) {
+    register int n __asm__("t1") = 0x35;
     __asm__ volatile("" : "=r"(n) : "r"(n));
-    ((void (*)(int))0xA0)(c);
+    return ((int (*)(int, const char*, int))0xB0)(fd, buf, len);
 }
 
-static void zt_plat_flush(void) {}
+// The BIOS TTY: pcsx-redux prints it, and UniROM sends it over serial. One
+// write() per flush is much cheaper than a BIOS call for every character.
+static char zt_tty[1024];
+static size_t zt_tty_len;
 
-// PCDrv as pcsx-redux traps it: break instructions, results in v0/v1.
+static void zt_plat_flush(void) {
+    if (zt_tty_len) {
+        zt_ps1_write(1, zt_tty, (int)zt_tty_len);
+        zt_tty_len = 0;
+    }
+}
+
+static void zt_plat_write(const char* s, size_t n) {
+    while (n) {
+        size_t room = sizeof(zt_tty) - zt_tty_len;
+        size_t take = n < room ? n : room;
+        memcpy(zt_tty + zt_tty_len, s, take);
+        zt_tty_len += take;
+        s += take;
+        n -= take;
+        if (zt_tty_len == sizeof(zt_tty)) {
+            zt_plat_flush();
+        }
+    }
+}
+
+// PCDrv through break instructions, results in v0/v1. pcsx-redux traps them,
+// and so does the debug core of UniROM, which forwards each call over serial.
 static int zt_brk_open(const char* name, int flags) {
     register int a2 __asm__("a2") = flags;
     register const char* a0 __asm__("a0") = name;
@@ -414,220 +438,21 @@ static int zt_brk_lseek(int fd, int offset, int whence) {
     return v0 == 0 ? v1 : -1;
 }
 
-// PCDrv on real hardware: the NOTPSXSerial (nops /m) protocol over SIO1. A
-// call is the escape {0x00, 'p'}, a u32 function code and the host's "OKAY".
-#define ZT_SIO_DATA 0x1F801050
-#define ZT_SIO_STAT 0x1F801054
-
-static void zt_sio_put(unsigned char b) {
-    while (!(ZT_HW32(ZT_SIO_STAT) & 1)) {
-    }
-    ZT_HW8(ZT_SIO_DATA) = b;
-}
-
-static unsigned char zt_sio_get(void) {
-    while (!(ZT_HW32(ZT_SIO_STAT) & 2)) {
-    }
-    return ZT_HW8(ZT_SIO_DATA);
-}
-
-static void zt_sio_put32(unsigned v) {
-    zt_sio_put((unsigned char)v);
-    zt_sio_put((unsigned char)(v >> 8));
-    zt_sio_put((unsigned char)(v >> 16));
-    zt_sio_put((unsigned char)(v >> 24));
-}
-
-static unsigned zt_sio_get32(void) {
-    unsigned v = zt_sio_get();
-    v |= (unsigned)zt_sio_get() << 8;
-    v |= (unsigned)zt_sio_get() << 16;
-    return v | (unsigned)zt_sio_get() << 24;
-}
-
-static void zt_sio_puts4(const char* s) {
-    int i;
-    for (i = 0; i < 4; i++) {
-        zt_sio_put((unsigned char)s[i]);
-    }
-}
-
-static int zt_sio_okay(void) {
-    char r[4];
-    int i;
-    for (i = 0; i < 4; i++) {
-        r[i] = (char)zt_sio_get();
-    }
-    return r[0] == 'O' && r[1] == 'K' && r[2] == 'A' && r[3] == 'Y';
-}
-
-static int zt_sio_begin(unsigned func) {
-    zt_sio_put(0x00);
-    zt_sio_put('p');
-    zt_sio_put32(func);
-    return zt_sio_okay();
-}
-
-static void zt_sio_name(const char* name) {
-    while (*name) {
-        zt_sio_put((unsigned char)*name++);
-    }
-    zt_sio_put(0);
-}
-
-static int zt_sio_open(const char* name, int mode) {
-    if (!zt_sio_begin(0x103)) {
-        return -1;
-    }
-    zt_sio_name(name);
-    zt_sio_put32((unsigned)mode);
-    return zt_sio_okay() ? (int)zt_sio_get32() : -1;
-}
-
-static int zt_sio_creat(const char* name) {
-    if (!zt_sio_begin(0x102)) {
-        return -1;
-    }
-    zt_sio_name(name);
-    zt_sio_put32(0);
-    return zt_sio_okay() ? (int)zt_sio_get32() : -1;
-}
-
-static void zt_sio_close(int fd) {
-    if (!zt_sio_begin(0x104)) {
-        return;
-    }
-    zt_sio_put32((unsigned)fd);
-    zt_sio_put32(0);
-    zt_sio_put32(0);
-    if (zt_sio_okay()) {
-        zt_sio_get32();
-    }
-}
-
-// The host answers with the requested length, zero padding a short file, and
-// runs a CHEK/MORE handshake after every 2048-byte chunk.
-static int zt_sio_read(int fd, void* buf, int len) {
-    unsigned char* out = buf;
-    int avail, done = 0, i;
-    if (!zt_sio_begin(0x105)) {
-        return -1;
-    }
-    zt_sio_put32((unsigned)fd);
-    zt_sio_put32((unsigned)len);
-    zt_sio_put32((unsigned)(uintptr_t)buf);
-    if (!zt_sio_okay()) {
-        return -1;
-    }
-    avail = (int)zt_sio_get32();
-    zt_sio_get32();
-    while (done < avail) {
-        int chunk = avail - done > 2048 ? 2048 : avail - done;
-        unsigned sum = 0;
-        for (i = 0; i < chunk; i++) {
-            out[done + i] = zt_sio_get();
-            sum += out[done + i];
-        }
-        zt_sio_puts4("CHEK");
-        if (zt_sio_get32() != sum) {
-            zt_sio_puts4("ERR!");
-            continue;
-        }
-        zt_sio_puts4("MORE");
-        done += chunk;
-    }
-    return avail;
-}
-
-// The host echoes "MORE" on every 2048-byte boundary and checks a DJB2 sum.
-static int zt_sio_write(int fd, const void* buf, int len) {
-    const unsigned char* in = buf;
-    unsigned sum = 5381;
-    int i;
-    if (!zt_sio_begin(0x106)) {
-        return -1;
-    }
-    zt_sio_put32((unsigned)fd);
-    zt_sio_put32((unsigned)len);
-    zt_sio_put32((unsigned)(uintptr_t)buf);
-    if (!zt_sio_okay()) {
-        return -1;
-    }
-    for (i = 0; i < len; i++) {
-        zt_sio_put(in[i]);
-        sum = ((sum << 5) + sum) ^ in[i];
-        if ((i + 1) % 2048 == 0) {
-            zt_sio_get32();
-        }
-    }
-    zt_sio_put32(sum);
-    return zt_sio_okay() ? (int)zt_sio_get32() : -1;
-}
-
-static int zt_sio_lseek(int fd, int offset, int whence) {
-    if (!zt_sio_begin(0x107)) {
-        return -1;
-    }
-    zt_sio_put32((unsigned)fd);
-    zt_sio_put32((unsigned)offset);
-    zt_sio_put32((unsigned)whence);
-    return zt_sio_okay() ? (int)zt_sio_get32() : -1;
-}
-
-static int zt_pc_ready;
-static int zt_pc_redux;
-static int zt_ps1_log = -1;
-
-static void zt_pc_init(void) {
-    if (zt_pc_ready) {
-        return;
-    }
-    zt_pc_ready = 1;
-    zt_pc_redux = zt_ps1_redux();
-    if (!zt_pc_redux && zt_sio_begin(0x101)) {
-        zt_sio_get(); // PCINIT replies OKAY and a single byte
-        zt_ps1_log = zt_sio_creat("ztest.log");
-    }
-}
-
-// On hardware nops narrates PCDrv traffic over the same TTY, so the output
-// goes to ztest.log on the host instead, which the runner tails.
-static void zt_plat_write(const char* s, size_t n) {
-    zt_pc_init();
-    if (zt_ps1_log >= 0) {
-        zt_sio_write(zt_ps1_log, s, (int)n);
-        return;
-    }
-    while (n--) {
-        zt_ps1_putchar(*s++);
-    }
-}
-
 static void* zt_plat_read_file(const char* path, size_t* size) {
     int fd, len;
     unsigned char* data;
-    zt_pc_init();
-    fd = zt_pc_redux ? zt_brk_open(path, 0) : zt_sio_open(path, 0);
+    fd = zt_brk_open(path, 0);
     if (fd < 0) {
         return NULL;
     }
-    len = zt_pc_redux ? zt_brk_lseek(fd, 0, 2) : zt_sio_lseek(fd, 0, 2);
-    if (zt_pc_redux) {
-        zt_brk_lseek(fd, 0, 0);
-    } else {
-        zt_sio_lseek(fd, 0, 0);
-    }
+    len = zt_brk_lseek(fd, 0, 2);
+    zt_brk_lseek(fd, 0, 0);
     data = len > 0 ? ZTEST_MALLOC((size_t)len) : NULL;
-    if (data && (zt_pc_redux ? zt_brk_read(fd, data, len)
-                             : zt_sio_read(fd, data, len)) != len) {
+    if (data && zt_brk_read(fd, data, len) != len) {
         ZTEST_FREE(data);
         data = NULL;
     }
-    if (zt_pc_redux) {
-        zt_brk_close(fd);
-    } else {
-        zt_sio_close(fd);
-    }
+    zt_brk_close(fd);
     if (data) {
         *size = (size_t)len;
     }
@@ -636,18 +461,12 @@ static void* zt_plat_read_file(const char* path, size_t* size) {
 
 static int zt_plat_write_file(const char* path, const void* data, size_t size) {
     int fd, n;
-    zt_pc_init();
-    fd = zt_pc_redux ? zt_brk_creat(path) : zt_sio_creat(path);
+    fd = zt_brk_creat(path);
     if (fd < 0) {
         return 0;
     }
-    n = zt_pc_redux ? zt_brk_write(fd, data, (int)size)
-                    : zt_sio_write(fd, data, (int)size);
-    if (zt_pc_redux) {
-        zt_brk_close(fd);
-    } else {
-        zt_sio_close(fd);
-    }
+    n = zt_brk_write(fd, data, (int)size);
+    zt_brk_close(fd);
     return n == (int)size;
 }
 
@@ -2077,6 +1896,18 @@ __attribute__((weak)) zimage zimage_frontbuffer(void)
 #endif
 }
 
+// Whether a row of RGB888 pixels equals a row of R5G5B5 ones.
+static int zt_row_same5(
+    const unsigned char* e, const unsigned char* a, size_t n) {
+    for (; n; n--, e += 3, a += 2) {
+        unsigned v = (e[0] >> 3) | ((e[1] >> 3) << 5) | ((e[2] >> 3) << 10);
+        if (v != ((a[0] | (a[1] << 8)) & 0x7FFF)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 void zimage_cmp_r5g5b5(const zimage* exp, const zimage* act,
                        const zimage_cmp* cmp, zimage_result* res) {
     int x0 = 0, y0 = 0, w = exp->width, h = exp->height, x, y, i;
@@ -2098,6 +1929,13 @@ void zimage_cmp_r5g5b5(const zimage* exp, const zimage* act,
         return;
     }
     for (y = y0; y < y0 + h; y++) {
+        if (exp->format == ZIMAGE_RGB888 && act->format == ZIMAGE_R5G5B5 &&
+            zt_row_same5(exp->data + (size_t)y * (size_t)exp->stride + x0 * 3,
+                         act->data + (size_t)y * (size_t)act->stride + x0 * 2,
+                         (size_t)w)) {
+            res->matches += (unsigned long)w * 3;
+            continue;
+        }
         for (x = x0; x < x0 + w; x++) {
             unsigned char e[3], a[3];
             int bad = 0;

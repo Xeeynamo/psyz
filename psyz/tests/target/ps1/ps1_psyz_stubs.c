@@ -166,11 +166,13 @@ int Psyz_VideoSetInternalResolution(unsigned multiplier) {
 
 unsigned Psyz_VideoGetInternalResolution(void) { return 1; }
 
-static inline unsigned char color_5to8(unsigned int c5) {
-    return (unsigned char)((c5 * 255 + 15) / 31);
-}
+// pre-calculated version of (c5 * 255 + 15) / 31
+static const unsigned char color_5to8[32] = {
+    0,   8,   16,  25,  33,  41,  49,  58,  66,  74,  82,
+    90,  99,  107, 115, 123, 132, 140, 148, 156, 165, 173,
+    181, 189, 197, 206, 214, 222, 230, 239, 247, 255};
 
-unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
+zimage zimage_frontbuffer(void) {
     const unsigned VRAM_W = 1024;
     const unsigned VRAM_H = 512;
 
@@ -202,10 +204,9 @@ unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
     }
 
     const int row_px = (cw + 1) & ~1;
-    unsigned long* vram = (unsigned long*)malloc(
-        (unsigned)(row_px * ch) * sizeof(unsigned short));
-    if (vram == 0) {
-        return 0;
+    zimage img = zimage_alloc(row_px, ch, ZIMAGE_R5G5B5);
+    if (img.data == 0) {
+        return img;
     }
 
     RECT r;
@@ -215,28 +216,39 @@ unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
     r.h = (short)ch;
 
     DrawSync(0);
-    StoreImage(&r, vram);
+    StoreImage(&r, (unsigned long*)img.data);
     DrawSync(0);
+    img.width = cw;
+    return img;
+}
 
+unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
+    zimage img = zimage_frontbuffer();
+    if (img.data == 0) {
+        return 0;
+    }
+
+    const int cw = img.width;
+    const int ch = img.height;
     unsigned char* out = (unsigned char*)malloc((unsigned)(cw * ch * 3));
     if (out == 0) {
-        free(vram);
+        zimage_free(&img);
         return 0;
     }
 
     // expand rgb555 to rgb888
-    const unsigned short* src = (const unsigned short*)vram;
     unsigned char* p = out;
     for (int y = 0; y < ch; y++) {
-        const unsigned short* row = &src[y * row_px];
+        const unsigned short* row =
+            (const unsigned short*)(img.data + y * img.stride);
         for (int x = 0; x < cw; x++) {
             const unsigned short c = row[x];
-            *p++ = color_5to8(c & 0x1F);
-            *p++ = color_5to8((c >> 5) & 0x1F);
-            *p++ = color_5to8((c >> 10) & 0x1F);
+            *p++ = color_5to8[c & 0x1F];
+            *p++ = color_5to8[(c >> 5) & 0x1F];
+            *p++ = color_5to8[(c >> 10) & 0x1F];
         }
     }
-    free(vram);
+    zimage_free(&img);
 
     if (w) {
         *w = cw;
@@ -247,13 +259,8 @@ unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
     return out;
 }
 
-// GP0 is a real register here.
-// TODO: super-slow at the moment due to gpustat spin to ensure synchronization
+// GP0 is a real register here. Requires a DrawSync to ensure they're committed
 void Psyz_GpuWriteGP0(unsigned int word) {
-    volatile unsigned int* const gpustat = (volatile unsigned int*)0x1F801814;
-    int spins = 0x100000;
-    while ((*gpustat & (1u << 28)) == 0 && --spins > 0) {
-    }
     *(volatile unsigned int*)0x1F801810 = word;
 }
 

@@ -24,7 +24,7 @@ LDFLAGS := $(ARCH) -g -static -Wl,--gc-sections -T$(NUGGET)/nooverlay.ld \
 TEST_SOURCES ?= test_libapi.c test_events.c test_libgte.c test_libgpu.c \
 	test_libspu.c test_mdec.c test_vlc_compat.c
 SRCS := $(TESTS)/test_main.c $(addprefix $(TESTS)/,$(TEST_SOURCES)) \
-	$(TESTS)/frontbuffer_psyz.c $(ZTEST)/ztest.c ps1_psyz_stubs.c ps1_heap.c
+	$(ZTEST)/ztest.c ps1_psyz_stubs.c ps1_heap.c
 OBJS := $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o))) $(BUILD)/crt0.o
 
 ifneq ($(filter test_vlc_compat.c,$(TEST_SOURCES)),)

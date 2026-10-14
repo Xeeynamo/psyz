@@ -1966,3 +1966,47 @@ ZTEST(gte, rtps_ir0_flags_fraction_above_limit) {
     zexpect_s32_eq(0x1000001, r.mac0);
     zexpect_u32_eq(0x00001000, (unsigned int)r.flag);
 }
+
+static int DepthCueAt(int depth) {
+    MATRIX m = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    SVECTOR v = {0, 0, 0};
+    int ir0;
+    m.t[2] = depth;
+    gte_SetGeomScreen(256);
+    gte_SetRotMatrix(&m);
+    gte_SetTransMatrix(&m);
+    gte_ldv0(&v);
+    gte_rtps();
+    GTE_READ_IR0(ir0);
+    return ir0;
+}
+
+ZTEST(gte, setfognearfar_fades_from_near_to_far) {
+    SetFogNearFar(1000, 5000, 256);
+    zexpect_s32_eq(0, DepthCueAt(1000));
+    zexpect_s32_eq(3413, DepthCueAt(3000));
+    zexpect_s32_eq(0x1000, DepthCueAt(5000));
+}
+
+ZTEST(gte, setfognearfar_ignores_narrow_range) {
+    SetFogNearFar(1000, 5000, 256);
+    SetFogNearFar(1000, 1099, 256);
+    zexpect_s32_eq(3413, DepthCueAt(3000));
+}
+
+ZTEST(gte, setfognearfar_clamps_dqa) {
+    SetFogNearFar(10410, 14300, 256);
+    zexpect_s32_eq(3873, DepthCueAt(12000));
+}
+
+ZTEST(gte, setfognear_fades_up_to_five_times_near) {
+    SetFogNear(1000, 256);
+    zexpect_s32_eq(0, DepthCueAt(1000));
+    zexpect_s32_eq(3413, DepthCueAt(3000));
+    zexpect_s32_eq(0x1000, DepthCueAt(5000));
+}
+
+ZTEST(gte, setfognear_wraps_dqa_to_16_bits) {
+    SetFogNear(1000, 1);
+    zexpect_s32_eq(0x1000, DepthCueAt(500));
+}

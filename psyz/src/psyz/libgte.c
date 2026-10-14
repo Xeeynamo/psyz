@@ -1290,7 +1290,34 @@ void SetFarColor(long rfc, long gfc, long bfc) {
     L2.t[2] = (int)(bfc * 16);
 }
 
-void SetFogNear(long a, long h) { NOT_IMPLEMENTED; }
+void SetFogNear(long a, long h) {
+    int fogNear = a;
+    int screenDist = h;
+
+    DQA = -(fogNear * 320) / screenDist;
+    DQB = 0x1400000;
+}
+
+void SetFogNearFar(long a, long b, long h) {
+    int fogNear = a;
+    int fogFar = b;
+    int screenDist = h;
+    int range = fogFar - fogNear;
+    int dqa;
+
+    if (range < 100) {
+        return;
+    }
+    dqa = ((-fogNear * fogFar / range) << 8) / screenDist;
+    if (dqa < -0x8000) {
+        dqa = -0x8000;
+    }
+    if (dqa > 0x7FFF) {
+        dqa = 0x7FFF;
+    }
+    DQA = dqa;
+    DQB = ((fogFar << 12) / range) << 12;
+}
 
 void Psyz_GteLdRgb(CVECTOR* v) { *(unsigned int*)&RGBC = *(unsigned int*)v; }
 void Psyz_GteStRgb(CVECTOR* v) { *(unsigned int*)v = RGB2; }

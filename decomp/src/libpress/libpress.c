@@ -112,10 +112,92 @@ DecDCCb DecDCToutCallback(DecDCCb cb) { return DMACallback(1, cb); }
 int DecDCTinCallback(void (*cb)()) { return DMACallback(0, cb); }
 int DecDCToutCallback(void (*cb)()) { return DMACallback(1, cb); }
 #endif
-INCLUDE_ASM("asm/nonmatchings/libpress/libpress", MDEC_reset);
-INCLUDE_ASM("asm/nonmatchings/libpress/libpress", MDEC_in);
-INCLUDE_ASM("asm/nonmatchings/libpress/libpress", MDEC_out);
-INCLUDE_ASM("asm/nonmatchings/libpress/libpress", MDEC_in_sync);
-INCLUDE_ASM("asm/nonmatchings/libpress/libpress", MDEC_out_sync);
-INCLUDE_ASM("asm/nonmatchings/libpress/libpress", MDEC_status);
-INCLUDE_ASM("asm/nonmatchings/libpress/libpress", timeout);
+#ifndef __psyz
+void MDEC_reset(int mode) {
+    switch (mode) {
+    case 0:
+        *mdec1 = 0x80000000;
+        *mdec_d0_chcr = 0;
+        *mdec_d1_chcr = 0;
+        *mdec1 = 0x60000000;
+        MDEC_in((u_long*)mdec_iq, 32);
+        MDEC_in((u_long*)mdec_coef, 32);
+        return;
+    case 1:
+        *mdec1 = 0x80000000;
+        *mdec_d0_chcr = 0;
+        *mdec_d1_chcr = 0;
+        *mdec_d1_chcr;
+        *mdec1 = 0x60000000;
+        return;
+    default:
+        printf("MDEC_rest:bad option(%d)\n", mode);
+        return;
+    }
+}
+
+void MDEC_in(u_long* buf, int size) {
+    MDEC_in_sync();
+    *mdec_d_pcr |= 0x88;
+    *mdec_d0_madr = (u32)buf + 4;
+    *mdec_d0_bcr = (((u32)size >> 5) << 16) | 0x20;
+    *mdec0 = *(u32*)buf;
+    *mdec_d0_chcr = 0x01000201;
+}
+
+void MDEC_out(u_long* buf, int size) {
+    MDEC_out_sync();
+    *mdec_d_pcr |= 0x88;
+    *mdec_d1_chcr = 0;
+    *mdec_d1_madr = (u32)buf;
+    *mdec_d1_bcr = (((u32)size >> 5) << 16) | 0x20;
+    *mdec_d1_chcr = 0x01000200;
+}
+
+int timeout(char* name);
+
+int MDEC_in_sync(void) {
+    volatile int retries = 0x100000;
+    while (*mdec1 & 0x20000000) {
+        if (--retries == -1) {
+            timeout("MDEC_in_sync");
+            return -1;
+        }
+    }
+    return 0;
+}
+
+int MDEC_out_sync(void) {
+    volatile int retries = 0x100000;
+    while (*mdec_d1_chcr & 0x01000000) {
+        if (--retries == -1) {
+            timeout("MDEC_out_sync");
+            return -1;
+        }
+    }
+    return 0;
+}
+
+u_long MDEC_status(void) { return *mdec1; }
+
+static const char timeout_dma[] = "\t DMA=(%d,%d), ADDR=(0x%08x->0x%08x)\n";
+static const char timeout_fifo[] =
+    "\t FIFO=(%d,%d),BUSY=%d,DREQ=(%d,%d),RGB24=%d,STP=%d\n";
+
+int timeout(char* name) {
+    u32 status;
+    printf("%s timeout:\n", name);
+    status = *mdec1;
+    printf(timeout_dma, (*mdec_d0_chcr >> 24) & 1, (*mdec_d1_chcr >> 24) & 1,
+           *mdec_d0_madr, *mdec_d1_madr);
+    printf(timeout_fifo, (~status >> 31) & 1, (status >> 30) & 1,
+           (status >> 29) & 1, (status >> 28) & 1, (status >> 27) & 1,
+           (status >> 25) & 1, (status >> 23) & 1);
+    *mdec1 = 0x80000000;
+    *mdec_d0_chcr = 0;
+    *mdec_d1_chcr = 0;
+    *mdec_d1_chcr;
+    *mdec1 = 0x60000000;
+    return 0;
+}
+#endif
