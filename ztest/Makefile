@@ -48,9 +48,11 @@ test-psp-hw: build-psp-prx
 build-ps1:
 	$(MAKE) -f makefile.psx.mk
 
-# Pass RUNNER_ARGS=--bios=<image> when pcsx-redux has no BIOS configured.
+# Pass RUNNER_ARGS=--bios=<image> when pcsx-redux has no BIOS configured, and
+# always with PS1_EMU=mednafen.
+PS1_EMU ?= pcsx-redux
 test-ps1-emu: build-ps1
-	$(RUN) ps1-emu --exe build/ps1/ztest_selftest.ps-exe $(SELFTEST)
+	$(RUN) ps1-emu --ps1-emulator=$(PS1_EMU) --exe build/ps1/ztest_selftest.ps-exe $(SELFTEST)
 
 test-ps1-hw: build-ps1
 	$(RUN) ps1-hw --exe build/ps1/ztest_selftest.ps-exe --timeout 600 $(SELFTEST)

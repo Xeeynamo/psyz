@@ -1960,6 +1960,7 @@ static void RtpsWithDepth(int dqb, DepthResult* r) {
 }
 
 ZTEST(gte, rtps_ir0_flags_fraction_above_limit) {
+    zskip_targets("mednafen"); // differs from real hardware
     DepthResult r;
     RtpsWithDepth(0x1000001, &r);
     zexpect_s32_eq(0x1000, r.ir0);

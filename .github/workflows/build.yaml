@@ -132,6 +132,51 @@ jobs:
           path: psyz/tests/expected/*.actual.png
           if-no-files-found: ignore
 
+  ps1:
+    runs-on: ubuntu-latest
+    env:
+      CI: 1
+      MEDNAFEN_RELEASE: https://github.com/sozud/mednafen-git/releases/download/psyz-62c951c
+      MEDNAFEN_SHA256: cc41e5249f016577079030e86d55f75ba14b0f0de86101b7705847ebb3e7b3f8
+      PS1_GCC: https://github.com/Lameguy64/PSn00bSDK/releases/download/v0.24/gcc-mipsel-none-elf-12.3.0-linux.zip
+    steps:
+      - name: Install requirements
+        run: |
+          sudo apt-get update
+          sudo apt-get install build-essential libsdl2-2.0-0 unzip wget
+      - name: Clone repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install PS1 toolchain
+        run: |
+          curl -sSfL -o gcc.zip "$PS1_GCC"
+          mkdir -p "$HOME/mipsel-none-elf"
+          unzip -q gcc.zip -d "$HOME/mipsel-none-elf"
+          echo "$HOME/mipsel-none-elf/bin" >> "$GITHUB_PATH"
+      - name: Install mednafen
+        run: |
+          curl -sSfL -o mednafen.tar.gz "$MEDNAFEN_RELEASE/mednafen-psyz-linux-x86_64.tar.gz"
+          echo "$MEDNAFEN_SHA256  mednafen.tar.gz" | sha256sum -c
+          tar xf mednafen.tar.gz -C "$HOME"
+          echo "$HOME/mednafen-psyz" >> "$GITHUB_PATH"
+      - name: Build PSY-Q libraries
+        run: make -j$(nproc)
+      - name: ztest self-test on PS1
+        run: make -C ztest test-ps1-emu PS1_EMU=mednafen RUNNER_ARGS="--bios=$HOME/mednafen-psyz/openbios.bin"
+      - name: Test PsyZ on PS1
+        working-directory: psyz/
+        run: make test-ps1-emu PS1_EMU=mednafen RUNNER_ARGS="--bios=$HOME/mednafen-psyz/openbios.bin"
+      - name: Upload test failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-failures-ps1
+          path: |
+            psyz/tests/expected/*.actual.png
+            ztest/selftest/expected/*.actual.png
+          if-no-files-found: ignore
+
   psp:
     runs-on: ubuntu-26.04
     env:

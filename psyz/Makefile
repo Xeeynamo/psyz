@@ -60,10 +60,12 @@ test-psp-hw:
 	$(ZTEST_RUN) psp-hw --exe tests/psyz_tests_psp.prx --workdir tests $(RUNNER_ARGS)
 
 # PS1 builds link the real PSY-Q libraries through nugget. Pass zrunner options
-# with RUNNER_ARGS, e.g. --bios=<image> for pcsx-redux or --serial=<port>.
+# with RUNNER_ARGS, e.g. --bios=<image> or --serial=<port>. PS1_EMU=mednafen
+# runs test-ps1-emu on mednafen, which needs --bios.
+PS1_EMU ?= pcsx-redux
 test-ps1-emu:
 	$(MAKE) -C tests/target/ps1
-	$(ZTEST_RUN) ps1-emu --exe tests/build/ps1/psyz_tests.ps-exe --workdir tests $(RUNNER_ARGS)
+	$(ZTEST_RUN) ps1-emu --ps1-emulator=$(PS1_EMU) --exe tests/build/ps1/psyz_tests.ps-exe --workdir tests $(RUNNER_ARGS)
 
 test-ps1-hw:
 	$(MAKE) -C tests/target/ps1 packed

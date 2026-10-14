@@ -1,28 +1,54 @@
 import contextlib
 import os
 import re
+import shutil
 import sys
+import tempfile
 
 from .base import Driver, Stream, fail
 
 ANSI = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]")
 
 class Ps1Emu(Driver):
-    """Headless pcsx-redux: PCDrv rooted at --workdir, TTY on stdout, and
-    -testmode turns the program's pcsx_exit() into the emulator exit code."""
+    """Headless pcsx-redux or mednafen (--ps1-emulator): PCDrv rooted at
+    --workdir, TTY on stdout, and the program's exit code ends the emulator."""
 
     target = "ps1"
 
     def launch(self, args):
-        redux = self.executable("pcsx-redux")
         if not os.path.isfile(self.opts.exe):
             fail("PS-EXE not found: %s" % self.opts.exe)
         self.write_args_file(args)
+        if self.opts.ps1_emulator == "mednafen":
+            return self.launch_mednafen()
+        redux = self.executable("pcsx-redux")
         cmd = [redux, "-cli", "-testmode", "-stdout", "-pcdrv", "-pcdrvbase",
                self.opts.workdir, "-run", "-exe", self.opts.exe]
         if self.opts.bios:
             cmd[1:1] = ["-bios", os.path.abspath(self.opts.bios)]
         return self.popen(cmd, cwd=self.opts.workdir)
+
+    def launch_mednafen(self):
+        mednafen = self.executable("mednafen")
+        if not self.opts.bios:
+            fail("mednafen needs --bios=<image>")
+        bios = os.path.abspath(self.opts.bios)
+        self.home = tempfile.mkdtemp(prefix="ztest-mednafen-")
+        env = dict(os.environ, MEDNAFEN_HOME=self.home,
+                   SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy")
+        cmd = [mednafen, "-sound", "0", "-nothrottle", "1",
+               "-psx.dbg_mask", "stdout", "-psx.dbg_testmode", "1",
+               "-psx.dbg_pcdrv_base", self.opts.workdir,
+               "-psx.dbg_exe_shellhook", "1",
+               "-psx.bios_sanity", "0", "-psx.bios_na", bios,
+               "-psx.bios_jp", bios, "-psx.bios_eu", bios,
+               self.opts.exe]
+        return self.popen(cmd, cwd=self.opts.workdir, env=env)
+
+    def stop(self):
+        super().stop()
+        if getattr(self, "home", None):
+            shutil.rmtree(self.home, ignore_errors=True)
 
 
 class Ps1Hw(Driver):

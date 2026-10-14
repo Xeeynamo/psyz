@@ -98,7 +98,7 @@ Targets without a command line read cmdline args from `ztest.args`.
 
 `ZTEST_TARGET` is detected at compile time (`linux windows macos ios android psp ps1 nds n64`) and can be
 overridden with `-DZTEST_TARGET=`. `ztest_add_tag("name")` adds names matched by `zskip_targets` and
-`ztest_is_target`, for example `ppsspp` or `pcsx-redux`.
+`ztest_is_target`, for example `ppsspp`, `pcsx-redux` or `mednafen`.
 
 | target  | output                         | files                                |
 |---------|--------------------------------|--------------------------------------|
@@ -126,7 +126,8 @@ Supported runners are:
 - `wine`: runs Windows tests on Linux or macOS.
 - `psp-emu` requires `PPSSPPHeadless`, found in most PPSSPP distributions.
 - `psp-hw` requires a PSP connected via USB, running PSPLINK.
-- `ps1-emu` requires `pcsx-redux`.
+- `ps1-emu` requires `pcsx-redux`, or with `--ps1-emulator=mednafen` (`PS1_EMU=mednafen` in the Makefiles) a
+  mednafen patched with the `psx.dbg_testmode` and `psx.dbg_pcdrv_base` settings, plus `--bios`.
 - `ps1-hw` requires a PS1 connected via UART, running UniROM.
 - `nds-emu` requires `melonDS`
 - `n64-emu` requires `ares`
@@ -140,7 +141,7 @@ debugger for `nds-emu` and `n64-emu` is the first `gdb-multiarch` or `gdb` in `P
 Other options:
 
 - `--serial=<id>` picks the adb device, or the PS1 serial port (e.g. `/dev/ttyACM0`).
-- `--bios=<image>` gives pcsx-redux a BIOS when it has none configured.
+- `--bios=<image>` gives pcsx-redux a BIOS when it has none configured; mednafen always needs one.
 - `--gdb-port=<port>` for the emulator's GDB stub (melonDS 3333, ares 9123 by default).
 - `--headless` runs ares inside `gamescope --backend headless`, which happens anyway without a display.
 - `--avd=<name>` is the Android virtual device to boot, by default the first one listed.

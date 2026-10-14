@@ -264,6 +264,37 @@ void Psyz_GpuWriteGP0(unsigned int word) {
     *(volatile unsigned int*)0x1F801810 = word;
 }
 
+// missing from 4.7
+__asm__(".set push\n"
+        ".set noreorder\n"
+        ".global OuterProduct0\n"
+        ".type OuterProduct0, @function\n"
+        "OuterProduct0:\n"
+        "    cfc2 $t5, $0\n"
+        "    cfc2 $t6, $2\n"
+        "    cfc2 $t7, $4\n"
+        "    lw $t0, 0($a0)\n"
+        "    lw $t1, 4($a0)\n"
+        "    lw $t2, 8($a0)\n"
+        "    ctc2 $t0, $0\n"
+        "    ctc2 $t1, $2\n"
+        "    ctc2 $t2, $4\n"
+        "    lwc2 $11, 8($a1)\n"
+        "    lwc2 $9, 0($a1)\n"
+        "    lwc2 $10, 4($a1)\n"
+        "    nop\n"
+        "    .word 0x4B70000C\n"
+        "    swc2 $25, 0($a2)\n"
+        "    swc2 $26, 4($a2)\n"
+        "    swc2 $27, 8($a2)\n"
+        "    ctc2 $t5, $0\n"
+        "    ctc2 $t6, $2\n"
+        "    ctc2 $t7, $4\n"
+        "    jr $ra\n"
+        "    move $v0, $a2\n"
+        ".size OuterProduct0, . - OuterProduct0\n"
+        ".set pop\n");
+
 void PS1_EnterCriticalSection(void) { enterCriticalSection(); }
 void PS1_ExitCriticalSection(void) { leaveCriticalSection(); }
 

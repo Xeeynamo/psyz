@@ -330,6 +330,7 @@ static void zt_plat_remove_file(const char* path) { sceIoRemove(path); }
 #define ZT_HW32(a) (*(volatile unsigned int*)(a))
 
 static int zt_ps1_redux(void) { return ZT_HW32(0x1F802080) == 0x58534350; }
+static int zt_ps1_mednafen(void) { return ZT_HW32(0x1F802080) == 0x4E46444D; }
 
 static int zt_ps1_write(int fd, const char* buf, int len) {
     register int n __asm__("t1") = 0x35;
@@ -2291,7 +2292,7 @@ static int zt_parse_mode(const char* s) {
 // Every return from ztest_main goes through here so emulators can exit.
 static int zt_finish(int code) {
 #ifdef ZT_PS1
-    if (zt_ps1_redux()) {
+    if (zt_ps1_redux() || zt_ps1_mednafen()) {
         ZT_HW16(0x1F802082) = (unsigned short)code;
     }
 #endif
@@ -2324,6 +2325,8 @@ int ztest_main(int argc, char** argv) {
     zt_run_ctors();
     if (zt_ps1_redux()) {
         ztest_add_tag("pcsx-redux");
+    } else if (zt_ps1_mednafen()) {
+        ztest_add_tag("mednafen");
     }
 #endif
 #if defined(__PSP__)

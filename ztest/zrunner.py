@@ -233,7 +233,9 @@ def main():
     ap.add_argument("--serial", help="adb serial, or the PS1 serial port")
     ap.add_argument("--emulator-path",
                     help="emulator or uploader to use instead of PATH's")
-    ap.add_argument("--bios", help="PS1 BIOS image for pcsx-redux")
+    ap.add_argument("--bios", help="PS1 BIOS image (required by mednafen)")
+    ap.add_argument("--ps1-emulator", choices=["pcsx-redux", "mednafen"],
+                    default="pcsx-redux", help="emulator for ps1-emu")
     ap.add_argument("--gdb-port", type=int,
                     help="emulator GDB stub port (melonDS 3333, ares 9123)")
     ap.add_argument("--headless", action="store_true",

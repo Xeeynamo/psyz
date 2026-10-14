@@ -289,19 +289,23 @@ ZTEST_SETUP(mdec) {
 }
 
 ZTEST(mdec, rgb24_reference) {
+    zskip_targets("mednafen"); // differs from real hardware
     check_reference(2u << 27, mdec_nonflat + 1, 15, mdec_rgb24_expected, 192);
 }
 
 ZTEST(mdec, rgb555_reference) {
+    zskip_targets("mednafen"); // differs from real hardware
     check_reference(3u << 27, mdec_nonflat + 1, 15, mdec_rgb555_expected, 128);
 }
 
 ZTEST(mdec, monochrome_reference) {
+    zskip_targets("mednafen"); // differs from real hardware
     check_reference(0, mdec_mono, 3, mdec_depth0_expected, 8);
     check_reference(1u << 27, mdec_mono, 3, mdec_depth1_expected, 16);
 }
 
 ZTEST(mdec, custom_quantization_reference) {
+    zskip_targets("mednafen"); // differs from real hardware
     load_quant(1);
     check_reference(
         2u << 27, mdec_nonflat + 1, 15, mdec_custom_quant_expected, 192);
@@ -323,6 +327,7 @@ ZTEST(mdec, bit15_only_affects_rgb555) {
 }
 
 ZTEST(mdec, custom_quantization_tables) {
+    zskip_targets("mednafen"); // differs from real hardware
     uint8_t quant[128];
     uint16_t scale[64];
     default_tables(quant, scale);
@@ -335,6 +340,7 @@ ZTEST(mdec, custom_quantization_tables) {
 }
 
 ZTEST(mdec, custom_scale_table) {
+    zskip_targets("mednafen"); // differs from real hardware
     uint8_t quant[128];
     uint16_t scale[64];
     default_tables(quant, scale);
@@ -347,6 +353,7 @@ ZTEST(mdec, custom_scale_table) {
 }
 
 ZTEST(mdec, generated_runlevels) {
+    zskip_targets("mednafen"); // differs from real hardware
     const unsigned scales[] = {1, 4, 63};
     uint8_t quant[128];
     uint16_t scale[64];
@@ -364,6 +371,7 @@ ZTEST(mdec, generated_runlevels) {
 }
 
 ZTEST(mdec, zero_quantization_scale) {
+    zskip_targets("mednafen"); // differs from real hardware
     uint8_t quant[128];
     uint16_t scale[64];
     uint32_t data[192];
@@ -377,6 +385,7 @@ ZTEST(mdec, zero_quantization_scale) {
 }
 
 ZTEST(mdec, dense_blocks_without_end_codes) {
+    zskip_targets("mednafen"); // differs from real hardware
     uint8_t quant[128];
     uint16_t scale[64];
     uint32_t data[192];
@@ -390,6 +399,7 @@ ZTEST(mdec, dense_blocks_without_end_codes) {
 }
 
 ZTEST(mdec, random_macroblocks) {
+    zskip_targets("mednafen"); // differs from real hardware
     static uint32_t data[512];
     uint8_t quant[128];
     uint16_t scale[64];
@@ -480,6 +490,7 @@ ZTEST(mdec, sliced_output_crosses_macroblock_boundaries) {
 }
 
 ZTEST(mdec, table_changes_apply_to_next_decode_command) {
+    zskip_targets("mednafen"); // differs from real hardware
     uint32_t pixels[192];
     zassert_s32_eq(0, Psyz_MdecCommand(0x3000000F, mdec_nonflat + 1, 15));
     load_quant(1);
@@ -490,6 +501,7 @@ ZTEST(mdec, table_changes_apply_to_next_decode_command) {
 }
 
 ZTEST(mdec, reset_discards_pixels_and_preserves_tables) {
+    zskip_targets("mednafen"); // differs from real hardware
     uint32_t pixels[192];
     load_quant(1);
     zassert_s32_eq(0, Psyz_MdecCommand(0x3000000F, mdec_nonflat + 1, 15));
@@ -529,6 +541,7 @@ ZTEST(mdec, truncated_input_fails_read) {
 }
 
 ZTEST(mdec, run_past_last_coefficient_starts_next_block) {
+    zskip_targets("mednafen"); // differs from real hardware
     uint16_t overrun[] = {0x0810, 0x1408, 0xF81F, 0xFE00, 0x0400, 0xFE00,
                           0x0400, 0xFE00, 0x0400, 0xFE00, 0x0400, 0xFE00};
     uint16_t ended[] = {0x0810, 0x1408, 0xFE00, 0xF81F, 0xFE00, 0x0400, 0xFE00,
@@ -559,6 +572,7 @@ ZTEST(mdec, full_block_does_not_require_end_code) {
 }
 
 ZTEST(mdec, invalid_commands_reject_before_reading_input) {
+    zskip_targets("mednafen"); // differs from real hardware
     const uint32_t value = 0;
     const uint32_t commands[] = {
         0, 0x80000000, 0x30000002, 0x40000000, 0x40000001, 0x60000000};
@@ -586,6 +600,7 @@ ZTEST(mdec, empty_decode_has_no_pixels) {
 }
 
 ZTEST(mdec, unaligned_input_and_output) {
+    zskip_targets("mednafen"); // differs from real hardware
     uint8_t data[61], pixels[770];
     memcpy(data + 1, mdec_nonflat + 1, 60);
     memset(pixels, 0xA5, sizeof(pixels));
