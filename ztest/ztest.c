@@ -1896,6 +1896,16 @@ __attribute__((weak)) zimage zimage_frontbuffer(void)
 #endif
 }
 
+static int zt_row_same5(
+    const unsigned char* e, const unsigned char* a, size_t n) {
+    for (; n; n--) {
+        if ((*e++ ^ *a++) >> 3) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 void zimage_cmp_r5g5b5(const zimage* exp, const zimage* act,
                        const zimage_cmp* cmp, zimage_result* res) {
     int x0 = 0, y0 = 0, w = exp->width, h = exp->height, x, y, i;
@@ -1917,6 +1927,14 @@ void zimage_cmp_r5g5b5(const zimage* exp, const zimage* act,
         return;
     }
     for (y = y0; y < y0 + h; y++) {
+        if (exp->format == ZIMAGE_RGB888 && act->format == ZIMAGE_RGB888 &&
+            // This is much faster when comparing framebuffers on console
+            zt_row_same5(exp->data + (size_t)y * (size_t)exp->stride + x0 * 3,
+                         act->data + (size_t)y * (size_t)act->stride + x0 * 3,
+                         (size_t)w * 3)) {
+            res->matches += (unsigned long)w * 3;
+            continue;
+        }
         for (x = x0; x < x0 + w; x++) {
             unsigned char e[3], a[3];
             int bad = 0;

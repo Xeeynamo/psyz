@@ -1001,11 +1001,11 @@ ZTEST(gpu, untextured_transp_poly_take_abr_from_drawenv) {
     const int16_t bx[4] = {8, 88, 8, 88};
     const int16_t by[4] = {8, 8, 88, 88};
     ClearImage(&cdb->draw.clip, 0x60, 0x60, 0x60);
-    DrawSync(0);
 
     for (int i = 0; i < 4; i++) {
         POLY_F4 poly;
         unsigned* words;
+        DrawSync(0);
         Psyz_GpuWriteGP0(_get_mode(1, 0, getTPage(0, i, 0, 0)));
 
         SetPolyF4(&poly);

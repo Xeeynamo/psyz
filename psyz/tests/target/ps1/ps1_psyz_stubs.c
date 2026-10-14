@@ -166,9 +166,11 @@ int Psyz_VideoSetInternalResolution(unsigned multiplier) {
 
 unsigned Psyz_VideoGetInternalResolution(void) { return 1; }
 
-static inline unsigned char color_5to8(unsigned int c5) {
-    return (unsigned char)((c5 * 255 + 15) / 31);
-}
+// pre-calculated version of (c5 * 255 + 15) / 31
+static const unsigned char color_5to8[32] = {
+    0,   8,   16,  25,  33,  41,  49,  58,  66,  74,  82,
+    90,  99,  107, 115, 123, 132, 140, 148, 156, 165, 173,
+    181, 189, 197, 206, 214, 222, 230, 239, 247, 255};
 
 unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
     const unsigned VRAM_W = 1024;
@@ -231,9 +233,9 @@ unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
         const unsigned short* row = &src[y * row_px];
         for (int x = 0; x < cw; x++) {
             const unsigned short c = row[x];
-            *p++ = color_5to8(c & 0x1F);
-            *p++ = color_5to8((c >> 5) & 0x1F);
-            *p++ = color_5to8((c >> 10) & 0x1F);
+            *p++ = color_5to8[c & 0x1F];
+            *p++ = color_5to8[(c >> 5) & 0x1F];
+            *p++ = color_5to8[(c >> 10) & 0x1F];
         }
     }
     free(vram);
@@ -247,13 +249,8 @@ unsigned char* Psyz_VideoAllocCapturedFrame(int* w, int* h) {
     return out;
 }
 
-// GP0 is a real register here.
-// TODO: super-slow at the moment due to gpustat spin to ensure synchronization
+// GP0 is a real register here. Requires a DrawSync to ensure they're committed
 void Psyz_GpuWriteGP0(unsigned int word) {
-    volatile unsigned int* const gpustat = (volatile unsigned int*)0x1F801814;
-    int spins = 0x100000;
-    while ((*gpustat & (1u << 28)) == 0 && --spins > 0) {
-    }
     *(volatile unsigned int*)0x1F801810 = word;
 }
 
