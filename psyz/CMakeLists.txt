@@ -191,6 +191,7 @@ set(PSYZ_SOURCES
     src/psyz/libpress.c
     ../decomp/src/libpress/libpress.c
     src/psyz/mdec.c
+    src/psyz/vlc.c
 )
 
 # Choose sqrt implementation

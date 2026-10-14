@@ -18,8 +18,3 @@ u_long MDEC_status(void) {
     NOT_IMPLEMENTED;
     return 0;
 }
-
-int DecDCTvlc(u_long* bs, u_long* buf) {
-    NOT_IMPLEMENTED;
-    return 0;
-}
