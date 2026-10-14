@@ -1073,6 +1073,9 @@ ZTEST(gpu, uv_minification) {
 // to the left or upwards still takes the texel past its far edge, because
 // FixupFlipUV reads that shear as a flip: not covered here.
 ZTEST(gpu, sheared_ft4_stays_in_tile) {
+    // the PSP target reads none of the tile back (0 texels in CI, with or
+    // without a shear), so there is nothing here to tell a stray texel from
+    zskip_targets("psp");
     enum { TEX_X = 640, TEX_Y = 256, TEX_SIZE = 48, TILE = 16 };
     enum { X = 96, Y = 96, SHOT_X = 56, SHOT_Y = 56, SHOT_SIZE = 96 };
     enum { INSIDE = 0x03E0, OUTSIDE = 0x7C1F };

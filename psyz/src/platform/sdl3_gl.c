@@ -47,6 +47,7 @@ static const char vertex_shader_body[] = {
     "layout(location = 1) in vec4 tex;\n"
     "layout(location = 2) in vec4 color;\n"
     "layout(location = 3) in vec4 twin;\n"
+    "layout(location = 4) in vec2 uvMinIn;\n"
     "uniform vec2 resolution;\n"
     "uniform vec2 drawOffset;\n"
     "out vec4 vertexColor;\n"
@@ -62,6 +63,7 @@ static const char vertex_shader_body[] = {
     "flat out uint dither;\n"       // 1 when this primitive dithers
     "flat out ivec2 pageBase;\n"    // texture page origin, in VRAM pixels
     "flat out uvec4 texWindow;\n"   // GP0(E2h) as {and.xy, or.zw}
+    "flat out vec2 uvMin;\n"        // smallest u and v the corners name
     "\n"
     "void main() {\n"
     "    float x = ((pos.x + drawOffset.x) / (1024.0 / 2.0)) - 1.0;\n"
@@ -103,6 +105,7 @@ static const char vertex_shader_body[] = {
     "    pageBase = ivec2(int((tpage % 32u) % 16u) * 64,\n"
     "                     int((tpage % 32u) / 16u) * 256);\n"
     "    texWindow = uvec4(twin);\n"
+    "    uvMin = uvMinIn;\n"
     "}\n"};
 
 static const char fragment_shader_body[] = {
@@ -119,11 +122,16 @@ static const char fragment_shader_body[] = {
     "flat in uint dither;\n"
     "flat in ivec2 pageBase;\n"
     "flat in uvec4 texWindow;\n"
+    "flat in vec2 uvMin;\n"
     "uniform sampler2D texVram;\n"
     "\n"
     "uvec2 resolveTexel() {\n"
     "    vec2 texelStep = vec2(abs(dFdx(rawUV.x)), abs(dFdy(rawUV.y)));\n"
     "    vec2 uv = rawUV - 0.5 * texelStep + 1.0 / 512.0;\n"
+    // coverage is decided at the pixel center, but the shift samples half a
+    // pixel away from it, and on a slanted edge that point can lie outside
+    // the primitive: never go below the smallest u and v its corners name
+    "    uv = max(uv, uvMin);\n"
     "    uvec2 texel = uvec2(clamp(floor(uv), vec2(0.0), vec2(255.0)));\n"
     "    return (texel & texWindow.xy) | texWindow.zw;\n"
     "}\n"
@@ -974,6 +982,9 @@ static void Draw_InitBuffer() {
     glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(Vertex),
                           (void*)offsetof(Vertex, twin));
     glEnableVertexAttribArray(3);
+    glVertexAttribPointer(4, 2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(Vertex),
+                          (void*)offsetof(Vertex, umin));
+    glEnableVertexAttribArray(4);
     glBindVertexArray(0);
 }
 
@@ -1038,6 +1049,22 @@ int Draw_PushPrim(u_long* packets, int max_len) {
             }
 
             if (isTextured) {
+                // the smallest u and v the corners name, read before the flip
+                // fixup moves them: the shader takes no texel below them
+                unsigned short umin = vertex_cur[0].u;
+                unsigned short vmin = vertex_cur[0].v;
+                for (int i = 1; i < nVertices; i++) {
+                    if (vertex_cur[i].u < umin) {
+                        umin = vertex_cur[i].u;
+                    }
+                    if (vertex_cur[i].v < vmin) {
+                        vmin = vertex_cur[i].v;
+                    }
+                }
+                for (int i = 0; i < nVertices; i++) {
+                    vertex_cur[i].umin = umin;
+                    vertex_cur[i].vmin = vmin;
+                }
                 FixupFlipUV(vertex_cur, code & EXTRA_VERTEX);
             } else {
                 clut = -1;
@@ -1229,6 +1256,10 @@ int Draw_PushPrim(u_long* packets, int max_len) {
             vertex_cur[2].v = tv + h;
             vertex_cur[3].u = tu + w;
             vertex_cur[3].v = tv + h;
+            for (int i = 0; i < 4; i++) {
+                vertex_cur[i].umin = tu;
+                vertex_cur[i].vmin = tv;
+            }
         }
         VRGBA(vertex_cur[1]) = VRGBA(vertex_cur[2]) = VRGBA(vertex_cur[3]) =
             VRGBA(vertex_cur[0]);
