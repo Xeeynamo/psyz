@@ -139,7 +139,7 @@ debugger for `nds-emu` and `n64-emu` is the first `gdb-multiarch` or `gdb` in `P
 
 Other options:
 
-- `--serial=<id>` picks the adb device, or the PS1 serial port (default `/dev/ttyUSB0`).
+- `--serial=<id>` picks the adb device, or the PS1 serial port (e.g. `/dev/ttyACM0`).
 - `--bios=<image>` gives pcsx-redux a BIOS when it has none configured.
 - `--gdb-port=<port>` for the emulator's GDB stub (melonDS 3333, ares 9123 by default).
 - `--headless` runs ares inside `gamescope --backend headless`, which happens anyway without a display.

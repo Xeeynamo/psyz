@@ -37,7 +37,7 @@ class Ps1Hw(Driver):
             import serial  # noqa: F401
         except ImportError:
             fail("pyserial not found (pip install pyserial)")
-        self.dest = self.opts.serial or "/dev/ttyUSB0"
+        self.dest = self.opts.serial or find_serial()
         if not os.path.isfile(self.opts.exe):
             fail("PS-EXE not found: %s" % self.opts.exe)
         if not os.path.exists(self.dest):
@@ -69,6 +69,22 @@ class Ps1Hw(Driver):
             self.link.port.flush()
         self.link.close()
         super().stop()
+
+
+def find_serial():
+    # USB vendors of the common UART adapters: FTDI, Silicon Labs, WCH, Prolific.
+    UART_VENDORS = (0x0403, 0x10C4, 0x1A86, 0x067B)
+    from serial.tools import list_ports
+    ports = list(list_ports.comports())
+    # "PS1 UART" is for custom Pico/Arduino/ESP32 devices
+    found = ([p.device for p in ports if p.interface == "PS1 UART"]
+             or [p.device for p in ports if p.vid in UART_VENDORS])
+    if not found:
+        fail("no PS1 serial adapter found (pass --serial)")
+    if len(found) > 1:
+        fail("several serial adapters found, pass --serial: %s"
+             % ", ".join(sorted(found)))
+    return found[0]
 
 
 def low_latency(dest):
