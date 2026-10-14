@@ -1,3 +1,4 @@
 *.actual.png
 *.actual.bin
 *.expected.bin
+*.actual.mix.pcm

@@ -2,6 +2,8 @@ import contextlib
 import os
 import re
 import sys
+import threading
+import time
 
 from .base import Driver, Stream, fail
 
@@ -46,6 +48,9 @@ class Ps1Hw(Driver):
         low_latency(self.dest)
         self.errors = unirom.Error
         self.link = unirom.Unirom(self.dest, self.opts.workdir)
+        tap = find_spu_tap()
+        if tap:
+            self.link.devices[SpuTap.NAME] = SpuTap(tap).open
         try:
             self.link.connect()
             self.link.upload(self.opts.exe)
@@ -69,6 +74,63 @@ class Ps1Hw(Driver):
             self.link.port.flush()
         self.link.close()
         super().stop()
+
+
+class SpuTap:
+    """Frames the SPU clocks out to the DAC, read from a ps1-audio Pico. The
+    program opens it like a file and reads interleaved S16LE left/right."""
+
+    NAME = "spu_capture.raw"
+    # Longest wait for frames the console clocked out before it asked.
+    IN_FLIGHT = 0.02
+
+    def __init__(self, device):
+        import serial
+        self.port = serial.Serial(device, timeout=0.05)
+        self.frames = bytearray()
+        self.lock = threading.Lock()
+        self.recording = False
+        threading.Thread(target=self.pump, daemon=True).start()
+
+    def pump(self):
+        with contextlib.suppress(Exception):
+            while True:
+                data = self.port.read(self.port.in_waiting or 1)
+                with self.lock:
+                    self.frames += data
+                    if not self.recording:
+                        self.rewind()
+
+    def rewind(self):
+        # The stream is frame aligned from its first byte: drop whole frames.
+        del self.frames[:len(self.frames) & ~3]
+
+    def open(self):
+        """Starts a recording at the frame the DAC is being sent right now."""
+        time.sleep(self.IN_FLIGHT)
+        with self.lock:
+            self.rewind()
+            self.recording = True
+        return self
+
+    def read(self, size):
+        end = time.monotonic() + size / 176400 + 1
+        while len(self.frames) < size and time.monotonic() < end:
+            time.sleep(0.001)
+        with self.lock:
+            data = bytes(self.frames[:size])
+            del self.frames[:len(data)]
+        return data
+
+    def close(self):
+        self.recording = False
+
+
+def find_spu_tap():
+    from serial.tools import list_ports
+    found = [p.device for p in list_ports.comports()
+             if p.interface == "SPU Raw Stream"]
+    return found[0] if found else None
 
 
 def find_serial():

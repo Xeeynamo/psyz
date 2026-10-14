@@ -8,16 +8,38 @@
 
 #include "ztest.h"
 
-static void spu_setup(void) {
+typedef struct tagSpuMalloc {
+    u32 addr;
+    u32 size;
+} SPU_MALLOC;
+extern SPU_MALLOC* _spu_memList;
+extern int _spu_mem_mode_plus;
+extern int _spu_rev_reserve_wa;
+extern int _spu_rev_offsetaddr;
+extern int _SpuIsInAllocateArea_(unsigned);
+long SpuInitMalloc(long num, char* top);
+long SpuMallocWithStartAddr(unsigned long addr, long size);
+static char heap[0x1000];
+
+// The transfer cursor and the RAM view only exist in the emulated SPU.
+ZTEST_SETUP(spu_emu) {
+    zskip_targets("ps1");
+    Psyz_AudioPause();
+    Psyz_AudioLock();
     Psyz_SpuInit();
     Psyz_SpuReset(0);
 }
 
+ZTEST_TEARDOWN(spu_emu) {
+    Psyz_AudioUnlock();
+    Psyz_AudioUnpause();
+}
+
 ZTEST_SETUP(spu) {
-    zskip_targets("ps1"); // TODO tests must be validated on real hardware!!
     Psyz_AudioPause();
     Psyz_AudioLock();
-    spu_setup();
+    Psyz_SpuInit();
+    Psyz_SpuReset(0);
 }
 
 ZTEST_TEARDOWN(spu) {
@@ -25,159 +47,32 @@ ZTEST_TEARDOWN(spu) {
     Psyz_AudioUnpause();
 }
 
-ZTEST(spu, SetTransferAddrMasksToRamRange) {
-    Psyz_SpuSetTransferAddr(PSYZ_SPU_RAM_SIZE + 0x10);
-    zexpect_u32_eq(0x10, Psyz_SpuGetTransferAddr());
-}
-
-ZTEST(spu, WriteXferAddrRegSetsTransferAddr) {
-    Psyz_SpuWrite(0x1A6, 0x0200);
-    zexpect_u32_eq(0x1000, Psyz_SpuGetTransferAddr());
-    zexpect_u16_eq(0x0200, Psyz_SpuRead(0x1A6));
-
-    Psyz_SpuWrite(0x1A6, 0x0201);
-    zexpect_u32_eq(0x1008, Psyz_SpuGetTransferAddr());
-    zexpect_u16_eq(0x0201, Psyz_SpuRead(0x1A6));
-}
-
-ZTEST(spu, SetTransferAddrWritesXferAddrReg) {
-    Psyz_SpuSetTransferAddr(0x1000u);
-    zexpect_u16_eq(0x0200, Psyz_SpuRead(0x1A6));
-
-    Psyz_SpuSetTransferAddr(0x1008u);
-    zexpect_u16_eq(0x0201, Psyz_SpuRead(0x1A6));
-}
-
-ZTEST(spu, MemWriteAndReadByteForByte) {
-    unsigned char payload[8] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
-    unsigned char buf[8] = {0};
-    size_t i;
-    Psyz_SpuMemWrite(0x3000, payload, sizeof(payload));
-    Psyz_SpuMemRead(0x3000, buf, sizeof(buf));
-    for (i = 0; i < sizeof(payload); i++) {
-        if (!zexpect_u8_eq(payload[i], buf[i])) {
-            zprintf("byte %zu\n", i);
-        }
-    }
-}
-
-ZTEST(spu, MemWriteDoesNotMoveFifoCursor) {
-    unsigned char payload[4] = {0xDE, 0xAD, 0xBE, 0xEF};
-    Psyz_SpuSetTransferAddr(0x4000);
-    Psyz_SpuMemWrite(0x8000, payload, sizeof(payload));
-    zexpect_u32_eq(0x4000, Psyz_SpuGetTransferAddr());
-    zexpect_u8_eq(0xDE, Psyz_SpuGetRam()[0x8000]);
-    zexpect_u8_eq(0xEF, Psyz_SpuGetRam()[0x8003]);
-}
-
-ZTEST(spu, MemReadWriteWrapsAtRamRange) {
-    unsigned char payload[4] = {0x11, 0x22, 0x33, 0x44};
-    unsigned char buf[4] = {0};
-    Psyz_SpuMemWrite(PSYZ_SPU_RAM_SIZE - 2, payload, sizeof(payload));
-    zexpect_u8_eq(0x11, Psyz_SpuGetRam()[PSYZ_SPU_RAM_SIZE - 2]);
-    zexpect_u8_eq(0x22, Psyz_SpuGetRam()[PSYZ_SPU_RAM_SIZE - 1]);
-    zexpect_u8_eq(0x33, Psyz_SpuGetRam()[0]);
-    zexpect_u8_eq(0x44, Psyz_SpuGetRam()[1]);
-
-    Psyz_SpuMemRead(PSYZ_SPU_RAM_SIZE - 2, buf, sizeof(buf));
-    zexpect_u8_eq(0x11, buf[0]);
-    zexpect_u8_eq(0x22, buf[1]);
-    zexpect_u8_eq(0x33, buf[2]);
-    zexpect_u8_eq(0x44, buf[3]);
-}
-
-ZTEST(spu, FifoWrite) {
-    Psyz_SpuSetTransferAddr(0x1000);
-    zexpect_u32_eq(0x1000, Psyz_SpuGetTransferAddr());
-    Psyz_SpuFifoWrite(0xDEAD);
-    Psyz_SpuFifoWrite(0xBEEF);
-    zexpect_u32_eq(0x1004, Psyz_SpuGetTransferAddr());
-    zexpect_u8_eq(0xAD, Psyz_SpuGetRam()[0x1000]);
-    zexpect_u8_eq(0xDE, Psyz_SpuGetRam()[0x1001]);
-    zexpect_u8_eq(0xEF, Psyz_SpuGetRam()[0x1002]);
-    zexpect_u8_eq(0xBE, Psyz_SpuGetRam()[0x1003]);
-}
-
-ZTEST(spu, FifoWriteWrapsAtRamRange) {
-    Psyz_SpuSetTransferAddr(PSYZ_SPU_RAM_SIZE - 2);
-    Psyz_SpuFifoWrite(0xABCD);
-    zexpect_u32_eq(0, Psyz_SpuGetTransferAddr());
-    zexpect_u8_eq(0xCD, Psyz_SpuGetRam()[PSYZ_SPU_RAM_SIZE - 2]);
-    zexpect_u8_eq(0xAB, Psyz_SpuGetRam()[PSYZ_SPU_RAM_SIZE - 1]);
-}
-
-ZTEST(spu, ResetClearsRamUnlessHot) {
-    Psyz_SpuMemWrite(0x100, "ABCD", 4);
+ZTEST_SETUP(spu_malloc) {
+    Psyz_SpuInit();
     Psyz_SpuReset(0);
-    zexpect_u8_eq(0, Psyz_SpuGetRam()[0x100]);
-
-    Psyz_SpuMemWrite(0x200, "WXYZ", 4);
-    Psyz_SpuReset(1);
-    zexpect_u8_eq('W', Psyz_SpuGetRam()[0x200]);
-    zexpect_u8_eq('Z', Psyz_SpuGetRam()[0x203]);
+    memset(heap, 0, sizeof(heap));
+    SpuInit();
 }
 
-ZTEST(spu, RegWriteXferFifoDepositsAndAdvances) {
-    Psyz_SpuWrite(0x1A6, 0x0100);
-    Psyz_SpuWrite(0x1A8, 0xCAFE);
-    zexpect_u8_eq(0xFE, Psyz_SpuGetRam()[0x800]);
-    zexpect_u8_eq(0xCA, Psyz_SpuGetRam()[0x801]);
-    zexpect_u32_eq(0x802, Psyz_SpuGetTransferAddr());
-}
-
-ZTEST(spu, RegWritePureStorageRoundTrips) {
-    Psyz_SpuWrite(0x050, 0x3FFF);
-    zexpect_u16_eq(0x3FFF, Psyz_SpuRead(0x050));
-    Psyz_SpuWrite(0x180, 0x4000);
-    zexpect_u16_eq(0x4000, Psyz_SpuRead(0x180));
-    Psyz_SpuWrite(0x1C0, 0x1234);
-    zexpect_u16_eq(0x1234, Psyz_SpuRead(0x1C0));
-}
-
-ZTEST(spu, RegWriteBulkUploadViaFifoMatchesPayload) {
-    unsigned char payload[256];
-    unsigned char buf[256];
-    size_t i;
-    for (i = 0; i < sizeof(payload); i++) {
-        payload[i] = (unsigned char)((i * 13) ^ 0xA5);
+// The final SPU output. On PS1 a ps1-audio Pico records it before the DAC.
+ZTEST_SETUP(spumix) {
+#ifdef __psx__
+    if (!PS1_SpuCaptureStart()) {
+        zskip("needs a ps1-audio Pico recording the SPU output");
     }
-    Psyz_SpuWrite(0x1A6, 0x0080);
-    for (i = 0; i < sizeof(payload); i += 2) {
-        Psyz_SpuWrite(
-            0x1A8, (unsigned short)(payload[i] | (payload[i + 1] << 8)));
-    }
-    Psyz_SpuMemRead(0x400, buf, sizeof(buf));
-    zexpect_u8array_eq(payload, buf, sizeof(payload));
-    zexpect_u32_eq(0x400u + sizeof(payload), Psyz_SpuGetTransferAddr());
+#endif
+    Psyz_AudioPause();
+    Psyz_AudioLock();
+    Psyz_SpuInit();
+    Psyz_SpuReset(0);
 }
 
-ZTEST(spu, MemWriteBulkDepositsAndAdvancesCursor) {
-    unsigned char payload[6] = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60};
-    Psyz_SpuSetTransferAddr(0x2000);
-    Psyz_SpuFifoWriteBulk(payload, sizeof(payload));
-    zexpect_u32_eq(0x2000u + sizeof(payload), Psyz_SpuGetTransferAddr());
-    zexpect_u8array_eq(payload, &Psyz_SpuGetRam()[0x2000], sizeof(payload));
-}
-
-ZTEST(spu, BulkUploadViaFifoMatchesDirectMemWrite) {
-    unsigned char payload[1024];
-    unsigned char a[1024];
-    unsigned char b[1024];
-    size_t i;
-    for (i = 0; i < sizeof(payload); i++) {
-        payload[i] = (unsigned char)(i * 7 + 13);
-    }
-    Psyz_SpuSetTransferAddr(0x10000);
-    for (i = 0; i < sizeof(payload); i += 2) {
-        unsigned short w = (unsigned short)(payload[i] | (payload[i + 1] << 8));
-        Psyz_SpuFifoWrite(w);
-    }
-    Psyz_SpuMemWrite(0x20000, payload, sizeof(payload));
-
-    Psyz_SpuMemRead(0x10000, a, sizeof(a));
-    Psyz_SpuMemRead(0x20000, b, sizeof(b));
-    zexpect_u8array_eq(b, a, sizeof(a));
-    zexpect_u8array_eq(payload, a, sizeof(payload));
+ZTEST_TEARDOWN(spumix) {
+#ifdef __psx__
+    PS1_SpuCaptureStop();
+#endif
+    Psyz_AudioUnlock();
+    Psyz_AudioUnpause();
 }
 
 // from PCSX Redux PR: https://github.com/grumpycoders/pcsx-redux/pull/2018
@@ -187,6 +82,7 @@ static const unsigned char kAdpcmSilent[64] = {
     0x00, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0x00, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
+
 static const unsigned char kAdpcmSine[64] = {
     0x00, 0x06, 0x10, 0x43, 0x76, 0x77, 0x77, 0x46, 0x13, 0xe0, 0xbc,
     0x89, 0x88, 0x88, 0xb9, 0xec, 0x00, 0x00, 0x10, 0x43, 0x76, 0x77,
@@ -195,6 +91,7 @@ static const unsigned char kAdpcmSine[64] = {
     0x88, 0x88, 0xb9, 0xec, 0x00, 0x03, 0x10, 0x43, 0x76, 0x77, 0x77,
     0x46, 0x13, 0xe0, 0xbc, 0x89, 0x88, 0x88, 0xb9, 0xec,
 };
+
 static const unsigned char kAdpcmTriangle[64] = {
     0x00, 0x06, 0x10, 0x32, 0x54, 0x76, 0x56, 0x34, 0x12, 0xe0, 0xcd,
     0xab, 0x89, 0xa9, 0xcb, 0xed, 0x00, 0x00, 0x10, 0x32, 0x54, 0x76,
@@ -203,6 +100,7 @@ static const unsigned char kAdpcmTriangle[64] = {
     0x89, 0xa9, 0xcb, 0xed, 0x00, 0x03, 0x10, 0x32, 0x54, 0x76, 0x56,
     0x34, 0x12, 0xe0, 0xcd, 0xab, 0x89, 0xa9, 0xcb, 0xed,
 };
+
 static const unsigned char kAdpcmSquare[64] = {
     0x00, 0x06, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x88, 0x88,
     0x88, 0x88, 0x88, 0x88, 0x88, 0x00, 0x00, 0x77, 0x77, 0x77, 0x77,
@@ -211,6 +109,7 @@ static const unsigned char kAdpcmSquare[64] = {
     0x88, 0x88, 0x88, 0x88, 0x00, 0x03, 0x77, 0x77, 0x77, 0x77, 0x77,
     0x77, 0x77, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88,
 };
+
 static const unsigned char kAdpcmSine394Hz[64] = {
     0x00, 0x06, 0x00, 0x10, 0x21, 0x32, 0x33, 0x44, 0x54, 0x55, 0x66,
     0x76, 0x77, 0x77, 0x77, 0x77, 0x00, 0x00, 0x77, 0x77, 0x77, 0x77,
@@ -219,6 +118,7 @@ static const unsigned char kAdpcmSine394Hz[64] = {
     0x88, 0x88, 0x88, 0x88, 0x00, 0x03, 0x88, 0x88, 0x88, 0x88, 0x88,
     0x99, 0xa9, 0xaa, 0xbb, 0xcb, 0xcc, 0xdd, 0xee, 0xff,
 };
+
 static const unsigned char kAdpcmSine5512Hz[64] = {
     0x00, 0x06, 0x50, 0x57, 0xa0, 0xa8, 0x50, 0x57, 0xa0, 0xa8, 0x50,
     0x57, 0xa0, 0xa8, 0x50, 0x57, 0x00, 0x00, 0xa0, 0xa8, 0x50, 0x57,
@@ -243,6 +143,39 @@ static void setup_voice1(unsigned int spu_addr, unsigned short pitch) {
     Psyz_SpuWrite(base + 0x08, 0x000f); // instant attack, sustain=0xF
     Psyz_SpuWrite(base + 0x0A, 0x1fc0); // sustain rate=0x7F linear
     Psyz_SpuWrite(base + 0x0E, (unsigned short)(spu_addr >> 3));
+}
+
+// Lets one frame go by. Real hardware keeps running on its own.
+static void spu_tick(void) {
+#ifndef __psx__
+    short frame[2];
+    Psyz_SpuPullSamples(frame, 1);
+#endif
+}
+
+// Polls allowed before giving up: frames when emulated, far less on hardware.
+enum { kPollLimit = 0x400000 };
+
+static void spu_wait_bit11(unsigned short level) {
+    int guard;
+    for (guard = 0; (Psyz_SpuRead(0x1AE) & 0x0800) != level; guard++) {
+        spu_tick();
+        if (guard >= kPollLimit) {
+            zfail("bit11 never became 0x%x", level);
+            return;
+        }
+    }
+}
+
+// One lap of the voice 1 capture ring that started after the call. Each half
+// is read while the SPU writes to the other one.
+static void read_voice1_ring(unsigned char out[1024]) {
+    spu_wait_bit11(0x0800);
+    spu_wait_bit11(0);
+    spu_wait_bit11(0x0800);
+    Psyz_SpuMemRead(0x0800, out, 512);
+    spu_wait_bit11(0);
+    Psyz_SpuMemRead(0x0A00, out + 512, 512);
 }
 
 static void pull_samples_nop(int nframes) {
@@ -296,9 +229,7 @@ static void run_voice1_with_envelope(
     Psyz_SpuWrite(0x18C, 0);       // KEY_OFF_LOW
     Psyz_SpuWrite(0x18E, 0);       // KEY_OFF_HIGH
     Psyz_SpuWrite(0x188, 1u << 1); // KEY_ON voice 1
-    pull_samples_nop(512);
-
-    Psyz_SpuMemRead(0x0800, out_capture, kCaptureBytes);
+    read_voice1_ring(out_capture);
     Psyz_SpuWrite(0x18C, 0xFFFF);
     Psyz_SpuWrite(0x18E, 0xFFFF);
 }
@@ -421,6 +352,542 @@ static int check_golden(const char* name, const unsigned char* cap) {
 #define SPU_EXPECT_GOLDEN(name, cap)                                           \
     zexpect_s32_eq(1, check_golden(#name, (cap)))
 
+#define ADSR_ATTACK(step, shift, exp)                                          \
+    ((((step) & 3) << 8) | (((shift) & 31) << 10) | (!!(exp) << 15))
+
+#define ADSR_DECAY(shift) (((shift) & 15) << 4)
+
+#define ADSR_SUSTAIN(step, shift, level, direction, exp)                       \
+    ((((step) & 3) << 22) | (((shift) & 31) << 24) | (((level) & 15) << 0) |   \
+     (!!(direction) << 30) | (!!(exp) << 31))
+
+#define ADSR_RELEASE(shift, exp) ((((shift) & 31) << 16) | (!!(exp) << 21))
+
+enum { kAdsrSampleAddr = 0x1080 };
+
+// A 2-block looping ADPCM payload so voice 1 never stops while the envelope
+// runs (block 1 loops back to block 0). The decoded samples are irrelevant;
+// the tests only read the envelope level.
+static void adsr_upload_loop_sample(void) {
+    unsigned char payload[32];
+    int i;
+    memset(payload, 0, sizeof(payload));
+    payload[1] = 0x04;  // block 0: loop-start
+    payload[17] = 0x03; // block 1: loop-end + repeat
+    for (i = 0; i < 14; i++)
+        payload[18 + i] = 0x55;
+    Psyz_SpuMemWrite(kAdsrSampleAddr, payload, sizeof(payload));
+}
+
+static unsigned short adsr_status(void) { return Psyz_SpuRead(0x1AE); }
+
+static unsigned short adsr_envx1(void) { return Psyz_SpuRead(0x1C); }
+
+static void adsr_tick(void) { spu_tick(); }
+
+static void adsr_wait_bit11_flip(void) {
+    spu_wait_bit11(0x0800);
+    spu_wait_bit11(0);
+}
+
+static void adsr_wait_voice1_off(void) {
+    int guard;
+    for (guard = 0; adsr_envx1() != 0; guard++) {
+        adsr_tick();
+        if (guard >= kPollLimit) {
+            zfail(
+                "previous envelope never went back to zero (guard %d)", guard);
+            return;
+        }
+    }
+}
+
+// Capture n_samples ENVX readings for `adsr`, one per bit-11 flip.
+static void adsr_capture(uint32_t adsr, uint16_t* envx, unsigned n_samples) {
+    int guard;
+    unsigned i;
+    // Drain any previous envelope back to zero.
+    spu_reset_quiet();
+    Psyz_SpuWrite(0x1AA, 0x8000 | 0x4000);
+    Psyz_SpuWrite(0x180, 0);
+    Psyz_SpuWrite(0x182, 0);
+    Psyz_SpuWrite(0x18C, 0xFFFF);
+    Psyz_SpuWrite(0x18E, 0xFFFF);
+    adsr_wait_bit11_flip();
+    adsr_wait_voice1_off();
+
+    // Prepare voice 1, wait for a flip, then fire it.
+    adsr_upload_loop_sample();
+    Psyz_SpuWrite(0x14, 0x1000);                                 // sampleRate
+    Psyz_SpuWrite(0x16, (unsigned short)(kAdsrSampleAddr >> 3)); // startAddr
+    Psyz_SpuWrite(0x1E, (unsigned short)(kAdsrSampleAddr >> 3)); // repeatAddr
+    Psyz_SpuWrite(0x10, 0);                                      // volumeLeft
+    Psyz_SpuWrite(0x12, 0);                                      // volumeRight
+    adsr_wait_bit11_flip();
+    Psyz_SpuWrite(0x18, (unsigned short)(adsr & 0xFFFF));
+    Psyz_SpuWrite(0x1A, (unsigned short)(adsr >> 16));
+    Psyz_SpuWrite(0x18C, 0);
+    Psyz_SpuWrite(0x18E, 0);
+    Psyz_SpuWrite(0x188, 1u << 1); // KEY_ON voice 1
+
+    for (guard = 0; adsr_envx1() == 0; guard++) {
+        adsr_tick();
+        if (guard >= kPollLimit) {
+            zfail("envelope never started after key-on (guard %d)", guard);
+            return;
+        }
+    }
+    envx[0] = adsr_envx1();
+    for (i = 1; i < n_samples; i++) {
+        adsr_wait_bit11_flip();
+        envx[i] = adsr_envx1();
+    }
+    Psyz_SpuWrite(0x18C, 0xFFFF);
+    Psyz_SpuWrite(0x18E, 0xFFFF);
+}
+
+static void adsr_capture_with_keyoff(
+    uint32_t adsr, uint16_t* envx, unsigned n_samples, unsigned keyoff_at) {
+    unsigned i;
+    adsr_capture(adsr, envx, keyoff_at + 1);
+    for (i = keyoff_at + 1; i < n_samples; i++) {
+        adsr_wait_bit11_flip();
+        envx[i] = adsr_envx1();
+    }
+}
+
+#define EXPECT_ENVX_NEAR(nominal, step, got)                                   \
+    do {                                                                       \
+        int ok_ = (got) >= (uint16_t)((nominal) - (step)) &&                   \
+                  (got) <= (uint16_t)((nominal) + (step));                     \
+        if (!zexpect_s32_ne(0, ok_)) {                                         \
+            zprintf("envx 0x%x not within %d of 0x%x\n", (unsigned)(got),      \
+                    (int)(step), (unsigned)(nominal));                         \
+        }                                                                      \
+    } while (0)
+
+typedef struct {
+    int level;
+    uint16_t v;
+    int start;
+} AdsrSustainCase;
+
+enum {
+    kRoomWorkAddr = 0x7D940,
+    kRoomWorkBytes = 0x26C0,
+    kRoomLapFrames = kRoomWorkBytes,
+};
+
+static void reverb_room_setup(bool master_enable, bool voice1_reverb) {
+    SpuReverbAttr attr;
+    spu_reset_quiet();
+    SpuInit();
+    Psyz_SpuWrite(0x1AA, 0x8000 | 0x4000);
+    Psyz_SpuWrite(0x180, 0x3FFF);
+    Psyz_SpuWrite(0x182, 0x3FFF);
+
+    memset(&attr, 0, sizeof(attr));
+    attr.mask = SPU_REV_MODE;
+    attr.mode = SPU_REV_MODE_ROOM | SPU_REV_MODE_CLEAR_WA;
+    if (!zexpect_s32_eq(0, SpuSetReverbModeParam(&attr))) {
+        return;
+    }
+
+    memset(&attr, 0, sizeof(attr));
+    attr.mask = SPU_REV_DEPTHL | SPU_REV_DEPTHR;
+    attr.depth.left = 0x3FFF;
+    attr.depth.right = 0x3FFF;
+    if (!zexpect_s32_eq(0, SpuSetReverbModeParam(&attr))) {
+        return;
+    }
+
+    if (master_enable) {
+        if (!zexpect_s32_eq(SPU_ON, SpuSetReverb(SPU_ON))) {
+            return;
+        }
+    }
+    Psyz_SpuWrite(0x198, voice1_reverb ? (1u << 1) : 0);
+}
+
+static void run_reverb_room(
+    const unsigned char* sample64, int nframes, unsigned char* work_out) {
+    unsigned char upload[128];
+    memcpy(upload, sample64, 64);
+    memset(upload + 64, 0xAA, 64);
+    Psyz_SpuMemWrite(kSampleAddr, upload, sizeof(upload));
+
+    Psyz_SpuWrite((1 << 4) + 0x00, 0x3FFF);
+    Psyz_SpuWrite((1 << 4) + 0x02, 0x3FFF);
+    spu_voice1_keyon(kSampleAddr, 0x1000);
+    pull_samples_nop(nframes);
+    Psyz_SpuMemRead(kRoomWorkAddr, work_out, kRoomWorkBytes);
+
+    Psyz_SpuWrite(0x18C, 0xFFFF);
+    Psyz_SpuWrite(0x18E, 0xFFFF);
+}
+
+static void dump_actual(
+    const char* name, const char* ext, const unsigned char* data, size_t size) {
+    char path[256];
+    FILE* f;
+    snprintf(path, sizeof(path), "expected/spu/%s.actual%s", name, ext);
+    f = fopen(path, "wb");
+    if (f) {
+        fwrite(data, 1, size, f);
+        fclose(f);
+    }
+}
+
+static int compare_work_area(const char* name, const unsigned char* got,
+                             const unsigned char* want, size_t want_size) {
+    unsigned i;
+    if (want_size != kRoomWorkBytes) {
+        dump_actual(name, ".bin", got, kRoomWorkBytes);
+        zprintf("%s: golden is %zu bytes, want %u\n", name, want_size,
+                (unsigned)kRoomWorkBytes);
+        return 0;
+    }
+    for (i = 0; i < kRoomWorkBytes; i++) {
+        if (got[i] != want[i]) {
+            dump_actual(name, ".bin", got, kRoomWorkBytes);
+            zprintf("%s: first mismatch at work area offset %u (SPU RAM "
+                    "0x%05X): got 0x%02X, want 0x%02X\n",
+                    name, i, kRoomWorkAddr + i, got[i], want[i]);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int check_work_area(const char* name, const unsigned char* got) {
+    size_t size;
+    unsigned char* want =
+        load_expected(name, ".test.bin", "expected file", &size);
+    int ok = compare_work_area(name, got, want, size);
+    free(want);
+    return ok;
+}
+
+static bool all_zero(const unsigned char* p, size_t n) {
+    size_t i;
+    for (i = 0; i < n; i++) {
+        if (p[i] != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Peak absolute amplitude of the left and right channels over `nframes`.
+static void mix_peak(int nframes, int* out_l, int* out_r) {
+    short* buf = (short*)calloc((size_t)nframes * 2, sizeof(short));
+    int pl = 0, pr = 0;
+    int i;
+    Psyz_SpuPullSamples(buf, nframes);
+    for (i = 0; i < nframes; i++) {
+        int l = abs((int)buf[i * 2]);
+        int r = abs((int)buf[i * 2 + 1]);
+        if (l > pl)
+            pl = l;
+        if (r > pr)
+            pr = r;
+    }
+    free(buf);
+    *out_l = pl;
+    *out_r = pr;
+}
+
+// given a sine wave and L/R volume, get out peak volume out for L/R capture
+static void voice1_volume_peak(
+    unsigned short vol_l, unsigned short vol_r, int* peak_l, int* peak_r) {
+    const unsigned int base = 1u << 4; // voice 1 register base
+    spu_reset_quiet();
+    Psyz_SpuMemWrite(kSampleAddr, kAdpcmSine, sizeof(kAdpcmSine));
+    Psyz_SpuWrite(0x1AA, 0x8000 | 0x4000); // SPU enable + unmute
+    Psyz_SpuWrite(0x180, 0x3FFF);          // main volume left = unity
+    Psyz_SpuWrite(0x182, 0x3FFF);          // main volume right = unity
+    Psyz_SpuWrite(base + 0x00, vol_l);     // voice 1 volume left
+    Psyz_SpuWrite(base + 0x02, vol_r);     // voice 1 volume right
+    spu_voice1_keyon(kSampleAddr, 0x1000);
+    // Skip the key-on envelope delay, then measure a steady window.
+    pull_samples_nop(32);
+    mix_peak(256, peak_l, peak_r);
+    Psyz_SpuWrite(0x18C, 0xFFFF);
+    Psyz_SpuWrite(0x18E, 0xFFFF);
+}
+
+enum { kMixFrames = 4096 };
+
+// Records the stereo mix, skip silent frames
+static bool capture_mix_from_onset(short out[kMixFrames * 2]) {
+    enum { kBlock = 256, kBlockLimit = 64 };
+    short block[kBlock * 2];
+    int have = 0;
+    int guard, i, n;
+    for (guard = 0; guard < kBlockLimit; guard++) {
+        Psyz_SpuPullSamples(block, kBlock);
+        i = 0;
+        if (!have) {
+            while (i < kBlock && !block[i * 2] && !block[i * 2 + 1]) {
+                i++;
+            }
+        }
+        n = kBlock - i;
+        if (n > kMixFrames - have) {
+            n = kMixFrames - have;
+        }
+        memcpy(out + have * 2, block + i * 2, (size_t)n * 4);
+        have += n;
+        if (have == kMixFrames) {
+            return true;
+        }
+    }
+    zprintf("the mix stayed silent\n");
+    return false;
+}
+
+// Lets whatever still sounds fade out, so that the next onset is the test's.
+static void mix_wait_silence(void) {
+    enum { kBlock = 256, kQuietBlocks = 8, kBlockLimit = 512 };
+    short block[kBlock * 2];
+    int quiet = 0;
+    int guard, i;
+    for (guard = 0; quiet < kQuietBlocks; guard++) {
+        if (guard >= kBlockLimit) {
+            zfail("the mix never went silent");
+            return;
+        }
+        Psyz_SpuPullSamples(block, kBlock);
+        quiet++;
+        for (i = 0; i < kBlock * 2; i++) {
+            if (block[i]) {
+                quiet = 0;
+            }
+        }
+    }
+}
+
+static int compare_mix(
+    const char* name, const short* got, const short* want, size_t want_size) {
+    int first = -1, differ = 0, worst = 0;
+    int i;
+    if (want_size != kMixFrames * 4) {
+        zprintf("%s: golden is %zu bytes, want %u\n", name, want_size,
+                (unsigned)kMixFrames * 4);
+        return 0;
+    }
+    for (i = 0; i < kMixFrames * 2; i++) {
+        int d = abs(got[i] - want[i]);
+        if (d) {
+            differ++;
+            if (first < 0) {
+                first = i;
+            }
+            if (d > worst) {
+                worst = d;
+            }
+        }
+    }
+    if (differ) {
+        zprintf("%s: %d samples differ, by %d at most, first at frame %d "
+                "(%s): got %d, want %d\n",
+                name, differ, worst, first >> 1, first & 1 ? "right" : "left",
+                got[first], want[first]);
+        return 0;
+    }
+    return 1;
+}
+
+// The golden holds the frames a real SPU sent to its DAC, as S16LE stereo.
+static int check_mix(const char* name) {
+    static short got[kMixFrames * 2];
+    size_t size;
+    short* want;
+    int ok;
+    if (!capture_mix_from_onset(got)) {
+        return 0;
+    }
+    want = (short*)load_expected(name, ".mix.pcm", "expected mix", &size);
+    ok = want && compare_mix(name, got, want, size);
+    if (!ok) {
+        dump_actual(name, ".mix.pcm", (const unsigned char*)got, sizeof(got));
+    }
+    free(want);
+    return ok;
+}
+
+#define SPU_EXPECT_MIX(name) zexpect_s32_eq(1, check_mix(#name))
+
+static void mix_setup(const unsigned char* sample64) {
+    spu_reset_quiet();
+    Psyz_SpuMemWrite(kSampleAddr, sample64, 64);
+    Psyz_SpuWrite(0x1AA, 0x8000 | 0x4000);
+    Psyz_SpuWrite(0x180, 0x3FFF);
+    Psyz_SpuWrite(0x182, 0x3FFF);
+    Psyz_SpuWrite((1 << 4) + 0x00, 0x3FFF);
+    Psyz_SpuWrite((1 << 4) + 0x02, 0x3FFF);
+}
+
+static void mix_teardown(void) {
+    Psyz_SpuWrite(0x18C, 0xFFFF);
+    Psyz_SpuWrite(0x18E, 0xFFFF);
+}
+
+ZTEST(spu_emu, SetTransferAddrMasksToRamRange) {
+    Psyz_SpuSetTransferAddr(PSYZ_SPU_RAM_SIZE + 0x10);
+    zexpect_u32_eq(0x10, Psyz_SpuGetTransferAddr());
+}
+
+ZTEST(spu_emu, WriteXferAddrRegSetsTransferAddr) {
+    Psyz_SpuWrite(0x1A6, 0x0200);
+    zexpect_u32_eq(0x1000, Psyz_SpuGetTransferAddr());
+    zexpect_u16_eq(0x0200, Psyz_SpuRead(0x1A6));
+
+    Psyz_SpuWrite(0x1A6, 0x0201);
+    zexpect_u32_eq(0x1008, Psyz_SpuGetTransferAddr());
+    zexpect_u16_eq(0x0201, Psyz_SpuRead(0x1A6));
+}
+
+ZTEST(spu_emu, SetTransferAddrWritesXferAddrReg) {
+    Psyz_SpuSetTransferAddr(0x1000u);
+    zexpect_u16_eq(0x0200, Psyz_SpuRead(0x1A6));
+
+    Psyz_SpuSetTransferAddr(0x1008u);
+    zexpect_u16_eq(0x0201, Psyz_SpuRead(0x1A6));
+}
+
+ZTEST(spu_emu, MemWriteDoesNotMoveFifoCursor) {
+    unsigned char payload[4] = {0xDE, 0xAD, 0xBE, 0xEF};
+    Psyz_SpuSetTransferAddr(0x4000);
+    Psyz_SpuMemWrite(0x8000, payload, sizeof(payload));
+    zexpect_u32_eq(0x4000, Psyz_SpuGetTransferAddr());
+    zexpect_u8_eq(0xDE, Psyz_SpuGetRam()[0x8000]);
+    zexpect_u8_eq(0xEF, Psyz_SpuGetRam()[0x8003]);
+}
+
+ZTEST(spu_emu, MemReadWriteWrapsAtRamRange) {
+    unsigned char payload[4] = {0x11, 0x22, 0x33, 0x44};
+    unsigned char buf[4] = {0};
+    Psyz_SpuMemWrite(PSYZ_SPU_RAM_SIZE - 2, payload, sizeof(payload));
+    zexpect_u8_eq(0x11, Psyz_SpuGetRam()[PSYZ_SPU_RAM_SIZE - 2]);
+    zexpect_u8_eq(0x22, Psyz_SpuGetRam()[PSYZ_SPU_RAM_SIZE - 1]);
+    zexpect_u8_eq(0x33, Psyz_SpuGetRam()[0]);
+    zexpect_u8_eq(0x44, Psyz_SpuGetRam()[1]);
+
+    Psyz_SpuMemRead(PSYZ_SPU_RAM_SIZE - 2, buf, sizeof(buf));
+    zexpect_u8_eq(0x11, buf[0]);
+    zexpect_u8_eq(0x22, buf[1]);
+    zexpect_u8_eq(0x33, buf[2]);
+    zexpect_u8_eq(0x44, buf[3]);
+}
+
+ZTEST(spu_emu, FifoWrite) {
+    Psyz_SpuSetTransferAddr(0x1000);
+    zexpect_u32_eq(0x1000, Psyz_SpuGetTransferAddr());
+    Psyz_SpuFifoWrite(0xDEAD);
+    Psyz_SpuFifoWrite(0xBEEF);
+    zexpect_u32_eq(0x1004, Psyz_SpuGetTransferAddr());
+    zexpect_u8_eq(0xAD, Psyz_SpuGetRam()[0x1000]);
+    zexpect_u8_eq(0xDE, Psyz_SpuGetRam()[0x1001]);
+    zexpect_u8_eq(0xEF, Psyz_SpuGetRam()[0x1002]);
+    zexpect_u8_eq(0xBE, Psyz_SpuGetRam()[0x1003]);
+}
+
+ZTEST(spu_emu, FifoWriteWrapsAtRamRange) {
+    Psyz_SpuSetTransferAddr(PSYZ_SPU_RAM_SIZE - 2);
+    Psyz_SpuFifoWrite(0xABCD);
+    zexpect_u32_eq(0, Psyz_SpuGetTransferAddr());
+    zexpect_u8_eq(0xCD, Psyz_SpuGetRam()[PSYZ_SPU_RAM_SIZE - 2]);
+    zexpect_u8_eq(0xAB, Psyz_SpuGetRam()[PSYZ_SPU_RAM_SIZE - 1]);
+}
+
+ZTEST(spu_emu, ResetClearsRamUnlessHot) {
+    Psyz_SpuMemWrite(0x100, "ABCD", 4);
+    Psyz_SpuReset(0);
+    zexpect_u8_eq(0, Psyz_SpuGetRam()[0x100]);
+
+    Psyz_SpuMemWrite(0x200, "WXYZ", 4);
+    Psyz_SpuReset(1);
+    zexpect_u8_eq('W', Psyz_SpuGetRam()[0x200]);
+    zexpect_u8_eq('Z', Psyz_SpuGetRam()[0x203]);
+}
+
+ZTEST(spu_emu, RegWriteXferFifoDepositsAndAdvances) {
+    Psyz_SpuWrite(0x1A6, 0x0100);
+    Psyz_SpuWrite(0x1A8, 0xCAFE);
+    zexpect_u8_eq(0xFE, Psyz_SpuGetRam()[0x800]);
+    zexpect_u8_eq(0xCA, Psyz_SpuGetRam()[0x801]);
+    zexpect_u32_eq(0x802, Psyz_SpuGetTransferAddr());
+}
+
+ZTEST(spu_emu, RegWriteBulkUploadViaFifoMatchesPayload) {
+    unsigned char payload[256];
+    unsigned char buf[256];
+    size_t i;
+    for (i = 0; i < sizeof(payload); i++) {
+        payload[i] = (unsigned char)((i * 13) ^ 0xA5);
+    }
+    Psyz_SpuWrite(0x1A6, 0x0080);
+    for (i = 0; i < sizeof(payload); i += 2) {
+        Psyz_SpuWrite(
+            0x1A8, (unsigned short)(payload[i] | (payload[i + 1] << 8)));
+    }
+    Psyz_SpuMemRead(0x400, buf, sizeof(buf));
+    zexpect_u8array_eq(payload, buf, sizeof(payload));
+    zexpect_u32_eq(0x400u + sizeof(payload), Psyz_SpuGetTransferAddr());
+}
+
+ZTEST(spu_emu, MemWriteBulkDepositsAndAdvancesCursor) {
+    unsigned char payload[6] = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60};
+    Psyz_SpuSetTransferAddr(0x2000);
+    Psyz_SpuFifoWriteBulk(payload, sizeof(payload));
+    zexpect_u32_eq(0x2000u + sizeof(payload), Psyz_SpuGetTransferAddr());
+    zexpect_u8array_eq(payload, &Psyz_SpuGetRam()[0x2000], sizeof(payload));
+}
+
+ZTEST(spu_emu, BulkUploadViaFifoMatchesDirectMemWrite) {
+    unsigned char payload[1024];
+    unsigned char a[1024];
+    unsigned char b[1024];
+    size_t i;
+    for (i = 0; i < sizeof(payload); i++) {
+        payload[i] = (unsigned char)(i * 7 + 13);
+    }
+    Psyz_SpuSetTransferAddr(0x10000);
+    for (i = 0; i < sizeof(payload); i += 2) {
+        unsigned short w = (unsigned short)(payload[i] | (payload[i + 1] << 8));
+        Psyz_SpuFifoWrite(w);
+    }
+    Psyz_SpuMemWrite(0x20000, payload, sizeof(payload));
+
+    Psyz_SpuMemRead(0x10000, a, sizeof(a));
+    Psyz_SpuMemRead(0x20000, b, sizeof(b));
+    zexpect_u8array_eq(b, a, sizeof(a));
+    zexpect_u8array_eq(payload, a, sizeof(payload));
+}
+
+ZTEST(spu, MemWriteAndReadByteForByte) {
+    unsigned char payload[8] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+    unsigned char buf[8] = {0};
+    size_t i;
+    Psyz_SpuMemWrite(0x3000, payload, sizeof(payload));
+    Psyz_SpuMemRead(0x3000, buf, sizeof(buf));
+    for (i = 0; i < sizeof(payload); i++) {
+        if (!zexpect_u8_eq(payload[i], buf[i])) {
+            zprintf("byte %zu\n", i);
+        }
+    }
+}
+
+ZTEST(spu, RegWritePureStorageRoundTrips) {
+    Psyz_SpuWrite(0x050, 0x3FFF);
+    zexpect_u16_eq(0x3FFF, Psyz_SpuRead(0x050));
+    Psyz_SpuWrite(0x180, 0x4000);
+    zexpect_u16_eq(0x4000, Psyz_SpuRead(0x180));
+    Psyz_SpuWrite(0x1C0, 0x1234);
+    zexpect_u16_eq(0x1234, Psyz_SpuRead(0x1C0));
+}
+
 ZTEST(spu, adpcm_decode_silent) {
     // A silent ADPCM payload should produce a capture ring full of zeros
     unsigned char cap[1024];
@@ -482,8 +949,7 @@ ZTEST(spu, adpcm_decode_with_loop) {
     pull_samples_nop(512);
 
     spu_voice1_keyon(kSampleAddr, 0x1000);
-    pull_samples_nop(512);
-    Psyz_SpuMemRead(0x0800, cap, sizeof(cap));
+    read_voice1_ring(cap);
     SPU_EXPECT_GOLDEN(loop_t1, cap);
 
     Psyz_SpuWrite(0x18C, 0xFFFF);
@@ -541,109 +1007,19 @@ ZTEST(spu, ChangePitchWhileVoiceIsOn) {
     }
 }
 
-// Peak absolute amplitude of the left and right channels over `nframes` of the
-// final stereo mix that Psyz_SpuPullSamples produces (NOT the per-voice capture
-// buffer, which is pre-volume). out_l/out_r receive the per-channel peaks.
-static void mix_peak(int nframes, int* out_l, int* out_r) {
-    short* buf = (short*)calloc((size_t)nframes * 2, sizeof(short));
-    int pl = 0, pr = 0;
-    int i;
-    Psyz_SpuPullSamples(buf, nframes);
-    for (i = 0; i < nframes; i++) {
-        int l = abs((int)buf[i * 2]);
-        int r = abs((int)buf[i * 2 + 1]);
-        if (l > pl)
-            pl = l;
-        if (r > pr)
-            pr = r;
-    }
-    free(buf);
-    *out_l = pl;
-    *out_r = pr;
-}
-
-// given a sine wave and L/R volume, get out peak volume out for L/R capture
-static void voice1_volume_peak(
-    unsigned short vol_l, unsigned short vol_r, int* peak_l, int* peak_r) {
-    const unsigned int base = 1u << 4; // voice 1 register base
-    spu_reset_quiet();
-    Psyz_SpuMemWrite(kSampleAddr, kAdpcmSine, sizeof(kAdpcmSine));
-    Psyz_SpuWrite(0x1AA, 0x8000 | 0x4000); // SPU enable + unmute
-    Psyz_SpuWrite(0x180, 0x3FFF);          // main volume left = unity
-    Psyz_SpuWrite(0x182, 0x3FFF);          // main volume right = unity
-    Psyz_SpuWrite(base + 0x00, vol_l);     // voice 1 volume left
-    Psyz_SpuWrite(base + 0x02, vol_r);     // voice 1 volume right
-    spu_voice1_keyon(kSampleAddr, 0x1000);
-    // Skip the key-on envelope delay, then measure a steady window.
-    pull_samples_nop(32);
-    mix_peak(256, peak_l, peak_r);
-    Psyz_SpuWrite(0x18C, 0xFFFF);
-    Psyz_SpuWrite(0x18E, 0xFFFF);
-}
-
-ZTEST(spu, VoiceVolumePansLeftAndRight) {
-    int l, r;
-
-    voice1_volume_peak(0x3FFF, 0x0000, &l, &r);
-    if (!zexpect_s32_gt(1000, l)) {
-        zprintf("hard-left voice produced no left output\n");
-    }
-    if (!zexpect_s32_eq(0, r)) {
-        zprintf("hard-left voice leaked into the right channel\n");
-    }
-
-    voice1_volume_peak(0x0000, 0x3FFF, &l, &r);
-    if (!zexpect_s32_gt(1000, r)) {
-        zprintf("hard-right voice produced no right output\n");
-    }
-    if (!zexpect_s32_eq(0, l)) {
-        zprintf("hard-right voice leaked into the left channel\n");
-    }
-}
-
-ZTEST(spu, VoiceVolumeScalesAmplitude) {
-    int full_l, full_r, half_l, half_r;
-    double ratio;
-    voice1_volume_peak(0x3FFF, 0x3FFF, &full_l, &full_r);
-    voice1_volume_peak(0x2000, 0x2000, &half_l, &half_r);
-
-    zassert_s32_gt(0, full_l);
-    // 0x2000 / 0x3FFF ~= 0.5; allow a generous band for rounding and the
-    // gauss-interpolated sample peak landing on different frames.
-    ratio = (double)half_l / (double)full_l;
-    if (!zexpect_s32_ne(0, ratio > 0.35)) {
-        zprintf("half volume too quiet (ratio %f)\n", ratio);
-    }
-    if (!zexpect_s32_ne(0, ratio < 0.65)) {
-        zprintf("half volume too loud (ratio %f)\n", ratio);
-    }
-}
-
-ZTEST(spu, VoiceVolumeZeroIsSilent) {
-    int l, r;
-    voice1_volume_peak(0x0000, 0x0000, &l, &r);
-    zexpect_s32_eq(0, l);
-    zexpect_s32_eq(0, r);
-}
-
 ZTEST(spu, KeyOnLatchesStartAddrAndActivates) {
-    short cap[28];
     short ring[512];
     int nonzero = 0;
     int i;
     Psyz_SpuMemWrite(kSampleAddr, kAdpcmSine, sizeof(kAdpcmSine));
     setup_voice1(kSampleAddr, 0x1000);
-    // Before KEY_ON: voice 1 capture region stays zero through a pull.
-    pull_samples_nop(28);
-    Psyz_SpuMemRead(0x0800, cap, sizeof(cap));
-    for (i = 0; i < 28; i++) {
-        if (!zexpect_s16_eq(0, cap[i])) {
+    // Before KEY_ON: a whole lap of the voice 1 capture ring stays zero.
+    read_voice1_ring((unsigned char*)ring);
+    for (i = 0; i < 512; i++) {
+        if (!zexpect_s16_eq(0, ring[i])) {
             zprintf("pre-keyon sample %d\n", i);
         }
     }
-    // KEY_ON, then pull. The capture_pos has advanced 28*2=56 bytes from
-    // the first pull, so new samples land at 0x0800+56. Read the whole
-    // ring (512 shorts = 1024 bytes) and assert *some* sample is non-zero.
     Psyz_SpuWrite(0x188, 1u << 1);
     pull_samples_nop(28);
     Psyz_SpuMemRead(0x0800, ring, sizeof(ring));
@@ -680,6 +1056,9 @@ ZTEST(spu, KeyOffSilencesVoice) {
 
 ZTEST(spu, Bit11TogglesEveryHalfCaptureRing) {
     unsigned short s0, s1, s2;
+    spu_wait_bit11(0x0800);
+    spu_wait_bit11(0);
+    pull_samples_nop(128);
     s0 = Psyz_SpuRead(0x1AE) & 0x800;
     pull_samples_nop(256);
     s1 = Psyz_SpuRead(0x1AE) & 0x800;
@@ -734,128 +1113,6 @@ ZTEST(spu, AdpcmLoopRepeatJumpsToLoopAddr) {
         zprintf("voice stopped instead of looping\n");
     }
 }
-
-#define ADSR_ATTACK(step, shift, exp)                                          \
-    ((((step) & 3) << 8) | (((shift) & 31) << 10) | (!!(exp) << 15))
-#define ADSR_DECAY(shift) (((shift) & 15) << 4)
-#define ADSR_SUSTAIN(step, shift, level, direction, exp)                       \
-    ((((step) & 3) << 22) | (((shift) & 31) << 24) | (((level) & 15) << 0) |   \
-     (!!(direction) << 30) | (!!(exp) << 31))
-#define ADSR_RELEASE(shift, exp) ((((shift) & 31) << 16) | (!!(exp) << 21))
-
-enum { kAdsrSampleAddr = 0x1080 };
-
-// A 2-block looping ADPCM payload so voice 1 never stops while the envelope
-// runs (block 1 loops back to block 0). The decoded samples are irrelevant;
-// the tests only read the envelope level.
-static void adsr_upload_loop_sample(void) {
-    unsigned char payload[32];
-    int i;
-    memset(payload, 0, sizeof(payload));
-    payload[1] = 0x04;  // block 0: loop-start
-    payload[17] = 0x03; // block 1: loop-end + repeat
-    for (i = 0; i < 14; i++)
-        payload[18 + i] = 0x55;
-    Psyz_SpuMemWrite(kAdsrSampleAddr, payload, sizeof(payload));
-}
-
-static unsigned short adsr_status(void) { return Psyz_SpuRead(0x1AE); }
-static unsigned short adsr_envx1(void) { return Psyz_SpuRead(0x1C); }
-
-static void adsr_tick(void) {
-    short frame[2];
-    Psyz_SpuPullSamples(frame, 1);
-}
-
-static void adsr_wait_bit11_flip(void) {
-    int guard;
-    for (guard = 0; !(adsr_status() & 0x0800); guard++) {
-        adsr_tick();
-        if (guard >= 4096) {
-            zfail("bit11 never went high (guard %d)", guard);
-            return;
-        }
-    }
-    for (guard = 0; adsr_status() & 0x0800; guard++) {
-        adsr_tick();
-        if (guard >= 4096) {
-            zfail("bit11 never went low (guard %d)", guard);
-            return;
-        }
-    }
-}
-
-// Capture n_samples ENVX readings for `adsr`, one per bit-11 flip.
-static void adsr_capture(uint32_t adsr, uint16_t* envx, unsigned n_samples) {
-    int guard;
-    unsigned i;
-    // Drain any previous envelope back to zero.
-    spu_reset_quiet();
-    Psyz_SpuWrite(0x1AA, 0x8000 | 0x4000);
-    Psyz_SpuWrite(0x180, 0);
-    Psyz_SpuWrite(0x182, 0);
-    Psyz_SpuWrite(0x18C, 0xFFFF);
-    Psyz_SpuWrite(0x18E, 0xFFFF);
-    adsr_wait_bit11_flip();
-    guard = 0;
-    while (adsr_envx1() != 0) {
-        adsr_tick();
-        if (++guard >= 200000) {
-            zfail(
-                "previous envelope never went back to zero (guard %d)", guard);
-            return;
-        }
-    }
-
-    // Prepare voice 1, wait for a flip, then fire it.
-    adsr_upload_loop_sample();
-    Psyz_SpuWrite(0x14, 0x1000);                                 // sampleRate
-    Psyz_SpuWrite(0x16, (unsigned short)(kAdsrSampleAddr >> 3)); // startAddr
-    Psyz_SpuWrite(0x1E, (unsigned short)(kAdsrSampleAddr >> 3)); // repeatAddr
-    Psyz_SpuWrite(0x10, 0);                                      // volumeLeft
-    Psyz_SpuWrite(0x12, 0);                                      // volumeRight
-    adsr_wait_bit11_flip();
-    Psyz_SpuWrite(0x18, (unsigned short)(adsr & 0xFFFF));
-    Psyz_SpuWrite(0x1A, (unsigned short)(adsr >> 16));
-    Psyz_SpuWrite(0x18C, 0);
-    Psyz_SpuWrite(0x18E, 0);
-    Psyz_SpuWrite(0x188, 1u << 1); // KEY_ON voice 1
-
-    for (guard = 0; adsr_envx1() == 0; guard++) {
-        adsr_tick();
-        if (guard >= 100000) {
-            zfail("envelope never started after key-on (guard %d)", guard);
-            return;
-        }
-    }
-    envx[0] = adsr_envx1();
-    for (i = 1; i < n_samples; i++) {
-        adsr_wait_bit11_flip();
-        envx[i] = adsr_envx1();
-    }
-    Psyz_SpuWrite(0x18C, 0xFFFF);
-    Psyz_SpuWrite(0x18E, 0xFFFF);
-}
-
-static void adsr_capture_with_keyoff(
-    uint32_t adsr, uint16_t* envx, unsigned n_samples, unsigned keyoff_at) {
-    unsigned i;
-    adsr_capture(adsr, envx, keyoff_at + 1);
-    for (i = keyoff_at + 1; i < n_samples; i++) {
-        adsr_wait_bit11_flip();
-        envx[i] = adsr_envx1();
-    }
-}
-
-#define EXPECT_ENVX_NEAR(nominal, step, got)                                   \
-    do {                                                                       \
-        int ok_ = (got) >= (uint16_t)((nominal) - (step)) &&                   \
-                  (got) <= (uint16_t)((nominal) + (step));                     \
-        if (!zexpect_s32_ne(0, ok_)) {                                         \
-            zprintf("envx 0x%x not within %d of 0x%x\n", (unsigned)(got),      \
-                    (int)(step), (unsigned)(nominal));                         \
-        }                                                                      \
-    } while (0)
 
 ZTEST(spu, adsr_attack_linear_step) {
     uint16_t envx[0x40];
@@ -1015,24 +1272,18 @@ ZTEST(spu, adsr_decay_shift) {
                      ADSR_SUSTAIN(0, 0, 0, 1, 0) | ADSR_RELEASE(0, 1),
                  envx, 32);
     zexpect_u16_eq(0x1c00, envx[0]);
-    EXPECT_ENVX_NEAR(0x7e05, 0x02, envx[1]);
-    EXPECT_ENVX_NEAR(0x7c05, 0x02, envx[2]);
-    EXPECT_ENVX_NEAR(0x7805, 0x02, envx[4]);
-    EXPECT_ENVX_NEAR(0x7405, 0x02, envx[6]);
-    EXPECT_ENVX_NEAR(0x7005, 0x02, envx[8]);
-    EXPECT_ENVX_NEAR(0x6906, 0x02, envx[12]);
-    EXPECT_ENVX_NEAR(0x6206, 0x02, envx[16]);
-    EXPECT_ENVX_NEAR(0x5bba, 0x02, envx[20]);
-    EXPECT_ENVX_NEAR(0x55ba, 0x02, envx[24]);
-    EXPECT_ENVX_NEAR(0x4fc7, 0x02, envx[28]);
-    EXPECT_ENVX_NEAR(0x4c05, 0x02, envx[31]);
+    EXPECT_ENVX_NEAR(0x7e05, 0x0c, envx[1]);
+    EXPECT_ENVX_NEAR(0x7c05, 0x0c, envx[2]);
+    EXPECT_ENVX_NEAR(0x7805, 0x0c, envx[4]);
+    EXPECT_ENVX_NEAR(0x7405, 0x0c, envx[6]);
+    EXPECT_ENVX_NEAR(0x7005, 0x0c, envx[8]);
+    EXPECT_ENVX_NEAR(0x6906, 0x0c, envx[12]);
+    EXPECT_ENVX_NEAR(0x6206, 0x0c, envx[16]);
+    EXPECT_ENVX_NEAR(0x5bba, 0x0c, envx[20]);
+    EXPECT_ENVX_NEAR(0x55ba, 0x0c, envx[24]);
+    EXPECT_ENVX_NEAR(0x4fc7, 0x0c, envx[28]);
+    EXPECT_ENVX_NEAR(0x4c05, 0x0c, envx[31]);
 }
-
-typedef struct {
-    int level;
-    uint16_t v;
-    int start;
-} AdsrSustainCase;
 
 ZTEST(spu, adsr_sustain_level) {
     uint16_t envx[16];
@@ -1075,13 +1326,13 @@ ZTEST(spu, adsr_sustain_up_linear) {
                      ADSR_SUSTAIN(0, 14, 15, 0, 0) | ADSR_RELEASE(0, 1),
                  envx, 32);
     zexpect_u16_eq(0x1c00, envx[0]);
-    EXPECT_ENVX_NEAR(0x41b8, 0x02, envx[1]);
-    EXPECT_ENVX_NEAR(0x46f8, 0x02, envx[4]);
-    EXPECT_ENVX_NEAR(0x4df8, 0x02, envx[8]);
-    EXPECT_ENVX_NEAR(0x54f8, 0x02, envx[12]);
-    EXPECT_ENVX_NEAR(0x5bf8, 0x02, envx[16]);
-    EXPECT_ENVX_NEAR(0x70f8, 0x02, envx[28]);
-    EXPECT_ENVX_NEAR(0x7638, 0x02, envx[31]);
+    EXPECT_ENVX_NEAR(0x41b8, 0x0c, envx[1]);
+    EXPECT_ENVX_NEAR(0x46f8, 0x0c, envx[4]);
+    EXPECT_ENVX_NEAR(0x4df8, 0x0c, envx[8]);
+    EXPECT_ENVX_NEAR(0x54f8, 0x0c, envx[12]);
+    EXPECT_ENVX_NEAR(0x5bf8, 0x0c, envx[16]);
+    EXPECT_ENVX_NEAR(0x70f8, 0x0c, envx[28]);
+    EXPECT_ENVX_NEAR(0x7638, 0x0c, envx[31]);
 }
 
 ZTEST(spu, adsr_sustain_down_linear) {
@@ -1102,12 +1353,12 @@ ZTEST(spu, adsr_sustain_down_linear) {
                      ADSR_SUSTAIN(0, 14, 15, 1, 0) | ADSR_RELEASE(0, 1),
                  envx, 32);
     zexpect_u16_eq(0x1c00, envx[0]);
-    EXPECT_ENVX_NEAR(0x3e05, 0x02, envx[1]);
-    EXPECT_ENVX_NEAR(0x3805, 0x02, envx[4]);
-    EXPECT_ENVX_NEAR(0x3005, 0x02, envx[8]);
-    EXPECT_ENVX_NEAR(0x2005, 0x02, envx[16]);
-    EXPECT_ENVX_NEAR(0x1005, 0x02, envx[24]);
-    EXPECT_ENVX_NEAR(0x0205, 0x02, envx[31]);
+    EXPECT_ENVX_NEAR(0x3e05, 0x0c, envx[1]);
+    EXPECT_ENVX_NEAR(0x3805, 0x0c, envx[4]);
+    EXPECT_ENVX_NEAR(0x3005, 0x0c, envx[8]);
+    EXPECT_ENVX_NEAR(0x2005, 0x0c, envx[16]);
+    EXPECT_ENVX_NEAR(0x1005, 0x0c, envx[24]);
+    EXPECT_ENVX_NEAR(0x0205, 0x0c, envx[31]);
 }
 
 ZTEST(spu, adsr_sustain_up_exponential) {
@@ -1180,115 +1431,9 @@ ZTEST(spu, adsr_release_exponential) {
     EXPECT_ENVX_NEAR(0x1cf7, 0x01, envx[23]);
 }
 
-enum {
-    kRoomWorkAddr = 0x7D940,
-    kRoomWorkBytes = 0x26C0,
-    kRoomLapFrames = kRoomWorkBytes,
-};
-
-static void reverb_room_setup(bool master_enable, bool voice1_reverb) {
-    SpuReverbAttr attr;
-    spu_reset_quiet();
-    SpuInit();
-    Psyz_SpuWrite(0x1AA, 0x8000 | 0x4000);
-    Psyz_SpuWrite(0x180, 0x3FFF);
-    Psyz_SpuWrite(0x182, 0x3FFF);
-
-    memset(&attr, 0, sizeof(attr));
-    attr.mask = SPU_REV_MODE;
-    attr.mode = SPU_REV_MODE_ROOM | SPU_REV_MODE_CLEAR_WA;
-    if (!zexpect_s32_eq(0, SpuSetReverbModeParam(&attr))) {
-        return;
-    }
-
-    memset(&attr, 0, sizeof(attr));
-    attr.mask = SPU_REV_DEPTHL | SPU_REV_DEPTHR;
-    attr.depth.left = 0x3FFF;
-    attr.depth.right = 0x3FFF;
-    if (!zexpect_s32_eq(0, SpuSetReverbModeParam(&attr))) {
-        return;
-    }
-
-    if (master_enable) {
-        if (!zexpect_s32_eq(SPU_ON, SpuSetReverb(SPU_ON))) {
-            return;
-        }
-    }
-    Psyz_SpuWrite(0x198, voice1_reverb ? (1u << 1) : 0);
-
-    Psyz_SpuWrite((1 << 4) + 0x00, 0x3FFF);
-    Psyz_SpuWrite((1 << 4) + 0x02, 0x3FFF);
-}
-
-static void run_reverb_room(
-    const unsigned char* sample64, int nframes, unsigned char* work_out) {
-    unsigned char upload[128];
-    memcpy(upload, sample64, 64);
-    memset(upload + 64, 0xAA, 64);
-    Psyz_SpuMemWrite(kSampleAddr, upload, sizeof(upload));
-
-    spu_voice1_keyon(kSampleAddr, 0x1000);
-    pull_samples_nop(nframes);
-    Psyz_SpuMemRead(kRoomWorkAddr, work_out, kRoomWorkBytes);
-
-    Psyz_SpuWrite(0x18C, 0xFFFF);
-    Psyz_SpuWrite(0x18E, 0xFFFF);
-}
-
-static void dump_actual_bin(
-    const char* name, const unsigned char* data, size_t size) {
-    char path[256];
-    FILE* f;
-    snprintf(path, sizeof(path), "expected/spu/%s.actual.bin", name);
-    f = fopen(path, "wb");
-    if (f) {
-        fwrite(data, 1, size, f);
-        fclose(f);
-    }
-}
-
-static int compare_work_area(const char* name, const unsigned char* got,
-                             const unsigned char* want, size_t want_size) {
-    unsigned i;
-    if (want_size != kRoomWorkBytes) {
-        dump_actual_bin(name, got, kRoomWorkBytes);
-        zprintf("%s: golden is %zu bytes, want %u\n", name, want_size,
-                (unsigned)kRoomWorkBytes);
-        return 0;
-    }
-    for (i = 0; i < kRoomWorkBytes; i++) {
-        if (got[i] != want[i]) {
-            dump_actual_bin(name, got, kRoomWorkBytes);
-            zprintf("%s: first mismatch at work area offset %u (SPU RAM "
-                    "0x%05X): got 0x%02X, want 0x%02X\n",
-                    name, i, kRoomWorkAddr + i, got[i], want[i]);
-            return 0;
-        }
-    }
-    return 1;
-}
-
-static int check_work_area(const char* name, const unsigned char* got) {
-    size_t size;
-    unsigned char* want =
-        load_expected(name, ".test.bin", "expected file", &size);
-    int ok = compare_work_area(name, got, want, size);
-    free(want);
-    return ok;
-}
-
-static bool all_zero(const unsigned char* p, size_t n) {
-    size_t i;
-    for (i = 0; i < n; i++) {
-        if (p[i] != 0) {
-            return false;
-        }
-    }
-    return true;
-}
-
 ZTEST(spu, reverb_room_work_area) {
     zskip_targets("psp"); // can't capture reverb on PSP SAS
+    zskip_targets("ps1"); // the work area cannot be frozen on a given frame
     unsigned char work[kRoomWorkBytes] = {0};
     reverb_room_setup(true, true);
     run_reverb_room(kAdpcmSine, kRoomLapFrames, work);
@@ -1343,26 +1488,6 @@ ZTEST(spu, SetReverbModeParamLoadsWholePreset) {
     }
 }
 
-typedef struct tagSpuMalloc {
-    u32 addr;
-    u32 size;
-} SPU_MALLOC;
-extern SPU_MALLOC* _spu_memList;
-extern int _spu_mem_mode_plus;
-extern int _spu_rev_reserve_wa;
-extern int _spu_rev_offsetaddr;
-extern int _SpuIsInAllocateArea_(unsigned);
-long SpuInitMalloc(long num, char* top);
-long SpuMallocWithStartAddr(unsigned long addr, long size);
-
-static char heap[0x1000];
-
-ZTEST_SETUP(spu_malloc) {
-    spu_setup();
-    memset(heap, 0, sizeof(heap));
-    SpuInit();
-}
-
 ZTEST(spu_malloc, SpuSetReverbOffClearsSpucnt) {
     Psyz_SpuWrite(0x1AA, 0x0080);
 
@@ -1395,4 +1520,106 @@ ZTEST(spu_malloc, SpuMallocWithStartAddrSplitsFreeBlock) {
     zexpect_u32_eq(454640u, _spu_memList[1].size);
     zexpect_u32_eq(0u, _spu_memList[2].addr);
     zexpect_u32_eq(0u, _spu_memList[2].size);
+}
+
+ZTEST(spumix, VoiceVolumePansLeftAndRight) {
+    int l, r;
+
+    voice1_volume_peak(0x3FFF, 0x0000, &l, &r);
+    if (!zexpect_s32_gt(1000, l)) {
+        zprintf("hard-left voice produced no left output\n");
+    }
+    if (!zexpect_s32_eq(0, r)) {
+        zprintf("hard-left voice leaked into the right channel\n");
+    }
+
+    voice1_volume_peak(0x0000, 0x3FFF, &l, &r);
+    if (!zexpect_s32_gt(1000, r)) {
+        zprintf("hard-right voice produced no right output\n");
+    }
+    if (!zexpect_s32_eq(0, l)) {
+        zprintf("hard-right voice leaked into the left channel\n");
+    }
+}
+
+ZTEST(spumix, VoiceVolumeScalesAmplitude) {
+    int full_l, full_r, half_l, half_r;
+    double ratio;
+    voice1_volume_peak(0x3FFF, 0x3FFF, &full_l, &full_r);
+    voice1_volume_peak(0x2000, 0x2000, &half_l, &half_r);
+
+    zassert_s32_gt(0, full_l);
+    // 0x2000 / 0x3FFF ~= 0.5; allow a generous band for rounding and the
+    // gauss-interpolated sample peak landing on different frames.
+    ratio = (double)half_l / (double)full_l;
+    if (!zexpect_s32_ne(0, ratio > 0.35)) {
+        zprintf("half volume too quiet (ratio %f)\n", ratio);
+    }
+    if (!zexpect_s32_ne(0, ratio < 0.65)) {
+        zprintf("half volume too loud (ratio %f)\n", ratio);
+    }
+}
+
+ZTEST(spumix, VoiceVolumeZeroIsSilent) {
+    int l, r;
+    voice1_volume_peak(0x0000, 0x0000, &l, &r);
+    zexpect_s32_eq(0, l);
+    zexpect_s32_eq(0, r);
+}
+
+ZTEST(spumix, mix_sine) {
+    if (!ztest_is_target("ps1")) {
+        zskip("SPU emulation broken");
+    }
+    mix_setup(kAdpcmSine);
+    spu_voice1_keyon(kSampleAddr, 0x1000);
+    SPU_EXPECT_MIX(sine);
+    mix_teardown();
+}
+
+ZTEST(spumix, mix_sine_detuned_panned) {
+    if (!ztest_is_target("ps1")) {
+        zskip("SPU emulation broken");
+    }
+    mix_setup(kAdpcmSine394Hz);
+    Psyz_SpuWrite((1 << 4) + 0x00, 0x3000);
+    Psyz_SpuWrite((1 << 4) + 0x02, 0x0c00);
+    spu_voice1_keyon(kSampleAddr, 0x0b35);
+    SPU_EXPECT_MIX(sine_detuned_panned);
+    mix_teardown();
+}
+
+ZTEST(spumix, mix_square_envelope) {
+    if (!ztest_is_target("ps1")) {
+        zskip("SPU emulation broken");
+    }
+    const uint32_t adsr = ADSR_ATTACK(0, 8, 1) | ADSR_DECAY(8) |
+                          ADSR_SUSTAIN(0, 12, 9, 1, 1) | ADSR_RELEASE(0, 0);
+    mix_setup(kAdpcmSquare);
+    setup_voice1(kSampleAddr, 0x1000);
+    Psyz_SpuWrite((1 << 4) + 0x08, (unsigned short)(adsr & 0xFFFF));
+    Psyz_SpuWrite((1 << 4) + 0x0A, (unsigned short)(adsr >> 16));
+    Psyz_SpuWrite(0x18C, 0);
+    Psyz_SpuWrite(0x18E, 0);
+    Psyz_SpuWrite(0x188, 1u << 1);
+    SPU_EXPECT_MIX(square_envelope);
+    mix_teardown();
+}
+
+ZTEST(spumix, mix_reverb_room) {
+    if (!ztest_is_target("ps1")) {
+        zskip("SPU emulation broken");
+    }
+    unsigned char upload[128];
+    reverb_room_setup(true, true);
+    Psyz_SpuWrite((1 << 4) + 0x00, 0x3FFF);
+    Psyz_SpuWrite((1 << 4) + 0x02, 0x3FFF);
+    memcpy(upload, kAdpcmSine, 64);
+    memset(upload + 64, 0xAA, 64);
+    Psyz_SpuMemWrite(kSampleAddr, upload, sizeof(upload));
+    mix_wait_silence();
+    adsr_wait_bit11_flip();
+    spu_voice1_keyon(kSampleAddr, 0x1000);
+    SPU_EXPECT_MIX(reverb_room);
+    mix_teardown();
 }

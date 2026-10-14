@@ -35,32 +35,18 @@ static inline char* getenv(const char* name) {
     return NULL;
 }
 
+// Host files through PCDrv, see ps1_psyz_stubs.c
 typedef struct ps1_file FILE;
-static inline FILE* fopen(const char* path, const char* mode) {
-    (void)path;
-    (void)mode;
-    return NULL;
-}
-static inline size_t fread(void* p, size_t size, size_t n, FILE* f) {
-    (void)p, (void)size, (void)n, (void)f;
-    return 0;
-}
-static inline size_t fwrite(const void* p, size_t size, size_t n, FILE* f) {
-    (void)p, (void)size, (void)n, (void)f;
-    return 0;
-}
-static inline int fclose(FILE* f) {
-    (void)f;
-    return -1;
-}
-static inline int fseek(FILE* f, long offset, int whence) {
-    (void)f, (void)offset, (void)whence;
-    return -1;
-}
-static inline long ftell(FILE* f) {
-    (void)f;
-    return -1;
-}
+FILE* fopen(const char* path, const char* mode);
+size_t fread(void* p, size_t size, size_t n, FILE* f);
+size_t fwrite(const void* p, size_t size, size_t n, FILE* f);
+int fclose(FILE* f);
+int fseek(FILE* f, long offset, int whence);
+long ftell(FILE* f);
+// Records the SPU output through a ps1-audio Pico, see ps1_psyz_stubs.c
+int PS1_SpuCaptureStart(void);
+void PS1_SpuCaptureStop(void);
+
 #ifndef SEEK_SET
 #define SEEK_SET 0
 #define SEEK_CUR 1

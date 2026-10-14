@@ -23,6 +23,7 @@ class Unirom:
         self.port = serial.Serial(device, SLOW, timeout=0.05)
         self.root = root
         self.files = {}
+        self.devices = {}
         self.next_fd = 1
         self.buf = bytearray()
 
@@ -210,9 +211,12 @@ class Unirom:
             while not name.endswith(b"\0"):
                 name += self.read(1)
             mode = self.read32()
-            path = os.path.join(self.root, name[:-1].decode().replace("\\", "/"))
+            name = name[:-1].decode().replace("\\", "/")
+            path = os.path.join(self.root, name)
             try:
-                if code == 0x102:
+                if name in self.devices:
+                    f = self.devices[name]()
+                elif code == 0x102:
                     f = open(path, "w+b")
                 else:
                     f = open(path, "r+b" if mode & 3 else "rb")
