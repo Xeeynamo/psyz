@@ -33,6 +33,7 @@ typedef struct {
 // ===== SDL3 reserved TPAGE flags, invalid on real hardware =====
 #define TPAGE_NOTEXTURE 0x8000 // flag untextured poly
 #define TPAGE_DITHER 0x4000    // flag a dithered primitive
+#define TPAGE_POLYGON 0x2000   // flag a polygon to sample at PS1 integer coords
 
 #define VRGBA(p) (*(unsigned int*)(&((p).r)))
 #define SET_TC(p, tpage, clut)                                                 \
@@ -119,30 +120,6 @@ static int writePacket(Vertex* v, int code, int n, u_long* packet, u16* pOut) {
         w++;
     }
     return w;
-}
-
-static void FixupFlipUV(Vertex* v, int hasFourVertices) {
-    bool fix_u = (v[0].x > v[1].x) ^ (v[0].u > v[1].u);
-    fix_u |= (v[0].x > v[2].x) ^ (v[0].u > v[2].u);
-    if (fix_u) {
-        v[0].u++;
-        v[1].u++;
-        v[2].u++;
-        if (hasFourVertices) {
-            v[3].u++;
-        }
-    }
-
-    bool fix_v = (v[0].y > v[1].y) ^ (v[0].v > v[1].v);
-    fix_v |= (v[0].y > v[2].y) ^ (v[0].v > v[2].v);
-    if (fix_v) {
-        v[0].v++;
-        v[1].v++;
-        v[2].v++;
-        if (hasFourVertices) {
-            v[3].v++;
-        }
-    }
 }
 
 static inline bool is_subtract_abr(const Vertex* v) {

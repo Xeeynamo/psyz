@@ -1212,12 +1212,11 @@ int Draw_PushPrim(u_long* packets, int max_len) {
                 len++;
             }
 
-            if (isTextured) {
-                FixupFlipUV(vertex_cur, code & EXTRA_VERTEX);
-            } else {
+            if (!isTextured) {
                 clut = -1;
                 tpage = cur_tpage | TPAGE_NOTEXTURE;
             }
+            tpage |= TPAGE_POLYGON;
             if (CanPolyDither(isGouraud, isTextured, isShadeTex)) {
                 tpage |= TPAGE_DITHER;
             }
@@ -1696,9 +1695,9 @@ void Draw_FlushBuffer(void) {
         .store_op = SDL_GPU_STOREOP_STORE,
     };
     SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(cmd, &target, 1, NULL);
+    const float grid_scale_x = GetDrawGridXScale();
+    const float render_scale = (float)internal_res;
     {
-        const float grid_scale_x = GetDrawGridXScale();
-        const float render_scale = (float)internal_res;
         const SDL_GPUViewport grid_viewport = {
             .x = (float)draw_offset.x * render_scale * (1.0f - grid_scale_x),
             .y = 0.0f,
@@ -1721,7 +1720,8 @@ void Draw_FlushBuffer(void) {
         .texture = vram_sample, .sampler = vram_sampler};
     SDL_BindGPUFragmentSamplers(pass, 0, &sampler_binding, 1);
     const float offset_ubo[4] = {
-        (float)draw_offset.x, (float)draw_offset.y, 0, 0};
+        (float)draw_offset.x, (float)draw_offset.y,
+        0.5f / (render_scale * grid_scale_x), 0.5f / render_scale};
     SDL_PushGPUVertexUniformData(cmd, 0, offset_ubo, sizeof(offset_ubo));
 
     // every primitive (including lines, expanded to quads) is a triangle list

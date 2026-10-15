@@ -180,6 +180,7 @@ static inline void* GuGetMemoryDirect(int size) {
 #define GECMD_FBP 0x9C       // frame buffer pointer (EDRAM offset)
 #define GECMD_FBW 0x9D       // frame buffer stride + address high bits
 #define GECMD_CLEARMODE 0xD3 // fast-fill mode: (channel write enables<<8)|on
+#define GECMD_VIEWPORT 0x42  // float x/y/z scale, then x/y/z centre, up to 0x47
 
 static void SetDrawTarget(int edram_offset, int stride) {
     if (applied_draw_target == edram_offset) {
@@ -314,8 +315,9 @@ static void CloseBatch(void) {
     batch_start = vring_used;
     GuDrawArrayDirect(
         batch_prim,
-        GU_TEXTURE_16BIT | GU_COLOR_5551 | GU_VERTEX_16BIT | GU_TRANSFORM_2D, n,
-        first);
+        GU_TEXTURE_16BIT | GU_COLOR_5551 | GU_VERTEX_16BIT |
+            (batch_prim == GU_TRIANGLES ? GU_TRANSFORM_3D : GU_TRANSFORM_2D),
+        n, first);
     if ((unsigned int)((char*)gu_list->current - (char*)last_kick) > 2048) {
         KickGe();
     }
@@ -803,6 +805,36 @@ static void PresentSurface(void) {
         out);
 }
 
+static inline void GeCmdF(unsigned int cmd, float f) {
+    union {
+        float f;
+        unsigned int u;
+    } v = {f};
+    GeCmd(cmd, v.u >> 8);
+}
+
+// Moves the projection by half a pixel. This alone helps getting better
+// accuracy to how the PS1 operates, I think due to how the PS1 GPU internally
+// samples the polygons. This silly fixes the following two tests:
+// * polygon_corner_sampling
+// * uv_minification
+// * all the flipped_* tests
+static void InitPolygonTransform(void) {
+    static const ScePspFMatrix4 identity = {
+        {1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}};
+    // 16-bit positions and UVs arrive divided by 32768; textures are 256x256
+    static const float viewport[6] = {32768, 32768, 0, 2048.5f, 2048.5f, 0};
+    sceGuSetMatrix(GU_PROJECTION, &identity);
+    sceGuSetMatrix(GU_VIEW, &identity);
+    sceGuSetMatrix(GU_MODEL, &identity);
+    sceGuOffset(2048, 2048);
+    for (int i = 0; i < 6; i++) {
+        GeCmdF(GECMD_VIEWPORT + i, viewport[i]);
+    }
+    sceGuTexScale(32768.0f / 256, 32768.0f / 256);
+    sceGuTexOffset(0.0f, 0.0f);
+}
+
 bool InitPlatform(void) {
     if (is_init) {
         return true;
@@ -814,8 +846,7 @@ bool InitPlatform(void) {
     sceGuDrawBuffer(GU_PSM_5551, (void*)EDRAM_DRAW_OFFSET, FB_STRIDE);
     sceGuDispBuffer(
         PSP_SCREEN_W, PSP_SCREEN_H, (void*)EDRAM_DISP_OFFSET, FB_STRIDE);
-    sceGuOffset(2048 - (PSP_SCREEN_W / 2), 2048 - (PSP_SCREEN_H / 2));
-    sceGuViewport(2048, 2048, PSP_SCREEN_W, PSP_SCREEN_H);
+    InitPolygonTransform();
     sceGuScissor(0, 0, PSP_SCREEN_W, PSP_SCREEN_H);
     sceGuEnable(GU_SCISSOR_TEST);
     sceGuDisable(GU_DEPTH_TEST);
@@ -2005,7 +2036,7 @@ static void EmitPrim(const PVert* v, int n, u16 tpage, u16 clut, bool textured,
             : n == 3 ? GU_TRIANGLES
                      : GU_TRIANGLE_STRIP,
             GU_TEXTURE_16BIT | GU_COLOR_5551 | GU_VERTEX_16BIT |
-                GU_TRANSFORM_2D,
+                (is_rect ? GU_TRANSFORM_2D : GU_TRANSFORM_3D),
             count, out);
     }
 }
@@ -2191,30 +2222,6 @@ static int writePacket(PVert* v, int code, int n, u_long* packet, u16* pOut) {
         w++;
     }
     return w;
-}
-
-static void FixupFlipUV(PVert* v, int hasFourVertices) {
-    bool fix_u = (v[0].x > v[1].x) ^ (v[0].u > v[1].u);
-    fix_u |= (v[0].x > v[2].x) ^ (v[0].u > v[2].u);
-    if (fix_u) {
-        v[0].u++;
-        v[1].u++;
-        v[2].u++;
-        if (hasFourVertices) {
-            v[3].u++;
-        }
-    }
-
-    bool fix_v = (v[0].y > v[1].y) ^ (v[0].v > v[1].v);
-    fix_v |= (v[0].y > v[2].y) ^ (v[0].v > v[2].v);
-    if (fix_v) {
-        v[0].v++;
-        v[1].v++;
-        v[2].v++;
-        if (hasFourVertices) {
-            v[3].v++;
-        }
-    }
 }
 
 static inline int PushTileWithFixedSize(
@@ -2417,9 +2424,7 @@ __attribute__((noinline)) static int PushPolyGeneric(
         len++;
     }
 
-    if (isTextured) {
-        FixupFlipUV(verts, code & EXTRA_VERTEX);
-    } else {
+    if (!isTextured) {
         clut = -1;
         tpage = cur_tpage;
     }
@@ -2459,29 +2464,6 @@ static inline u_long* ReadPolyVert(
         p->v[i] = (u8)(uv >> 8);
     }
     return w;
-}
-
-static inline void FixupPolyFlipUV(PolyVerts* p, bool quad) {
-    bool fix_u = (p->x[0] > p->x[1]) ^ (p->u[0] > p->u[1]);
-    fix_u |= (p->x[0] > p->x[2]) ^ (p->u[0] > p->u[2]);
-    if (fix_u) {
-        p->u[0]++;
-        p->u[1]++;
-        p->u[2]++;
-        if (quad) {
-            p->u[3]++;
-        }
-    }
-    bool fix_v = (p->y[0] > p->y[1]) ^ (p->v[0] > p->v[1]);
-    fix_v |= (p->y[0] > p->y[2]) ^ (p->v[0] > p->v[2]);
-    if (fix_v) {
-        p->v[0]++;
-        p->v[1]++;
-        p->v[2]++;
-        if (quad) {
-            p->v[3]++;
-        }
-    }
 }
 
 static inline void WritePolyVert(
@@ -2546,7 +2528,6 @@ static inline int PushPolyFast(
     }
 
     if (textured) {
-        FixupPolyFlipUV(&pv, quad);
         int bpp = ApplyTexture(
             tpage, clut, semitrans ? CLUT_OPAQUE_PASS : CLUT_PLAIN);
         if (bpp < 0 || (semitrans && bpp != 2)) {

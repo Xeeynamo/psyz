@@ -5,7 +5,7 @@ layout(location = 1) in uvec4 tex;  // SDL_GPU_VERTEXELEMENTFORMAT_USHORT4
 layout(location = 2) in vec4 color; // SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM
 layout(location = 3) in uvec4 twin; // SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4
 
-layout(set = 1, binding = 0) uniform UBO { vec2 drawOffset; };
+layout(set = 1, binding = 0) uniform UBO { vec2 drawOffset, halfPixel; };
 
 layout(location = 0) out vec4 vertexColor;
 layout(location = 1) out vec2 rawUV;
@@ -22,8 +22,11 @@ layout(location = 10) flat out ivec2 pageBase;   // texture page origin, in VRAM
 layout(location = 11) flat out uvec4 texWindow;  // GP0(E2h) as {and.xy, or.zw}
 
 void main() {
-    float x = ((float(pos.x) + drawOffset.x) / (1024.0 / 2.0)) - 1.0;
-    float y = ((float(pos.y) + drawOffset.y) / (512.0 / 2.0)) - 1.0;
+    // polygons move their PS1 integer coords onto the pixel centres, while
+    // 1:1 sprites keep their position and step their UVs back instead
+    vec2 shift = (tex.w & 0x2000u) != 0u ? halfPixel : vec2(0.0);
+    float x = ((float(pos.x) + drawOffset.x + shift.x) / (1024.0 / 2.0)) - 1.0;
+    float y = ((float(pos.y) + drawOffset.y + shift.y) / (512.0 / 2.0)) - 1.0;
     // SDL_GPU NDC y=-1 is the bottom while texture row 0 is the top; negate Y
     // so VRAM row 0 lands on texture row 0, like the GL FBO convention.
     gl_Position = vec4(x, -y, 0.0, 1.0);
@@ -34,7 +37,7 @@ void main() {
     uint texWord = tex.w;
     tpage = texWord & 0x1FFu;
     dither = (texWord & 0x4000u) != 0u ? 1u : 0u;
-    rawUV = vec2(tex.xy);
+    rawUV = vec2(tex.xy) + shift - halfPixel;
     // Determine texture mode and pre-compute parameters
     subPixelMask = 0u;
     texelShift = 0u;

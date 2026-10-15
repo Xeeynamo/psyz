@@ -48,7 +48,7 @@ static const char vertex_shader_body[] = {
     "layout(location = 2) in vec4 color;\n"
     "layout(location = 3) in vec4 twin;\n"
     "uniform vec2 resolution;\n"
-    "uniform vec2 drawOffset;\n"
+    "uniform vec2 drawOffset, halfPixel;\n"
     "out vec4 vertexColor;\n"
     "out vec2 rawUV;\n"
     "flat out uint tpage;\n"
@@ -64,8 +64,11 @@ static const char vertex_shader_body[] = {
     "flat out uvec4 texWindow;\n"   // GP0(E2h) as {and.xy, or.zw}
     "\n"
     "void main() {\n"
-    "    float x = ((pos.x + drawOffset.x) / (1024.0 / 2.0)) - 1.0;\n"
-    "    float y = ((pos.y + drawOffset.y) / (512.0 / 2.0)) - 1.0;\n"
+    // polygons move their PS1 integer coords onto the pixel centres, while
+    // 1:1 sprites keep their position and step their UVs back instead
+    "    vec2 shift = (uint(tex.w) & 0x2000u) != 0u ? halfPixel : vec2(0.0);\n"
+    "    float x = ((pos.x + drawOffset.x + shift.x) / (1024.0 / 2.0)) - 1.0;\n"
+    "    float y = ((pos.y + drawOffset.y + shift.y) / (512.0 / 2.0)) - 1.0;\n"
     "    gl_Position = vec4(x, y, 0.0, 1.0);\n"
     // gouraud colors
     "    vertexColor = color;\n"
@@ -74,7 +77,7 @@ static const char vertex_shader_body[] = {
     "    uint texWord = uint(tex.w);\n"
     "    tpage = texWord & 0x1FFu;\n"
     "    dither = (texWord & 0x4000u) != 0u ? 1u : 0u;\n"
-    "    rawUV = tex.xy;\n"
+    "    rawUV = tex.xy + shift - halfPixel;\n"
     // Determine texture mode and pre-compute parameters
     "    subPixelMask = 0u;\n"
     "    texelShift = 0u;\n"
@@ -122,8 +125,7 @@ static const char fragment_shader_body[] = {
     "uniform sampler2D texVram;\n"
     "\n"
     "uvec2 resolveTexel() {\n"
-    "    vec2 texelStep = vec2(abs(dFdx(rawUV.x)), abs(dFdy(rawUV.y)));\n"
-    "    vec2 uv = rawUV - 0.5 * texelStep + 1.0 / 512.0;\n"
+    "    vec2 uv = rawUV + 1.0 / 512.0;\n"
     "    uvec2 texel = uvec2(clamp(floor(uv), vec2(0.0), vec2(255.0)));\n"
     "    return (texel & texWindow.xy) | texWindow.zw;\n"
     "}\n"
@@ -226,6 +228,7 @@ static GLuint shader_program = 0;
 static GLint uniform_resolution = 0;
 static GLint uniform_tex_vram = 0;
 static GLint uniform_draw_offset = 0;
+static GLint uniform_half_pixel = 0;
 static GLuint vram_texture;
 static GLuint vram_fbo = 0;
 static GLuint scratch_texture = 0;
@@ -414,6 +417,7 @@ bool InitPlatform() {
     uniform_resolution = glGetUniformLocation(shader_program, "resolution");
     uniform_tex_vram = glGetUniformLocation(shader_program, "texVram");
     uniform_draw_offset = glGetUniformLocation(shader_program, "drawOffset");
+    uniform_half_pixel = glGetUniformLocation(shader_program, "halfPixel");
 
     glUniform1i(uniform_tex_vram, 0);
     glUniform2f(uniform_draw_offset, 0, 0);
@@ -1037,12 +1041,11 @@ int Draw_PushPrim(u_long* packets, int max_len) {
                 len++;
             }
 
-            if (isTextured) {
-                FixupFlipUV(vertex_cur, code & EXTRA_VERTEX);
-            } else {
+            if (!isTextured) {
                 clut = -1;
                 tpage = cur_tpage | TPAGE_NOTEXTURE;
             }
+            tpage |= TPAGE_POLYGON;
             if (CanPolyDither(isGouraud, isTextured, isShadeTex)) {
                 tpage |= TPAGE_DITHER;
             }
@@ -1493,6 +1496,8 @@ void Draw_FlushBuffer(void) {
         const GLsizei viewport_w =
             (GLsizei)lroundf((float)VRAM_W * render_scale * grid_scale_x);
         glViewport(viewport_x, 0, viewport_w, VRAM_H * (GLsizei)internal_res);
+        glUniform2f(uniform_half_pixel, 0.5f / (render_scale * grid_scale_x),
+                    0.5f / render_scale);
     }
     int prim_size = 3;
     int start = 0;
