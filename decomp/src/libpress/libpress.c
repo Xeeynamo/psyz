@@ -37,6 +37,13 @@ static volatile u32* mdec_d3_chcr = (volatile u32*)0x1F8010B8;
 static volatile u32* mdec0 = (volatile u32*)0x1F801820;
 static volatile u32* mdec1 = (volatile u32*)0x1F801824;
 static volatile u32* mdec_d_pcr = (volatile u32*)0x1F8010F0;
+#define MDEC_CONTROL(value) (*mdec1 = (value))
+#define MDEC_COMMAND(value) (*mdec0 = (value))
+#define MDEC_READ_STATUS() (*mdec1)
+#define MDEC_DMA_READ(channel, reg) (*mdec_d##channel##_##reg)
+#define MDEC_DMA_WRITE(channel, reg, value) (*mdec_d##channel##_##reg = (value))
+#define MDEC_DMA_ENABLE() (*mdec_d_pcr |= 0x88)
+#define MDEC_ADDRESS(buf) ((u32)(buf))
 #endif
 
 void DecDCTReset(int mode) {
@@ -116,19 +123,19 @@ int DecDCToutCallback(void (*cb)()) { return DMACallback(1, cb); }
 void MDEC_reset(int mode) {
     switch (mode) {
     case 0:
-        *mdec1 = 0x80000000;
-        *mdec_d0_chcr = 0;
-        *mdec_d1_chcr = 0;
-        *mdec1 = 0x60000000;
+        MDEC_CONTROL(0x80000000);
+        MDEC_DMA_WRITE(0, chcr, 0);
+        MDEC_DMA_WRITE(1, chcr, 0);
+        MDEC_CONTROL(0x60000000);
         MDEC_in((u_long*)mdec_iq, 32);
         MDEC_in((u_long*)mdec_coef, 32);
         return;
     case 1:
-        *mdec1 = 0x80000000;
-        *mdec_d0_chcr = 0;
-        *mdec_d1_chcr = 0;
-        *mdec_d1_chcr;
-        *mdec1 = 0x60000000;
+        MDEC_CONTROL(0x80000000);
+        MDEC_DMA_WRITE(0, chcr, 0);
+        MDEC_DMA_WRITE(1, chcr, 0);
+        MDEC_DMA_READ(1, chcr);
+        MDEC_CONTROL(0x60000000);
         return;
     default:
         printf("MDEC_rest:bad option(%d)\n", mode);
@@ -138,27 +145,27 @@ void MDEC_reset(int mode) {
 
 void MDEC_in(u_long* buf, int size) {
     MDEC_in_sync();
-    *mdec_d_pcr |= 0x88;
-    *mdec_d0_madr = (u32)buf + 4;
-    *mdec_d0_bcr = (((u32)size >> 5) << 16) | 0x20;
-    *mdec0 = *(u32*)buf;
-    *mdec_d0_chcr = 0x01000201;
+    MDEC_DMA_ENABLE();
+    MDEC_DMA_WRITE(0, madr, MDEC_ADDRESS(buf) + 4);
+    MDEC_DMA_WRITE(0, bcr, (((u32)size >> 5) << 16) | 0x20);
+    MDEC_COMMAND(*(u32*)buf);
+    MDEC_DMA_WRITE(0, chcr, 0x01000201);
 }
 
 void MDEC_out(u_long* buf, int size) {
     MDEC_out_sync();
-    *mdec_d_pcr |= 0x88;
-    *mdec_d1_chcr = 0;
-    *mdec_d1_madr = (u32)buf;
-    *mdec_d1_bcr = (((u32)size >> 5) << 16) | 0x20;
-    *mdec_d1_chcr = 0x01000200;
+    MDEC_DMA_ENABLE();
+    MDEC_DMA_WRITE(1, chcr, 0);
+    MDEC_DMA_WRITE(1, madr, MDEC_ADDRESS(buf));
+    MDEC_DMA_WRITE(1, bcr, (((u32)size >> 5) << 16) | 0x20);
+    MDEC_DMA_WRITE(1, chcr, 0x01000200);
 }
 
 int timeout(char* name);
 
 int MDEC_in_sync(void) {
     volatile int retries = 0x100000;
-    while (*mdec1 & 0x20000000) {
+    while (MDEC_READ_STATUS() & 0x20000000) {
         if (--retries == -1) {
             timeout("MDEC_in_sync");
             return -1;
@@ -169,7 +176,7 @@ int MDEC_in_sync(void) {
 
 int MDEC_out_sync(void) {
     volatile int retries = 0x100000;
-    while (*mdec_d1_chcr & 0x01000000) {
+    while (MDEC_DMA_READ(1, chcr) & 0x01000000) {
         if (--retries == -1) {
             timeout("MDEC_out_sync");
             return -1;
@@ -178,7 +185,7 @@ int MDEC_out_sync(void) {
     return 0;
 }
 
-u_long MDEC_status(void) { return *mdec1; }
+u_long MDEC_status(void) { return MDEC_READ_STATUS(); }
 
 static const char timeout_dma[] = "\t DMA=(%d,%d), ADDR=(0x%08x->0x%08x)\n";
 static const char timeout_fifo[] =
@@ -187,17 +194,18 @@ static const char timeout_fifo[] =
 int timeout(char* name) {
     u32 status;
     printf("%s timeout:\n", name);
-    status = *mdec1;
-    printf(timeout_dma, (*mdec_d0_chcr >> 24) & 1, (*mdec_d1_chcr >> 24) & 1,
-           *mdec_d0_madr, *mdec_d1_madr);
+    status = MDEC_READ_STATUS();
+    printf(timeout_dma, (u32)(MDEC_DMA_READ(0, chcr) >> 24) & 1,
+           (u32)(MDEC_DMA_READ(1, chcr) >> 24) & 1, (u32)MDEC_DMA_READ(0, madr),
+           (u32)MDEC_DMA_READ(1, madr));
     printf(timeout_fifo, (~status >> 31) & 1, (status >> 30) & 1,
            (status >> 29) & 1, (status >> 28) & 1, (status >> 27) & 1,
            (status >> 25) & 1, (status >> 23) & 1);
-    *mdec1 = 0x80000000;
-    *mdec_d0_chcr = 0;
-    *mdec_d1_chcr = 0;
-    *mdec_d1_chcr;
-    *mdec1 = 0x60000000;
+    MDEC_CONTROL(0x80000000);
+    MDEC_DMA_WRITE(0, chcr, 0);
+    MDEC_DMA_WRITE(1, chcr, 0);
+    MDEC_DMA_READ(1, chcr);
+    MDEC_CONTROL(0x60000000);
     return 0;
 }
 #endif
