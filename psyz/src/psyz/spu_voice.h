@@ -171,7 +171,11 @@ static inline short spu_voice_step(
         return 0;
     }
     if ((vs->block_flags & 0x03) == 0x01 && vs->sample_idx >= 20) {
+        // loop end + mute: the voice is released with ENVX at 0,
+        // which is how libsnd's allocator learns that it is free
         vs->active = 0;
+        vs->env_vol = 0;
+        vs->env_state = ADSR_OFF;
         return 0;
     }
     unsigned pitch = pitch_reg > 0x3FFF ? 0x3FFF : pitch_reg;
