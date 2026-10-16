@@ -947,3 +947,19 @@ static void memset(u_char* ptr, int value, int num) {
     }
 }
 #endif
+
+#ifdef __psyz
+#include <psyz/state.h>
+void Psyz_GpuSysStateSync(PsyzState* state) {
+    PSYZ_STATE_VAR(state, info.version);
+    PSYZ_STATE_VAR(state, info.D_800B8929);
+    PSYZ_STATE_VAR(state, info.level);
+    PSYZ_STATE_VAR(state, info.reverse);
+    PSYZ_STATE_VAR(state, info.w);
+    PSYZ_STATE_VAR(state, info.h);
+    PSYZ_STATE_VAR(state, info.unk8);
+    state->pointer(state, &info.drawSyncCb);
+    PSYZ_STATE_VAR(state, info.draw);
+    PSYZ_STATE_VAR(state, info.disp);
+}
+#endif

@@ -1,4 +1,5 @@
 #include <psyz.h>
+#include <psyz/state.h>
 #include <libetc.h>
 #include <libcd.h>
 #include <psyz/log.h>
@@ -1273,3 +1274,75 @@ int CdReadSync(int mode, u_char* result) {
 }
 
 void StCdInterrupt(void) { NOT_IMPLEMENTED; }
+
+void Psyz_CdStateSync(PsyzState* state) {
+    int track = -1;
+    long offset = 0;
+    if (!state->loading && track_file && track_file_track) {
+        track = (int)(track_file_track - g_tracks);
+        offset = ftell(track_file);
+    }
+    state->pointer(state, &CD_cbsync);
+    state->pointer(state, &CD_cbready);
+    PSYZ_STATE_VAR(state, CD_cbread);
+    PSYZ_STATE_VAR(state, CD_status);
+    PSYZ_STATE_VAR(state, CD_status1);
+    PSYZ_STATE_VAR(state, CD_nopen);
+    PSYZ_STATE_VAR(state, CD_pos);
+    PSYZ_STATE_VAR(state, CD_mode);
+    PSYZ_STATE_VAR(state, CD_com);
+    PSYZ_STATE_VAR(state, DS_active);
+    PSYZ_STATE_VAR(state, ctx);
+    PSYZ_STATE_VAR(state, enable_passthrough);
+    PSYZ_STATE_VAR(state, last_result);
+    PSYZ_STATE_VAR(state, last_result_len);
+    PSYZ_STATE_VAR(state, last_intr);
+    PSYZ_STATE_VAR(state, data_read_active);
+    PSYZ_STATE_VAR(state, data_sector_valid);
+    PSYZ_STATE_VAR(state, data_sector_number);
+    PSYZ_STATE_VAR(state, data_getsector_count);
+    if (data_sector_valid) {
+        PSYZ_STATE_VAR(state, data_sector);
+    }
+    PSYZ_STATE_VAR(state, is_playing);
+    PSYZ_STATE_VAR(state, is_muted);
+    PSYZ_STATE_VAR(state, need_cdda_rewind);
+    PSYZ_STATE_VAR(state, cd_buf_pos);
+    PSYZ_STATE_VAR(state, cd_buf_count);
+    if (cd_buf_count > CD_BUF_FRAMES) {
+        cd_buf_count = 0;
+    }
+    state->bytes(state, cd_buf, cd_buf_count * N_CHANNELS * SAMPLE_SIZE);
+    PSYZ_STATE_VAR(state, xa.active);
+    PSYZ_STATE_VAR(state, xa.filter_file);
+    PSYZ_STATE_VAR(state, xa.filter_channel);
+    PSYZ_STATE_VAR(state, xa.decoded_count);
+    PSYZ_STATE_VAR(state, xa.decoded_pos);
+    PSYZ_STATE_VAR(state, xa.hist_l_old);
+    PSYZ_STATE_VAR(state, xa.hist_l_older);
+    PSYZ_STATE_VAR(state, xa.hist_r_old);
+    PSYZ_STATE_VAR(state, xa.hist_r_older);
+    PSYZ_STATE_VAR(state, xa.rh_l);
+    PSYZ_STATE_VAR(state, xa.rh_r);
+    PSYZ_STATE_VAR(state, xa.phase);
+    PSYZ_STATE_VAR(state, xa.cur_abs_sector);
+    PSYZ_STATE_VAR(state, xa.stream_ended);
+    if (xa.decoded_count < 0 || xa.decoded_count > XA_DECODED_MAX_FRAMES) {
+        xa.decoded_count = 0;
+    }
+    state->bytes(state, xa.decoded, xa.decoded_count * 2 * sizeof(short));
+    PSYZ_STATE_VAR(state, track);
+    PSYZ_STATE_VAR(state, offset);
+    if (state->loading) {
+        close_track_file();
+        if (track >= 0 && track < g_track_count) {
+            track_file = fopen(g_tracks[track].file_path, "rb");
+            if (track_file && fseek(track_file, offset, SEEK_SET) == 0) {
+                track_file_track = &g_tracks[track];
+            } else {
+                ERRORF("cannot reopen %s", g_tracks[track].file_path);
+                close_track_file();
+            }
+        }
+    }
+}
