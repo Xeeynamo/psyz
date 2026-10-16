@@ -399,18 +399,25 @@ static void Sdl3Common_Shutdown(void) {
     SDL_SetAtomicInt(&resume_audio_on_foreground, 0);
 }
 
-static void WaitForNextFrame(void) {
+// Paces `frames` vertical blanks since the previous call. Driver VSync
+// already waited for one in the present, so it only needs the timer for the
+// rest.
+static void WaitForNextFrame(int frames) {
     Uint64 current_time = SDL_GetPerformanceCounter();
     double elapsed_us = GetElapsedMicroseconds(last_frame_time, current_time);
+    double target_us = target_frame_time_us * frames;
 
 #ifdef PLATFORM_WEB
     // yield to browser
     (void)elapsed_us;
-    Psyz_WebWaitForNextFrame();
+    (void)target_us;
+    for (; frames > 0; frames--) {
+        Psyz_WebWaitForNextFrame();
+    }
 #else
-    if (!use_driver_vsync && vsync_mode != PSYZ_VSYNC_LIMITLESS) {
-        double time_to_wait_us =
-            target_frame_time_us - elapsed_us + drift_compensation;
+    if ((!use_driver_vsync || frames > 1) &&
+        vsync_mode != PSYZ_VSYNC_LIMITLESS) {
+        double time_to_wait_us = target_us - elapsed_us + drift_compensation;
 
         // only wait if we're ahead of schedule (not running slow)
         if (time_to_wait_us > 100.0) { // more than 0.1ms to wait
@@ -421,7 +428,7 @@ static void WaitForNextFrame(void) {
             }
 
             // busy-wait for precision
-            double target_elapsed = target_frame_time_us + drift_compensation;
+            double target_elapsed = target_us + drift_compensation;
             while (GetElapsedMicroseconds(
                        last_frame_time, SDL_GetPerformanceCounter()) <
                    target_elapsed) {
@@ -432,7 +439,7 @@ static void WaitForNextFrame(void) {
         Uint64 frame_end_time = SDL_GetPerformanceCounter();
         double actual_frame_time =
             GetElapsedMicroseconds(last_frame_time, frame_end_time);
-        double frame_error = actual_frame_time - target_frame_time_us;
+        double frame_error = actual_frame_time - target_us;
 
         // apply gentle correction (10% per frame)
         drift_compensation -= frame_error * 0.1;
@@ -450,7 +457,7 @@ static void WaitForNextFrame(void) {
         GetElapsedMicroseconds(last_frame_time, frame_end_time);
     gpu_stats.last_draw_time_us =
         GetElapsedMicroseconds(last_frame_time, finish_time);
-    gpu_stats.target_frame_time_us = target_frame_time_us;
+    gpu_stats.target_frame_time_us = target_us;
     gpu_stats.total_frames++;
     gpu_stats.using_driver_vsync = use_driver_vsync;
 
@@ -467,10 +474,10 @@ int Psyz_VideoVSync(int mode) {
     // a line is approximated as 64 us
     now_us = (Uint32)(SDL_GetTicksNS() / 1000);
     ret = (unsigned short)((now_us - last_vsync_us) >> 6);
-    if (mode == 0) {
+    if (mode == 0 || mode > 1) {
         PlatformBackend_Present();
         PollEvents();
-        WaitForNextFrame();
+        WaitForNextFrame(mode > 1 ? mode : 1);
         last_vsync_us = (Uint32)(SDL_GetTicksNS() / 1000);
     }
     return ret;
