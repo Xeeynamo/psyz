@@ -952,7 +952,7 @@ int Psyz_VideoVSync(int mode) {
     // a line is approximated as 64 us
     int ret =
         (int)(((sceKernelGetSystemTimeLow() - last_vsync_us) >> 6) & 0xFFFF);
-    if (mode == 0) {
+    if (mode == 0 || mode > 1) {
         WaitPrevFrameGpu();
         ShowPendingFrame();
 
@@ -971,6 +971,10 @@ int Psyz_VideoVSync(int mode) {
         StartFrame();
         if (ge_list_executed[0] == prev_frame_list_id) {
             prev_frame_pending = false;
+        }
+        // ShowPendingFrame waited for one vertical blank
+        for (; mode > 1 && vsync_mode != PSYZ_VSYNC_LIMITLESS; mode--) {
+            sceDisplayWaitVblankStart();
         }
         last_vsync_us = sceKernelGetSystemTimeLow();
     }

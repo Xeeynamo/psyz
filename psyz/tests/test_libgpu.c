@@ -1695,6 +1695,15 @@ ZTEST(gpu, vsync_callback_runs_every_frame) {
     zexpect_s32_eq(0, vsync_callback_count);
 }
 
+ZTEST(gpu, vsync_n_waits_n_vblanks) {
+    int start;
+    VSync(0);
+    start = VSync(-1);
+    VSync(3);
+    // the counter's phase can lose one of the three to rounding
+    zexpect_s32_ge(start + 2, VSync(-1));
+}
+
 static volatile int vsync_order[16];
 static volatile int vsync_order_len;
 static void RecordCh0(void) {

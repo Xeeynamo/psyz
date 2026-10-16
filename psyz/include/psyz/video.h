@@ -207,6 +207,8 @@ unsigned Psyz_VideoGetInternalResolution(void);
  * @param mode Synchronization mode:
  *             - 0: Present and wait for the next vertical blank
  *             - 1: Return immediately (non-blocking)
+ *             - n > 1: Present and wait until n vertical blanks have
+ *               passed since the previous blocking call
  *             - Negative: Return immediately (non-blocking)
  * @return Simulates the SDK VSync return values as closely as possible.
  */

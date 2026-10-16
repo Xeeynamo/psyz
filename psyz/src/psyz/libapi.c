@@ -50,7 +50,8 @@ PsyzVSyncCb Psyz_SetVSyncCb(PsyzVSyncCb cb) {
     return prev;
 }
 
-// Known limitation: VSync(n) with n > 1 paces a single frame, not n vblanks
+// VSync(n) with n > 1 presents once and waits n vertical blanks since the
+// previous VSync, as the SDK does for games that run at 30 or 20 fps.
 int VSync(int mode) {
     int elapsed, n;
     Psyz_KernelPoll();
@@ -58,15 +59,9 @@ int VSync(int mode) {
         return Psyz_VideoVSync(-1);
     } else if (mode == 1) {
         return Psyz_VideoVSync(1);
-    } else if (mode > 1) {
-        static int logged_once = 0;
-        if (!logged_once) {
-            logged_once = 1;
-            WARNF("VSync(n>1) is not fully implemented.");
-        }
     }
     n = mode > 0 ? mode : 1;
-    elapsed = Psyz_VideoVSync(0);
+    elapsed = Psyz_VideoVSync(mode);
     ReadPadsOnVsync(); // this is done on vsync by the BIOS
     if (g_PsyzVsyncCb) {
         g_PsyzVsyncCb();
