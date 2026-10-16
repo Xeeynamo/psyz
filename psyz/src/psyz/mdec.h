@@ -5,4 +5,6 @@
 void Psyz_MdecReset(void);
 int Psyz_MdecCommand(uint32_t command, const void* data, size_t words);
 int Psyz_MdecRead(void* data, size_t words);
+int Psyz_MdecDmaIn(const void* data, size_t words);
+int Psyz_MdecDmaOut(void* data, size_t words);
 #endif

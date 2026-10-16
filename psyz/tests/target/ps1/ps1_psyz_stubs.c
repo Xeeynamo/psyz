@@ -154,6 +154,52 @@ int Psyz_MdecRead(void* data, size_t words) {
     return 0;
 }
 
+void Psyz_MdecWrite(unsigned offset, u32 value) {
+    if (offset == 4 && (value & 0x80000000u))
+        Psyz_MdecReset();
+    if (offset == 0) {
+        mdec_command = value;
+        mdec_input_words = mdec_sent = 0;
+        mdec_pixel_pos = mdec_pixel_size = 0;
+        mdec_started = 1;
+        mdec_error = 0;
+    }
+    psx_mdec_write(offset, value);
+}
+
+int Psyz_MdecDmaIn(const void* data, size_t words) {
+    unsigned opcode = mdec_command >> 29;
+    if ((!data && words) || words > UINT16_MAX)
+        return -1;
+    if (opcode == 1) {
+        memcpy(mdec_input, data, words * 4);
+        mdec_input_words = words;
+        return 0;
+    }
+    if ((opcode != 2 && opcode != 3) || words > 32)
+        return -1;
+    size_t sent = 0;
+    for (unsigned idle = 0; idle < 0x100000; ++idle) {
+        if (sent < words && !(psx_mdec_read(4) & 0x40000000u)) {
+            uint32_t word;
+            memcpy(&word, (const uint8_t*)data + sent * 4, 4);
+            psx_mdec_write(0, word);
+            ++sent;
+            idle = 0;
+        }
+        if (sent == words && !(psx_mdec_read(4) & 0x20000000u)) {
+            memcpy(opcode == 2 ? mdec_tables.quant : mdec_tables.scale, data,
+                   words * 4);
+            return 0;
+        }
+    }
+    return -1;
+}
+
+int Psyz_MdecDmaOut(void* data, size_t words) {
+    return Psyz_MdecRead(data, words);
+}
+
 int Psyz_VideoSetDitheringMode(PsyzDitherMode mode) {
     (void)mode;
     return 0;
