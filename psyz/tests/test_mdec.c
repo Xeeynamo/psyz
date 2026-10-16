@@ -1,6 +1,7 @@
 #include "ztest.h"
 #include <string.h>
 #include "../src/psyz/mdec.h"
+#include <psyz/mdec.h>
 #ifdef __psx__
 #include <malloc.h>
 #else
@@ -607,4 +608,85 @@ ZTEST(mdec, maximum_input_count) {
     zassert_s32_eq(0, Psyz_MdecRead(pixels, 192));
     for (unsigned i = 0; i < 192; ++i)
         zassert_u32_eq(0x80808080, pixels[i]);
+}
+
+static void register_tables(
+    const uint8_t quant[128], const uint16_t scale[64]) {
+    Psyz_MdecWrite(4, 0xE0000000);
+    Psyz_MdecWrite(0, 0x40000001);
+    zassert_s32_eq(0, Psyz_MdecDmaIn(quant, 32));
+    Psyz_MdecWrite(0, 0x60000000);
+    zassert_s32_eq(0, Psyz_MdecDmaIn(scale, 32));
+}
+
+ZTEST(mdec, register_table_uploads_change_pixels) {
+    uint8_t quant[128];
+    uint16_t scale[64], zero_scale[64] = {0};
+    uint32_t data[6], pixels[193];
+    default_tables(quant, scale);
+    memset(quant, 16, sizeof(quant));
+    make_flat(data, 1);
+    for (unsigned i = 2; i < 6; ++i)
+        data[i] = 0xFE000408;
+    const uint32_t expected[] = {0x80808080, 0x90909090, 0x88888888};
+    for (unsigned pass = 0; pass < 3; ++pass) {
+        if (pass == 2)
+            memset(quant, 8, sizeof(quant));
+        register_tables(quant, pass ? scale : zero_scale);
+        Psyz_MdecWrite(0, 0x30000006);
+        zassert_s32_eq(0, Psyz_MdecDmaIn(data, 6));
+        memset(pixels, 0xA5, sizeof(pixels));
+        zassert_s32_eq(0, Psyz_MdecDmaOut(pixels, 192));
+        for (unsigned i = 0; i < 192; ++i)
+            zassert_u32_eq(expected[pass], pixels[i]);
+        zexpect_u32_eq(0xA5A5A5A5, pixels[192]);
+    }
+}
+
+ZTEST(mdec, register_reset_discards_output_and_preserves_tables) {
+    uint8_t quant[128];
+    uint16_t scale[64];
+    uint32_t data[6], pixels[193];
+    default_tables(quant, scale);
+    memset(quant, 16, sizeof(quant));
+    register_tables(quant, scale);
+    make_flat(data, 1);
+    for (unsigned i = 2; i < 6; ++i)
+        data[i] = 0xFE000408;
+    Psyz_MdecWrite(0, 0x38000006);
+    zassert_s32_eq(0, Psyz_MdecDmaIn(data, 6));
+    zassert_s32_eq(0, Psyz_MdecDmaOut(pixels, 32));
+    for (unsigned i = 0; i < 32; ++i)
+        zassert_u32_eq(0x4A524A52, pixels[i]);
+    Psyz_MdecWrite(4, 0xE0000000);
+    Psyz_MdecWrite(0, 0x30000006);
+    zassert_s32_eq(0, Psyz_MdecDmaIn(data, 6));
+    memset(pixels, 0xA5, sizeof(pixels));
+    zassert_s32_eq(0, Psyz_MdecDmaOut(pixels, 192));
+    for (unsigned i = 0; i < 192; ++i)
+        zassert_u32_eq(0x90909090, pixels[i]);
+    zexpect_u32_eq(0xA5A5A5A5, pixels[192]);
+}
+
+ZTEST(mdec, register_sliced_output_with_padding) {
+    uint8_t quant[128];
+    uint16_t scale[64];
+    uint32_t data[32], pixels[385];
+    default_tables(quant, scale);
+    memset(quant, 16, sizeof(quant));
+    register_tables(quant, scale);
+    make_flat(data, 2);
+    for (unsigned i = 8; i < 12; ++i)
+        data[i] = 0xFE000408;
+    for (unsigned i = 12; i < 32; ++i)
+        data[i] = 0xFE00FE00;
+    Psyz_MdecWrite(0, 0x30000020);
+    zassert_s32_eq(0, Psyz_MdecDmaIn(data, 32));
+    memset(pixels, 0xA5, sizeof(pixels));
+    zassert_s32_eq(0, Psyz_MdecDmaOut(pixels, 65));
+    zassert_s32_eq(0, Psyz_MdecDmaOut(pixels + 65, 192));
+    zassert_s32_eq(0, Psyz_MdecDmaOut(pixels + 257, 127));
+    for (unsigned i = 0; i < 384; ++i)
+        zassert_u32_eq(i < 192 ? 0x80808080 : 0x90909090, pixels[i]);
+    zexpect_u32_eq(0xA5A5A5A5, pixels[384]);
 }
