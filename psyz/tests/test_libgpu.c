@@ -739,6 +739,7 @@ ZTEST(gpu, clear_screen_draw_offset_bugfix) {
 }
 
 ZTEST(gpu, negative_draw_offset) {
+    zskip_targets("ppsspp"); // broken on ppsspp v1.20.4
     DRAWENV draw;
     ClearImage(&cdb->draw.clip, 60, 120, 120);
     DrawSync(0);
