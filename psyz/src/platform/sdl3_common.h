@@ -426,6 +426,14 @@ static void WaitForNextFrame(int frames) {
         for (int i = 1; i < frames; i++) {
             PlatformBackend_Present();
         }
+        double floor_us = target_us - target_frame_time_us / 2;
+        Uint64 floor_time =
+            last_frame_time + (Uint64)(floor_us * (double)perf_frequency / 1e6);
+        Uint64 current_time = SDL_GetPerformanceCounter();
+        if (current_time < floor_time) {
+            SDL_DelayPrecise(SDL_NS_PER_SECOND * (floor_time - current_time) /
+                             perf_frequency);
+        }
     } else if (vsync_mode != PSYZ_VSYNC_LIMITLESS) {
         Uint64 current_time = SDL_GetPerformanceCounter();
         Uint64 period = (Uint64)(target_us * (double)perf_frequency / 1e6);
