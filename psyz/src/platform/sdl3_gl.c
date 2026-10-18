@@ -1261,12 +1261,6 @@ void Draw_SetOffset(int x, int y) {
 
     x = x % VRAM_W;
     y = y % VRAM_H;
-    if (x < 0) {
-        x += VRAM_W;
-    }
-    if (y < 0) {
-        y += VRAM_H;
-    }
     draw_offset.x = x;
     draw_offset.y = y;
     if (!sdl3_window && !InitPlatform()) {

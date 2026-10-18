@@ -41,7 +41,7 @@ int Psyz_CdSetDiskPath(const char* diskPath);
  *
  * @param is_open Non-zero to open the shell, zero to close it
  */
-void Psyz_CdShellOpen(int is_open);
+void Psyz_CdShellOpen(int isOpen);
 
 /**
  * @brief Pull PCM audio samples from the CD as interleaved stereo frames
@@ -54,7 +54,7 @@ void Psyz_CdShellOpen(int is_open);
  * @param num_frames Number of stereo frames requested
  * @return Number of frames read
  */
-size_t Psyz_CdPullSamples(short* out, size_t num_frames);
+size_t Psyz_CdPullSamples(short* out, size_t numFrames);
 
 /**
  * @brief Set callback invoked when a disk read is triggered

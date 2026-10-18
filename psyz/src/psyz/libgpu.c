@@ -52,6 +52,14 @@ int Psyz_GpuSetHorizontalGrid(
     return Draw_SetHorizontalGrid(source_width, target_width);
 }
 
+static inline int SignExtend11(int v) {
+    // on real hardware, VRAM offsets do not exactly wrap at 1024. Instead,
+    // coords are treated as a signed 11-bit value. Meaning 1025 will become
+    // -1023, and not 1. This fixes games like FF7 using a negative draw ofs.
+    int x = v & 0x7FF;
+    return x & 0x400 ? x - 0x800 : x;
+}
+
 static void DispatchPackets(u_long* buf, int len) {
     RECT rect;
     unsigned int x, y;
@@ -108,7 +116,8 @@ static void DispatchPackets(u_long* buf, int len) {
             Draw_SetAreaEnd((int)op & 0x3FF, (int)(op >> 10) & 0x3FF);
             break;
         case 0xE5:
-            Draw_SetOffset((int)op & 0x7FF, (int)(op >> 11) & 0x7FF);
+            Draw_SetOffset(
+                SignExtend11((int)op), SignExtend11((int)(op >> 11)));
             break;
         case 0xE6:
             Draw_SetMask(!!(op & 1), !!(op & 2));

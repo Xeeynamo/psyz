@@ -44,7 +44,7 @@ void Psyz_SpuReset(int hot);
  * @param reg_offset Offset relative to 0x1F801C00; valid range 0x000-0x1FF
  * @param value 16-bit value to write
  */
-void Psyz_SpuWrite(unsigned int reg_offset, unsigned short value);
+void Psyz_SpuWrite(unsigned int regOffset, unsigned short value);
 
 /**
  * @brief Read back one 16-bit value from the SPU register file
@@ -54,7 +54,7 @@ void Psyz_SpuWrite(unsigned int reg_offset, unsigned short value);
  * @param reg_offset Offset relative to 0x1F801C00; valid range 0x000-0x1FF
  * @return 16-bit register value
  */
-unsigned short Psyz_SpuRead(unsigned int reg_offset);
+unsigned short Psyz_SpuRead(unsigned int regOffset);
 
 /**
  * @brief Read back the current SPU transfer address
@@ -137,7 +137,7 @@ unsigned char* Psyz_SpuGetRam(void);
  * @param out Output buffer
  * @param num_frames Number of stereo frames to generate
  */
-void Psyz_SpuPullSamples(short* out, int num_frames);
+void Psyz_SpuPullSamples(short* out, int numFrames);
 
 #ifdef __cplusplus
 }

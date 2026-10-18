@@ -738,6 +738,37 @@ ZTEST(gpu, clear_screen_draw_offset_bugfix) {
     ASSERT_FRAME("clear_screen_draw_offset_bugfix", 0, 1.0f);
 }
 
+ZTEST(gpu, negative_draw_offset) {
+    DRAWENV draw;
+    ClearImage(&cdb->draw.clip, 60, 120, 120);
+    DrawSync(0);
+
+    draw = cdb->draw;
+    draw.ofs[0] = -32;
+    draw.ofs[1] = -48;
+    PutDrawEnv(&draw);
+
+    SetTile(&cdb->tile[0]);
+    setRGB0(&cdb->tile[0], 255, 0, 0);
+    setXY0(&cdb->tile[0], 64, 80);
+    setWH(&cdb->tile[0], 64, 64);
+
+    // left and top edges sit before the origin and get clipped by draw.ofs
+    SetPolyF4(&cdb->f4[0]);
+    setRGB0(&cdb->f4[0], 0, 255, 0);
+    setXYWH(&cdb->f4[0], 16, 32, 64, 48);
+
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, &cdb->tile[0]);
+    AddPrim(cdb->ot, &cdb->f4[0]);
+
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+    ASSERT_FRAME("negative_draw_offset", 0, 1.0f);
+}
+
 // TODO: test is actually failing
 ZTEST(gpu, load_move_image_priority) {
     TIM_IMAGE tim;

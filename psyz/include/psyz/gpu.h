@@ -53,7 +53,7 @@ int Psyz_GpuRegisterCommandHandler(
  * @return 0 on success, negative when either width is zero
  */
 int Psyz_GpuSetHorizontalGrid(
-    unsigned int source_width, unsigned int target_width);
+    unsigned int sourceWidth, unsigned int targetWidth);
 
 /**
  * @brief Write a GP0 word to the internal GPU queue

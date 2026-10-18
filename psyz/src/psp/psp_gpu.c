@@ -1267,12 +1267,6 @@ void Draw_SetAreaEnd(int x, int y) {
 void Draw_SetOffset(int x, int y) {
     x = x % PSX_VRAM_W;
     y = y % PSX_VRAM_H;
-    if (x < 0) {
-        x += PSX_VRAM_W;
-    }
-    if (y < 0) {
-        y += PSX_VRAM_H;
-    }
     draw_offset.x = x;
     draw_offset.y = y;
 }
