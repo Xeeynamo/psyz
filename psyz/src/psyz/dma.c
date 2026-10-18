@@ -1,4 +1,75 @@
 #include <psyz.h>
+#include "mdec.h"
+#include "../internal.h"
+
+static unsigned _dma_dpcr;
+unsigned* dma_dpcr = &_dma_dpcr;
+
+static struct {
+    u_long address;
+    u32 block, control;
+} mdec_dma[2];
+static int mdec_servicing;
+
+u32 Psyz_DmaReadControl(void) { return _dma_dpcr; }
+void Psyz_DmaWriteControl(u32 value) { _dma_dpcr = value; }
+
+u_long Psyz_DmaRead(PsyzDmaChannel ch, unsigned offset) {
+    if (ch < DMA_CHANNEL_MDEC_IN || ch > DMA_CHANNEL_MDEC_OUT || offset > 2)
+        return 0;
+    if (offset == 0)
+        return mdec_dma[ch].address;
+    return offset == 1 ? mdec_dma[ch].block : mdec_dma[ch].control;
+}
+
+static int ServiceMdec(PsyzDmaChannel ch) {
+    u32 control = mdec_dma[ch].control;
+    u32 expected = ch == DMA_CHANNEL_MDEC_IN ? 0x01000201 : 0x01000200;
+    if ((control & 0x01000603) != expected || !(_dma_dpcr & (8u << (ch * 4))))
+        return 0;
+    size_t words =
+        (mdec_dma[ch].block >> 16) * (size_t)(mdec_dma[ch].block & 0xFFFF);
+    if (!words)
+        return 0;
+    void* data = (void*)mdec_dma[ch].address;
+    int result = ch == DMA_CHANNEL_MDEC_IN ? Psyz_MdecDmaIn(data, words)
+                                           : Psyz_MdecDmaOut(data, words);
+    if (result)
+        return 0;
+    mdec_dma[ch].address += words * 4;
+    mdec_dma[ch].block &= 0xFFFF;
+    mdec_dma[ch].control &= ~0x01000000;
+    Psyz_KernelDmaComplete(ch);
+    return 1;
+}
+
+static void ServiceMdecPending(void) {
+    if (mdec_servicing)
+        return;
+    mdec_servicing = 1;
+    for (;;) {
+        int progress = ServiceMdec(DMA_CHANNEL_MDEC_IN);
+        progress |= ServiceMdec(DMA_CHANNEL_MDEC_OUT);
+        if (!progress)
+            break;
+    }
+    mdec_servicing = 0;
+}
+
+static void DmaMdec(PsyzDmaChannel ch, unsigned offset, u_long value) {
+    switch (offset) {
+    case 0:
+        mdec_dma[ch].address = value;
+        break;
+    case 1:
+        mdec_dma[ch].block = (u32)value;
+        break;
+    case 2:
+        mdec_dma[ch].control = (u32)value;
+        ServiceMdecPending();
+        break;
+    }
+}
 
 static void DmaSpu(unsigned offset, u_long value) {
     static u_long _addr = 0;
@@ -42,10 +113,8 @@ void Psyz_DmaWrite(PsyzDmaChannel ch, unsigned offset, u_long value) {
     }
     switch (ch) {
     case DMA_CHANNEL_MDEC_IN:
-        LOG_ONCE("DMA_CHANNEL_MDEC_IN not supported");
-        break;
     case DMA_CHANNEL_MDEC_OUT:
-        LOG_ONCE("DMA_CHANNEL_MDEC_OUT not supported");
+        DmaMdec(ch, offset, value);
         break;
     case DMA_CHANNEL_GPU:
         LOG_ONCE("DMA_CHANNEL_GPU not supported");

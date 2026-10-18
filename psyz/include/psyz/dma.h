@@ -37,6 +37,11 @@ typedef enum {
  */
 void Psyz_DmaWrite(PsyzDmaChannel ch, unsigned offset, u_long value);
 
+u_long Psyz_DmaRead(PsyzDmaChannel ch, unsigned offset);
+
+u32 Psyz_DmaReadControl(void);
+void Psyz_DmaWriteControl(u32 value);
+
 #ifdef __cplusplus
 }
 #endif

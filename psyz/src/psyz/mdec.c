@@ -267,6 +267,32 @@ void Psyz_MdecWrite(unsigned offset, u32 value) {
     }
 }
 
+static int MdecHasInput(void) {
+    for (size_t i = input_pos; i + 1 < input_size; i += 2) {
+        if (HALFWORD(input + i) != 0xFE00)
+            return 1;
+    }
+    return 0;
+}
+
+u32 Psyz_MdecReadStatus(void) {
+    int busy = io_pending || MdecHasInput();
+    int output_ready =
+        pixel_pos < pixel_size || (!decode_error && !io_pending && busy);
+    uint32_t status = (command >> 2) & 0x07800000;
+    if (!output_ready)
+        status |= 1u << 31;
+    if (busy)
+        status |= 1u << 29;
+    if (io_pending && (io_control & (1u << 30)))
+        status |= 1u << 28;
+    if (output_ready && (io_control & (1u << 29)))
+        status |= 1u << 27;
+    status |= 4u << 16;
+    status |= busy ? ((input_size - input_pos) / 4 - 1) & 0xFFFF : 0xFFFF;
+    return status;
+}
+
 int Psyz_MdecDmaIn(const void* data, size_t words) {
     if (!io_pending || !(io_control & (1u << 30)))
         return -1;
@@ -277,7 +303,8 @@ int Psyz_MdecDmaIn(const void* data, size_t words) {
 }
 
 int Psyz_MdecDmaOut(void* data, size_t words) {
-    if (!(io_control & (1u << 29)) || io_pending)
+    if (!(io_control & (1u << 29)) || io_pending ||
+        (pixel_pos == pixel_size && !MdecHasInput()))
         return -1;
     return Psyz_MdecRead(data, words);
 }

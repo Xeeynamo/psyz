@@ -9,6 +9,8 @@ extern "C" {
 
 void Psyz_MdecWrite(unsigned offset, u32 value);
 
+u32 Psyz_MdecReadStatus(void);
+
 #ifdef __cplusplus
 }
 #endif

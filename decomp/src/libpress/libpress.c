@@ -44,6 +44,20 @@ static volatile u32* mdec_d_pcr = (volatile u32*)0x1F8010F0;
 #define MDEC_DMA_WRITE(channel, reg, value) (*mdec_d##channel##_##reg = (value))
 #define MDEC_DMA_ENABLE() (*mdec_d_pcr |= 0x88)
 #define MDEC_ADDRESS(buf) ((u32)(buf))
+#else
+#include <psyz.h>
+#define MDEC_CONTROL(value) Psyz_MdecWrite(4, (value))
+#define MDEC_COMMAND(value) Psyz_MdecWrite(0, (value))
+#define MDEC_READ_STATUS() Psyz_MdecReadStatus()
+#define MDEC_DMA_madr 0
+#define MDEC_DMA_bcr 1
+#define MDEC_DMA_chcr 2
+#define MDEC_DMA_READ(channel, reg)                                            \
+    Psyz_DmaRead((PsyzDmaChannel)(channel), MDEC_DMA_##reg)
+#define MDEC_DMA_WRITE(channel, reg, value)                                    \
+    Psyz_DmaWrite((PsyzDmaChannel)(channel), MDEC_DMA_##reg, (value))
+#define MDEC_DMA_ENABLE() Psyz_DmaWriteControl(Psyz_DmaReadControl() | 0x88)
+#define MDEC_ADDRESS(buf) ((u_long)(buf))
 #endif
 
 void DecDCTReset(int mode) {
@@ -119,7 +133,6 @@ DecDCCb DecDCToutCallback(DecDCCb cb) { return DMACallback(1, cb); }
 int DecDCTinCallback(void (*cb)()) { return DMACallback(0, cb); }
 int DecDCToutCallback(void (*cb)()) { return DMACallback(1, cb); }
 #endif
-#ifndef __psyz
 void MDEC_reset(int mode) {
     switch (mode) {
     case 0:
@@ -208,4 +221,3 @@ int timeout(char* name) {
     MDEC_CONTROL(0x60000000);
     return 0;
 }
-#endif
