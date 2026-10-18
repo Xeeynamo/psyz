@@ -12,6 +12,9 @@
 #include <psyz/overlay.h>
 #include <psyz/overlay_sdl3.h>
 #include "../internal.h"
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif
 #ifdef PLATFORM_IOS
 #include "../ios/ios_platform.h"
 #endif
@@ -191,7 +194,7 @@ static double target_frame_time_us = 1000000.0 / VSYNC_NTSC;
 static Uint64 perf_frequency = 0;
 static Uint64 last_frame_time = 0;
 static Uint64 finish_time = 0;
-static double drift_compensation = 0.0;
+static Uint64 frame_deadline = 0; // when the frame limiter releases the frame
 static PsyzVsyncMode vsync_mode = PSYZ_VSYNC_AUTO;
 static PsyzDitherMode dither_mode = PSYZ_DITHER_AUTO;
 static bool use_driver_vsync = false;
@@ -265,7 +268,10 @@ static void ConfigureVSync(double target_fps) {
         return;
     }
 
-    SDL_DisplayID display_id = SDL_GetPrimaryDisplay();
+    SDL_DisplayID display_id = SDL_GetDisplayForWindow(sdl3_window);
+    if (!display_id) {
+        display_id = SDL_GetPrimaryDisplay();
+    }
     const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(display_id);
     double detected_framerate = 60.0;
     if (mode && mode->refresh_rate > 0.0f) {
@@ -291,8 +297,8 @@ static void ConfigureVSync(double target_fps) {
 static void UpdateTargetFramerate(double fps) {
     target_frame_rate = fps;
     target_frame_time_us = 1000000.0 / fps;
-    drift_compensation = 0.0;
     last_frame_time = SDL_GetPerformanceCounter();
+    frame_deadline = last_frame_time;
     ConfigureVSync(target_frame_rate);
 }
 
@@ -357,8 +363,8 @@ static void Sdl3Common_ApplyPendingTimingReset(void) {
         return;
     }
     SDL_SetAtomicInt(&timing_reset_requested, 0);
-    drift_compensation = 0.0;
     last_frame_time = SDL_GetPerformanceCounter();
+    frame_deadline = last_frame_time;
     finish_time = last_frame_time;
     last_vsync_us = (Uint32)(SDL_GetTicksNS() / 1000);
     if (sdl3_window && is_platform_init_successful) {
@@ -374,6 +380,11 @@ int Psyz_QuitRequested(void) { return SDL_GetAtomicInt(&quit_requested) != 0; }
 
 // Initialize the timing/vsync state. Call once at the end of InitPlatform.
 static void Sdl3Common_TimingInit(void) {
+#ifdef __linux__
+    // Wake up from sleeps as close as possible to the frame limiter deadline.
+    // Fixes jittering on Linux. I only tested this on the default scheduler.
+    prctl(PR_SET_TIMERSLACK, 1);
+#endif
     last_vsync_us = (Uint32)(SDL_GetTicksNS() / 1000);
     perf_frequency = SDL_GetPerformanceFrequency();
     last_frame_time = SDL_GetPerformanceCounter();
@@ -400,54 +411,30 @@ static void Sdl3Common_Shutdown(void) {
 }
 
 // Paces `frames` vertical blanks since the previous call. Driver VSync
-// already waited for one in the present, so it only needs the timer for the
-// rest.
+// already waited for one in the present and repeats it for the rest, the
+// frame limiter uses the timer instead.
 static void WaitForNextFrame(int frames) {
-    Uint64 current_time = SDL_GetPerformanceCounter();
-    double elapsed_us = GetElapsedMicroseconds(last_frame_time, current_time);
     double target_us = target_frame_time_us * frames;
 
 #ifdef PLATFORM_WEB
     // yield to browser
-    (void)elapsed_us;
-    (void)target_us;
     for (; frames > 0; frames--) {
         Psyz_WebWaitForNextFrame();
     }
 #else
-    if ((!use_driver_vsync || frames > 1) &&
-        vsync_mode != PSYZ_VSYNC_LIMITLESS) {
-        double time_to_wait_us = target_us - elapsed_us + drift_compensation;
-
-        // only wait if we're ahead of schedule (not running slow)
-        if (time_to_wait_us > 100.0) { // more than 0.1ms to wait
-            // High-precision mode: sleep + busy-wait
-            if (time_to_wait_us > 1000.0) {
-                Uint64 sleep_us = (Uint64)(time_to_wait_us - 1000.0);
-                SDL_DelayNS(sleep_us * 1000);
-            }
-
-            // busy-wait for precision
-            double target_elapsed = target_us + drift_compensation;
-            while (GetElapsedMicroseconds(
-                       last_frame_time, SDL_GetPerformanceCounter()) <
-                   target_elapsed) {
-            }
+    if (use_driver_vsync) {
+        for (int i = 1; i < frames; i++) {
+            PlatformBackend_Present();
         }
-
-        // measure actual frame time and compensate drift
-        Uint64 frame_end_time = SDL_GetPerformanceCounter();
-        double actual_frame_time =
-            GetElapsedMicroseconds(last_frame_time, frame_end_time);
-        double frame_error = actual_frame_time - target_us;
-
-        // apply gentle correction (10% per frame)
-        drift_compensation -= frame_error * 0.1;
-        if (drift_compensation > 5000.0) {
-            drift_compensation = 5000.0;
-        }
-        if (drift_compensation < -5000.0) {
-            drift_compensation = -5000.0;
+    } else if (vsync_mode != PSYZ_VSYNC_LIMITLESS) {
+        Uint64 current_time = SDL_GetPerformanceCounter();
+        Uint64 period = (Uint64)(target_us * (double)perf_frequency / 1e6);
+        frame_deadline += period;
+        if (current_time > frame_deadline + period) {
+            frame_deadline = current_time;
+        } else if (current_time < frame_deadline) {
+            SDL_DelayPrecise(SDL_NS_PER_SECOND *
+                             (frame_deadline - current_time) / perf_frequency);
         }
     }
 #endif
@@ -888,6 +875,12 @@ static void PollEvents(void) {
         case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
             SDL_GetWindowSizeInPixels(
                 sdl3_window, &wnd_size_in_pixels.w, &wnd_size_in_pixels.h);
+            break;
+        case SDL_EVENT_WINDOW_DISPLAY_CHANGED:
+        case SDL_EVENT_DISPLAY_CURRENT_MODE_CHANGED:
+            if (is_platform_init_successful) {
+                ConfigureVSync(target_frame_rate);
+            }
             break;
         case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
 #ifdef PLATFORM_IOS
