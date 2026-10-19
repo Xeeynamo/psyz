@@ -80,6 +80,17 @@ static SDL_GPUGraphicsPipeline* pipe_tri[BLEND_COUNT];
 static SDL_GPUGraphicsPipeline* pipe_clear = NULL;
 static SDL_GPUCommandBuffer* pending_cmd = NULL;
 
+#define READBACK_ALIGN 512 // D3D12 texture copy placement alignment
+typedef struct {
+    Uint32 offset;
+    int w, h;
+    u_long* dst;
+} Readback;
+static Readback readbacks[MAX_PENDING_STORES];
+static int n_readbacks = 0;
+static Uint32 readback_used = 0;
+static SDL_GPUFence* readback_fence = NULL;
+
 static Posi display_area = {0, 0};
 static Posi display_size = {256, 240};
 static Posi cur_display_size = {-1, -1};
@@ -851,6 +862,12 @@ static void QuitPlatform(void) {
     if (device) {
         SDL_WaitForGPUIdle(device);
         ReleaseFrameFences();
+        if (readback_fence) {
+            SDL_ReleaseGPUFence(device, readback_fence);
+            readback_fence = NULL;
+        }
+        n_readbacks = 0;
+        readback_used = 0;
         for (int i = 0; i < BLEND_COUNT; i++) {
             if (pipe_tri[i]) {
                 SDL_ReleaseGPUGraphicsPipeline(device, pipe_tri[i]);
@@ -930,6 +947,7 @@ void ResetPlatform(void) {
 }
 
 static bool DownloadVramRegionAsRGBA8888(int x, int y, int w, int h, u8* out) {
+    Draw_ExequeSync(); // pending readbacks share the transfer buffer
     SDL_GPUCommandBuffer* cmd = AcquireCmd();
     if (!cmd) {
         return false;
@@ -1148,7 +1166,31 @@ void Draw_SetDisplayMode(DisplayMode* mode) {
     }
 }
 
-int Draw_ExequeSync() { return 0; }
+int Draw_ExequeSync() {
+    if (!n_readbacks) {
+        return 0;
+    }
+    if (readback_fence) {
+        SDL_WaitForGPUFences(device, true, &readback_fence, 1);
+        SDL_ReleaseGPUFence(device, readback_fence);
+        readback_fence = NULL;
+    }
+    const u8* map =
+        SDL_MapGPUTransferBuffer(device, tex_download_transfer, false);
+    if (map) {
+        for (int i = 0; i < n_readbacks; i++) {
+            const Readback* r = &readbacks[i];
+            ConvertRgba8888ToRgb5551(
+                map + r->offset, (u16*)r->dst, (size_t)r->w * r->h);
+        }
+        SDL_UnmapGPUTransferBuffer(device, tex_download_transfer);
+    } else {
+        ERRORF("SDL_MapGPUTransferBuffer: %s", SDL_GetError());
+    }
+    n_readbacks = 0;
+    readback_used = 0;
+    return 0;
+}
 
 // optimization to avoid sampling the VRAM on an untextured batch draw
 static bool batch_has_texture = false;
@@ -1553,18 +1595,43 @@ void Draw_StoreImage(PS1_RECT* rect, u_long* p) {
     if (!device || !vram_render) {
         return;
     }
+    const Uint32 bytes = (Uint32)rect->w * (Uint32)rect->h * 4;
+    if (n_readbacks == MAX_PENDING_STORES ||
+        readback_used + bytes > VRAM_BYTES) {
+        Draw_ExequeSync();
+    }
     Draw_FlushBuffer(); // flush primitives before operating with the VRAM
-
-    const size_t pixels = (size_t)rect->w * rect->h;
-    u8* rgba = malloc(pixels * 4);
-    if (!rgba) {
+    SDL_GPUCommandBuffer* cmd = AcquireCmd();
+    if (!cmd) {
         return;
     }
-    if (DownloadVramRegionAsRGBA8888(
-            rect->x, rect->y, rect->w, rect->h, rgba)) {
-        ConvertRgba8888ToRgb5551(rgba, (u16*)p, pixels);
+    SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd);
+    const SDL_GPUTextureRegion region = {
+        .texture = vram_render,
+        .x = (Uint32)rect->x,
+        .y = (Uint32)rect->y,
+        .w = (Uint32)rect->w,
+        .h = (Uint32)rect->h,
+        .d = 1,
+    };
+    const SDL_GPUTextureTransferInfo transfer = {
+        .transfer_buffer = tex_download_transfer,
+        .offset = readback_used,
+        .pixels_per_row = (Uint32)rect->w,
+        .rows_per_layer = (Uint32)rect->h,
+    };
+    SDL_DownloadFromGPUTexture(copy, &region, &transfer);
+    SDL_EndGPUCopyPass(copy);
+    // submit now so the GPU copies while the CPU runs the game logic
+    if (readback_fence) {
+        SDL_ReleaseGPUFence(device, readback_fence);
     }
-    free(rgba);
+    readback_fence = SDL_SubmitGPUCommandBufferAndAcquireFence(pending_cmd);
+    pending_cmd = NULL;
+    readbacks[n_readbacks++] = (Readback){
+        .offset = readback_used, .w = rect->w, .h = rect->h, .dst = p};
+    readback_used =
+        (readback_used + bytes + READBACK_ALIGN - 1) & ~(READBACK_ALIGN - 1);
 }
 
 void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {

@@ -23,6 +23,9 @@
 #define VRAM_W 1024
 #define VRAM_H 512
 
+// how many StoreImage can be queued without a DrawSync(0)
+#define MAX_PENDING_STORES 16
+
 // SDL platform lifecycle code uses this to avoid undoing an explicit game
 // audio pause when the application returns from the background.
 int Psyz_AudioIsPaused(void);

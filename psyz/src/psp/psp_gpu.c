@@ -1319,13 +1319,36 @@ void Draw_ClearImage(RECT* rect, u_char r, u_char g, u_char b) {
     pending_clear.b = b;
 }
 
-// Staging arena for Load/StoreImage when the caller's stride is not a
-// multiple of 8: rows are repacked at a padded stride so the GE transfer can
-// run instead of the uncached CPU line loop. Rects that don't fit fall back
-// to the slowest CPU path.
+// Repacks Load/StoreImage rows the GE cannot transfer in place, avoiding the
+// uncached CPU line loop. Allocations live until Draw_ExequeSync.
 #define XFER_STRIDE 1024
 #define XFER_ROWS 128
-static u16 __attribute__((aligned(64))) xfer_stage[XFER_STRIDE * XFER_ROWS];
+#define XFER_STAGE_LEN (XFER_STRIDE * XFER_ROWS)
+static u16 __attribute__((aligned(64))) xfer_stage[XFER_STAGE_LEN];
+static int xfer_used;
+
+typedef struct {
+    u16* dst;
+    int dst_stride;
+    const u16* stage; // NULL when the GE writes dst directly
+    int stage_stride;
+    int w, h;
+} PendingStore;
+static PendingStore pending_stores[MAX_PENDING_STORES];
+static int n_pending_stores;
+
+static u16* StageAlloc(int len) {
+    int n = (len + 31) & ~31;
+    if (n > XFER_STAGE_LEN - xfer_used) {
+        Draw_ExequeSync();
+        if (n > XFER_STAGE_LEN) {
+            return NULL;
+        }
+    }
+    u16* p = xfer_stage + xfer_used;
+    xfer_used += n;
+    return p;
+}
 
 // Tell the GPU to copy the image in chunks via DMA transfers
 static void LoadImageGe(
@@ -1378,19 +1401,20 @@ void Draw_LoadImage(RECT* rect, u_long* p) {
     ClampRect(rect, &x, &y, &w, &h);
     const u16* src = (const u16*)p;
     int pad_stride = (rect->w + 7) & ~7;
+    u16* stage;
     if (IsAligned(src, rect->w)) {
         // data and width are aligned, best case scenario
         LoadImageGe(x, y, w, h, src, rect->w);
-    } else if (((uintptr_t)src & 0xF) == 0 && h <= XFER_ROWS &&
-               pad_stride <= XFER_STRIDE) {
-        // width is unaligned, do a mix between CPU copy and DMA copy
+    } else if (
+        pad_stride <= XFER_STRIDE && (stage = StageAlloc(h * pad_stride))) {
+        // repack on the CPU, then let the GE do the transfer
         for (int i = 0; i < h; i++) {
-            memcpy_vfpu(xfer_stage + (size_t)i * pad_stride,
+            memcpy_vfpu(stage + (size_t)i * pad_stride,
                         src + (size_t)i * rect->w, w * sizeof(u16));
         }
-        LoadImageGe(x, y, w, h, xfer_stage, pad_stride);
+        LoadImageGe(x, y, w, h, stage, pad_stride);
     } else {
-        // worst scenario, data is unaligned, perform CPU copy
+        // worst scenario, the rect is too big to stage, perform CPU copy
         GeSyncCaughtUp();
         for (int i = 0; i < h; i++) {
             VramLineWrite(x, y + i, src, w);
@@ -1409,35 +1433,43 @@ void Draw_StoreImage(RECT* rect, u_long* p) {
     if (!is_init && !InitPlatform()) {
         return;
     }
+    if (n_pending_stores == MAX_PENDING_STORES) {
+        Draw_ExequeSync();
+    }
     ClampRect(rect, &x, &y, &w, &h);
     u16* dst = (u16*)p;
     int pad_stride = (rect->w + 7) & ~7;
+    u16* stage = NULL;
     if (IsAligned(dst, rect->w)) {
         // data and width are aligned, best case scenario
         sceKernelDcacheWritebackInvalidateRange(
             dst, (((h - 1) * rect->w) + w) * 2);
         StoreImageGe(x, y, w, h, dst, rect->w);
-        KickGe();
-        store_readback_pending = true;
-    } else if (((uintptr_t)dst & 0xF) == 0 && h <= XFER_ROWS &&
-               pad_stride <= XFER_STRIDE) {
-        // width is unaligned, do a mix between CPU copy and DMA copy
+    } else if (
+        pad_stride <= XFER_STRIDE && (stage = StageAlloc(h * pad_stride))) {
+        // the GE fills the stage, Draw_ExequeSync copies it to dst
         sceKernelDcacheWritebackInvalidateRange(
-            xfer_stage, (size_t)h * pad_stride * sizeof(u16));
-        StoreImageGe(x, y, w, h, xfer_stage, pad_stride);
-        GeSyncCaughtUp();
-        for (int i = 0; i < h; i++) {
-            memcpy_vfpu(dst + (size_t)i * rect->w,
-                        xfer_stage + (size_t)i * pad_stride, w * sizeof(u16));
-        }
+            stage, (size_t)h * pad_stride * sizeof(u16));
+        StoreImageGe(x, y, w, h, stage, pad_stride);
     } else {
-        // worst scenario, data is unaligned, perform CPU copy
+        // worst scenario, the rect is too big to stage, perform CPU copy
         GeSyncCaughtUp();
         for (int i = 0; i < h; i++) {
             VramLineRead(x, y + i, dst, w);
             dst += rect->w;
         }
+        return;
     }
+    KickGe();
+    store_readback_pending = true;
+    pending_stores[n_pending_stores++] = (PendingStore){
+        .dst = dst,
+        .dst_stride = rect->w,
+        .stage = stage,
+        .stage_stride = pad_stride,
+        .w = w,
+        .h = h,
+    };
 }
 
 static void SyncFbToTiles(int x, int y, int w, int h) {
@@ -2624,9 +2656,24 @@ void Draw_FlushBuffer(void) {
 
 int Draw_ExequeSync(void) {
     // wait for StoreImage/LoadImage DMA to finish
-    if (store_readback_pending) {
-        store_readback_pending = false;
+    if (store_readback_pending || xfer_used) {
         GeSyncCaughtUp();
     }
+    for (int i = 0; i < n_pending_stores; i++) {
+        const PendingStore* store = &pending_stores[i];
+        if (!store->stage) {
+            sceKernelDcacheWritebackInvalidateRange(
+                store->dst,
+                (((store->h - 1) * store->dst_stride) + store->w) * 2);
+            continue;
+        }
+        for (int j = 0; j < store->h; j++) {
+            memcpy_vfpu(store->dst + (size_t)j * store->dst_stride,
+                        store->stage + (size_t)j * store->stage_stride,
+                        store->w * sizeof(u16));
+        }
+    }
+    n_pending_stores = 0;
+    xfer_used = 0;
     return 0;
 }

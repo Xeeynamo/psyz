@@ -233,6 +233,18 @@ static GLuint vram_texture;
 static GLuint vram_fbo = 0;
 static GLuint scratch_texture = 0;
 static GLuint scratch_fbo = 0;
+
+#define READBACK_BYTES (VRAM_W * VRAM_H * 4)
+typedef struct {
+    size_t offset;
+    int w, h;
+    u_long* dst;
+} Readback;
+static GLuint readback_pbo = 0;
+static GLsync readback_fence = 0;
+static Readback readbacks[MAX_PENDING_STORES];
+static int n_readbacks = 0;
+static size_t readback_used = 0;
 static GLuint scaled_vram_texture = 0;
 static GLuint scaled_vram_fbo = 0; // it's vram_fbo * internal_res
 static unsigned internal_res = 1;
@@ -519,6 +531,16 @@ static void SyncScaledVramToNative(void) {
 }
 
 static bool CreateScaledVramFbo(int n) {
+    if (readback_fence) {
+        glDeleteSync(readback_fence);
+        readback_fence = 0;
+    }
+    if (readback_pbo) {
+        glDeleteBuffers(1, &readback_pbo);
+        readback_pbo = 0;
+    }
+    n_readbacks = 0;
+    readback_used = 0;
     if (scaled_vram_texture) {
         glDeleteTextures(1, &scaled_vram_texture);
         scaled_vram_texture = 0;
@@ -948,7 +970,51 @@ void Draw_SetDisplayMode(DisplayMode* mode) {
     }
 }
 
-int Draw_ExequeSync() { return 0; }
+#ifdef __EMSCRIPTEN__
+void glGetBufferSubData(
+    GLenum target, GLintptr offset, GLsizeiptr size, void* data);
+#endif
+
+int Draw_ExequeSync() {
+    if (!n_readbacks) {
+        return 0;
+    }
+    // WebGL forbids blocking waits, glGetBufferSubData waits instead
+#ifndef __EMSCRIPTEN__
+    while (glClientWaitSync(readback_fence, GL_SYNC_FLUSH_COMMANDS_BIT,
+                            1000000000) == GL_TIMEOUT_EXPIRED) {
+    }
+#endif
+    glDeleteSync(readback_fence);
+    readback_fence = 0;
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, readback_pbo);
+#ifdef __EMSCRIPTEN__
+    u8* map = GetVramConvertBuffer(readback_used);
+    if (map) {
+        glGetBufferSubData(
+            GL_PIXEL_PACK_BUFFER, 0, (GLsizeiptr)readback_used, map);
+    }
+#else
+    const u8* map = glMapBufferRange(
+        GL_PIXEL_PACK_BUFFER, 0, (GLsizeiptr)readback_used, GL_MAP_READ_BIT);
+#endif
+    if (map) {
+        for (int i = 0; i < n_readbacks; i++) {
+            const Readback* r = &readbacks[i];
+            ConvertRgba8888ToRgb5551(
+                map + r->offset, (u16*)r->dst, (size_t)r->w * r->h);
+        }
+    } else {
+        ERRORF("failed to map the readback buffer");
+    }
+#ifndef __EMSCRIPTEN__
+    glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+#endif
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    n_readbacks = 0;
+    readback_used = 0;
+    return 0;
+}
 
 static unsigned int VAO = -1, VBO = -1, EBO = -1;
 
@@ -1312,23 +1378,42 @@ void Draw_LoadImage(PS1_RECT* rect, u_long* p) {
     SyncNativeVramToScaled(rect->x, rect->y, rect->w, rect->h);
 }
 void Draw_StoreImage(PS1_RECT* rect, u_long* p) {
-    if (rect->w == 0 || rect->h == 0) {
+    if (rect->w <= 0 || rect->h <= 0) {
+        return;
+    }
+    size_t bytes = (size_t)rect->w * rect->h * 4;
+    if (bytes > READBACK_BYTES) {
+        WARNF("rect %dx%d is larger than VRAM", rect->w, rect->h);
         return;
     }
     if (!sdl3_window && !InitPlatform()) {
         return;
     }
-    size_t count = (size_t)rect->w * rect->h;
-    u8* buf = GetVramConvertBuffer(count * 4);
-    if (!buf) {
-        return;
+    if (n_readbacks == MAX_PENDING_STORES ||
+        readback_used + bytes > READBACK_BYTES) {
+        Draw_ExequeSync();
+    }
+    if (!readback_pbo) {
+        glGenBuffers(1, &readback_pbo);
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, readback_pbo);
+        glBufferData(
+            GL_PIXEL_PACK_BUFFER, READBACK_BYTES, NULL, GL_STREAM_READ);
     }
     Draw_FlushBuffer(); // flush primitives before operating with the VRAM
     glBindFramebuffer(GL_READ_FRAMEBUFFER, vram_fbo);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, readback_pbo);
     glPixelStorei(GL_PACK_ALIGNMENT, 4);
-    glReadPixels(
-        rect->x, rect->y, rect->w, rect->h, GL_RGBA, GL_UNSIGNED_BYTE, buf);
-    ConvertRgba8888ToRgb5551(buf, (u16*)p, count);
+    glReadPixels(rect->x, rect->y, rect->w, rect->h, GL_RGBA, GL_UNSIGNED_BYTE,
+                 (void*)(uintptr_t)readback_used);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    if (readback_fence) {
+        glDeleteSync(readback_fence);
+    }
+    readback_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    glFlush();
+    readbacks[n_readbacks++] = (Readback){
+        .offset = readback_used, .w = rect->w, .h = rect->h, .dst = p};
+    readback_used += bytes;
     BindDrawFbo();
 }
 

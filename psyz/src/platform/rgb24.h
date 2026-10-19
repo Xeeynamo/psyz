@@ -41,6 +41,7 @@ static unsigned char* AllocRgb24Region(int x, int y, int w, int h) {
     }
     PS1_RECT rect = {x, y + first, words, last - first};
     StoreImage(&rect, (u_long*)raw);
+    DrawSync(0);
     size_t bytes = (size_t)words * 2;
     if (bytes > (size_t)w * 3) {
         bytes = (size_t)w * 3;

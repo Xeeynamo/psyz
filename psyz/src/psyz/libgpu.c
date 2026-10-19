@@ -143,7 +143,7 @@ static void DispatchPackets(u_long* buf, int len) {
     }
 }
 
-int Psyz_GpuExeque() {
+static void GPU_Flush(void) {
     if (sizeof(void*) == 4) {
         // 32-bit targets dispatch straight into the draw buffer
         Draw_FlushBuffer();
@@ -153,13 +153,58 @@ int Psyz_GpuExeque() {
         DispatchPackets(queue_buf, queue_len);
         Draw_FlushBuffer();
     }
-    Draw_ExequeSync();
     queue_len = 0;
-    return queue_len;
+}
+
+// A PS1 transfer is only late when queued behind GPU work: StoreImage writes
+// its destination at DrawSync while drawing is pending since the last sync.
+typedef struct {
+    const u8* p;
+    size_t bytes;
+} PendingStore;
+
+static PendingStore pending_stores[64];
+static int n_pending_stores;
+static int gpu_busy;
+
+static size_t TransferBytes(const RECT* rect) {
+    // the DMA moves whole words
+    return (((size_t)rect->w * (size_t)rect->h + 1) & ~(size_t)1) * 2;
+}
+
+static void GPU_Sync(void) {
+    Draw_ExequeSync();
+    n_pending_stores = 0;
+}
+
+static int IsPendingStoreDst(const RECT* rect, const u_long* data) {
+    const u8* p = (const u8*)data;
+    size_t bytes = TransferBytes(rect);
+    for (int i = 0; i < n_pending_stores; i++) {
+        const PendingStore* s = &pending_stores[i];
+        if (p < s->p + s->bytes && s->p < p + bytes) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int Psyz_GpuExeque() {
+    GPU_Flush();
+    GPU_Sync();
+    gpu_busy = 0;
+    return 0;
+}
+
+static void GPU_SyncIfPending(void) {
+    if (n_pending_stores) {
+        Psyz_GpuExeque();
+    }
 }
 
 static void GPU_Enqueue(u_long* packets) {
     DR_ENV* env = (DR_ENV*)packets;
+    gpu_busy = 1;
     if (sizeof(u_long) == 4) {
         // fast path for 32-bit systems
         while (1) {
@@ -181,8 +226,8 @@ static void GPU_Enqueue(u_long* packets) {
             if (env->len > 0x100) {
                 ERRORF("packet 0x%X long, likely corrupted", env->len);
             }
-            INFOF("GPU queue full, calling exeque");
-            Psyz_GpuExeque();
+            INFOF("GPU queue full, flushing");
+            GPU_Flush();
         }
         // a flush empties the queue; the packet that did not fit still goes in
         if (sizeof(u_long) == 8) {
@@ -220,16 +265,29 @@ static int GPU_EnqueueTrampoline(u_long p1, u_long p2) {
 }
 
 static int GPU_DataWrite(RECT* rect, u_long* data) {
-    Psyz_GpuExeque();
+    GPU_Flush();
+    if (IsPendingStoreDst(rect, data)) {
+        GPU_Sync();
+    }
     Draw_LoadImage(rect, data);
     return 0;
 }
 static int GPU_DataRead(RECT* rect, u_long* data) {
-    Psyz_GpuExeque();
+    GPU_Flush();
+    if (n_pending_stores == LEN(pending_stores)) {
+        GPU_Sync();
+    }
     Draw_StoreImage(rect, data);
+    pending_stores[n_pending_stores].p = (const u8*)data;
+    pending_stores[n_pending_stores].bytes = TransferBytes(rect);
+    n_pending_stores++;
+    if (!gpu_busy) {
+        GPU_Sync();
+    }
     return 0;
 }
 static int psyz_cwb(u32* data, s32 n) {
+    gpu_busy = 1;
     if (n > 0) {
         Draw_PushPrim((u_long*)data, n);
     }
@@ -334,7 +392,10 @@ static int psyz_param(int _) {
     NOT_IMPLEMENTED;
     return 0;
 }
-static int psyz_reset(int _) { return GPU_V0; }
+static int psyz_reset(int _) {
+    GPU_SyncIfPending();
+    return GPU_V0;
+}
 static u_long psyz_status(void) {
     NOT_IMPLEMENTED;
     return 0;
@@ -344,15 +405,19 @@ static int psyz_sync(int mode) {
     // mode 0 waits until all the queue is drawn on screen
     // mode 1 process the queue and return how many elements have been queued
     // return -1 if GPU has timed out
-    // but on PC the implementation is much simpler as it's always synced
+    // PsyZ completes everything in both modes
     Psyz_GpuExeque();
     return 0;
 }
 
-int psyz_gpu_version(int mode) { return GPU_V0; }
+int psyz_gpu_version(int mode) {
+    GPU_SyncIfPending();
+    return GPU_V0;
+}
 
 // forwards raw GP0 words into the internal queue, then trigger execution.
 void Psyz_GpuWriteGP0(unsigned int word) {
+    gpu_busy = 1;
     if (queue_len >= (int)LEN(queue_buf)) {
         WARNF("GPU queue full");
         return;
