@@ -89,6 +89,9 @@ ZTEST(gs, sort_clear_fills_draw_buffer) {
 // With GsOFSGPU, primitives in screen coordinates land in the current draw
 // buffer: GsDefDispBuff's second buffer starts at (x1, y1).
 ZTEST(gs, draw_offset_follows_buffer) {
+    // the PSP backend draws into its own framebuffer, and StoreImage does
+    // not read freshly drawn primitives back from it
+    zskip_targets("psp");
     u_short red = gs_rgb15(255, 0, 0);
     zexpect_s32_eq(0, gs_frame(0, 0, 0, 1));
     zprintf("buffer 0: the tile is at (8, 8)\n");
