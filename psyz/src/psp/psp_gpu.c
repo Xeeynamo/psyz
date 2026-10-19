@@ -27,6 +27,7 @@
 
 #include <libgpu.h>
 #include "../draw.h"
+#include "../internal.h"
 #include "psp.h"
 
 #define PSX_VRAM_W 1024
