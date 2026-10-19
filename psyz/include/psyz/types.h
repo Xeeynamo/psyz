@@ -49,17 +49,33 @@ typedef struct {
 } PsyzSize;
 
 typedef struct {
-    int x, y, w, h;
+    int sx, sy, ex, ey;
 } PsyzRect;
 
 #ifndef NULL
 #define NULL ((void*)0)
 #endif
 
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && \
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L &&                \
     !defined(_WINSOCK2API_) && !defined(_WINSOCKAPI_)
 _Static_assert(
     sizeof(u_long) == sizeof(void*), "u_long type must be pointer aligned");
 #endif
+
+static inline PsyzRect Psyz_RectFromSize(int x, int y, int w, int h) {
+    return (PsyzRect){x, y, x + w, y + h};
+}
+
+static inline unsigned int Psyz_GetRectWidth(PsyzRect r) {
+    return r.ex > r.sx ? (unsigned int)(r.ex - r.sx) : 0;
+}
+
+static inline unsigned int Psyz_GetRectHeight(PsyzRect r) {
+    return r.ey > r.sy ? (unsigned int)(r.ey - r.sy) : 0;
+}
+
+static inline PsyzRect Psyz_TranslateRect(PsyzRect r, int x, int y) {
+    return (PsyzRect){r.sx + x, r.sy + y, r.ex + x, r.ey + y};
+}
 
 #endif

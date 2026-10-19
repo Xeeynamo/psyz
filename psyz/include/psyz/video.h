@@ -157,10 +157,10 @@ PsyzSize Psyz_VideoGetDisplaySize(void);
  *
  * Only meaningful on fixed-display targets (PSP); ignored on PC.
  * The default rect {0,0,0,0} centers the output according to the aspect
- * mode. A non-empty rect places the output's top-left at (x, y) and scales
- * it to fit w x h, overriding the aspect mode's own sizing. The result is
- * still clipped to the physical screen, so a rect that extends past the
- * edge is cropped.
+ * mode. A non-empty rect places the output's top-left at (sx, sy) and scales
+ * it to fit up to the exclusive end (ex, ey), overriding the aspect mode's
+ * own sizing. The result is still clipped to the physical screen, so a rect
+ * that extends past the edge is cropped.
  *
  * @param rect target area on the display, or {0,0,0,0} to center
  */

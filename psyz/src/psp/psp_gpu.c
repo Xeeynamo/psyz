@@ -226,18 +226,20 @@ static void UpdateOutputMapping(void) {
     }
 
     // placement of the presented output on the physical screen
-    if (draw_area_rect.w > 0 && draw_area_rect.h > 0) {
-        pres_x = draw_area_rect.x;
-        pres_y = draw_area_rect.y;
+    const bool has_draw_area = Psyz_GetRectWidth(draw_area_rect) > 0 &&
+                               Psyz_GetRectHeight(draw_area_rect) > 0;
+    if (has_draw_area) {
+        pres_x = draw_area_rect.sx;
+        pres_y = draw_area_rect.sy;
     } else {
         pres_x = (PSP_SCREEN_W - target_w) / 2; // negative -> crop both sides
         pres_y = (PSP_SCREEN_H - game_h) / 2;   // 240 -> +16; 480 -> -104 crop
     }
     // presented rect clamped to the screen (present scissor and frame capture)
     int rx = pres_x, ry = pres_y, rw = target_w, rh = game_h;
-    if (draw_area_rect.w > 0 && draw_area_rect.h > 0) {
-        rw = draw_area_rect.w;
-        rh = draw_area_rect.h;
+    if (has_draw_area) {
+        rw = Psyz_GetRectWidth(draw_area_rect);
+        rh = Psyz_GetRectHeight(draw_area_rect);
     }
     int x0 = rx < 0 ? 0 : rx;
     int y0 = ry < 0 ? 0 : ry;
