@@ -56,6 +56,20 @@ extern int PadIdentifier;
 #define MODE_PAL 1  /**< PAL video mode */
 
 /**
+ * @brief Address of a word in the scratchpad
+ *
+ * The scratchpad is 1 KiB of fast RAM, at 0x1F800000 on the PlayStation;
+ * psyz keeps it in an ordinary array. `offset` counts 32-bit words.
+ */
+#ifdef __psyz
+extern unsigned char Psyz_Scratchpad[1024];
+#define getScratchAddr(offset)                                                 \
+    ((u_long*)(Psyz_Scratchpad + (offset) * 4))
+#else
+#define getScratchAddr(offset) ((u_long*)(0x1f800000 + (offset) * 4))
+#endif
+
+/**
  * @brief System callbacks structure
  */
 struct Callbacks {
