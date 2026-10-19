@@ -191,7 +191,8 @@ static void GPU_Enqueue(u_long* packets) {
             // fine on both 32-bit and 64-bit compiled code.
             // But primitives are mapped from structs, we need to align the data
             int code = getcode(env) & ~3;
-            if (code >= 0x20 && code < 0x80) {
+            // BLK_FILL (0x02) is a struct too: setBlockFill, GsSortClear
+            if ((code >= 0x20 && code < 0x80) || getcode(env) == 0x02) {
                 // it is a prim, we need to split
                 u32* prim_data = (u32*)env->code;
                 for (u_long i = 0; i < env->len; i++) {
