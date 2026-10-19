@@ -41,6 +41,9 @@ void Psyz_KernelVBlank(void);
 // Services due timers when the host has no thread to run them.
 void Psyz_KernelPoll(void);
 
+// Advances the PSYZ_CLOCK_SPU time source and fires the timers that came due.
+void Psyz_KernelSpuSamples(int frames);
+
 // Latch completion of a native DMA transfer through the kernel IRQ dispatcher.
 void Psyz_KernelDmaComplete(int channel);
 
