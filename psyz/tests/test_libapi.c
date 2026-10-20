@@ -276,12 +276,12 @@ ZTEST(truncation, nextfile_truncates_long_filename) {
     zexpect_u32_eq(19, strlen(d[1].name));
 }
 
-// getScratchAddr() counts 32-bit words, and its memory keeps what is written.
 ZTEST(libetc, scratchpad_words) {
     u_long* base = getScratchAddr(0);
-    *(int*)getScratchAddr(1) = 0x12345678;
-    *(int*)getScratchAddr(255) = -1;
-    zexpect_u32_eq(4, (unsigned int)((char*)getScratchAddr(1) - (char*)base));
-    zexpect_u32_eq(0x12345678, *(unsigned int*)((char*)base + 4));
-    zexpect_s32_eq(-1, *(int*)((char*)base + 1020));
+    *getScratchAddr(1) = 0x12345678;
+    *getScratchAddr(255) = 0x9ABCDEF0;
+    zexpect_ptr_eq(base + 1, getScratchAddr(1));
+    zexpect_ptr_eq(base + 255, getScratchAddr(255));
+    zexpect_u32_eq(0x12345678, base[1]);
+    zexpect_u32_eq(0x9ABCDEF0, base[255]);
 }
