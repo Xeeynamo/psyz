@@ -123,7 +123,7 @@ static int set_disp_horiz = 256;
 static PsyzAspectMode aspect_mode = PSYZ_ASPECT_DISPLAY;
 static WndSize wnd_size_in_pixels = {0, 0};
 static PsyzSize fb_size = {256, 240}; // PS1 display mode
-static PsyzSize res_request = PSYZ_DEFAULT_RESOLUTION;
+static PsyzSize res_request = {0, 0}; // PSYZ_DEFAULT_RESOLUTION
 static PsyzAnchor video_anchor = PSYZ_ANCHOR_CENTER;
 static PsyzSize simulated_display;
 
