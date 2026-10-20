@@ -15,6 +15,7 @@
 #ifdef __linux__
 #include <sys/prctl.h>
 #endif
+#include "../video_layout.h"
 #ifdef PLATFORM_IOS
 #include "../ios/ios_platform.h"
 #endif
@@ -34,6 +35,7 @@
 static bool PlatformBackend_SetDriverVsync(bool enable);
 static void PlatformBackend_Present(void);
 static void QuitPlatform(void);
+bool InitPlatform(void);
 #ifdef PLATFORM_WEB
 void Psyz_WebWaitForNextFrame(void);
 #endif
@@ -118,12 +120,12 @@ static void* GetVramConvertBuffer(size_t size) {
 
 static bool disp_on = false;
 static int set_disp_horiz = 256;
-static int set_disp_vert = 240;
-static int cur_disp_horiz = -1;
-static int cur_disp_vert = -1;
-static bool is_pal = false;
 static PsyzAspectMode aspect_mode = PSYZ_ASPECT_DISPLAY;
 static WndSize wnd_size_in_pixels = {0, 0};
+static PsyzSize fb_size = {256, 240}; // PS1 display mode
+static PsyzSize res_request = PSYZ_DEFAULT_RESOLUTION;
+static PsyzAnchor video_anchor = PSYZ_ANCHOR_CENTER;
+static PsyzSize simulated_display;
 
 static void SetWindowSizeInPixels(int width, int height) {
     if (!sdl3_window) {
@@ -142,9 +144,7 @@ static void SetWindowSizeInPixels(int width, int height) {
 
 static float GetCurrentGameAspectRatio(int disp_w, int disp_h) {
     if (aspect_mode == PSYZ_ASPECT_DISPLAY) {
-        float vref = is_pal ? 288.0f : 240.0f;
-        return (4.0f / 3.0f) * ((float)set_disp_horiz / 256.0f) /
-               ((float)set_disp_vert / vref);
+        return (4.0f / 3.0f) * ((float)set_disp_horiz / 256.0f);
     }
     if (disp_h <= 0) {
         return 4.0f / 3.0f;
@@ -232,17 +232,75 @@ void Psyz_SetTitle(const char* str) {
     }
 }
 
-PsyzSize Psyz_VideoGetDisplaySize(void) {
-    PsyzSize s = {0, 0};
+static PsyzSize Sdl3Common_DisplaySize(void) {
+    PsyzSize s = simulated_display;
+    if (s.w > 0 && s.h > 0) {
+        return s;
+    }
+    s.w = 0;
+    s.h = 0;
     if (sdl3_window) {
         SDL_GetWindowSizeInPixels(sdl3_window, &s.w, &s.h);
     }
     return s;
 }
 
-void Psyz_VideoSetDrawArea(PsyzRect rect) {
-    // not usable on SDL3, consoles only
-    (void)rect;
+// call at the end of InitPlatform, after is_platform_init_successful is set.
+// at the moment is just used to parse the PSYZ_VIDEO_DISPLAY env var.
+static void Sdl3Common_VideoInit(void) {
+    const char* env = SDL_getenv("PSYZ_VIDEO_DISPLAY");
+    int w = 0, h = 0;
+    if (env && SDL_sscanf(env, "%dx%d", &w, &h) == 2 && w > 0 && h > 0) {
+        simulated_display.w = w;
+        simulated_display.h = h;
+    }
+}
+
+PsyzSize Psyz_VideoGetDisplaySize(void) {
+    if (!sdl3_window) {
+        InitPlatform();
+    }
+    return Sdl3Common_DisplaySize();
+}
+
+int Psyz_VideoSimulateDisplay(PsyzSize size) {
+    if (size.w < 0 || size.h < 0 || (size.w == 0) != (size.h == 0)) {
+        return -1;
+    }
+    simulated_display = size;
+    return 0;
+}
+
+int Psyz_VideoSetResolution(PsyzSize size) {
+    const PsyzSize max = {VIDEO_LAYOUT_MAX_REQUEST, VIDEO_LAYOUT_MAX_REQUEST};
+    if (!VideoLayout_IsRequestValid(size, max)) {
+        return -1;
+    }
+    res_request = size;
+    return 0;
+}
+
+int Psyz_VideoSetAnchor(PsyzAnchor anchor) {
+    if (!VideoLayout_IsValidAnchor(anchor)) {
+        return -1;
+    }
+    video_anchor = anchor;
+    return 0;
+}
+
+PsyzAnchor Psyz_VideoGetAnchor(void) { return video_anchor; }
+
+PsyzRect Psyz_VideoGetDrawArea(void) {
+    VideoLayoutIn in = {0};
+    VideoLayout layout;
+    in.display = Psyz_VideoGetDisplaySize();
+    in.fb = fb_size;
+    in.request = res_request;
+    in.anchor = video_anchor;
+    in.aspect = aspect_mode;
+    in.range_w = set_disp_horiz;
+    VideoLayout_Resolve(&in, &layout);
+    return layout.screen;
 }
 
 static double GetElapsedMicroseconds(Uint64 start, Uint64 end) {

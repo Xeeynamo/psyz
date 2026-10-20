@@ -206,11 +206,45 @@ int Psyz_VideoSetDitheringMode(PsyzDitherMode mode) {
 }
 
 int Psyz_VideoSetInternalResolution(unsigned multiplier) {
-    (void)multiplier;
     return multiplier == 1 ? 0 : -1;
 }
 
 unsigned Psyz_VideoGetInternalResolution(void) { return 1; }
+
+int Psyz_VideoSetResolution(PsyzSize size) {
+    return size.w == 0 && size.h == 0 ? 0 : -1;
+}
+
+int Psyz_VideoSetAnchor(PsyzAnchor anchor) {
+    return anchor == PSYZ_ANCHOR_CENTER ? 0 : -1;
+}
+
+PsyzAnchor Psyz_VideoGetAnchor(void) { return PSYZ_ANCHOR_CENTER; }
+
+PsyzRect Psyz_VideoGetDrawArea(void) {
+    DISPENV disp;
+    PsyzRect r = {0, 0, 0, 0};
+    GetDispEnv(&disp);
+    r.ex = disp.disp.w;
+    r.ey = disp.disp.h;
+    return r;
+}
+
+int Psyz_VideoSimulateDisplay(PsyzSize size) {
+    return size.w || size.h ? -1 : 0;
+}
+
+int Psyz_VideoSetAspectMode(PsyzAspectMode mode) {
+    return mode == PSYZ_ASPECT_DISPLAY ? 0 : -1;
+}
+
+PsyzSize Psyz_VideoGetDisplaySize(void) {
+    PsyzRect r = Psyz_VideoGetDrawArea();
+    PsyzSize s;
+    s.w = Psyz_GetRectWidth(r);
+    s.h = Psyz_GetRectHeight(r);
+    return s;
+}
 
 // pre-calculated version of (c5 * 255 + 15) / 31
 static const unsigned char color_5to8[32] = {

@@ -453,7 +453,7 @@ static bool CreateGpuResources(void) {
     return shaders_ok && pipe_clear;
 }
 
-bool InitPlatform() {
+bool InitPlatform(void) {
     if (is_platform_initialized) {
         return is_platform_init_successful;
     }
@@ -508,6 +508,7 @@ bool InitPlatform() {
     Sdl3Common_TimingInit();
 
     is_platform_init_successful = true;
+    Sdl3Common_VideoInit();
     if (overlay_init_cb) {
         overlay_init_cb(sdl3_window, device);
     }
@@ -1048,8 +1049,8 @@ static void UpdateScissor() {
 unsigned Psyz_VideoGetInternalResolution(void) { return internal_res; }
 
 int Psyz_VideoSetInternalResolution(unsigned multiplier) {
-    if (multiplier < 1) {
-        return -1;
+    if (multiplier == PSYZ_INTERNAL_RES_AUTO) {
+        multiplier = 1;
     }
     if (multiplier > PSYZ_INTERNAL_RES_MAX) {
         WARNF("internal resolution %dx exceeds maximum value of %dx",
@@ -1089,10 +1090,6 @@ static void ApplyDisplayPendingChanges() {
         Psyz_IosAttachWindow(sdl3_window);
 #endif
     }
-    if (cur_disp_horiz != set_disp_horiz || cur_disp_vert != set_disp_vert) {
-        cur_disp_horiz = set_disp_horiz;
-        cur_disp_vert = set_disp_vert;
-    }
 }
 
 void Draw_Reset() { NOT_IMPLEMENTED; }
@@ -1120,8 +1117,8 @@ void Draw_DisplayHorizontalRange(unsigned int start, unsigned int end) {
 }
 
 void Draw_DisplayVerticalRange(unsigned int start, int unsigned end) {
-    set_disp_vert = (int)(end - start);
-    ApplyDisplayPendingChanges();
+    (void)start;
+    (void)end;
 }
 
 void Draw_SetDisplayMode(DisplayMode* mode) {
@@ -1132,9 +1129,8 @@ void Draw_SetDisplayMode(DisplayMode* mode) {
     if (mode->reversed) {
         WARNF("reverse mode not supported");
     }
-    is_pal = mode->pal;
-    if (mode->horizontal_resolution_368) {
-        display_size.x = 368;
+    if (mode->horizontal_resolution_384) {
+        display_size.x = 384;
     } else {
         switch (mode->horizontal_resolution) {
         case 0:
@@ -1158,6 +1154,8 @@ void Draw_SetDisplayMode(DisplayMode* mode) {
         previous_size.y != display_size.y) {
         rgb24_dirty = true;
     }
+    fb_size.w = display_size.x;
+    fb_size.h = display_size.y;
     ApplyDisplayPendingChanges();
 
     double new_target_fps = mode->pal ? VSYNC_PAL : VSYNC_NTSC;

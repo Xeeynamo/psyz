@@ -579,7 +579,8 @@ ZTEST(gpu, move_image_internal_res) {
     u_short readback[16 * 16];
     RECT rectStore = {704, 320, 16, 16};
     zskip_targets("psp;ps1");
-    zassert_s32_eq(-1, Psyz_VideoSetInternalResolution(0));
+    zassert_s32_eq(
+        -1, Psyz_VideoSetInternalResolution(PSYZ_INTERNAL_RES_MAX + 1));
     zassert_s32_eq(0, Psyz_VideoSetInternalResolution(2));
     zassert_s32_eq(2, Psyz_VideoGetInternalResolution());
 

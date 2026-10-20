@@ -12,14 +12,23 @@
 extern "C" {
 #endif
 
+/** Psyz_VideoSetResolution: reset draw area to its default behavior */
+#define PSYZ_DEFAULT_RESOLUTION ((PsyzSize){0, 0})
+
+/** Maximum accepted internal resolution multiplier */
+#define PSYZ_INTERNAL_RES_MAX 8
+
+/** Psyz_VideoSetInternalResolution: 1x in PS1 mode, display scale if native */
+#define PSYZ_INTERNAL_RES_AUTO 0
+
+#ifndef __PSP__
 /**
- * @brief Set the title of the game window
- *
- * Can also be set with psyz_title(<target> <str>) on CMakeLists
- *
- * @param str Window title string, truncated past 255 characters
+ * Targets without this capability must:
+ *   - Implement Psyz_VideoSetInternalResolution as no-op
+ *   - Always return 1 for Psyz_VideoGetInternalResolution
  */
-void Psyz_SetTitle(const char* str);
+#define PSYZ_HAS_INTERNAL_RESOLUTION_SCALE
+#endif
 
 typedef enum {
     /**
@@ -85,6 +94,22 @@ typedef struct {
     int using_driver_vsync;          /**< 1 for VSync, 0 for limiter */
 } PsyzVideoStats;
 
+typedef enum {
+    PSYZ_ANCHOR_CENTER = 0,   /**< extra space split evenly (default) */
+    PSYZ_ANCHOR_LEFT = 1,     /**< left edge, centered vertically */
+    PSYZ_ANCHOR_TOP = 2,      /**< top edge, centered horizontally */
+    PSYZ_ANCHOR_TOP_LEFT = 3, /**< top-left corner */
+} PsyzAnchor;
+
+/**
+ * @brief Set the title of the game window
+ *
+ * Can also be set with psyz_title(<target> <str>) on CMakeLists
+ *
+ * @param str Window title string, truncated past 255 characters
+ */
+void Psyz_SetTitle(const char* str);
+
 /**
  * @brief Get the current VSync mode
  *
@@ -138,56 +163,101 @@ PsyzAspectMode Psyz_VideoGetAspectMode(void);
 int Psyz_VideoSetAspectMode(PsyzAspectMode mode);
 
 /**
- * @brief Get the resolution a game should target to render pixel-perfect
+ * @brief Physical display size in pixels
  *
- * Fixed-display targets (PSP, and future NDS/Saturn) return a physical size
- * the ported game can adopt to fully use the screen:
- * - PSYZ_ASPECT_SQUARE: the full physical resolution (PSP: 480x272), 1:1.
- * - PSYZ_ASPECT_DISPLAY: the largest 4:3 area at full height (PSP: 362x272);
- *   adopting it keeps output pixel-perfect while preserving the intended
- *   aspect ratio.
- * PC targets return the current window size in pixels.
+ * - PC: either the window size, or the value set in Psyz_VideoSimulateDisplay
+ * - PSP: always 480x272
  *
  * @return display size in pixels
  */
 PsyzSize Psyz_VideoGetDisplaySize(void);
 
 /**
- * @brief Choose where on the screen the presented output lands
+ * @brief Mock custom display size to emulate a specific console
  *
- * Only meaningful on fixed-display targets (PSP); ignored on PC.
- * The default rect {0,0,0,0} centers the output according to the aspect
- * mode. A non-empty rect places the output's top-left at (sx, sy) and scales
- * it to fit up to the exclusive end (ex, ey), overriding the aspect mode's
- * own sizing. The result is still clipped to the physical screen, so a rect
- * that extends past the edge is cropped.
+ * PC shows the simulated display scaled inside the window. Useful when testing
+ * a game on different resolutions without targeting a specific console.
+ * PSYZ_VIDEO_DISPLAY env var can also be used (e.g. 480x272).
+ * Set size to 0x0 to reset to the default behavior.
  *
- * @param rect target area on the display, or {0,0,0,0} to center
+ * @param size display size in pixels
+ * @return 0 on success, -1 if invalid or not supported
  */
-void Psyz_VideoSetDrawArea(PsyzRect rect);
-
-/** Maximum accepted internal resolution multiplier */
-#define PSYZ_INTERNAL_RES_MAX 8
-
-#ifndef __PSP__
-/**
- * Targets without this capability must:
- *   - Implement Psyz_VideoSetInternalResolution as no-op
- *   - Always return 1 for Psyz_VideoGetInternalResolution
- */
-#define PSYZ_HAS_INTERNAL_RESOLUTION_SCALE
-#endif
+int Psyz_VideoSimulateDisplay(PsyzSize size);
 
 /**
- * @brief Set the internal rendering resolution multiplier (default: 1)
+ * @brief Set a custom output resolution
+ *
+ * Psyz_VideoSetResolution(Psyz_VideoGetDisplaySize()) will effectively match
+ * the game's resolution with the native display. Setting anything higher is
+ * undefined behavior. Setting a resolution smaller than the display will give
+ * black bars around the output image. Setting a size of 0x0 will revert to its
+ * default behavior.
+ *
+ * @return 0 on success, -1 on invalid size or when the target cannot do it
+ */
+int Psyz_VideoSetResolution(PsyzSize size);
+
+/**
+ * @brief Choose where the PS1 framebuffer sits inside the canvas
+ *
+ * @return 0 on success, -1 if invalid
+ */
+int Psyz_VideoSetAnchor(PsyzAnchor anchor);
+
+/** @brief Get the current anchor */
+PsyzAnchor Psyz_VideoGetAnchor(void);
+
+/**
+ * @brief Visible canvas in game coordinates, the framebuffer top-left is 0,0
+ *
+ * This is the function you want to use to adjust your game based on the
+ * display resolution of the targeted window or console. The returned value has
+ * the coordinates of what parts of the game will be rendered in relation of
+ * the chosen anchor. Resolution and aspect ratio are also evaluated.
+
+ * Examples:
+ * - Game resolution 320x240
+ *   Display         480x272
+ *   Resolution set  480x272
+ *   Anchor          Center
+ *   Aspect ratio    Display
+ *   Draw area is:   -80,-16,400,256
+ * - Game resolution 320x240
+ *   Display         480x272
+ *   Resolution set  400x240
+ *   Anchor          TopLeft         <--- top-left anchor allows you to avoid
+ *   Aspect ratio    Display              working on negative coordinates, so
+ *   Draw area is:   0,0,400,240          sx,sy will start from 0.
+ * - Game resolution 256x240
+ *   Display         480x272
+ *   Resolution set  480x240
+ *   Anchor          Center
+ *   Aspect ratio    Display         <--- at 256x240, draw area is 384x240
+ *   Draw area is:   -64,0,320,240        due to the aspect ratio correction.
+ * - Game resolution 256x240
+ *   Display         480x272
+ *   Resolution set  480x240
+ *   Anchor          Center
+ *   Aspect ratio    Square          <--- Square match display resolution, but
+ *   Draw area is:   -112,0,368,240       aspect ratio will look different.
+ */
+PsyzRect Psyz_VideoGetDrawArea(void);
+
+/**
+ * @brief Set the internal rendering resolution multiplier (default: AUTO)
  *
  * Internally multiplies horizontal and vertical resolution, giving 3D
  * geometry more sub-pixel precision (smoother edges, less shimmer).
  * Safe to call at runtime; the change applies on the next presented frame
  * without needing to restart the game.
  *
- * @param multiplier Integer scale factor, between 1 to PSYZ_INTERNAL_RES_MAX
- * @return 0 on success, -1 if multiplier < 1
+ * A target may define PSYZ_HAS_INTERNAL_RESOLUTION_SCALE if the internal
+ * resolution multiplier is supported. This is useful to hide or remove any
+ * scaling functionality from the front-end / UI.
+ *
+ * @param multiplier PSYZ_INTERNAL_RES_AUTO, or 1 to PSYZ_INTERNAL_RES_MAX
+ * @return 0 on success, -1 if multiplier > PSYZ_INTERNAL_RES_MAX
  */
 int Psyz_VideoSetInternalResolution(unsigned multiplier);
 

@@ -28,6 +28,7 @@
 #include <libgpu.h>
 #include "../draw.h"
 #include "../internal.h"
+#include "../video_layout.h"
 #include "psp.h"
 
 #define PSX_VRAM_W 1024
@@ -89,8 +90,6 @@ static int disp_origin_count;
 static int game_w = 256;         // GP1 PS1 register for display mode
 static int game_h = 240;         // GP1 PS1 register for display mode
 static int set_disp_horiz = 256; // Display range for aspect ratio
-static int set_disp_vert = 240;  // Display range for aspect ratio
-static bool is_pal = false; // I don't think we can ever run at 50fps on PSP
 
 // Variables to draw pixel-perfect first, then scale aspect ratio horizontally
 static int out_x, out_y, out_w = PSP_SCREEN_W, out_h = PSP_SCREEN_H;
@@ -101,8 +100,9 @@ static int surface_idx;
 static int target_w;       // presented width after horizontal aspect scale
 static int pres_x, pres_y; // presented top-left; negative = centered crop
 static int map_ofs_x, map_ofs_y; // base vertex pos, passthrough only
-static PsyzRect draw_area_rect;  // {0,0,0,0} = centered (default)
-static int cur_draw_fb;          // which framebuffer the GE draws to (0-2)
+static PsyzSize res_request = PSYZ_DEFAULT_RESOLUTION;
+static PsyzAnchor video_anchor = PSYZ_ANCHOR_CENTER;
+static int cur_draw_fb; // which framebuffer the GE draws to (0-2)
 // framebuffer index of the frame finished but not yet displayed
 static int show_fb = -1;
 static int applied_draw_target = -1; // last EDRAM offset given to the GE list
@@ -200,9 +200,7 @@ static void UpdateOutputMapping(void) {
         target_w = game_w;
     } else {
         // adjust aspect ratio
-        float vref = is_pal ? 288.0f : 240.0f;
-        float aspect = (4.0f / 3.0f) * ((float)set_disp_horiz / 256.0f) /
-                       ((float)set_disp_vert / vref);
+        float aspect = (4.0f / 3.0f) * ((float)set_disp_horiz / 256.0f);
         target_w = (int)(aspect * (float)game_h + 0.5f);
     }
 
@@ -226,21 +224,10 @@ static void UpdateOutputMapping(void) {
     }
 
     // placement of the presented output on the physical screen
-    const bool has_draw_area = Psyz_GetRectWidth(draw_area_rect) > 0 &&
-                               Psyz_GetRectHeight(draw_area_rect) > 0;
-    if (has_draw_area) {
-        pres_x = draw_area_rect.sx;
-        pres_y = draw_area_rect.sy;
-    } else {
-        pres_x = (PSP_SCREEN_W - target_w) / 2; // negative -> crop both sides
-        pres_y = (PSP_SCREEN_H - game_h) / 2;   // 240 -> +16; 480 -> -104 crop
-    }
+    pres_x = (PSP_SCREEN_W - target_w) / 2; // negative -> crop both sides
+    pres_y = (PSP_SCREEN_H - game_h) / 2;   // 240 -> +16; 480 -> -104 crop
     // presented rect clamped to the screen (present scissor and frame capture)
     int rx = pres_x, ry = pres_y, rw = target_w, rh = game_h;
-    if (has_draw_area) {
-        rw = Psyz_GetRectWidth(draw_area_rect);
-        rh = Psyz_GetRectHeight(draw_area_rect);
-    }
     int x0 = rx < 0 ? 0 : rx;
     int y0 = ry < 0 ? 0 : ry;
     int x1 = rx + rw > PSP_SCREEN_W ? PSP_SCREEN_W : rx + rw;
@@ -1029,18 +1016,58 @@ PsyzAspectMode Psyz_VideoGetAspectMode(void) { return aspect_mode; }
 
 PsyzSize Psyz_VideoGetDisplaySize(void) {
     PsyzSize s = {PSP_SCREEN_W, PSP_SCREEN_H};
-    if (aspect_mode == PSYZ_ASPECT_DISPLAY) {
-        // largest 4:3 area at 272 tall
-        // keeps the output pixel-perfect while preserving the aspect ratio
-        s.w = 362;
-    }
     return s;
 }
 
-void Psyz_VideoSetDrawArea(PsyzRect rect) {
-    draw_area_rect = rect;
-    UpdateOutputMapping();
-    UpdateScissor();
+int Psyz_VideoSimulateDisplay(PsyzSize size) {
+    if (size.w == 0 && size.h == 0) {
+        return 0;
+    }
+    return size.w == PSP_SCREEN_W && size.h == PSP_SCREEN_H ? 0 : -1;
+}
+
+int Psyz_VideoSetResolution(PsyzSize size) {
+    const PsyzSize max = {PSP_SCREEN_W, PSP_SCREEN_H};
+    if (!VideoLayout_IsRequestValid(size, max)) {
+        return -1;
+    }
+    res_request = size;
+    return 0;
+}
+
+int Psyz_VideoSetAnchor(PsyzAnchor anchor) {
+    if (!VideoLayout_IsValidAnchor(anchor)) {
+        return -1;
+    }
+    video_anchor = anchor;
+    return 0;
+}
+
+PsyzAnchor Psyz_VideoGetAnchor(void) { return video_anchor; }
+
+PsyzRect Psyz_VideoGetDrawArea(void) {
+    VideoLayoutIn in = {0};
+    VideoLayout layout;
+    in.display.w = PSP_SCREEN_W;
+    in.display.h = PSP_SCREEN_H;
+    in.fb.w = game_w;
+    in.fb.h = game_h;
+    in.request = res_request;
+    in.anchor = video_anchor;
+    in.aspect = aspect_mode;
+    in.range_w = set_disp_horiz;
+    // the canvas has to fit a single texture and two surfaces in EDRAM
+    in.max_canvas.w = 512;
+    in.max_canvas.h = PSP_SCREEN_H;
+    VideoLayout_Resolve(&in, &layout);
+    if (layout.native &&
+        (Psyz_GetRectWidth(layout.present) != (unsigned int)layout.canvas.w ||
+         Psyz_GetRectHeight(layout.present) != (unsigned int)layout.canvas.h)) {
+        in.max_canvas_px =
+            ((int)sceGeEdramGetSize() - EDRAM_SURFACE_OFFSET) / 4;
+        VideoLayout_Resolve(&in, &layout);
+    }
+    return layout.screen;
 }
 
 int Psyz_VideoStats(PsyzVideoStats* stats) {
@@ -1177,9 +1204,8 @@ void Draw_DisplayHorizontalRange(unsigned int start, unsigned int end) {
 }
 
 void Draw_DisplayVerticalRange(unsigned int start, int unsigned end) {
-    set_disp_vert = (int)(end - start);
-    UpdateOutputMapping();
-    UpdateScissor();
+    (void)start;
+    (void)end;
 }
 
 void Draw_SetDisplayMode(DisplayMode* mode) {
@@ -1189,9 +1215,8 @@ void Draw_SetDisplayMode(DisplayMode* mode) {
     if (mode->rgb24) {
         LOG_ONCE("24-bit display mode not supported");
     }
-    is_pal = mode->pal;
-    if (mode->horizontal_resolution_368) {
-        game_w = 368;
+    if (mode->horizontal_resolution_384) {
+        game_w = 384;
     } else {
         switch (mode->horizontal_resolution) {
         case 0:

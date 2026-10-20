@@ -27,7 +27,7 @@ typedef struct {
     unsigned int pal : 1;                       // 0=NTSC/60Hz, 1=PAL/50Hz
     unsigned int rgb24 : 1;                     // 0=15bit, 1=24bit
     unsigned int interlaced : 1;                // 0=Off, 1=On
-    unsigned int horizontal_resolution_368 : 1; // 0=256/320/512/640, 1=368
+    unsigned int horizontal_resolution_384 : 1; // 0=256/320/512/640, 1=384
     unsigned int reversed : 1;                  // 0=Off, 1=On
     unsigned int : 24;
 } DisplayMode;
