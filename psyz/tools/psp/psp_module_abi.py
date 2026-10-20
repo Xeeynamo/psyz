@@ -226,6 +226,7 @@ def cmd_derive_exports(args):
 
     exports_c = run(tool("psp-build-exports"), "-b", exp_path).stdout
     with open(os.path.join(args.out_dir, f"{args.library}_exports.c"), "w") as f:
+        f.write('#pragma GCC diagnostic ignored "-Wbuiltin-declaration-mismatch"\n')
         f.write(exports_c)
     nid_of = nids_from_exports_c(exports_c, args.library)
 

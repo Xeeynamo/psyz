@@ -12,6 +12,13 @@ struct PsyzInternalModule {
 
 #define PSYZ_MODULE_MAX 256
 static struct PsyzInternalModule g_PsyzModules[PSYZ_MODULE_MAX] = {0};
+static SceKernelSMOption g_ThreadOpt = {
+    .size = sizeof(SceKernelSMOption),
+    .mpidstack = 2, // user partition
+    .stacksize = 64 * 1024,
+    .priority = 0x20,
+};
+
 static PsyzModule AllocModule(void) {
     for (int i = 0; i < PSYZ_MODULE_MAX; i++) {
         if (!g_PsyzModules[i].used) {
@@ -45,7 +52,8 @@ PsyzModule Psyz_ModuleOpen(const char* name, void* param) {
 
     void* argp = param;
     int status = 0;
-    int ret = sceKernelStartModule(modId, sizeof(argp), &argp, &status, 0);
+    int ret =
+        sceKernelStartModule(modId, sizeof(argp), &argp, &status, &g_ThreadOpt);
     if (ret < 0) {
         ERRORF("sceKernelStartModule('%s') failed: 0x%08x", path, ret);
         ret = sceKernelUnloadModule(modId); // module stalled
@@ -75,7 +83,7 @@ void Psyz_ModuleClose(PsyzModule descriptor) {
         return;
     }
     int status = 0;
-    int ret = sceKernelStopModule(module->modId, 0, 0, &status, 0);
+    int ret = sceKernelStopModule(module->modId, 0, 0, &status, &g_ThreadOpt);
     if (ret < 0) {
         ERRORF("sceKernelStopModule failed: 0x%08x", ret);
         return;
