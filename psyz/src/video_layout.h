@@ -36,6 +36,7 @@ typedef struct {
 
 typedef struct {
     int native;
+    PsyzSize fb;
     PsyzSize canvas;
     PsyzRect screen;  // canvas in game coordinates, fb top-left at 0,0
     PsyzRect present; // canvas on the display
@@ -125,9 +126,43 @@ static inline void VideoLayout_Resolve(
     }
     ox = in->anchor & PSYZ_ANCHOR_LEFT ? 0 : (c.w - fb.w) >> 1;
     oy = in->anchor & PSYZ_ANCHOR_TOP ? 0 : (c.h - fb.h) >> 1;
+    out->fb = fb;
     out->canvas = c;
     out->screen = Psyz_RectFromSize(-ox, -oy, c.w, c.h);
     out->present = VideoLayout_Present(in->display, area, fit);
+}
+
+// Overrides the typical behaviour of clearing, loading, storing or rendering
+// images inside the typical DRAW ENV the game set. This redirects the RECT
+// surface to the customized resolution set with Psyz_VideoSetResolution.
+static inline PsyzRect VideoLayout_MapArea(
+    const VideoLayout* l, int fb_x, int fb_y, PsyzRect r, int extend) {
+    PsyzRect out = {0, 0, 0, 0};
+    int x0 = r.sx - fb_x, y0 = r.sy - fb_y;
+    int x1 = r.ex - fb_x, y1 = r.ey - fb_y;
+    int cx0 = l->screen.sx, cy0 = l->screen.sy;
+    int cx1 = l->screen.ex, cy1 = l->screen.ey;
+    if (x1 <= 0 || y1 <= 0 || x0 >= l->fb.w || y0 >= l->fb.h) {
+        return out;
+    }
+    if (extend) {
+        x0 = x0 <= 0 ? cx0 : x0;
+        y0 = y0 <= 0 ? cy0 : y0;
+        x1 = x1 >= l->fb.w ? cx1 : x1;
+        y1 = y1 >= l->fb.h ? cy1 : y1;
+    }
+    x0 = MAX(x0, cx0);
+    y0 = MAX(y0, cy0);
+    x1 = MIN(x1, cx1);
+    y1 = MIN(y1, cy1);
+    if (x1 <= x0 || y1 <= y0) {
+        return out;
+    }
+    out.sx = x0 - cx0;
+    out.sy = y0 - cy0;
+    out.ex = x1 - cx0;
+    out.ey = y1 - cy0;
+    return out;
 }
 
 #endif

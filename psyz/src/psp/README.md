@@ -94,11 +94,11 @@ strictly required.
 
 The PS1 supports the different set of resolutions 256x240, 320x240, 384x240, 512x240, and interlaced with 480 of vertical resolution. Meanwhile the PSP supports a fixed resolution of 480x272 (TODO confirm resolution through video out). Therefore modifications are required to take full advantage of the PSP screen.
 
-`PSYZ_ASPECT_DISPLAY` is the default behavior, which scales up or down any resolution to 320x240 using a simple linear interpolation. Linear interpolation is mainly used to avoid 1px wide lines disappearing when scaling down from 384x240. Querying `Psyz_VideoGetDisplaySize()` will return a resolution of 362x272, which must be respected to fill the entire screen while respecting the original aspect ratio.
+`PSYZ_ASPECT_DISPLAY` is the default behavior, which scales up or down any resolution to 320x240 using a simple linear interpolation. Linear interpolation is mainly used to avoid 1px wide lines disappearing when downsampling from 384x240.
 
-`PSYZ_ASPECT_SQUARE` presents pixels 1:1 to the screen, centered on all sides. Aspect ratio of resolutions other than 320x240 will not be corrected, but output will appear crisp and clear. Querying `Psyz_VideoGetDisplaySize()` will return the full 480x272 space.
+`PSYZ_ASPECT_SQUARE` presents pixels 1:1 to the screen, centered on all sides. Aspect ratio of resolutions other than 320x240 will not be corrected, but output will appear crisp and clear.
 
-If the ported game wants to use the full 480x272 screen, the decision of using either `PSYZ_ASPECT_DISPLAY` or `PSYZ_ASPECT_SQUARE` must be made upfront to correctly decide how 2D sprites and HUD must scale. `Psyz_VideoSetDrawArea(rect)` can be used to instruct Psy-Z to which coordinates and size the output will be displayed to. Black bars will automatically be added based on the intended draw area.
+`Psyz_VideoGetDisplaySize()` always returns 480x272. To use the whole screen, render at a native resolution instead, use `Psyz_VideoSetResolution(Psyz_VideoGetDisplaySize())` to give the game the whole 480x272 screen with the PS1 framebuffer placed by the anchor, `PSYZ_ANCHOR_CENTER` by default. If you want to use less than the PSP screen resolutions, set `Psyz_VideoSetResolution` any resolution below 480x272. With `PSYZ_ASPECT_SQUARE`, or a 320 pixel wide mode, the backend renders straight into the PSP framebuffer, widening the drawing area and clears to the canvas edges. With `PSYZ_ASPECT_DISPLAY` and any other mode the game pixels are not square. With a resolution set at 480x272, a 256x240 game gets a 384x272 canvas, rendered into an EDRAM surface and stretched to 480x272 by the present pass. That surface is double-buffered and sampled as one texture, so the canvas is capped at 512 pixels wide and at the free EDRAM (448x272 for the 368 mode, 512x240 for the 512 mode).
 
 ### `StoreImage` and `MoveImage` caveats
 

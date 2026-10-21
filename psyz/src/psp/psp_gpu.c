@@ -33,8 +33,8 @@
 
 #define PSX_VRAM_W 1024
 #define PSX_VRAM_H 512
-#define PSP_SCREEN_W 480
-#define PSP_SCREEN_H 272
+#define PSP_SCREEN_W GU_SCR_WIDTH
+#define PSP_SCREEN_H GU_SCR_HEIGHT
 #define FB_STRIDE 512
 
 #define VRAM_TILE_W 64 // 64 for 16bpp, 128 for 8bpp, 256 for 4bpp
@@ -94,14 +94,18 @@ static int set_disp_horiz = 256; // Display range for aspect ratio
 // Variables to draw pixel-perfect first, then scale aspect ratio horizontally
 static int out_x, out_y, out_w = PSP_SCREEN_W, out_h = PSP_SCREEN_H;
 static bool use_surface;   // false: draw straight to the framebuffer
-static int surface_stride; // (game_w + 7) & ~7
+static int surface_stride; // (surface_w + 7) & ~7
 static int surface_slot_bytes;
 static int surface_idx;
+static int surface_w, surface_h; // the game framebuffer, or the native canvas
 static int target_w;       // presented width after horizontal aspect scale
+static int present_h;      // presented height
 static int pres_x, pres_y; // presented top-left; negative = centered crop
-static int map_ofs_x, map_ofs_y; // base vertex pos, passthrough only
+static int map_ofs_x, map_ofs_y;       // base vertex pos, passthrough only
+static int canvas_ofs_x, canvas_ofs_y; // native canvas origin in the target
 static PsyzSize res_request = PSYZ_DEFAULT_RESOLUTION;
 static PsyzAnchor video_anchor = PSYZ_ANCHOR_CENTER;
+static VideoLayout layout;
 static int cur_draw_fb; // which framebuffer the GE draws to (0-2)
 // framebuffer index of the frame finished but not yet displayed
 static int show_fb = -1;
@@ -196,7 +200,30 @@ static void SetDrawTarget(int edram_offset, int stride) {
 }
 
 static void UpdateOutputMapping(void) {
-    if (aspect_mode == PSYZ_ASPECT_SQUARE) {
+    VideoLayoutIn in = {
+        {GU_SCR_WIDTH, GU_SCR_HEIGHT},
+        {game_w, game_h},
+        res_request,
+        video_anchor,
+        aspect_mode,
+        set_disp_horiz,
+        {GU_VRAM_WIDTH, GU_SCR_HEIGHT},
+        0};
+    VideoLayout_Resolve(&in, &layout);
+    if (layout.native &&
+        (Psyz_GetRectWidth(layout.present) != (unsigned int)layout.canvas.w ||
+         Psyz_GetRectHeight(layout.present) != (unsigned int)layout.canvas.h)) {
+        in.max_canvas_px =
+            ((int)sceGeEdramGetSize() - EDRAM_SURFACE_OFFSET) / 4;
+        VideoLayout_Resolve(&in, &layout);
+    }
+    surface_w = layout.canvas.w;
+    surface_h = layout.canvas.h;
+    present_h = surface_h;
+    if (layout.native) {
+        target_w = Psyz_GetRectWidth(layout.present);
+        present_h = Psyz_GetRectHeight(layout.present);
+    } else if (aspect_mode == PSYZ_ASPECT_SQUARE) {
         target_w = game_w;
     } else {
         // adjust aspect ratio
@@ -206,16 +233,18 @@ static void UpdateOutputMapping(void) {
 
     // renders to a surface in the EDRAM, then re-renders it stretched.
     // bypassed if PSYZ_ASPECT_SQUARE, or if game resolution is 320x240
-    use_surface = target_w != game_w && game_w > 0;
+    use_surface =
+        (target_w != surface_w || present_h != surface_h) && surface_w > 0;
     if (use_surface) {
-        surface_stride = (game_w + 7) & ~7;
-        surface_slot_bytes = surface_stride * game_h * 2;
+        surface_stride = (surface_w + 7) & ~7;
+        surface_slot_bytes = surface_stride * surface_h * 2;
         int budget = (int)sceGeEdramGetSize() - EDRAM_SURFACE_OFFSET;
         // two slots: the surface is double-buffered for the deferred present
         if (surface_slot_bytes * 2 > budget) {
             // defensive: no realistic mode is this large. Present 1:1 instead.
             use_surface = false;
-            target_w = game_w;
+            target_w = surface_w;
+            present_h = surface_h;
             if (!warned_surface_budget) {
                 warned_surface_budget = true;
                 WARNF("surface too large for EDRAM, presenting 1:1");
@@ -224,10 +253,15 @@ static void UpdateOutputMapping(void) {
     }
 
     // placement of the presented output on the physical screen
-    pres_x = (PSP_SCREEN_W - target_w) / 2; // negative -> crop both sides
-    pres_y = (PSP_SCREEN_H - game_h) / 2;   // 240 -> +16; 480 -> -104 crop
+    if (layout.native) {
+        pres_x = layout.present.sx;
+        pres_y = layout.present.sy;
+    } else {
+        pres_x = (PSP_SCREEN_W - target_w) / 2; // negative -> crop both sides
+        pres_y = (PSP_SCREEN_H - game_h) / 2;   // 240 -> +16; 480 -> -104 crop
+    }
     // presented rect clamped to the screen (present scissor and frame capture)
-    int rx = pres_x, ry = pres_y, rw = target_w, rh = game_h;
+    int rx = pres_x, ry = pres_y, rw = target_w, rh = present_h;
     int x0 = rx < 0 ? 0 : rx;
     int y0 = ry < 0 ? 0 : ry;
     int x1 = rx + rw > PSP_SCREEN_W ? PSP_SCREEN_W : rx + rw;
@@ -236,8 +270,10 @@ static void UpdateOutputMapping(void) {
     out_y = y0;
     out_w = x1 > x0 ? x1 - x0 : 0;
     out_h = y1 > y0 ? y1 - y0 : 0;
-    map_ofs_x = use_surface ? 0 : pres_x;
-    map_ofs_y = use_surface ? 0 : pres_y;
+    canvas_ofs_x = use_surface ? 0 : pres_x;
+    canvas_ofs_y = use_surface ? 0 : pres_y;
+    map_ofs_x = canvas_ofs_x - layout.screen.sx;
+    map_ofs_y = canvas_ofs_y - layout.screen.sy;
 
     // flush if display mode changes mid-frame
     if (is_init) {
@@ -320,7 +356,7 @@ static void FlushBatch(void) {
 
 static void ScissorFull(void) {
     if (use_surface) {
-        sceGuScissor(0, 0, surface_stride, game_h);
+        sceGuScissor(0, 0, surface_stride, surface_h);
     } else {
         sceGuScissor(0, 0, PSP_SCREEN_W, PSP_SCREEN_H);
     }
@@ -336,11 +372,21 @@ static void UpdateScissor(void) {
     int y0 = map_ofs_y + draw_area_start.y - fb_origin.y;
     int x1 = map_ofs_x + draw_area_end.x + 1 - fb_origin.x;
     int y1 = map_ofs_y + draw_area_end.y + 1 - fb_origin.y;
+    if (layout.native) {
+        const PsyzRect area = {draw_area_start.x, draw_area_start.y,
+                               draw_area_end.x + 1, draw_area_end.y + 1};
+        PsyzRect c =
+            VideoLayout_MapArea(&layout, fb_origin.x, fb_origin.y, area, 1);
+        x0 = canvas_ofs_x + c.sx;
+        y0 = canvas_ofs_y + c.sy;
+        x1 = canvas_ofs_x + c.ex;
+        y1 = canvas_ofs_y + c.ey;
+    }
     // clamp to the render target: the surface (0..game) or the presented rect
     int lo_x = use_surface ? 0 : out_x;
     int lo_y = use_surface ? 0 : out_y;
-    int hi_x = use_surface ? game_w : out_x + out_w;
-    int hi_y = use_surface ? game_h : out_y + out_h;
+    int hi_x = use_surface ? surface_w : out_x + out_w;
+    int hi_y = use_surface ? surface_h : out_y + out_h;
     if (x0 < lo_x) {
         x0 = lo_x;
     }
@@ -746,7 +792,7 @@ static void StartFrame(void) {
     sceGuDisable(GU_ALPHA_TEST);
     if (use_surface) {
         SetDrawTarget(EdramSurfaceOffset(surface_idx), surface_stride);
-        ClearTargetBlack(surface_stride, game_h);
+        ClearTargetBlack(surface_stride, surface_h);
     } else {
         SetDrawTarget(FbOffset(cur_draw_fb), FB_STRIDE);
         ClearTargetBlack(PSP_SCREEN_W, PSP_SCREEN_H);
@@ -774,7 +820,7 @@ static void PresentSurface(void) {
     sceGuDisable(GU_ALPHA_TEST);
     sceGuEnable(GU_TEXTURE_2D);
     sceGuTexMode(GU_PSM_5551, 0, 0, 0);
-    sceGuTexImage(0, Pow2Ceil(game_w), Pow2Ceil(game_h), surface_stride,
+    sceGuTexImage(0, Pow2Ceil(surface_w), Pow2Ceil(surface_h), surface_stride,
                   EdramSurface(surface_idx));
     BVert* out = GuGetMemoryDirect(2 * sizeof(BVert));
     out[0].u = 0;
@@ -783,11 +829,11 @@ static void PresentSurface(void) {
     out[0].x = (short)pres_x;
     out[0].y = (short)pres_y;
     out[0].z = 0;
-    out[1].u = (short)game_w;
-    out[1].v = (short)game_h;
+    out[1].u = (short)surface_w;
+    out[1].v = (short)surface_h;
     out[1].c = COL5551_MOD1X;
     out[1].x = (short)(pres_x + target_w);
-    out[1].y = (short)(pres_y + game_h);
+    out[1].y = (short)(pres_y + present_h);
     out[1].z = 0;
     GuDrawArrayDirect(
         GU_SPRITES,
@@ -1032,6 +1078,8 @@ int Psyz_VideoSetResolution(PsyzSize size) {
         return -1;
     }
     res_request = size;
+    UpdateOutputMapping();
+    UpdateScissor();
     return 0;
 }
 
@@ -1040,32 +1088,16 @@ int Psyz_VideoSetAnchor(PsyzAnchor anchor) {
         return -1;
     }
     video_anchor = anchor;
+    UpdateOutputMapping();
+    UpdateScissor();
     return 0;
 }
 
 PsyzAnchor Psyz_VideoGetAnchor(void) { return video_anchor; }
 
 PsyzRect Psyz_VideoGetDrawArea(void) {
-    VideoLayoutIn in = {0};
-    VideoLayout layout;
-    in.display.w = PSP_SCREEN_W;
-    in.display.h = PSP_SCREEN_H;
-    in.fb.w = game_w;
-    in.fb.h = game_h;
-    in.request = res_request;
-    in.anchor = video_anchor;
-    in.aspect = aspect_mode;
-    in.range_w = set_disp_horiz;
-    // the canvas has to fit a single texture and two surfaces in EDRAM
-    in.max_canvas.w = 512;
-    in.max_canvas.h = PSP_SCREEN_H;
-    VideoLayout_Resolve(&in, &layout);
-    if (layout.native &&
-        (Psyz_GetRectWidth(layout.present) != (unsigned int)layout.canvas.w ||
-         Psyz_GetRectHeight(layout.present) != (unsigned int)layout.canvas.h)) {
-        in.max_canvas_px =
-            ((int)sceGeEdramGetSize() - EDRAM_SURFACE_OFFSET) / 4;
-        VideoLayout_Resolve(&in, &layout);
+    if (!layout.fb.w) {
+        UpdateOutputMapping();
     }
     return layout.screen;
 }
@@ -1417,7 +1449,35 @@ static void StoreImageGe(int x, int y, int w, int h, u16* dst, int dst_stride) {
     }
 }
 
+static void LoadImageVram(
+    int x, int y, int w, int h, const u16* src, int stride) {
+    int pad_stride = (w + 7) & ~7;
+    u16* stage;
+    if (IsAligned(src, stride)) {
+        // data and width are aligned, best case scenario
+        LoadImageGe(x, y, w, h, src, stride);
+    } else if (
+        pad_stride <= XFER_STRIDE && (stage = StageAlloc(h * pad_stride))) {
+        // repack on the CPU, then let the GE do the transfer
+        for (int i = 0; i < h; i++) {
+            memcpy_vfpu(stage + (size_t)i * pad_stride,
+                        src + (size_t)i * stride, w * sizeof(u16));
+        }
+        LoadImageGe(x, y, w, h, stage, pad_stride);
+    } else {
+        // worst scenario, the rect is too big to stage, perform CPU copy
+        GeSyncCaughtUp();
+        for (int i = 0; i < h; i++) {
+            VramLineWrite(x, y + i, src, w);
+            src += stride;
+        }
+    }
+    InvalidateVram(x, y, w, h);
+}
+
 static void EmitVramRegionQuad(int x, int y, int w, int h);
+static void EmitRamImage(const RECT* rect, const u16* src);
+static void SyncFbToTiles(int x, int y, int w, int h);
 void Draw_LoadImage(RECT* rect, u_long* p) {
     int x, y, w, h;
     if (rect->w == 0 || rect->h == 0) {
@@ -1426,30 +1486,34 @@ void Draw_LoadImage(RECT* rect, u_long* p) {
     if (!is_init && !InitPlatform()) {
         return;
     }
-    ClampRect(rect, &x, &y, &w, &h);
-    const u16* src = (const u16*)p;
-    int pad_stride = (rect->w + 7) & ~7;
-    u16* stage;
-    if (IsAligned(src, rect->w)) {
-        // data and width are aligned, best case scenario
-        LoadImageGe(x, y, w, h, src, rect->w);
-    } else if (
-        pad_stride <= XFER_STRIDE && (stage = StageAlloc(h * pad_stride))) {
-        // repack on the CPU, then let the GE do the transfer
-        for (int i = 0; i < h; i++) {
-            memcpy_vfpu(stage + (size_t)i * pad_stride,
-                        src + (size_t)i * rect->w, w * sizeof(u16));
+    if (layout.native && display_enabled) {
+        // Verifies if the RECT overlaps with the framebuffer past its edges,
+        // so we can capture it and re-direct it to the extended draw area.
+        const u16* src = (const u16*)p;
+        int x0 = rect->x > fb_origin.x ? rect->x : fb_origin.x;
+        int y0 = rect->y > fb_origin.y ? rect->y : fb_origin.y;
+        int x1 = fb_origin.x + game_w < PSX_VRAM_W ? fb_origin.x + game_w
+                                                   : PSX_VRAM_W;
+        int y1 = fb_origin.y + game_h < PSX_VRAM_H ? fb_origin.y + game_h
+                                                   : PSX_VRAM_H;
+        if (rect->x + rect->w < x1) {
+            x1 = rect->x + rect->w;
         }
-        LoadImageGe(x, y, w, h, stage, pad_stride);
-    } else {
-        // worst scenario, the rect is too big to stage, perform CPU copy
-        GeSyncCaughtUp();
-        for (int i = 0; i < h; i++) {
-            VramLineWrite(x, y + i, src, w);
-            src += rect->w;
+        if (rect->y + rect->h < y1) {
+            y1 = rect->y + rect->h;
+        }
+        if (x0 < x1 && y0 < y1 &&
+            (x0 != rect->x || y0 != rect->y || x1 != rect->x + rect->w ||
+             y1 != rect->y + rect->h)) {
+            LoadImageVram(
+                x0, y0, x1 - x0, y1 - y0,
+                src + (y0 - rect->y) * rect->w + (x0 - rect->x), rect->w);
+            EmitRamImage(rect, src);
+            return;
         }
     }
-    InvalidateVram(x, y, w, h);
+    ClampRect(rect, &x, &y, &w, &h);
+    LoadImageVram(x, y, w, h, (const u16*)p, rect->w);
     EmitVramRegionQuad(x, y, w, h);
 }
 
@@ -1465,6 +1529,9 @@ void Draw_StoreImage(RECT* rect, u_long* p) {
         Draw_ExequeSync();
     }
     ClampRect(rect, &x, &y, &w, &h);
+    if (layout.native) {
+        SyncFbToTiles(x, y, w, h);
+    }
     u16* dst = (u16*)p;
     int pad_stride = (rect->w + 7) & ~7;
     u16* stage = NULL;
@@ -2119,7 +2186,11 @@ static void EmitVramRegionQuad(int x, int y, int w, int h) {
     sceGuDisable(GU_ALPHA_TEST); // disabled, so all pixels will land clean
     cur_textured = -1; // force the next primitive to re-apply its state
     tex_memo_valid = false;
-    ScissorFull();
+    if (layout.native && !use_surface) {
+        sceGuScissor(out_x, out_y, out_w, out_h);
+    } else {
+        ScissorFull();
+    }
     for (int py = y0; py < y1;) {
         // tile rows start at y 0/256 and are 256 tall
         int tile_y = py & ~0xFF;
@@ -2159,6 +2230,84 @@ static void EmitVramRegionQuad(int x, int y, int w, int h) {
         }
         py += span_y;
     }
+    UpdateScissor();
+}
+
+// a texture can only be sampled from RAM when aligned, else the CPU writes it
+static void EmitRamImageSlow(const RECT* rect, const u16* src) {
+    u8* base = use_surface ? (u8*)EdramSurface(surface_idx)
+                           : edram_base + FbOffset(cur_draw_fb);
+    int stride = use_surface ? surface_stride : FB_STRIDE;
+    int lo_x = use_surface ? 0 : out_x;
+    int lo_y = use_surface ? 0 : out_y;
+    int hi_x = use_surface ? surface_w : out_x + out_w;
+    int hi_y = use_surface ? surface_h : out_y + out_h;
+    int cx = rect->x - fb_origin.x + map_ofs_x;
+    int cy = rect->y - fb_origin.y + map_ofs_y;
+    int x0 = cx > lo_x ? cx : lo_x;
+    int x1 = cx + rect->w < hi_x ? cx + rect->w : hi_x;
+    if (x0 >= x1) {
+        return;
+    }
+    GeSyncCaughtUp();
+    for (int row = 0; row < rect->h; row++) {
+        if (cy + row < lo_y || cy + row >= hi_y) {
+            continue;
+        }
+        u16* dst = (u16*)UNCACHED(base) + (cy + row) * stride;
+        memcpy(
+            dst + x0, src + row * rect->w + (x0 - cx), (x1 - x0) * sizeof(u16));
+    }
+}
+
+// Draws an image from RAM onto the canvas, where it sits from the framebuffer
+static void EmitRamImage(const RECT* rect, const u16* src) {
+    FlushPendingClear();
+    if (!IsAligned(src, rect->w) || rect->h > 512) {
+        EmitRamImageSlow(rect, src);
+        return;
+    }
+    FlushBatch();
+    psp_dcache_writeback(src, (size_t)rect->w * rect->h * sizeof(u16));
+    ApplyBlend(false, 0);
+    ApplyDither(false);
+    sceGuEnable(GU_TEXTURE_2D);
+    sceGuDisable(GU_ALPHA_TEST);
+    cur_textured = -1;
+    tex_memo_valid = false;
+    if (use_surface) {
+        ScissorFull();
+    } else {
+        sceGuScissor(out_x, out_y, out_w, out_h);
+    }
+    sceGuTexMode(GU_PSM_5551, 0, 0, 0);
+    int x = rect->x - fb_origin.x + map_ofs_x;
+    int y = rect->y - fb_origin.y + map_ofs_y;
+    int tex_h = Pow2Ceil(rect->h);
+    // 64 texel wide strips keep the GE texture cache efficient
+    for (int sx = 0; sx < rect->w && ListBudget(); sx += 64) {
+        int sw = rect->w - sx < 64 ? rect->w - sx : 64;
+        sceGuTexImage(0, 64, tex_h, rect->w, src + sx);
+        BVert* out = GuGetMemoryDirect(2 * sizeof(BVert));
+        out[0].u = 0;
+        out[0].v = 0;
+        out[0].c = COL5551_MOD1X;
+        out[0].x = (short)(x + sx);
+        out[0].y = (short)y;
+        out[0].z = 0;
+        out[1].u = (short)sw;
+        out[1].v = (short)rect->h;
+        out[1].c = COL5551_MOD1X;
+        out[1].x = (short)(x + sx + sw);
+        out[1].y = (short)(y + rect->h);
+        out[1].z = 0;
+        GuDrawArrayDirect(GU_SPRITES,
+                          GU_TEXTURE_16BIT | GU_COLOR_5551 | GU_VERTEX_16BIT |
+                              GU_TRANSFORM_2D,
+                          2, out);
+    }
+    bound_tex = NULL;
+    bound_tex_psm = -1;
     UpdateScissor();
 }
 
@@ -2211,6 +2360,15 @@ static void EmitClearQuad(int x, int y, int w, int h, u8 r, u8 g, u8 b) {
     int y0 = y > fb_origin.y ? y : fb_origin.y;
     int x1 = x + w < fb_origin.x + game_w ? x + w : fb_origin.x + game_w;
     int y1 = y + h < fb_origin.y + game_h ? y + h : fb_origin.y + game_h;
+    if (layout.native) {
+        const PsyzRect rect = Psyz_RectFromSize(x, y, w, h);
+        PsyzRect c =
+            VideoLayout_MapArea(&layout, fb_origin.x, fb_origin.y, rect, 1);
+        x0 = fb_origin.x - map_ofs_x + canvas_ofs_x + c.sx;
+        y0 = fb_origin.y - map_ofs_y + canvas_ofs_y + c.sy;
+        x1 = fb_origin.x - map_ofs_x + canvas_ofs_x + c.ex;
+        y1 = fb_origin.y - map_ofs_y + canvas_ofs_y + c.ey;
+    }
     if (x0 >= x1 || y0 >= y1) {
         return;
     }
