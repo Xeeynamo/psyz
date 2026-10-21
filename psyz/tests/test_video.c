@@ -220,7 +220,7 @@ ZTEST(video, display_policy_caps_canvas_size) {
     SetFramebuffer(640, 480, 0, 0);
     Psyz_VideoSimulateDisplay(DISPLAY_SWITCH);
     Psyz_VideoSetResolution(Psyz_VideoGetDisplaySize());
-    zexpect_rect_eq(Psyz_VideoGetDrawArea(), -192, -120, 832, 600);
+    zexpect_rect_eq(Psyz_VideoGetDrawArea(), -192, -16, 832, 496);
 }
 
 ZTEST(video, anchors_move_the_framebuffer) {
@@ -536,6 +536,20 @@ ZTEST(native, smaller_canvas_keeps_its_corners) {
     zimage_free(&img);
 }
 
+ZTEST(native, canvas_follows_resolution_change) {
+    zassert_s32_eq(0, Psyz_VideoSetResolution((PsyzSize){480, 272}));
+    AddScreenCorners(&db[0]);
+    PresentDrawBuffer(&db[0]);
+    ASSERT_FRAME("native_resolution_change_480x272");
+
+    zassert_s32_eq(0, Psyz_VideoSetResolution((PsyzSize){400, 240}));
+    ClearOTag(db[0].ot, OT_LEN);
+    db[0].count = 0;
+    AddScreenCorners(&db[0]);
+    PresentDrawBuffer(&db[0]);
+    ASSERT_FRAME("native_resolution_change_400x240");
+}
+
 ZTEST(native, split_clip_keeps_inner_edge) {
     DRAWENV top;
     PsyzRect s;
@@ -599,6 +613,70 @@ ZTEST(native, load_image_overhang) {
     VSync(0);
     PutDispEnv(&db[0].disp);
     ASSERT_FRAME("native_load_image_overhang");
+}
+
+ZTEST(native, load_image_overhang_keeps_vram_outside_framebuffer) {
+    static u_short pattern[480 * 272];
+    static u_short px[4 * 4];
+    RECT dst = {-80, -16, 480, 272};
+    RECT right = {330, 100, 4, 4};
+    RECT below = {100, 250, 4, 4};
+    for (int i = 0; i < 480 * 272; i++) {
+        pattern[i] = 0x7FFF;
+    }
+    zassert_s32_eq(0, Psyz_VideoSetResolution((PsyzSize){480, 272}));
+    PutDrawEnv(&db[0].draw);
+    LoadImage(&dst, (u_long*)pattern);
+    DrawSync(0);
+    StoreImage(&right, (u_long*)px);
+    DrawSync(0);
+    zexpect_s32_eq(0, px[0]);
+    StoreImage(&below, (u_long*)px);
+    DrawSync(0);
+    zexpect_s32_eq(0, px[15]);
+}
+
+static void AddTextureSprite(Db* b) {
+    SetSprt(&b->sprt);
+    setXY0(&b->sprt, 100, 100);
+    setWH(&b->sprt, 16, 16);
+    setUV0(&b->sprt, 16, 0);
+    setRGB0(&b->sprt, 128, 128, 128);
+    addPrim(b->ot, &b->sprt);
+    SetDrawMode(&b->mode, 0, 0, getTPage(2, 0, 384, 0), NULL);
+    addPrim(b->ot, &b->mode);
+}
+
+ZTEST(native, load_image_overhang_keeps_textures_at_2x) {
+    zskip_targets("psp;ps1"); // don't support Internal Resolution multiplier
+    static u_short pattern[480 * 272];
+    static u_short texture[16 * 16];
+    RECT dst = {-80, -16, 480, 272};
+    RECT texture_rect = {400, 0, 16, 16};
+    Db* b = &db[0];
+    zimage img;
+    for (int i = 0; i < 480 * 272; i++) {
+        pattern[i] = 0x03E0; // GREEN
+    }
+    for (int i = 0; i < 16 * 16; i++) {
+        texture[i] = 0x001F; // RED
+    }
+    zassert_s32_eq(0, Psyz_VideoSetResolution((PsyzSize){480, 272}));
+    zassert_s32_eq(0, Psyz_VideoSetInternalResolution(2));
+    LoadImage(&texture_rect, (u_long*)texture);
+    AddTextureSprite(b);
+    PutDrawEnv(&b->draw);
+    DrawOTag(b->ot);
+    DrawSync(0);
+    LoadImage(&dst, (u_long*)pattern);
+    DrawSync(0);
+    ClearOTag(b->ot, OT_LEN);
+    AddTextureSprite(b);
+    DrawOTag(b->ot);
+    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&b->disp);
+    ASSERT_FRAME("load_image_overhang_keeps_textures_at_2x");
 }
 
 ZTEST(native, store_image_reads_canvas) {

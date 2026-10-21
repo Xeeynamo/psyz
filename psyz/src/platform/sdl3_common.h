@@ -3,6 +3,7 @@
 #define SDL3_COMMON_H
 
 #include <SDL3/SDL.h>
+#include <limits.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -290,17 +291,172 @@ int Psyz_VideoSetAnchor(PsyzAnchor anchor) {
 
 PsyzAnchor Psyz_VideoGetAnchor(void) { return video_anchor; }
 
-PsyzRect Psyz_VideoGetDrawArea(void) {
+static VideoLayout ResolveVideoLayout(void) {
     VideoLayoutIn in = {0};
     VideoLayout layout;
-    in.display = Psyz_VideoGetDisplaySize();
+    in.display = Sdl3Common_DisplaySize();
     in.fb = fb_size;
     in.request = res_request;
     in.anchor = video_anchor;
     in.aspect = aspect_mode;
     in.range_w = set_disp_horiz;
+    in.max_canvas.w = VRAM_W;
+    in.max_canvas.h = VRAM_H;
     VideoLayout_Resolve(&in, &layout);
-    return layout.screen;
+    return layout;
+}
+
+PsyzRect Psyz_VideoGetDrawArea(void) {
+    Psyz_VideoGetDisplaySize();
+    return ResolveVideoLayout().screen;
+}
+
+// In native mode each framebuffer gets a canvas: primitives drawn inside a
+// framebuffer land on its canvas and get copied back to VRAM before reads.
+// This avoids the need of expanding the emulated PS1 VRAM.
+#define FB_COUNT 2
+#define CANVAS_DISCARDED INT_MIN
+typedef struct {
+    int x, y;
+} FbOrigin;
+static FbOrigin fb_origins[FB_COUNT];
+static int fb_origin_count;
+static int fb_last_index;
+static SDL_Rect canvas_dirty[FB_COUNT]; // VRAM rect not copied back yet
+static FbOrigin canvas_shift[FB_COUNT]; // VRAM to canvas shift of the content
+static bool internal_res_auto;
+
+static int FindFbByOrigin(int x, int y) {
+    for (int i = 0; i < fb_origin_count; i++) {
+        if (fb_origins[i].x == x && fb_origins[i].y == y) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static SDL_Rect GetFbRect(int fb_index) {
+    return (SDL_Rect){fb_origins[fb_index].x, fb_origins[fb_index].y, fb_size.w,
+                      fb_size.h};
+}
+
+static void DiscardCanvas(int fb_index) {
+    canvas_dirty[fb_index] = (SDL_Rect){0, 0, 0, 0};
+    canvas_shift[fb_index].x = CANVAS_DISCARDED;
+}
+
+static int AddFbOrigin(int x, int y, bool* replaced) {
+    int fb_index = FindFbByOrigin(x, y);
+    *replaced = fb_index < 0;
+    if (fb_index < 0) {
+        fb_index =
+            fb_origin_count < FB_COUNT ? fb_origin_count++ : fb_last_index ^ 1;
+        fb_origins[fb_index].x = x;
+        fb_origins[fb_index].y = y;
+    }
+    fb_last_index = fb_index;
+    return fb_index;
+}
+
+static int FindFbContaining(int x, int y) {
+    bool replaced;
+    if (fb_origin_count == 0) {
+        int fb_index = AddFbOrigin(x, y, &replaced);
+        DiscardCanvas(fb_index);
+        return fb_index;
+    }
+    for (int i = 0; i < fb_origin_count; i++) {
+        if (x >= fb_origins[i].x && x < fb_origins[i].x + fb_size.w &&
+            y >= fb_origins[i].y && y < fb_origins[i].y + fb_size.h) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static FbOrigin GetCanvasShift(const VideoLayout* l, int fb_index) {
+    return (FbOrigin){-fb_origins[fb_index].x - l->screen.sx,
+                      -fb_origins[fb_index].y - l->screen.sy};
+}
+
+static bool IsCanvasLayoutCurrent(const VideoLayout* l, int fb_index) {
+    FbOrigin shift = GetCanvasShift(l, fb_index);
+    return canvas_shift[fb_index].x == shift.x &&
+           canvas_shift[fb_index].y == shift.y;
+}
+
+// maps a VRAM rect to canvas pixels, edges touching the framebuffer extend
+static SDL_Rect MapVramToCanvas(
+    const VideoLayout* l, int fb_index, SDL_Rect vram, int extend) {
+    PsyzRect r = VideoLayout_MapArea(
+        l, fb_origins[fb_index].x, fb_origins[fb_index].y,
+        Psyz_RectFromSize(vram.x, vram.y, vram.w, vram.h), extend);
+    return (SDL_Rect){r.sx, r.sy, r.ex - r.sx, r.ey - r.sy};
+}
+
+static void InvalidateCanvas(
+    const VideoLayout* l, int fb_index, SDL_Rect vram) {
+    FbOrigin shift = GetCanvasShift(l, fb_index);
+    SDL_Rect fb = GetFbRect(fb_index);
+    SDL_Rect canvas = {-shift.x, -shift.y, l->canvas.w, l->canvas.h};
+    if (!SDL_GetRectIntersection(&vram, &fb, &vram) ||
+        !SDL_GetRectIntersection(&vram, &canvas, &vram)) {
+        return;
+    }
+    SDL_GetRectUnion(&canvas_dirty[fb_index], &vram, &canvas_dirty[fb_index]);
+    canvas_shift[fb_index] = shift;
+}
+
+static SDL_Rect GetCanvasPresentRect(
+    const VideoLayout* l, int win_w, int win_h) {
+    PsyzSize sim = simulated_display;
+    PsyzRect p = l->present;
+    if (sim.w > 0 && sim.h > 0) {
+        PsyzRect fit = VideoLayout_Present((PsyzSize){win_w, win_h}, sim, sim);
+        int fw = (int)Psyz_GetRectWidth(fit), fh = (int)Psyz_GetRectHeight(fit);
+        p = (PsyzRect){fit.sx + p.sx * fw / sim.w, fit.sy + p.sy * fh / sim.h,
+                       fit.sx + p.ex * fw / sim.w, fit.sy + p.ey * fh / sim.h};
+    }
+    return (SDL_Rect){p.sx, p.sy, p.ex - p.sx, p.ey - p.sy};
+}
+
+static unsigned GetAutoInternalRes(const VideoLayout* l) {
+    int n;
+    if (!l->native) {
+        return 1;
+    }
+    n = MIN((int)Psyz_GetRectWidth(l->present) / l->canvas.w,
+            (int)Psyz_GetRectHeight(l->present) / l->canvas.h);
+    return (unsigned)CLAMP(n, 1, PSYZ_INTERNAL_RES_MAX);
+}
+
+static bool OverlapsDirtyCanvas(SDL_Rect r, SDL_Rect pending) {
+    if (SDL_HasRectIntersection(&r, &pending)) {
+        return true;
+    }
+    for (int i = 0; i < fb_origin_count; i++) {
+        if (SDL_HasRectIntersection(&r, &canvas_dirty[i])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool PrimSamplesDirtyFb(
+    const u_long* p, int len, bool is_poly, bool is_gouraud, u16 cur_tpage,
+    SDL_Rect pending) {
+    const int tpage_word = is_gouraud ? 5 : 4;
+    if (len <= (is_poly ? tpage_word : 2)) {
+        return false;
+    }
+    u16 clut = (u16)(p[2] >> 16);
+    u16 tpage = is_poly ? (u16)(p[tpage_word] >> 16) : cur_tpage;
+    int bpp = MIN((tpage >> 7) & 3, 2);
+    SDL_Rect page = {(tpage & 15) * 64, ((tpage >> 4) & 1) * 256, 64 << bpp,
+                     256};
+    SDL_Rect pal = {(clut & 63) * 16, (clut >> 6) & 511, bpp ? 256 : 16, 1};
+    return OverlapsDirtyCanvas(page, pending) ||
+           (bpp < 2 && OverlapsDirtyCanvas(pal, pending));
 }
 
 static double GetElapsedMicroseconds(Uint64 start, Uint64 end) {
