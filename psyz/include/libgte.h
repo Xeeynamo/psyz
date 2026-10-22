@@ -617,6 +617,15 @@ void NormalColorCol(SVECTOR* v0, CVECTOR* v1, CVECTOR* v2);
 void NormalColorDpq(SVECTOR* v0, CVECTOR* v1, long p, CVECTOR* v2);
 
 /**
+ * @brief Interpolate a primary color vector and far color.
+ *
+ * @param v0 Pointer to color vector (input)
+ * @param p Interpolation value (input)
+ * @param v1 Pointer to color vector (output)
+ */
+void DpqColor(CVECTOR* v0, long p, CVECTOR* v1);
+
+/**
  * @brief Normal color calculation (3 vertices)
  *
  * Calculates colors for 3 vertices based on normal vectors and light sources.
@@ -649,15 +658,31 @@ void NormalColor3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, CVECTOR* v3,
 long NormalClip(long sxy0, long sxy1, long sxy2);
 
 /**
- * @brief Apply matrix to vector
+ * @brief Multiply a vector by a matrix
  *
- * Applies a matrix transformation to a vector.
+ * Multiplies matrix m by the short vector v0 beginning with the rightmost end.
+ * The vector is in effect rotated and then translated. The result is saved in
+ * the vector v1. The function destroys the constant rotation matrix.
  *
- * @param m Pointer to matrix
- * @param v0 Pointer to input vector
- * @param v1 Pointer to output vector
+ * @param m Pointer to matrix to be multiplied (input)
+ * @param v0 Pointer to short vector (input)
+ * @param v1 Pointer to vector (output)
  */
 void ApplyMatrix(MATRIX* m, SVECTOR* v0, VECTOR* v1);
+
+/**
+ * @brief Multiply a vector by a matrix.
+ *
+ * Multiplies matrix m by vector v0 beginning from the rightmost end.
+ * The result is saved in vector v1. It is a 16 x 32 bit multiplier which uses
+ * the GTE. It destroys the constant rotation matrix.
+ *
+ * @param m Pointer to matrix to be multiplied (input)
+ * @param v0 Pointer to vector (input)
+ * @param v1 Pointer to vector (output
+ * @return Returns v1
+ */
+VECTOR* ApplyMatrixLV(MATRIX* m, VECTOR* v0, VECTOR* v1);
 
 /**
  * @brief Apply rotation matrix
@@ -2147,12 +2172,11 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
         : "$12", "$13", "$14")
 
 #define gte_ldopv2(r0)                                                         \
-    __asm__ volatile(                                                          \
-        "lwc2	$11, 8( %0 );"                                                   \
-        "lwc2	$9, 0( %0 );"                                                    \
-        "lwc2	$10, 4( %0 )"                                                    \
-        :                                                                      \
-        : "r"(r0))
+    __asm__ volatile("lwc2	$11, 8( %0 );"                                      \
+                     "lwc2	$9, 0( %0 );"                                       \
+                     "lwc2	$10, 4( %0 )"                                       \
+                     :                                                         \
+                     : "r"(r0))
 
 #define gte_op12()                                                             \
     __asm__ volatile("nop;"                                                    \
@@ -2238,6 +2262,691 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
         : "r"(r0)                                                              \
         : "memory")
 
+#define gte_ldlvl(r0)                                                          \
+    __asm__ volatile("lwc2	$9, 0( %0 );"                                       \
+                     "lwc2	$10, 4( %0 );"                                      \
+                     "lwc2	$11, 8( %0 )"                                       \
+                     :                                                         \
+                     : "r"(r0))
+
+#define gte_ldbv(r0)                                                           \
+    __asm__ volatile(                                                          \
+        "lbu	$12, 0( %0 );"                                                    \
+        "lbu	$13, 1( %0 );"                                                    \
+        "mtc2	$12, $9;"                                                        \
+        "mtc2	$13, $10"                                                        \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13")
+
+#define gte_ldcv(r0)                                                           \
+    __asm__ volatile(                                                          \
+        "lbu	$12, 0( %0 );"                                                    \
+        "lbu	$13, 1( %0 );"                                                    \
+        "lbu	$14, 2( %0 );"                                                    \
+        "mtc2	$12, $9;"                                                        \
+        "mtc2	$13, $10;"                                                       \
+        "mtc2	$14, $11"                                                        \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13", "$14")
+
+#define gte_ldclmv(r0)                                                         \
+    __asm__ volatile(                                                          \
+        "lhu	$12, 0( %0 );"                                                    \
+        "lhu	$13, 6( %0 );"                                                    \
+        "lhu	$14, 12( %0 );"                                                   \
+        "mtc2	$12, $9;"                                                        \
+        "mtc2	$13, $10;"                                                       \
+        "mtc2	$14, $11"                                                        \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13", "$14")
+
+#define gte_ldsxy0(r0) __asm__ volatile("mtc2	%0, $12" : : "r"(r0))
+
+#define gte_ldsxy1(r0) __asm__ volatile("mtc2	%0, $13" : : "r"(r0))
+
+#define gte_ldsxy2(r0) __asm__ volatile("mtc2	%0, $14" : : "r"(r0))
+
+#define gte_ldsxy3(r0, r1, r2)                                                 \
+    __asm__ volatile("mtc2	%0, $12;"                                           \
+                     "mtc2	%2, $14;"                                           \
+                     "mtc2	%1, $13"                                            \
+                     :                                                         \
+                     : "r"(r0), "r"(r1), "r"(r2))
+
+#define gte_ldsxy3c(r0)                                                        \
+    __asm__ volatile("lwc2	$12, 0( %0 );"                                      \
+                     "lwc2	$13, 4( %0 );"                                      \
+                     "lwc2	$14, 8( %0 )"                                       \
+                     :                                                         \
+                     : "r"(r0))
+
+#define gte_ldopv2SV(r0)                                                       \
+    __asm__ volatile(                                                          \
+        "lh	$12, 0( %0 );"                                                     \
+        "lh	$13, 2( %0 );"                                                     \
+        "lh	$14, 4( %0 );"                                                     \
+        "mtc2	$12, $9;"                                                        \
+        "mtc2	$13, $10;"                                                       \
+        "mtc2	$14, $11"                                                        \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13", "$14")
+
+#define gte_ldopv1SV(r0)                                                       \
+    __asm__ volatile(                                                          \
+        "lh	$12, 0( %0 );"                                                     \
+        "lh	$13, 2( %0 );"                                                     \
+        "ctc2	$12, $0;"                                                        \
+        "lh	$14, 4( %0 );"                                                     \
+        "ctc2	$13, $2;"                                                        \
+        "ctc2	$14, $4"                                                         \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13", "$14")
+
+#define gte_SetRGBcd(r0) __asm__ volatile("lwc2	$6, 0( %0 )" : : "r"(r0))
+
+#define gte_ldsvrtrow0(r0)                                                     \
+    __asm__ volatile(                                                          \
+        "lw	$12, 0( %0 );"                                                     \
+        "lw	$13, 4( %0 );"                                                     \
+        "ctc2	$12, $0;"                                                        \
+        "ctc2	$13, $1"                                                         \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13")
+
+#define gte_ldsvllrow0(r0)                                                     \
+    __asm__ volatile(                                                          \
+        "lw	$12, 0( %0 );"                                                     \
+        "lw	$13, 4( %0 );"                                                     \
+        "ctc2	$12, $8;"                                                        \
+        "ctc2	$13, $9"                                                         \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13")
+
+#define gte_ldsvlcrow0(r0)                                                     \
+    __asm__ volatile(                                                          \
+        "lw	$12, 0( %0 );"                                                     \
+        "lw	$13, 4( %0 );"                                                     \
+        "ctc2	$12, $16;"                                                       \
+        "ctc2	$13, $17"                                                        \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13")
+
+#define gte_ldfc(r0)                                                           \
+    __asm__ volatile(                                                          \
+        "lw	$12, 0( %0 );"                                                     \
+        "lw	$13, 4( %0 );"                                                     \
+        "lw	$14, 8( %0 );"                                                     \
+        "ctc2	$12, $21;"                                                       \
+        "ctc2	$13, $22;"                                                       \
+        "ctc2	$14, $23"                                                        \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13", "$14")
+
+#define gte_rtv0tr()                                                           \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4A480012")
+
+#define gte_rtv1tr()                                                           \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4A488012")
+
+#define gte_rtv2tr()                                                           \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4A490012")
+
+#define gte_rtv0bk()                                                           \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4A482012")
+
+#define gte_rtv1bk()                                                           \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4A48A012")
+
+#define gte_rtv2bk()                                                           \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4A492012")
+
+#define gte_ncs()                                                              \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4AC8041E")
+
+#define gte_nct()                                                              \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4AD80420")
+
+#define gte_ncds()                                                             \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4AE80413")
+
+#define gte_ncdt()                                                             \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4AF80416")
+
+#define gte_ncct()                                                             \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4B18043F")
+
+#define gte_cdp()                                                              \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4B280414")
+
+#define gte_cc()                                                               \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4B38041C")
+
+#define gte_op0()                                                              \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4B70000C")
+
+#define gte_gpl12()                                                            \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4BA8003E")
+
+#define gte_gpl0()                                                             \
+    __asm__ volatile("nop;"                                                    \
+                     "nop;"                                                    \
+                     ".word 0x4BA0003E")
+
+#define gte_rtv0_b() __asm__ volatile(".word 0x4A486012")
+#define gte_rtv1_b() __asm__ volatile(".word 0x4A48E012")
+#define gte_rtv2_b() __asm__ volatile(".word 0x4A496012")
+#define gte_rtv0tr_b() __asm__ volatile(".word 0x4A480012")
+#define gte_rtv1tr_b() __asm__ volatile(".word 0x4A488012")
+#define gte_rtv2tr_b() __asm__ volatile(".word 0x4A490012")
+#define gte_rtv0bk_b() __asm__ volatile(".word 0x4A482012")
+#define gte_rtv1bk_b() __asm__ volatile(".word 0x4A48A012")
+#define gte_rtv2bk_b() __asm__ volatile(".word 0x4A492012")
+#define gte_gpl12_b() __asm__ volatile(".word 0x4BA8003E")
+#define gte_gpl0_b() __asm__ volatile(".word 0x4BA0003E")
+
+#define gte_stsxy3c(r0)                                                        \
+    __asm__ volatile(                                                          \
+        "swc2	$12, 0( %0 );"                                                   \
+        "swc2	$13, 4( %0 );"                                                   \
+        "swc2	$14, 8( %0 )"                                                    \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "memory")
+
+#define gte_stsxy1(r0)                                                         \
+    __asm__ volatile("swc2	$13, 0( %0 )" : : "r"(r0) : "memory")
+
+#define gte_stsxy0(r0)                                                         \
+    __asm__ volatile("swc2	$12, 0( %0 )" : : "r"(r0) : "memory")
+
+#define gte_stsxy01(r0, r1)                                                    \
+    __asm__ volatile("swc2	$12, 0( %0 );"                                      \
+                     "swc2	$13, 0( %1 )"                                       \
+                     :                                                         \
+                     : "r"(r0), "r"(r1)                                        \
+                     : "memory")
+
+#define gte_stsxy3_f3(r0)                                                      \
+    __asm__ volatile(                                                          \
+        "swc2	$12, 8( %0 );"                                                   \
+        "swc2	$13, 12( %0 );"                                                  \
+        "swc2	$14, 16( %0 )"                                                   \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "memory")
+
+#define gte_stsxy3_ft3(r0)                                                     \
+    __asm__ volatile(                                                          \
+        "swc2	$12, 8( %0 );"                                                   \
+        "swc2	$13, 16( %0 );"                                                  \
+        "swc2	$14, 24( %0 )"                                                   \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "memory")
+
+#define gte_stsxy3_f4(r0)                                                      \
+    __asm__ volatile(                                                          \
+        "swc2	$12, 8( %0 );"                                                   \
+        "swc2	$13, 12( %0 );"                                                  \
+        "swc2	$14, 16( %0 )"                                                   \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "memory")
+
+#define gte_stsxy3_g4(r0)                                                      \
+    __asm__ volatile(                                                          \
+        "swc2	$12, 8( %0 );"                                                   \
+        "swc2	$13, 16( %0 );"                                                  \
+        "swc2	$14, 24( %0 )"                                                   \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "memory")
+
+#define gte_stsxy3_ft4(r0)                                                     \
+    __asm__ volatile(                                                          \
+        "swc2	$12, 8( %0 );"                                                   \
+        "swc2	$13, 16( %0 );"                                                  \
+        "swc2	$14, 24( %0 )"                                                   \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "memory")
+
+#define gte_stsxy3_gt4(r0)                                                     \
+    __asm__ volatile(                                                          \
+        "swc2	$12, 8( %0 );"                                                   \
+        "swc2	$13, 20( %0 );"                                                  \
+        "swc2	$14, 32( %0 )"                                                   \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "memory")
+
+#define gte_stdp(r0)                                                           \
+    __asm__ volatile("swc2	$8, 0( %0 )" : : "r"(r0) : "memory")
+
+#define gte_stsv(r0)                                                           \
+    __asm__ volatile(                                                          \
+        "mfc2	$12, $9;"                                                        \
+        "mfc2	$13, $10;"                                                       \
+        "mfc2	$14, $11;"                                                       \
+        "sh	$12, 0( %0 );"                                                     \
+        "sh	$13, 2( %0 );"                                                     \
+        "sh	$14, 4( %0 )"                                                      \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13", "$14", "memory")
+
+#define gte_stclmv(r0)                                                         \
+    __asm__ volatile(                                                          \
+        "mfc2	$12, $9;"                                                        \
+        "mfc2	$13, $10;"                                                       \
+        "mfc2	$14, $11;"                                                       \
+        "sh	$12, 0( %0 );"                                                     \
+        "sh	$13, 6( %0 );"                                                     \
+        "sh	$14, 12( %0 )"                                                     \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13", "$14", "memory")
+
+#define gte_ReadGeomOffset(r0, r1)                                             \
+    __asm__ volatile(                                                          \
+        "cfc2	$12, $24;"                                                       \
+        "cfc2	$13, $25;"                                                       \
+        "sra	$12, $12, 16;"                                                    \
+        "sra	$13, $13, 16;"                                                    \
+        "sw	$12, 0( %0 );"                                                     \
+        "sw	$13, 0( %1 )"                                                      \
+        :                                                                      \
+        : "r"(r0), "r"(r1)                                                     \
+        : "$12", "$13", "memory")
+
+#define gte_ReadGeomScreen(r0)                                                 \
+    __asm__ volatile(                                                          \
+        "cfc2	$12, $26;"                                                       \
+        "nop;"                                                                 \
+        "sw	$12, 0( %0 )"                                                      \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "memory")
+
+#define gte_ReadRotMatrix(r0)                                                  \
+    __asm__ volatile(                                                          \
+        "cfc2	$12, $0;"                                                        \
+        "cfc2	$13, $1;"                                                        \
+        "sw	$12, 0( %0 );"                                                     \
+        "sw	$13, 4( %0 );"                                                     \
+        "cfc2	$12, $2;"                                                        \
+        "cfc2	$13, $3;"                                                        \
+        "cfc2	$14, $4;"                                                        \
+        "sw	$12, 8( %0 );"                                                     \
+        "sw	$13, 12( %0 );"                                                    \
+        "sw	$14, 16( %0 );"                                                    \
+        "cfc2	$12, $5;"                                                        \
+        "cfc2	$13, $6;"                                                        \
+        "cfc2	$14, $7;"                                                        \
+        "sw	$12, 20( %0 );"                                                    \
+        "sw	$13, 24( %0 );"                                                    \
+        "sw	$14, 28( %0 )"                                                     \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13", "$14", "memory")
+
+#define gte_sttr(r0)                                                           \
+    __asm__ volatile(                                                          \
+        "cfc2	$12, $5;"                                                        \
+        "cfc2	$13, $6;"                                                        \
+        "cfc2	$14, $7;"                                                        \
+        "sw	$12, 0( %0 );"                                                     \
+        "sw	$13, 4( %0 );"                                                     \
+        "sw	$14, 8( %0 )"                                                      \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13", "$14", "memory")
+
+#define gte_ReadLightMatrix(r0)                                                \
+    __asm__ volatile(                                                          \
+        "cfc2	$12, $8;"                                                        \
+        "cfc2	$13, $9;"                                                        \
+        "sw	$12, 0( %0 );"                                                     \
+        "sw	$13, 4( %0 );"                                                     \
+        "cfc2	$12, $10;"                                                       \
+        "cfc2	$13, $11;"                                                       \
+        "cfc2	$14, $12;"                                                       \
+        "sw	$12, 8( %0 );"                                                     \
+        "sw	$13, 12( %0 );"                                                    \
+        "sw	$14, 16( %0 );"                                                    \
+        "cfc2	$12, $13;"                                                       \
+        "cfc2	$13, $14;"                                                       \
+        "cfc2	$14, $15;"                                                       \
+        "sw	$12, 20( %0 );"                                                    \
+        "sw	$13, 24( %0 );"                                                    \
+        "sw	$14, 28( %0 )"                                                     \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13", "$14", "memory")
+
+#define gte_ReadColorMatrix(r0)                                                \
+    __asm__ volatile(                                                          \
+        "cfc2	$12, $16;"                                                       \
+        "cfc2	$13, $17;"                                                       \
+        "sw	$12, 0( %0 );"                                                     \
+        "sw	$13, 4( %0 );"                                                     \
+        "cfc2	$12, $18;"                                                       \
+        "cfc2	$13, $19;"                                                       \
+        "cfc2	$14, $20;"                                                       \
+        "sw	$12, 8( %0 );"                                                     \
+        "sw	$13, 12( %0 );"                                                    \
+        "sw	$14, 16( %0 );"                                                    \
+        "cfc2	$12, $21;"                                                       \
+        "cfc2	$13, $22;"                                                       \
+        "cfc2	$14, $23;"                                                       \
+        "sw	$12, 20( %0 );"                                                    \
+        "sw	$13, 24( %0 );"                                                    \
+        "sw	$14, 28( %0 )"                                                     \
+        :                                                                      \
+        : "r"(r0)                                                              \
+        : "$12", "$13", "$14", "memory")
+
+#define gte_nop() __asm__ volatile("nop")
+
+#define gte_RotTransPers(r1, r2, r3, r4, r5)                                   \
+    {                                                                          \
+        gte_ldv0(r1);                                                          \
+        gte_rtps();                                                            \
+        gte_stsxy(r2);                                                         \
+        gte_stdp(r3);                                                          \
+        gte_stflg(r4);                                                         \
+        gte_stszotz(r5);                                                       \
+    }
+
+#define gte_RotTransPers3(r1, r2, r3, r4, r5, r6, r7, r8, r9)                  \
+    {                                                                          \
+        gte_ldv3(r1, r2, r3);                                                  \
+        gte_rtpt();                                                            \
+        gte_stsxy3(r4, r5, r6);                                                \
+        gte_stdp(r7);                                                          \
+        gte_stflg(r8);                                                         \
+        gte_stszotz(r9);                                                       \
+    }
+
+#define gte_RotTrans(r1, r2, r3)                                               \
+    {                                                                          \
+        gte_ldv0(r1);                                                          \
+        gte_rt();                                                              \
+        gte_stlvnl(r2);                                                        \
+        gte_stflg(r3);                                                         \
+    }
+
+#define gte_NormalColor(r1, r2)                                                \
+    {                                                                          \
+        gte_ldv0(r1);                                                          \
+        gte_ncs();                                                             \
+        gte_strgb(r2);                                                         \
+    }
+
+#define gte_NormalColor3(r1, r2, r3, r4, r5, r6)                               \
+    {                                                                          \
+        gte_ldv3(r1, r2, r3);                                                  \
+        gte_nct();                                                             \
+        gte_strgb3(r4, r5, r6);                                                \
+    }
+
+#define gte_NormalColorDpq(r1, r2, r3, r4)                                     \
+    {                                                                          \
+        gte_ldv0(r1);                                                          \
+        gte_ldrgb(r2);                                                         \
+        gte_lddp(r3);                                                          \
+        gte_ncds();                                                            \
+        gte_strgb(r4);                                                         \
+    }
+
+#define gte_NormalColorDpq3(r1, r2, r3, r4, r5, r6, r7, r8)                    \
+    {                                                                          \
+        gte_ldv3(r1, r2, r3);                                                  \
+        gte_ldrgb(r4);                                                         \
+        gte_lddp(r5);                                                          \
+        gte_ncdt();                                                            \
+        gte_strgb3(r6, r7, r8);                                                \
+    }
+
+#define gte_NormalColorCol(r1, r2, r3)                                         \
+    {                                                                          \
+        gte_ldv0(r1);                                                          \
+        gte_ldrgb(r2);                                                         \
+        gte_nccs();                                                            \
+        gte_strgb(r3);                                                         \
+    }
+
+#define gte_NormalColorCol3(r1, r2, r3, r4, r5, r6, r7)                        \
+    {                                                                          \
+        gte_ldv3(r1, r2, r3);                                                  \
+        gte_ldrgb(r4);                                                         \
+        gte_ncct();                                                            \
+        gte_strgb3(r5, r6, r7);                                                \
+    }
+
+#define gte_ColorDpq(r1, r2, r3, r4)                                           \
+    {                                                                          \
+        gte_ldlvl(r1);                                                         \
+        gte_ldrgb(r2);                                                         \
+        gte_lddp(r3);                                                          \
+        gte_cdp();                                                             \
+        gte_strgb(r4);                                                         \
+    }
+
+#define gte_ColorCol(r1, r2, r3)                                               \
+    {                                                                          \
+        gte_ldlvl(r1);                                                         \
+        gte_ldrgb(r2);                                                         \
+        gte_cc();                                                              \
+        gte_strgb(r3);                                                         \
+    }
+
+#define gte_NormalClip(r1, r2, r3, r4)                                         \
+    {                                                                          \
+        gte_ldsxy3(r1, r2, r3);                                                \
+        gte_nclip();                                                           \
+        gte_stopz(r4);                                                         \
+    }
+
+#define gte_OuterProduct12(r1, r2, r3)                                         \
+    {                                                                          \
+        gte_ldopv1(r1);                                                        \
+        gte_ldopv2(r2);                                                        \
+        gte_op12();                                                            \
+        gte_stlvnl(r3);                                                        \
+    }
+
+#define gte_OuterProduct12SVL(r1, r2, r3)                                      \
+    {                                                                          \
+        gte_ldopv1SV(r1);                                                      \
+        gte_ldopv2SV(r2);                                                      \
+        gte_op12();                                                            \
+        gte_stlvnl(r3);                                                        \
+    }
+
+#define gte_OuterProduct0SVL(r1, r2, r3)                                       \
+    {                                                                          \
+        gte_ldopv1SV(r1);                                                      \
+        gte_ldopv2SV(r2);                                                      \
+        gte_op0();                                                             \
+        gte_stlvnl(r3);                                                        \
+    }
+
+#define gte_OuterProduct12SV(r1, r2, r3)                                       \
+    {                                                                          \
+        gte_ldopv1SV(r1);                                                      \
+        gte_ldopv2SV(r2);                                                      \
+        gte_op12();                                                            \
+        gte_stsv(r3);                                                          \
+    }
+
+#define gte_OuterProduct0SV(r1, r2, r3)                                        \
+    {                                                                          \
+        gte_ldopv1SV(r1);                                                      \
+        gte_ldopv2SV(r2);                                                      \
+        gte_op0();                                                             \
+        gte_stsv(r3);                                                          \
+    }
+
+#define gte_RotAverage3(r1, r2, r3, r4, r5, r6, r7, r8, r9)                    \
+    {                                                                          \
+        gte_ldv3(r1, r2, r3);                                                  \
+        gte_rtpt();                                                            \
+        gte_stsxy3(r4, r5, r6);                                                \
+        gte_stdp(r7);                                                          \
+        gte_stflg(r8);                                                         \
+        gte_avsz3();                                                           \
+        gte_stotz(r9);                                                         \
+    }
+
+#define gte_RotNclip3(r1, r2, r3, r4, r5, r6, r7, r8, r9, r10)                 \
+    {                                                                          \
+        gte_ldv3(r1, r2, r3);                                                  \
+        gte_rtpt();                                                            \
+        gte_stflg(r9);                                                         \
+        gte_nclip();                                                           \
+        gte_stopz(r10);                                                        \
+        gte_stsxy3(r4, r5, r6);                                                \
+        gte_stdp(r7);                                                          \
+        gte_stszotz(r8);                                                       \
+    }
+
+#define gte_RotAverageNclip3(r1, r2, r3, r4, r5, r6, r7, r8, r9, r10)          \
+    {                                                                          \
+        gte_ldv3(r1, r2, r3);                                                  \
+        gte_rtpt();                                                            \
+        gte_stflg(r9);                                                         \
+        gte_nclip();                                                           \
+        gte_stopz(r10);                                                        \
+        gte_stsxy3(r4, r5, r6);                                                \
+        gte_stdp(r7);                                                          \
+        gte_avsz3();                                                           \
+        gte_stotz(r8);                                                         \
+    }
+
+#define gte_RotColorDpq(r1, r2, r3, r4, r5, r6, r7)                            \
+    {                                                                          \
+        gte_ldv0(r1);                                                          \
+        gte_rtps();                                                            \
+        gte_stsxy(r4);                                                         \
+        gte_stflg(r6);                                                         \
+        gte_ldv0(r2);                                                          \
+        gte_ldrgb(r3);                                                         \
+        gte_ncds();                                                            \
+        gte_strgb(r5);                                                         \
+        gte_stszotz(r7);                                                       \
+    }
+
+#define gte_RotColorDpq3(                                                      \
+    r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15)          \
+    {                                                                          \
+        gte_ldv3(r1, r2, r3);                                                  \
+        gte_rtpt();                                                            \
+        gte_stsxy3(r8, r9, r10);                                               \
+        gte_stflg(r14);                                                        \
+        gte_ldv3(r4, r5, r6);                                                  \
+        gte_ldrgb(r7);                                                         \
+        gte_ncdt();                                                            \
+        gte_strgb3(r11, r12, r13);                                             \
+        gte_stszotz(r15);                                                      \
+    }
+
+#define gte_RotAverageNclipColorDpq3(                                          \
+    r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16)     \
+    {                                                                          \
+        gte_ldv3(r1, r2, r3);                                                  \
+        gte_rtpt();                                                            \
+        gte_stflg(r15);                                                        \
+        gte_nclip();                                                           \
+        gte_stopz(r16);                                                        \
+        gte_ldv3(r4, r5, r6);                                                  \
+        gte_ldrgb(r7);                                                         \
+        gte_ncdt();                                                            \
+        gte_stsxy3(r8, r9, r10);                                               \
+        gte_strgb3(r11, r12, r13);                                             \
+        gte_avsz3();                                                           \
+        gte_stotz(r14);                                                        \
+    }
+
+#define gte_RotAverageNclipColorCol3(                                          \
+    r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16)     \
+    {                                                                          \
+        gte_ldv3(r1, r2, r3);                                                  \
+        gte_rtpt();                                                            \
+        gte_stflg(r15);                                                        \
+        gte_nclip();                                                           \
+        gte_stopz(r16);                                                        \
+        gte_ldv3(r4, r5, r6);                                                  \
+        gte_ldrgb(r7);                                                         \
+        gte_ncct();                                                            \
+        gte_stsxy3(r8, r9, r10);                                               \
+        gte_strgb3(r11, r12, r13);                                             \
+        gte_avsz3();                                                           \
+        gte_stotz(r14);                                                        \
+    }
+
+#define gte_MulMatrix0(r1, r2, r3)                                             \
+    {                                                                          \
+        gte_SetRotMatrix(r1);                                                  \
+        gte_ldclmv(r2);                                                        \
+        gte_rtir();                                                            \
+        gte_stclmv(r3);                                                        \
+        gte_ldclmv((char*)r2 + 2);                                             \
+        gte_rtir();                                                            \
+        gte_stclmv((char*)r3 + 2);                                             \
+        gte_ldclmv((char*)r2 + 4);                                             \
+        gte_rtir();                                                            \
+        gte_stclmv((char*)r3 + 4);                                             \
+    }
+
+#define gte_CompMatrix(r1, r2, r3)                                             \
+    {                                                                          \
+        gte_MulMatrix0(r1, r2, r3);                                            \
+        gte_SetTransMatrix(r1);                                                \
+        gte_ldlv0((char*)r2 + 20);                                             \
+        gte_rt();                                                              \
+        gte_stlvnl((char*)r3 + 20);                                            \
+    }
+
 #else // __psyz defined
 #define gte_SetGeomScreen SetGeomScreen
 #define gte_SetRotMatrix SetRotMatrix
@@ -2310,6 +3019,130 @@ void RotMeshH(short* Yheight, DVECTOR* Vo, u_short* sz, u_short* flag,
                   (unsigned int*)(w))
 #define gte_stsz3c(x) Psyz_GteStsz3c((unsigned int*)(x))
 #define gte_stsz4c(x) Psyz_GteStsz4c((unsigned int*)(x))
+#define gte_nop() ((void)0)
+#define gte_gpl0() Psyz_GteGpl0()
+#define gte_gpl0_b() Psyz_GteGpl0()
+#define gte_gpl12() Psyz_GteGpl12()
+#define gte_gpl12_b() Psyz_GteGpl12()
+#define gte_ldbv(x) Psyz_GteLdbv((unsigned char*)(x))
+#define gte_ldcv(x) Psyz_GteLdcv((unsigned char*)(x))
+#define gte_ldfc(x) Psyz_GteLdfc((VECTOR*)(x))
+#define gte_ldsxy0(x) Psyz_GteLdsxy0((unsigned int)(x))
+#define gte_ldsxy1(x) Psyz_GteLdsxy1((unsigned int)(x))
+#define gte_ldsxy2(x) Psyz_GteLdsxy2((unsigned int)(x))
+#define gte_ldsxy3(x, y, z)                                                    \
+    Psyz_GteLdsxy3((unsigned int)(x), (unsigned int)(y), (unsigned int)(z))
+#define gte_ldsxy3c(x) Psyz_GteLdsxy3c((unsigned int*)(x))
+#define gte_ldsvrtrow0(x) Psyz_GteLdsvrtrow0((SVECTOR*)(x))
+#define gte_ldsvllrow0(x) Psyz_GteLdsvllrow0((SVECTOR*)(x))
+#define gte_ldsvlcrow0(x) Psyz_GteLdsvlcrow0((SVECTOR*)(x))
+#define gte_SetRGBcd(x) Psyz_GteLdRgb((CVECTOR*)(x))
+#define gte_rtv0_b() Psyz_GteRtv0()
+#define gte_rtv1_b() Psyz_GteRtv1()
+#define gte_rtv2_b() Psyz_GteRtv2()
+#define gte_rtv0tr() Psyz_GteRtv0tr()
+#define gte_rtv1tr() Psyz_GteRtv1tr()
+#define gte_rtv2tr() Psyz_GteRtv2tr()
+#define gte_rtv0tr_b() Psyz_GteRtv0tr()
+#define gte_rtv1tr_b() Psyz_GteRtv1tr()
+#define gte_rtv2tr_b() Psyz_GteRtv2tr()
+#define gte_rtv0bk() Psyz_GteRtv0bk()
+#define gte_rtv1bk() Psyz_GteRtv1bk()
+#define gte_rtv2bk() Psyz_GteRtv2bk()
+#define gte_rtv0bk_b() Psyz_GteRtv0bk()
+#define gte_rtv1bk_b() Psyz_GteRtv1bk()
+#define gte_rtv2bk_b() Psyz_GteRtv2bk()
+#define gte_stsv(x) Psyz_GteStsv((SVECTOR*)(x))
+#define gte_stsxy0(x) Psyz_GteStsxy0((unsigned int*)(x))
+#define gte_stsxy1(x) Psyz_GteStsxy1((unsigned int*)(x))
+#define gte_stsxy2(x) Psyz_GteStsxy2((unsigned int*)(x))
+#define gte_stsxy01(x, y)                                                      \
+    Psyz_GteStsxy01((unsigned int*)(x), (unsigned int*)(y))
+#define gte_stsxy3c(x) Psyz_GteStsxy3c((unsigned int*)(x))
+#define gte_stsxy3_f3(x) Psyz_GteStsxy3F3(x)
+#define gte_stsxy3_f4(x) Psyz_GteStsxy3F4(x)
+#define gte_stsxy3_ft3(x) Psyz_GteStsxy3Ft3(x)
+#define gte_stsxy3_ft4(x) Psyz_GteStsxy3Ft4(x)
+#define gte_stsxy3_g4(x) Psyz_GteStsxy3G4(x)
+#define gte_stsxy3_gt4(x) Psyz_GteStsxy3Gt4(x)
+#define gte_sttr(x) Psyz_GteSttr((VECTOR*)(x))
+#define gte_ReadRotMatrix(x) ReadRotMatrix((MATRIX*)(x))
+#define gte_ReadLightMatrix(x) ReadLightMatrix((MATRIX*)(x))
+#define gte_ReadColorMatrix(x) ReadColorMatrix((MATRIX*)(x))
+#define gte_ReadGeomOffset(x, y) ReadGeomOffset((int*)(x), (int*)(y))
+#define gte_ReadGeomScreen(x) (*(int*)(x) = (int)ReadGeomScreen())
+#define gte_RotTransPers(r1, r2, r3, r4, r5)                                   \
+    (*(int*)(r5) = (int)RotTransPers(r1, (int*)(r2), (int*)(r3), (int*)(r4)))
+#define gte_RotTransPers3(r1, r2, r3, r4, r5, r6, r7, r8, r9)                  \
+    (*(int*)(r9) = (int)RotTransPers3(r1, r2, r3, (int*)(r4), (int*)(r5),      \
+                                      (int*)(r6), (int*)(r7), (int*)(r8)))
+#define gte_RotTrans(r1, r2, r3) RotTrans(r1, (VECTOR*)(r2), (int*)(r3))
+#define gte_RotAverage3(r1, r2, r3, r4, r5, r6, r7, r8, r9)                    \
+    (*(int*)(r9) = (int)RotAverage3(r1, r2, r3, (int*)(r4), (int*)(r5),        \
+                                    (int*)(r6), (int*)(r7), (int*)(r8)))
+#define gte_RotNclip3(r1, r2, r3, r4, r5, r6, r7, r8, r9, r10)                 \
+    Psyz_GteRotNclip3(                                                         \
+        r1, r2, r3, (unsigned int*)(r4), (unsigned int*)(r5),                  \
+        (unsigned int*)(r6), (int*)(r7), (int*)(r8), (int*)(r9), (int*)(r10))
+#define gte_RotAverageNclip3(r1, r2, r3, r4, r5, r6, r7, r8, r9, r10)          \
+    Psyz_GteRotAverageNclip3(                                                  \
+        r1, r2, r3, (unsigned int*)(r4), (unsigned int*)(r5),                  \
+        (unsigned int*)(r6), (int*)(r7), (int*)(r8), (int*)(r9), (int*)(r10))
+#define gte_RotColorDpq(r1, r2, r3, r4, r5, r6, r7)                            \
+    Psyz_GteRotColorDpq(r1, r2, (CVECTOR*)(r3), (unsigned int*)(r4),           \
+                        (CVECTOR*)(r5), (int*)(r6), (int*)(r7))
+#define gte_RotColorDpq3(                                                      \
+    r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15)          \
+    Psyz_GteRotColorDpq3(                                                      \
+        r1, r2, r3, r4, r5, r6, (CVECTOR*)(r7), (unsigned int*)(r8),           \
+        (unsigned int*)(r9), (unsigned int*)(r10), (CVECTOR*)(r11),            \
+        (CVECTOR*)(r12), (CVECTOR*)(r13), (int*)(r14), (int*)(r15))
+#define gte_RotAverageNclipColorDpq3(                                          \
+    r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16)     \
+    Psyz_GteRotAverageNclipColorDpq3(                                          \
+        r1, r2, r3, r4, r5, r6, (CVECTOR*)(r7), (unsigned int*)(r8),           \
+        (unsigned int*)(r9), (unsigned int*)(r10), (CVECTOR*)(r11),            \
+        (CVECTOR*)(r12), (CVECTOR*)(r13), (int*)(r14), (int*)(r15),            \
+        (int*)(r16))
+#define gte_RotAverageNclipColorCol3(                                          \
+    r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16)     \
+    Psyz_GteRotAverageNclipColorCol3(                                          \
+        r1, r2, r3, r4, r5, r6, (CVECTOR*)(r7), (unsigned int*)(r8),           \
+        (unsigned int*)(r9), (unsigned int*)(r10), (CVECTOR*)(r11),            \
+        (CVECTOR*)(r12), (CVECTOR*)(r13), (int*)(r14), (int*)(r15),            \
+        (int*)(r16))
+#define gte_NormalColor(r1, r2) Psyz_GteNormalColor(r1, (CVECTOR*)(r2))
+#define gte_NormalColor3(r1, r2, r3, r4, r5, r6)                               \
+    Psyz_GteNormalColor3(                                                      \
+        r1, r2, r3, (CVECTOR*)(r4), (CVECTOR*)(r5), (CVECTOR*)(r6))
+#define gte_NormalColorDpq(r1, r2, r3, r4)                                     \
+    Psyz_GteNormalColorDpq(r1, (CVECTOR*)(r2), r3, (CVECTOR*)(r4))
+#define gte_NormalColorDpq3(r1, r2, r3, r4, r5, r6, r7, r8)                    \
+    Psyz_GteNormalColorDpq3(r1, r2, r3, (CVECTOR*)(r4), r5, (CVECTOR*)(r6),    \
+                            (CVECTOR*)(r7), (CVECTOR*)(r8))
+#define gte_NormalColorCol(r1, r2, r3)                                         \
+    Psyz_GteNormalColorCol(r1, (CVECTOR*)(r2), (CVECTOR*)(r3))
+#define gte_NormalColorCol3(r1, r2, r3, r4, r5, r6, r7)                        \
+    Psyz_GteNormalColorCol3(r1, r2, r3, (CVECTOR*)(r4), (CVECTOR*)(r5),        \
+                            (CVECTOR*)(r6), (CVECTOR*)(r7))
+#define gte_ColorDpq(r1, r2, r3, r4)                                           \
+    Psyz_GteColorDpq((VECTOR*)(r1), (CVECTOR*)(r2), r3, (CVECTOR*)(r4))
+#define gte_ColorCol(r1, r2, r3)                                               \
+    Psyz_GteColorCol((VECTOR*)(r1), (CVECTOR*)(r2), (CVECTOR*)(r3))
+#define gte_NormalClip(r1, r2, r3, r4)                                         \
+    (*(int*)(r4) = (int)NormalClip(r1, r2, r3))
+#define gte_OuterProduct12(r1, r2, r3)                                         \
+    Psyz_GteOuterProduct12((VECTOR*)(r1), (VECTOR*)(r2), (VECTOR*)(r3))
+#define gte_OuterProduct12SVL(r1, r2, r3)                                      \
+    Psyz_GteOuterProduct12SVL((SVECTOR*)(r1), (SVECTOR*)(r2), (VECTOR*)(r3))
+#define gte_OuterProduct0SVL(r1, r2, r3)                                       \
+    Psyz_GteOuterProduct0SVL((SVECTOR*)(r1), (SVECTOR*)(r2), (VECTOR*)(r3))
+#define gte_OuterProduct12SV(r1, r2, r3)                                       \
+    Psyz_GteOuterProduct12SV((SVECTOR*)(r1), (SVECTOR*)(r2), (SVECTOR*)(r3))
+#define gte_OuterProduct0SV(r1, r2, r3)                                        \
+    Psyz_GteOuterProduct0SV((SVECTOR*)(r1), (SVECTOR*)(r2), (SVECTOR*)(r3))
+#define gte_CompMatrix(r1, r2, r3)                                             \
+    Psyz_GteCompMatrix((MATRIX*)(r1), (MATRIX*)(r2), (MATRIX*)(r3))
 #endif
 
 #endif

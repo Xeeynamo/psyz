@@ -47,6 +47,23 @@ static int zexpect_matrix_eq_(int line, MATRIX* exp, MATRIX* act) {
     return 0;
 }
 
+#define zexpect_vector_eq(x, y, z, v)                                          \
+    do {                                                                       \
+        zexpect_s32_eq(x, (v).vx);                                             \
+        zexpect_s32_eq(y, (v).vy);                                             \
+        zexpect_s32_eq(z, (v).vz);                                             \
+    } while (0)
+
+#define zexpect_poly_xy3(poly)                                                 \
+    do {                                                                       \
+        zexpect_s16_eq(260, (poly).x0);                                        \
+        zexpect_s16_eq(170, (poly).y0);                                        \
+        zexpect_s16_eq(60, (poly).x1);                                         \
+        zexpect_s16_eq(70, (poly).y1);                                         \
+        zexpect_s16_eq(175, (poly).x2);                                        \
+        zexpect_s16_eq(100, (poly).y2);                                        \
+    } while (0)
+
 typedef struct {
     MATRIX m;
     SVECTOR svs[3];
@@ -2009,4 +2026,947 @@ ZTEST(gte, setfognear_fades_up_to_five_times_near) {
 ZTEST(gte, setfognear_wraps_dqa_to_16_bits) {
     SetFogNear(1000, 1);
     zexpect_s32_eq(0x1000, DepthCueAt(500));
+}
+
+static void LoadMac(int x, int y, int z) {
+    static SVECTOR v = {0, 0, 0};
+    MATRIX m = {{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}}, {x, y, z}};
+    SetRotMatrix(&m);
+    SetTransMatrix(&m);
+    gte_ldv0(&v);
+    gte_rt();
+}
+
+ZTEST(gte, gpl12_adds_ir_scaled_by_ir0_to_mac) {
+    VECTOR ir = {0x400, -0x800, 0x1000};
+    VECTOR mac = {0};
+    LoadMac(0x100, 0x200, 0x300);
+    gte_ldopv2(&ir);
+    gte_lddp(0x800);
+    gte_gpl12();
+    gte_stlvnl(&mac);
+    zexpect_vector_eq(0x300, -0x200, 0xB00, mac);
+}
+
+ZTEST(gte, gpl12_pushes_saturated_mac_to_color_fifo) {
+    VECTOR ir = {0x400, -0x800, 0x1000};
+    unsigned int code = RGBCD(0, 0, 0, 0x3A);
+    unsigned int out = 0;
+    int flag = 0;
+    LoadMac(0x100, 0x200, 0x300);
+    gte_SetRGBcd(&code);
+    gte_ldopv2(&ir);
+    gte_lddp(0x800);
+    gte_gpl12();
+    gte_strgb(&out);
+    gte_stflg(&flag);
+    zexpect_u32_eq(RGBCD(0x30, 0, 0xB0, 0x3A), out);
+    zexpect_u32_eq(0x00100000, (unsigned int)flag);
+}
+
+ZTEST(gte, gpl12_b_adds_ir_scaled_by_ir0_to_mac) {
+    VECTOR ir = {0x400, -0x800, 0x1000};
+    VECTOR mac = {0};
+    LoadMac(0x100, 0x200, 0x300);
+    gte_ldopv2(&ir);
+    gte_lddp(0x800);
+    gte_nop();
+    gte_nop();
+    gte_gpl12_b();
+    gte_stlvnl(&mac);
+    zexpect_vector_eq(0x300, -0x200, 0xB00, mac);
+}
+
+ZTEST(gte, gpl0_adds_unscaled_product_to_mac) {
+    VECTOR ir = {2, -3, 4};
+    VECTOR mac = {0};
+    LoadMac(0x100, 0x200, 0x300);
+    gte_ldopv2(&ir);
+    gte_lddp(0x10);
+    gte_gpl0();
+    gte_stlvnl(&mac);
+    zexpect_vector_eq(0x120, 0x1D0, 0x340, mac);
+}
+
+ZTEST(gte, gpl0_b_adds_unscaled_product_to_mac) {
+    VECTOR ir = {2, -3, 4};
+    VECTOR mac = {0};
+    LoadMac(0x100, 0x200, 0x300);
+    gte_ldopv2(&ir);
+    gte_lddp(0x10);
+    gte_nop();
+    gte_nop();
+    gte_gpl0_b();
+    gte_stlvnl(&mac);
+    zexpect_vector_eq(0x120, 0x1D0, 0x340, mac);
+}
+
+ZTEST(gte, ldbv_loads_two_unsigned_bytes_into_ir) {
+    unsigned char bv[4] = {0x80, 0xFF, 0x12, 0x34};
+    VECTOR preset = {0x111, 0x222, 0x333};
+    VECTOR ir = {0};
+    gte_ldopv2(&preset);
+    gte_ldbv(bv);
+    gte_stlvl(&ir);
+    zexpect_vector_eq(0x80, 0xFF, 0x333, ir);
+}
+
+ZTEST(gte, ldcv_loads_three_unsigned_bytes_into_ir) {
+    unsigned char cv[4] = {0x80, 0xFF, 0x12, 0x34};
+    VECTOR ir = {0};
+    gte_ldcv(cv);
+    gte_stlvl(&ir);
+    zexpect_vector_eq(0x80, 0xFF, 0x12, ir);
+}
+
+ZTEST(gte, ldfc_sets_far_color_for_depth_cue) {
+    VECTOR fc = {0x100, 0x200, 0x300};
+    unsigned int rgb = RGBCD(0, 0, 0, 0x2C);
+    unsigned int out = 0;
+    gte_ldfc(&fc);
+    gte_ldrgb(&rgb);
+    gte_lddp(0x1000);
+    gte_dpcs();
+    gte_strgb(&out);
+    zexpect_u32_eq(RGBCD(0x10, 0x20, 0x30, 0x2C), out);
+}
+
+ZTEST(gte, set_rgbcd_loads_color_and_code) {
+    unsigned int in = RGBCD(40, 80, 120, 0x2C);
+    unsigned int out = 0;
+    gte_SetRGBcd(&in);
+    gte_lddp(0);
+    gte_dpcs();
+    gte_strgb(&out);
+    zexpect_u32_eq(in, out);
+}
+
+ZTEST(gte, ldsxy0_is_read_back_by_stsxy0) {
+    unsigned int out = 0;
+    gte_ldsxy0(SXY(1, -2));
+    gte_nop();
+    gte_nop();
+    gte_stsxy0(&out);
+    zexpect_u32_eq(SXY(1, -2), out);
+}
+
+ZTEST(gte, ldsxy1_is_read_back_by_stsxy1) {
+    unsigned int out = 0;
+    gte_ldsxy1(SXY(-3, 4));
+    gte_nop();
+    gte_nop();
+    gte_stsxy1(&out);
+    zexpect_u32_eq(SXY(-3, 4), out);
+}
+
+ZTEST(gte, ldsxy2_is_read_back_by_stsxy2_and_stsxy) {
+    unsigned int out2 = 0, out = 0;
+    gte_ldsxy2(SXY(5, -6));
+    gte_nop();
+    gte_nop();
+    gte_stsxy2(&out2);
+    gte_stsxy(&out);
+    zexpect_u32_eq(SXY(5, -6), out2);
+    zexpect_u32_eq(SXY(5, -6), out);
+}
+
+ZTEST(gte, ldsxy3_loads_screen_xy_fifo) {
+    unsigned int out[3] = {0};
+    gte_ldsxy3(SXY(1, 2), SXY(-3, 4), SXY(5, -6));
+    gte_stsxy3c(out);
+    zexpect_u32_eq(SXY(1, 2), out[0]);
+    zexpect_u32_eq(SXY(-3, 4), out[1]);
+    zexpect_u32_eq(SXY(5, -6), out[2]);
+}
+
+ZTEST(gte, ldsxy3_feeds_nclip) {
+    int opz = 0;
+    gte_ldsxy3(SXY(0, 0), SXY(10, 0), SXY(0, 10));
+    gte_nclip();
+    gte_stopz(&opz);
+    zexpect_s32_eq(100, opz);
+}
+
+ZTEST(gte, ldsxy3c_loads_contiguous_screen_xy) {
+    unsigned int in[3] = {SXY(7, -8), SXY(-9, 10), SXY(11, 12)};
+    unsigned int out0 = 0, out1 = 0, out2 = 0;
+    gte_ldsxy3c(in);
+    gte_stsxy01(&out0, &out1);
+    gte_stsxy2(&out2);
+    zexpect_u32_eq(in[0], out0);
+    zexpect_u32_eq(in[1], out1);
+    zexpect_u32_eq(in[2], out2);
+}
+
+ZTEST(gte, normal_clip_returns_signed_area) {
+    int opz = 0;
+    gte_NormalClip(SXY(0, 0), SXY(10, 0), SXY(0, 10), &opz);
+    zexpect_s32_eq(100, opz);
+    gte_NormalClip(SXY(0, 0), SXY(0, 10), SXY(10, 0), &opz);
+    zexpect_s32_eq(-100, opz);
+}
+
+ZTEST(gte, stsv_stores_ir_as_shorts) {
+    VECTOR ir = {0x123, -0x456, 0x7FFF};
+    SVECTOR out = {0, 0, 0, 0x5555};
+    gte_ldopv2(&ir);
+    gte_stsv(&out);
+    zexpect_s16_eq(0x123, out.vx);
+    zexpect_s16_eq(-0x456, out.vy);
+    zexpect_s16_eq(0x7FFF, out.vz);
+    zexpect_s16_eq(0x5555, out.pad);
+}
+
+static void ProjectTriangle(void) {
+    static SVECTOR v0 = {100, 50, 0}, v1 = {-100, -50, 0}, v2 = {30, -40, 1000};
+    SetupProjection();
+    gte_ldv3(&v0, &v1, &v2);
+    gte_rtpt();
+}
+
+ZTEST(gte, stsxy0_stsxy1_stsxy2_store_each_screen_xy) {
+    unsigned int sxy0 = 0, sxy1 = 0, sxy2 = 0;
+    ProjectTriangle();
+    gte_stsxy0(&sxy0);
+    gte_stsxy1(&sxy1);
+    gte_stsxy2(&sxy2);
+    zexpect_u32_eq(SXY(260, 170), sxy0);
+    zexpect_u32_eq(SXY(60, 70), sxy1);
+    zexpect_u32_eq(SXY(175, 100), sxy2);
+}
+
+ZTEST(gte, stsxy01_stores_first_two_screen_xy) {
+    unsigned int sxy0 = 0, sxy1 = 0;
+    ProjectTriangle();
+    gte_stsxy01(&sxy0, &sxy1);
+    zexpect_u32_eq(SXY(260, 170), sxy0);
+    zexpect_u32_eq(SXY(60, 70), sxy1);
+}
+
+ZTEST(gte, stsxy3c_stores_screen_xy_contiguously) {
+    unsigned int out[4] = {0, 0, 0, 0xDEADBEEF};
+    ProjectTriangle();
+    gte_stsxy3c(out);
+    zexpect_u32_eq(SXY(260, 170), out[0]);
+    zexpect_u32_eq(SXY(60, 70), out[1]);
+    zexpect_u32_eq(SXY(175, 100), out[2]);
+    zexpect_u32_eq(0xDEADBEEF, out[3]);
+}
+
+ZTEST(gte, stsxy3_f3_fills_poly_vertices) {
+    POLY_F3 poly;
+    memset(&poly, 0xCC, sizeof(poly));
+    ProjectTriangle();
+    gte_stsxy3_f3(&poly);
+    zexpect_poly_xy3(poly);
+    zexpect_u8_eq(0xCC, poly.r0);
+    zexpect_u8_eq(0xCC, poly.code);
+}
+
+ZTEST(gte, stsxy3_f4_fills_first_three_poly_vertices) {
+    POLY_F4 poly;
+    memset(&poly, 0xCC, sizeof(poly));
+    ProjectTriangle();
+    gte_stsxy3_f4(&poly);
+    zexpect_poly_xy3(poly);
+    zexpect_u8_eq(0xCC, poly.code);
+    zexpect_s16_eq((short)0xCCCC, poly.x3);
+    zexpect_s16_eq((short)0xCCCC, poly.y3);
+}
+
+ZTEST(gte, stsxy3_ft3_fills_poly_vertices) {
+    POLY_FT3 poly;
+    memset(&poly, 0xCC, sizeof(poly));
+    ProjectTriangle();
+    gte_stsxy3_ft3(&poly);
+    zexpect_poly_xy3(poly);
+    zexpect_u8_eq(0xCC, poly.u0);
+    zexpect_u16_eq(0xCCCC, poly.clut);
+    zexpect_u16_eq(0xCCCC, poly.tpage);
+}
+
+ZTEST(gte, stsxy3_ft4_fills_first_three_poly_vertices) {
+    POLY_FT4 poly;
+    memset(&poly, 0xCC, sizeof(poly));
+    ProjectTriangle();
+    gte_stsxy3_ft4(&poly);
+    zexpect_poly_xy3(poly);
+    zexpect_u16_eq(0xCCCC, poly.tpage);
+    zexpect_s16_eq((short)0xCCCC, poly.x3);
+    zexpect_s16_eq((short)0xCCCC, poly.y3);
+}
+
+ZTEST(gte, stsxy3_g4_fills_first_three_poly_vertices) {
+    POLY_G4 poly;
+    memset(&poly, 0xCC, sizeof(poly));
+    ProjectTriangle();
+    gte_stsxy3_g4(&poly);
+    zexpect_poly_xy3(poly);
+    zexpect_u8_eq(0xCC, poly.r1);
+    zexpect_s16_eq((short)0xCCCC, poly.x3);
+    zexpect_s16_eq((short)0xCCCC, poly.y3);
+}
+
+ZTEST(gte, stsxy3_gt4_fills_first_three_poly_vertices) {
+    POLY_GT4 poly;
+    memset(&poly, 0xCC, sizeof(poly));
+    ProjectTriangle();
+    gte_stsxy3_gt4(&poly);
+    zexpect_poly_xy3(poly);
+    zexpect_u8_eq(0xCC, poly.r1);
+    zexpect_u16_eq(0xCCCC, poly.tpage);
+    zexpect_s16_eq((short)0xCCCC, poly.x3);
+    zexpect_s16_eq((short)0xCCCC, poly.y3);
+}
+
+ZTEST(gte, sttr_stores_translation) {
+    MATRIX m = {{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}},
+                {-100, 0x12345, -0x7FFFFFFF}};
+    VECTOR out = {0};
+    gte_SetTransMatrix(&m);
+    gte_sttr(&out);
+    zexpect_vector_eq(-100, 0x12345, -0x7FFFFFFF, out);
+}
+
+ZTEST(gte, read_rot_matrix_macro_reads_rotation_and_translation) {
+    MATRIX m = {{{1, -2, 3}, {-4, 5, -6}, {7, -8, 9}},
+                {-10, 0x12345, -0x54321}};
+    MATRIX read = {0};
+    gte_SetRotMatrix(&m);
+    gte_SetTransMatrix(&m);
+    gte_ReadRotMatrix(&read);
+    zexpect_matrix_eq(&m, &read);
+}
+
+ZTEST(gte, read_light_matrix_reads_light_and_back_color) {
+    MATRIX m = {{{1, -2, 3}, {-4, 5, -6}, {7, -8, 9}}, {16, 32, 48}};
+    MATRIX read = {0};
+    gte_SetLightMatrix(&m);
+    gte_SetBackColor(1, 2, 3);
+    gte_ReadLightMatrix(&read);
+    zexpect_matrix_eq(&m, &read);
+}
+
+ZTEST(gte, read_color_matrix_reads_color_and_far_color) {
+    MATRIX m = {{{1, -2, 3}, {-4, 5, -6}, {7, -8, 9}}, {64, 80, 96}};
+    MATRIX read = {0};
+    gte_SetColorMatrix(&m);
+    gte_SetFarColor(4, 5, 6);
+    gte_ReadColorMatrix(&read);
+    zexpect_matrix_eq(&m, &read);
+}
+
+ZTEST(gte, read_color_matrix_reads_ldfc_words) {
+    VECTOR fc = {-1, 0x12345, 7};
+    MATRIX read = {0};
+    gte_ldfc(&fc);
+    gte_ReadColorMatrix(&read);
+    zexpect_s32_eq(-1, read.t[0]);
+    zexpect_s32_eq(0x12345, read.t[1]);
+    zexpect_s32_eq(7, read.t[2]);
+}
+
+ZTEST(gte, read_geom_offset_reads_integer_offset) {
+    int x = 0, y = 0;
+    gte_SetGeomOffset(160, -120);
+    gte_ReadGeomOffset(&x, &y);
+    zexpect_s32_eq(160, x);
+    zexpect_s32_eq(-120, y);
+}
+
+ZTEST(gte, read_geom_screen_reads_h) {
+    int h = 0;
+    SetGeomScreen(512);
+    gte_ReadGeomScreen(&h);
+    zexpect_s32_eq(512, h);
+}
+
+ZTEST(gte, read_geom_screen_sign_extends_h) {
+    int h = 0;
+    SetGeomScreen(0xC000);
+    gte_ReadGeomScreen(&h);
+    zexpect_s32_eq(-0x4000, h);
+}
+
+ZTEST(gte, ldsvrtrow0_loads_first_row_and_spills_pad) {
+    MATRIX m = {{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, {10, 11, 12}};
+    MATRIX exp = {{{-1, 0x200, -3}, {0x44, 5, 6}, {7, 8, 9}}, {10, 11, 12}};
+    MATRIX read = {0};
+    SVECTOR row = {-1, 0x200, -3, 0x44};
+    gte_SetRotMatrix(&m);
+    gte_SetTransMatrix(&m);
+    gte_ldsvrtrow0(&row);
+    gte_ReadRotMatrix(&read);
+    zexpect_matrix_eq(&exp, &read);
+}
+
+ZTEST(gte, ldsvllrow0_loads_first_row_and_spills_pad) {
+    MATRIX m = {{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, {0, 0, 0}};
+    MATRIX exp = {{{-1, 0x200, -3}, {0x44, 5, 6}, {7, 8, 9}}, {16, 32, 48}};
+    MATRIX read = {0};
+    SVECTOR row = {-1, 0x200, -3, 0x44};
+    gte_SetLightMatrix(&m);
+    gte_SetBackColor(1, 2, 3);
+    gte_ldsvllrow0(&row);
+    gte_ReadLightMatrix(&read);
+    zexpect_matrix_eq(&exp, &read);
+}
+
+ZTEST(gte, ldsvlcrow0_loads_first_row_and_spills_pad) {
+    MATRIX m = {{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, {0, 0, 0}};
+    MATRIX exp = {{{-1, 0x200, -3}, {0x44, 5, 6}, {7, 8, 9}}, {16, 32, 48}};
+    MATRIX read = {0};
+    SVECTOR row = {-1, 0x200, -3, 0x44};
+    gte_SetColorMatrix(&m);
+    gte_SetFarColor(1, 2, 3);
+    gte_ldsvlcrow0(&row);
+    gte_ReadColorMatrix(&read);
+    zexpect_matrix_eq(&exp, &read);
+}
+
+ZTEST(gte, rtv0_b_rotates_v0_without_translation) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_nop();
+    gte_nop();
+    gte_rtv0_b();
+    gte_stlvnl(&out);
+    zexpect_vector_eq(10, 10, 60, out);
+}
+
+ZTEST(gte, rtv1_b_rotates_v1_without_translation) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_nop();
+    gte_nop();
+    gte_rtv1_b();
+    gte_stlvnl(&out);
+    zexpect_vector_eq(-40, 25, 14, out);
+}
+
+ZTEST(gte, rtv2_b_rotates_v2_without_translation) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_nop();
+    gte_nop();
+    gte_rtv2_b();
+    gte_stlvnl(&out);
+    zexpect_vector_eq(1000, -2, -1000, out);
+}
+
+ZTEST(gte, rtv0tr_rotates_v0_and_adds_translation) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_rtv0tr();
+    gte_stlvnl(&out);
+    zexpect_vector_eq(110, 210, 360, out);
+}
+
+ZTEST(gte, rtv1tr_rotates_v1_and_adds_translation) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_rtv1tr();
+    gte_stlvnl(&out);
+    zexpect_vector_eq(60, 225, 314, out);
+}
+
+ZTEST(gte, rtv2tr_rotates_v2_and_adds_translation) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_rtv2tr();
+    gte_stlvnl(&out);
+    zexpect_vector_eq(1100, 198, -700, out);
+}
+
+ZTEST(gte, rtv0tr_b_rotates_v0_and_adds_translation) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_nop();
+    gte_nop();
+    gte_rtv0tr_b();
+    gte_stlvnl(&out);
+    zexpect_vector_eq(110, 210, 360, out);
+}
+
+ZTEST(gte, rtv1tr_b_rotates_v1_and_adds_translation) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_nop();
+    gte_nop();
+    gte_rtv1tr_b();
+    gte_stlvnl(&out);
+    zexpect_vector_eq(60, 225, 314, out);
+}
+
+ZTEST(gte, rtv2tr_b_rotates_v2_and_adds_translation) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_nop();
+    gte_nop();
+    gte_rtv2tr_b();
+    gte_stlvnl(&out);
+    zexpect_vector_eq(1100, 198, -700, out);
+}
+
+ZTEST(gte, rtv0bk_rotates_v0_and_adds_back_color) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_SetBackColor(1, 2, 3);
+    gte_rtv0bk();
+    gte_stlvnl(&out);
+    zexpect_vector_eq(26, 42, 108, out);
+}
+
+ZTEST(gte, rtv1bk_rotates_v1_and_adds_back_color) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_SetBackColor(1, 2, 3);
+    gte_rtv1bk();
+    gte_stlvnl(&out);
+    zexpect_vector_eq(-24, 57, 62, out);
+}
+
+ZTEST(gte, rtv2bk_rotates_v2_and_adds_back_color) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_SetBackColor(1, 2, 3);
+    gte_rtv2bk();
+    gte_stlvnl(&out);
+    zexpect_vector_eq(1016, 30, -952, out);
+}
+
+ZTEST(gte, rtv0bk_b_rotates_v0_and_adds_back_color) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_SetBackColor(1, 2, 3);
+    gte_nop();
+    gte_nop();
+    gte_rtv0bk_b();
+    gte_stlvnl(&out);
+    zexpect_vector_eq(26, 42, 108, out);
+}
+
+ZTEST(gte, rtv1bk_b_rotates_v1_and_adds_back_color) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_SetBackColor(1, 2, 3);
+    gte_nop();
+    gte_nop();
+    gte_rtv1bk_b();
+    gte_stlvnl(&out);
+    zexpect_vector_eq(-24, 57, 62, out);
+}
+
+ZTEST(gte, rtv2bk_b_rotates_v2_and_adds_back_color) {
+    VECTOR out = {0};
+    RtvSetup();
+    gte_SetBackColor(1, 2, 3);
+    gte_nop();
+    gte_nop();
+    gte_rtv2bk_b();
+    gte_stlvnl(&out);
+    zexpect_vector_eq(1016, 30, -952, out);
+}
+
+ZTEST(gte, apply_matrix_lv_multiplies_long_vector) {
+    MATRIX m = {{{0x1000, 0, 0}, {0, 0x800, 0}, {0x400, 0, -0x1000}}, {0}};
+    VECTOR v = {0x123456, -0x54321, 0x1000000};
+    VECTOR out = {0};
+    zexpect_ptr_eq(&out, ApplyMatrixLV(&m, &v, &out));
+    zexpect_vector_eq(0x123456, -0x2A191, -0xFB72EB, out);
+}
+
+ZTEST(gte, apply_matrix_lv_wraps_high_half_to_16_bits) {
+    MATRIX m = {{{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {0}};
+    VECTOR v = {0x40000000, -0x40000000, 0x3FFFFFFF};
+    VECTOR out = {0};
+    ApplyMatrixLV(&m, &v, &out);
+    zexpect_vector_eq(-0x40000000, -0x40000000, 0x3FFFFFFF, out);
+}
+
+ZTEST(gte, outer_product12_macro_matches_outer_product_12) {
+    VECTOR a = {0x0C00, -0x0400, 0x0800};
+    VECTOR b = {0x0200, 0x1000, -0x0600};
+    VECTOR out = {0};
+    gte_OuterProduct12(&a, &b, &out);
+    zexpect_vector_eq(-0x680, 0x580, 0xC80, out);
+}
+
+ZTEST(gte, outer_product12_svl_crosses_short_vectors) {
+    SVECTOR a = {0x0C00, -0x0400, 0x0800};
+    SVECTOR b = {0x0200, 0x1000, -0x0600};
+    VECTOR out = {0};
+    gte_OuterProduct12SVL(&a, &b, &out);
+    zexpect_vector_eq(-0x680, 0x580, 0xC80, out);
+}
+
+ZTEST(gte, outer_product12_svl_sign_extends_into_rotation_matrix) {
+    MATRIX m = {
+        {{0x100, 0x200, 0x300}, {0x400, 0x500, 0x600}, {0x700, 0x800, 0x900}},
+        {10, 20, 30}};
+    MATRIX exp = {
+        {{-0x800, -1, 0x300}, {0x400, 0x400, 0}, {0x700, 0x800, -0x200}},
+        {10, 20, 30}};
+    MATRIX read = {0};
+    SVECTOR a = {-0x800, 0x400, -0x200};
+    SVECTOR b = {0, 0, 0};
+    VECTOR out = {0};
+    gte_SetRotMatrix(&m);
+    gte_SetTransMatrix(&m);
+    gte_OuterProduct12SVL(&a, &b, &out);
+    gte_ReadRotMatrix(&read);
+    zexpect_matrix_eq(&exp, &read);
+}
+
+ZTEST(gte, outer_product0_svl_keeps_integer_product) {
+    SVECTOR a = {3, -4, 5};
+    SVECTOR b = {7, 2, -6};
+    VECTOR out = {0};
+    gte_OuterProduct0SVL(&a, &b, &out);
+    zexpect_vector_eq(14, 53, 34, out);
+}
+
+ZTEST(gte, outer_product12_sv_stores_short_result) {
+    SVECTOR a = {0x0C00, -0x0400, 0x0800};
+    SVECTOR b = {0x0200, 0x1000, -0x0600};
+    SVECTOR out = {0, 0, 0, 0x5555};
+    gte_OuterProduct12SV(&a, &b, &out);
+    zexpect_s16_eq(-0x680, out.vx);
+    zexpect_s16_eq(0x580, out.vy);
+    zexpect_s16_eq(0xC80, out.vz);
+    zexpect_s16_eq(0x5555, out.pad);
+}
+
+ZTEST(gte, outer_product0_sv_stores_saturated_ir) {
+    SVECTOR a = {0x100, 0, 0};
+    SVECTOR b = {0, 0x100, 0};
+    SVECTOR out = {0};
+    gte_OuterProduct0SV(&a, &b, &out);
+    zexpect_s16_eq(0, out.vx);
+    zexpect_s16_eq(0, out.vy);
+    zexpect_s16_eq(0x7FFF, out.vz);
+}
+
+ZTEST(gte, comp_matrix_macro_multiplies_translates_and_loads_m0) {
+    MATRIX m0 = {{{0, 0x1000, 0}, {0, 0, 0x1000}, {0x1000, 0, 0}},
+                 {10, 20, 30}};
+    MATRIX m1 = {{{0x1000, 0x800, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}},
+                 {100, 200, 300}};
+    MATRIX exp = {{{0, 0x1000, 0}, {0, 0, 0x1000}, {0x1000, 0x800, 0}},
+                  {210, 320, 130}};
+    MATRIX m2 = {0}, rot = {0};
+    gte_CompMatrix(&m0, &m1, &m2);
+    gte_ReadRotMatrix(&rot);
+    zexpect_matrix_eq(&exp, &m2);
+    zexpect_matrix_eq(&m0, &rot);
+}
+
+static void LightingSetup(void) {
+    static MATRIX identity = {
+        {{0x1000, 0, 0}, {0, 0x1000, 0}, {0, 0, 0x1000}}, {0, 0, 0}};
+    gte_SetLightMatrix(&identity);
+    gte_SetColorMatrix(&identity);
+    gte_SetBackColor(16, 32, 48);
+    gte_SetFarColor(0, 0, 0);
+}
+
+ZTEST(gte, normal_color_lights_normal_with_back_color) {
+    SVECTOR n = {0x400, 0x800, 0xC00};
+    unsigned int code = RGBCD(0, 0, 0, 0x30);
+    unsigned int out = 0;
+    LightingSetup();
+    gte_SetRGBcd(&code);
+    gte_NormalColor(&n, &out);
+    zexpect_u32_eq(RGBCD(0x50, 0xA0, 0xF0, 0x30), out);
+}
+
+ZTEST(gte, normal_color_clamps_negative_light_to_zero) {
+    SVECTOR n = {-0x400, 0x800, 0xC00};
+    unsigned int code = RGBCD(0, 0, 0, 0x30);
+    unsigned int out = 0;
+    LightingSetup();
+    gte_SetRGBcd(&code);
+    gte_NormalColor(&n, &out);
+    zexpect_u32_eq(RGBCD(0x10, 0xA0, 0xF0, 0x30), out);
+}
+
+ZTEST(gte, normal_color3_lights_three_normals) {
+    SVECTOR n0 = {0x400, 0, 0}, n1 = {0, 0x800, 0}, n2 = {0, 0, 0xC00};
+    unsigned int code = RGBCD(0, 0, 0, 0x30);
+    unsigned int out0 = 0, out1 = 0, out2 = 0;
+    LightingSetup();
+    gte_SetRGBcd(&code);
+    gte_NormalColor3(&n0, &n1, &n2, &out0, &out1, &out2);
+    zexpect_u32_eq(RGBCD(0x50, 0x20, 0x30, 0x30), out0);
+    zexpect_u32_eq(RGBCD(0x10, 0xA0, 0x30, 0x30), out1);
+    zexpect_u32_eq(RGBCD(0x10, 0x20, 0xF0, 0x30), out2);
+}
+
+ZTEST(gte, normal_color_col_modulates_light_by_color) {
+    SVECTOR n = {0x400, 0x800, 0xC00};
+    unsigned int rgb = RGBCD(0x80, 0x80, 0x80, 0x34);
+    unsigned int out = 0;
+    LightingSetup();
+    gte_NormalColorCol(&n, &rgb, &out);
+    zexpect_u32_eq(RGBCD(0x28, 0x50, 0x78, 0x34), out);
+}
+
+ZTEST(gte, normal_color_col3_modulates_three_normals) {
+    SVECTOR n0 = {0x400, 0, 0}, n1 = {0, 0x800, 0}, n2 = {0, 0, 0xC00};
+    unsigned int rgb = RGBCD(0x80, 0x80, 0x80, 0x34);
+    unsigned int out0 = 0, out1 = 0, out2 = 0;
+    LightingSetup();
+    gte_NormalColorCol3(&n0, &n1, &n2, &rgb, &out0, &out1, &out2);
+    zexpect_u32_eq(RGBCD(0x28, 0x10, 0x18, 0x34), out0);
+    zexpect_u32_eq(RGBCD(0x08, 0x50, 0x18, 0x34), out1);
+    zexpect_u32_eq(RGBCD(0x08, 0x10, 0x78, 0x34), out2);
+}
+
+ZTEST(gte, normal_color_dpq_fades_toward_far_color) {
+    SVECTOR n = {0x400, 0x800, 0xC00};
+    unsigned int rgb = RGBCD(0x80, 0x80, 0x80, 0x34);
+    unsigned int out = 0;
+    LightingSetup();
+    gte_NormalColorDpq(&n, &rgb, 0x800, &out);
+    zexpect_u32_eq(RGBCD(0x14, 0x28, 0x3C, 0x34), out);
+}
+
+ZTEST(gte, normal_color_dpq3_fades_three_normals) {
+    SVECTOR n0 = {0x400, 0, 0}, n1 = {0, 0x800, 0}, n2 = {0, 0, 0xC00};
+    unsigned int rgb = RGBCD(0x80, 0x80, 0x80, 0x34);
+    unsigned int out0 = 0, out1 = 0, out2 = 0;
+    LightingSetup();
+    gte_NormalColorDpq3(&n0, &n1, &n2, &rgb, 0x800, &out0, &out1, &out2);
+    zexpect_u32_eq(RGBCD(0x14, 0x08, 0x0C, 0x34), out0);
+    zexpect_u32_eq(RGBCD(0x04, 0x28, 0x0C, 0x34), out1);
+    zexpect_u32_eq(RGBCD(0x04, 0x08, 0x3C, 0x34), out2);
+}
+
+ZTEST(gte, color_col_modulates_light_vector_by_color) {
+    VECTOR ir = {0x400, 0x800, 0xC00};
+    unsigned int rgb = RGBCD(0x80, 0x80, 0x80, 0x34);
+    unsigned int out = 0;
+    LightingSetup();
+    gte_ColorCol(&ir, &rgb, &out);
+    zexpect_u32_eq(RGBCD(0x28, 0x50, 0x78, 0x34), out);
+}
+
+ZTEST(gte, color_dpq_fades_light_vector_toward_far_color) {
+    VECTOR ir = {0x400, 0x800, 0xC00};
+    unsigned int rgb = RGBCD(0x80, 0x80, 0x80, 0x34);
+    unsigned int out = 0;
+    LightingSetup();
+    gte_ColorDpq(&ir, &rgb, 0x800, &out);
+    zexpect_u32_eq(RGBCD(0x14, 0x28, 0x3C, 0x34), out);
+}
+
+static void DepthProjectionSetup(void) {
+    SetupProjection();
+    GTE_SET_DQA(0);
+    GTE_SET_DQB(0x800000);
+}
+
+ZTEST(gte, rot_trans_pers_macro_projects_vertex) {
+    SVECTOR v = {100, 50, 0};
+    int sxy = 0, p = 0, flag = -1, otz = 0;
+    DepthProjectionSetup();
+    gte_RotTransPers(&v, &sxy, &p, &flag, &otz);
+    zexpect_u32_eq(SXY(260, 170), sxy);
+    zexpect_s32_eq(0x800, p);
+    zexpect_s32_eq(0, flag);
+    zexpect_s32_eq(250, otz);
+}
+
+ZTEST(gte, rot_trans_pers3_macro_projects_triangle) {
+    SVECTOR v0 = {100, 50, 0}, v1 = {-100, -50, 0}, v2 = {30, -40, 1000};
+    int sxy0 = 0, sxy1 = 0, sxy2 = 0, p = 0, flag = -1, otz = 0;
+    DepthProjectionSetup();
+    gte_RotTransPers3(&v0, &v1, &v2, &sxy0, &sxy1, &sxy2, &p, &flag, &otz);
+    zexpect_u32_eq(SXY(260, 170), sxy0);
+    zexpect_u32_eq(SXY(60, 70), sxy1);
+    zexpect_u32_eq(SXY(175, 100), sxy2);
+    zexpect_s32_eq(0x800, p);
+    zexpect_s32_eq(0, flag);
+    zexpect_s32_eq(500, otz);
+}
+
+ZTEST(gte, rot_trans_macro_rotates_and_translates) {
+    MATRIX m = {{{0, 0x1000, 0}, {0, 0, 0x1000}, {0x1000, 0, 0}},
+                {-10, 20, -30}};
+    SVECTOR in = {1, 2, 3};
+    VECTOR out = {0};
+    int flag = -1;
+    gte_SetRotMatrix(&m);
+    gte_SetTransMatrix(&m);
+    gte_RotTrans(&in, &out, &flag);
+    zexpect_vector_eq(-8, 23, -29, out);
+    zexpect_s32_eq(0, flag);
+}
+
+ZTEST(gte, rot_average3_macro_averages_z) {
+    SVECTOR v0 = {100, 50, 0}, v1 = {-100, -50, 0}, v2 = {30, -40, 1000};
+    int sxy0 = 0, sxy1 = 0, sxy2 = 0, p = 0, flag = -1, otz = 0;
+    DepthProjectionSetup();
+    gte_RotAverage3(&v0, &v1, &v2, &sxy0, &sxy1, &sxy2, &p, &flag, &otz);
+    zexpect_u32_eq(SXY(260, 170), sxy0);
+    zexpect_u32_eq(SXY(60, 70), sxy1);
+    zexpect_u32_eq(SXY(175, 100), sxy2);
+    zexpect_s32_eq(0x800, p);
+    zexpect_s32_eq(0, flag);
+    zexpect_s32_eq(333, otz);
+}
+
+ZTEST(gte, rot_nclip3_macro_stores_everything_and_last_z) {
+    SVECTOR v0 = {100, 50, 0}, v1 = {-100, -50, 0}, v2 = {30, -40, 1000};
+    int sxy0 = 0, sxy1 = 0, sxy2 = 0, p = 0, otz = 0, flag = -1, opz = 0;
+    DepthProjectionSetup();
+    gte_RotNclip3(&v0, &v1, &v2, &sxy0, &sxy1, &sxy2, &p, &otz, &flag, &opz);
+    zexpect_u32_eq(SXY(260, 170), sxy0);
+    zexpect_u32_eq(SXY(60, 70), sxy1);
+    zexpect_u32_eq(SXY(175, 100), sxy2);
+    zexpect_s32_eq(0x800, p);
+    zexpect_s32_eq(500, otz);
+    zexpect_s32_eq(0, flag);
+    zexpect_s32_eq(5500, opz);
+}
+
+ZTEST(gte, rot_nclip3_macro_stores_back_facing_triangle) {
+    SVECTOR v0 = {-100, -50, 0}, v1 = {100, 50, 0}, v2 = {30, -40, 1000};
+    int sxy0 = 0, sxy1 = 0, sxy2 = 0, p = 0, otz = 0, flag = -1, opz = 0;
+    DepthProjectionSetup();
+    gte_RotNclip3(&v0, &v1, &v2, &sxy0, &sxy1, &sxy2, &p, &otz, &flag, &opz);
+    zexpect_u32_eq(SXY(60, 70), sxy0);
+    zexpect_u32_eq(SXY(260, 170), sxy1);
+    zexpect_u32_eq(SXY(175, 100), sxy2);
+    zexpect_s32_eq(500, otz);
+    zexpect_s32_eq(-5500, opz);
+}
+
+ZTEST(gte, rot_average_nclip3_macro_averages_z) {
+    SVECTOR v0 = {100, 50, 0}, v1 = {-100, -50, 0}, v2 = {30, -40, 1000};
+    int sxy0 = 0, sxy1 = 0, sxy2 = 0, p = 0, otz = 0, flag = -1, opz = 0;
+    DepthProjectionSetup();
+    gte_RotAverageNclip3(
+        &v0, &v1, &v2, &sxy0, &sxy1, &sxy2, &p, &otz, &flag, &opz);
+    zexpect_u32_eq(SXY(260, 170), sxy0);
+    zexpect_u32_eq(SXY(60, 70), sxy1);
+    zexpect_u32_eq(SXY(175, 100), sxy2);
+    zexpect_s32_eq(0x800, p);
+    zexpect_s32_eq(333, otz);
+    zexpect_s32_eq(0, flag);
+    zexpect_s32_eq(5500, opz);
+}
+
+ZTEST(gte, rot_color_dpq_macro_projects_and_fades_color) {
+    SVECTOR v = {100, 50, 0};
+    SVECTOR n = {0x400, 0x800, 0xC00};
+    unsigned int rgb = RGBCD(0x80, 0x80, 0x80, 0x34);
+    unsigned int out = 0;
+    int sxy = 0, flag = -1, otz = 0;
+    DepthProjectionSetup();
+    LightingSetup();
+    gte_RotColorDpq(&v, &n, &rgb, &sxy, &out, &flag, &otz);
+    zexpect_u32_eq(SXY(260, 170), sxy);
+    zexpect_u32_eq(RGBCD(0x14, 0x28, 0x3C, 0x34), out);
+    zexpect_s32_eq(0, flag);
+    zexpect_s32_eq(250, otz);
+}
+
+ZTEST(gte, rot_color_dpq3_macro_projects_and_fades_colors) {
+    SVECTOR v0 = {100, 50, 0}, v1 = {-100, -50, 0}, v2 = {30, -40, 1000};
+    SVECTOR n0 = {0x400, 0, 0}, n1 = {0, 0x800, 0}, n2 = {0, 0, 0xC00};
+    unsigned int rgb = RGBCD(0x80, 0x80, 0x80, 0x34);
+    unsigned int out0 = 0, out1 = 0, out2 = 0;
+    int sxy0 = 0, sxy1 = 0, sxy2 = 0, flag = -1, otz = 0;
+    DepthProjectionSetup();
+    LightingSetup();
+    gte_RotColorDpq3(&v0, &v1, &v2, &n0, &n1, &n2, &rgb, &sxy0, &sxy1, &sxy2,
+                     &out0, &out1, &out2, &flag, &otz);
+    zexpect_u32_eq(SXY(260, 170), sxy0);
+    zexpect_u32_eq(SXY(60, 70), sxy1);
+    zexpect_u32_eq(SXY(175, 100), sxy2);
+    zexpect_u32_eq(RGBCD(0x14, 0x08, 0x0C, 0x34), out0);
+    zexpect_u32_eq(RGBCD(0x04, 0x28, 0x0C, 0x34), out1);
+    zexpect_u32_eq(RGBCD(0x04, 0x08, 0x3C, 0x34), out2);
+    zexpect_s32_eq(0, flag);
+    zexpect_s32_eq(500, otz);
+}
+
+ZTEST(gte, rot_average_nclip_color_dpq3_macro_fades_colors) {
+    SVECTOR v0 = {100, 50, 0}, v1 = {-100, -50, 0}, v2 = {30, -40, 1000};
+    SVECTOR n0 = {0x400, 0, 0}, n1 = {0, 0x800, 0}, n2 = {0, 0, 0xC00};
+    unsigned int rgb = RGBCD(0x80, 0x80, 0x80, 0x34);
+    unsigned int out0 = 0, out1 = 0, out2 = 0;
+    int sxy0 = 0, sxy1 = 0, sxy2 = 0, otz = 0, flag = -1, opz = 0;
+    DepthProjectionSetup();
+    LightingSetup();
+    gte_RotAverageNclipColorDpq3(
+        &v0, &v1, &v2, &n0, &n1, &n2, &rgb, &sxy0, &sxy1, &sxy2, &out0, &out1,
+        &out2, &otz, &flag, &opz);
+    zexpect_u32_eq(SXY(260, 170), sxy0);
+    zexpect_u32_eq(SXY(60, 70), sxy1);
+    zexpect_u32_eq(SXY(175, 100), sxy2);
+    zexpect_u32_eq(RGBCD(0x14, 0x08, 0x0C, 0x34), out0);
+    zexpect_u32_eq(RGBCD(0x04, 0x28, 0x0C, 0x34), out1);
+    zexpect_u32_eq(RGBCD(0x04, 0x08, 0x3C, 0x34), out2);
+    zexpect_s32_eq(333, otz);
+    zexpect_s32_eq(0, flag);
+    zexpect_s32_eq(5500, opz);
+}
+
+ZTEST(gte, rot_average_nclip_color_col3_macro_modulates_colors) {
+    SVECTOR v0 = {100, 50, 0}, v1 = {-100, -50, 0}, v2 = {30, -40, 1000};
+    SVECTOR n0 = {0x400, 0, 0}, n1 = {0, 0x800, 0}, n2 = {0, 0, 0xC00};
+    unsigned int rgb = RGBCD(0x80, 0x80, 0x80, 0x34);
+    unsigned int out0 = 0, out1 = 0, out2 = 0;
+    int sxy0 = 0, sxy1 = 0, sxy2 = 0, otz = 0, flag = -1, opz = 0;
+    DepthProjectionSetup();
+    LightingSetup();
+    gte_RotAverageNclipColorCol3(
+        &v0, &v1, &v2, &n0, &n1, &n2, &rgb, &sxy0, &sxy1, &sxy2, &out0, &out1,
+        &out2, &otz, &flag, &opz);
+    zexpect_u32_eq(SXY(260, 170), sxy0);
+    zexpect_u32_eq(SXY(60, 70), sxy1);
+    zexpect_u32_eq(SXY(175, 100), sxy2);
+    zexpect_u32_eq(RGBCD(0x28, 0x10, 0x18, 0x34), out0);
+    zexpect_u32_eq(RGBCD(0x08, 0x50, 0x18, 0x34), out1);
+    zexpect_u32_eq(RGBCD(0x08, 0x10, 0x78, 0x34), out2);
+    zexpect_s32_eq(333, otz);
+    zexpect_s32_eq(0, flag);
+    zexpect_s32_eq(5500, opz);
+}
+
+ZTEST(gte, normal_color_col_function_modulates_light_by_color) {
+    SVECTOR n = {0x400, 0x800, 0xC00};
+    CVECTOR rgb = {0x80, 0x80, 0x80, 0x34};
+    CVECTOR out = {0};
+    LightingSetup();
+    NormalColorCol(&n, &rgb, &out);
+    zexpect_u8_eq(0x28, out.r);
+    zexpect_u8_eq(0x50, out.g);
+    zexpect_u8_eq(0x78, out.b);
+    zexpect_u8_eq(0x34, out.cd);
+}
+
+ZTEST(gte, normal_color_dpq_function_fades_toward_far_color) {
+    SVECTOR n = {0x400, 0x800, 0xC00};
+    CVECTOR rgb = {0x80, 0x80, 0x80, 0x34};
+    CVECTOR out = {0};
+    LightingSetup();
+    NormalColorDpq(&n, &rgb, 0x800, &out);
+    zexpect_u8_eq(0x14, out.r);
+    zexpect_u8_eq(0x28, out.g);
+    zexpect_u8_eq(0x3C, out.b);
+    zexpect_u8_eq(0x34, out.cd);
+}
+
+ZTEST(gte, dpq_color_moves_color_toward_far_color) {
+    CVECTOR rgb = {40, 80, 120, 0x2C};
+    CVECTOR out = {0};
+    SetFarColor(200, 100, 50);
+    DpqColor(&rgb, 0x800, &out);
+    zexpect_u8_eq(120, out.r);
+    zexpect_u8_eq(90, out.g);
+    zexpect_u8_eq(85, out.b);
+    zexpect_u8_eq(0x2C, out.cd);
 }

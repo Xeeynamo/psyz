@@ -1235,6 +1235,23 @@ MATRIX* ReadRotMatrix(MATRIX* m) {
     return m;
 }
 
+MATRIX* ReadLightMatrix(MATRIX* m) {
+    *m = L1;
+    return m;
+}
+
+MATRIX* ReadColorMatrix(MATRIX* m) {
+    *m = L2;
+    return m;
+}
+
+void ReadGeomOffset(int* x, int* y) {
+    *x = OFX;
+    *y = OFY;
+}
+
+long ReadGeomScreen(void) { return (short)H; }
+
 static MATRIX s_matrixStack[20];
 static int s_matrixStackDepth = 0;
 
@@ -2444,15 +2461,25 @@ void Psyz_GteStsxy01c(unsigned int* out) {
     out[1] = pack_xy(SX1, SY1);
 }
 
-void Psyz_GteStsxy3Gt3(void* polyGte) {
-    POLY_GT3* poly = (POLY_GT3*)polyGte;
-    poly->x0 = SX0;
-    poly->y0 = SY0;
-    poly->x1 = SX1;
-    poly->y1 = SY1;
-    poly->x2 = SX2;
-    poly->y2 = SY2;
-}
+#define STSXY3_POLY(type, p)                                                   \
+    do {                                                                       \
+        type* sp_poly = (type*)(p);                                            \
+        sp_poly->x0 = SX0;                                                     \
+        sp_poly->y0 = SY0;                                                     \
+        sp_poly->x1 = SX1;                                                     \
+        sp_poly->y1 = SY1;                                                     \
+        sp_poly->x2 = SX2;                                                     \
+        sp_poly->y2 = SY2;                                                     \
+    } while (0)
+
+void Psyz_GteStsxy3F3(void* polyF3) { STSXY3_POLY(POLY_F3, polyF3); }
+void Psyz_GteStsxy3F4(void* polyF4) { STSXY3_POLY(POLY_F4, polyF4); }
+void Psyz_GteStsxy3Ft3(void* polyFt3) { STSXY3_POLY(POLY_FT3, polyFt3); }
+void Psyz_GteStsxy3Ft4(void* polyFt4) { STSXY3_POLY(POLY_FT4, polyFt4); }
+void Psyz_GteStsxy3G3(void* polyG3) { STSXY3_POLY(POLY_G3, polyG3); }
+void Psyz_GteStsxy3G4(void* polyG4) { STSXY3_POLY(POLY_G4, polyG4); }
+void Psyz_GteStsxy3Gt3(void* polyGt3) { STSXY3_POLY(POLY_GT3, polyGt3); }
+void Psyz_GteStsxy3Gt4(void* polyGt4) { STSXY3_POLY(POLY_GT4, polyGt4); }
 
 void Psyz_GteAvsz3(void) { AVSZ3(); }
 void Psyz_GteAvsz4(void) { AVSZ4(); }
@@ -2465,11 +2492,21 @@ void Psyz_GteLcir(void) {
     FLAG_UPDATE_ERROR();
 }
 void Psyz_GteNclip(void) { NCLIP(); }
-void Psyz_GteRt(void) {
-    FLAG = 0;
-    mat_vec(1, 0, M.m, V0.vx, V0.vy, V0.vz, M.t[0], M.t[1], M.t[2]);
-    FLAG_UPDATE_ERROR();
-}
+
+#define RT_MUL(v, t1, t2, t3)                                                  \
+    do {                                                                       \
+        FLAG = 0;                                                              \
+        mat_vec(1, 0, M.m, (v).vx, (v).vy, (v).vz, t1, t2, t3);                \
+        FLAG_UPDATE_ERROR();                                                   \
+    } while (0)
+
+void Psyz_GteRt(void) { RT_MUL(V0, M.t[0], M.t[1], M.t[2]); }
+void Psyz_GteRtv0tr(void) { RT_MUL(V0, M.t[0], M.t[1], M.t[2]); }
+void Psyz_GteRtv1tr(void) { RT_MUL(V1, M.t[0], M.t[1], M.t[2]); }
+void Psyz_GteRtv2tr(void) { RT_MUL(V2, M.t[0], M.t[1], M.t[2]); }
+void Psyz_GteRtv0bk(void) { RT_MUL(V0, L1.t[0], L1.t[1], L1.t[2]); }
+void Psyz_GteRtv1bk(void) { RT_MUL(V1, L1.t[0], L1.t[1], L1.t[2]); }
+void Psyz_GteRtv2bk(void) { RT_MUL(V2, L1.t[0], L1.t[1], L1.t[2]); }
 void Psyz_GteStlvnl(VECTOR* out) {
     out->vx = MAC1;
     out->vy = MAC2;
@@ -2512,15 +2549,6 @@ void Psyz_GteLdopv2(VECTOR* v) {
 void Psyz_GteOp12(void) { OP(0x178000C); }
 
 int Psyz_GteReadflg(void) { return (int)FLAG; }
-void Psyz_GteStsxy3G3(void* polyGte) {
-    POLY_G3* poly = (POLY_G3*)polyGte;
-    poly->x0 = SX0;
-    poly->y0 = SY0;
-    poly->x1 = SX1;
-    poly->y1 = SY1;
-    poly->x2 = SX2;
-    poly->y2 = SY2;
-}
 
 void Psyz_GteLdv0(SVECTOR* v) {
     V0.vx = v->vx;
@@ -2566,9 +2594,9 @@ void Psyz_GteStszotz(unsigned int* out) {
 }
 void Psyz_GteStotz(unsigned int* out) { *out = OTZ; }
 void Psyz_GteStopz(int* out) { *out = MAC0; }
-void Psyz_GteRtv0(void) { MVMVA(0x0486012); }
-void Psyz_GteRtv1(void) { MVMVA(0x048E012); }
-void Psyz_GteRtv2(void) { MVMVA(0x0496012); }
+void Psyz_GteRtv0(void) { RT_MUL(V0, 0, 0, 0); }
+void Psyz_GteRtv1(void) { RT_MUL(V1, 0, 0, 0); }
+void Psyz_GteRtv2(void) { RT_MUL(V2, 0, 0, 0); }
 void Psyz_GteStsz(unsigned int* out) { *out = SZ3; }
 void Psyz_GteStsz3(unsigned int* out0, unsigned int* out1, unsigned int* out2) {
     *out0 = SZ1;
@@ -2594,6 +2622,228 @@ void Psyz_GteStsz4c(unsigned int* out) {
     out[3] = SZ3;
 }
 
+void Psyz_GteGpl0(void) { GPL(0x1A0003E); }
+void Psyz_GteGpl12(void) { GPL(0x1A8003E); }
+
+void Psyz_GteLdbv(unsigned char* v) {
+    IR1 = v[0];
+    IR2 = v[1];
+}
+
+void Psyz_GteLdcv(unsigned char* v) {
+    IR1 = v[0];
+    IR2 = v[1];
+    IR3 = v[2];
+}
+
+void Psyz_GteLdfc(VECTOR* v) {
+    L2.t[0] = v->vx;
+    L2.t[1] = v->vy;
+    L2.t[2] = v->vz;
+}
+
+void Psyz_GteLdsxy0(unsigned int sxy) {
+    SX0 = (short)sxy;
+    SY0 = (short)(sxy >> 16);
+}
+
+void Psyz_GteLdsxy1(unsigned int sxy) {
+    SX1 = (short)sxy;
+    SY1 = (short)(sxy >> 16);
+}
+
+// SXYP reads mirror SXY2
+void Psyz_GteLdsxy2(unsigned int sxy) {
+    SX2 = SXP = (short)sxy;
+    SY2 = SYP = (short)(sxy >> 16);
+}
+
+void Psyz_GteLdsxy3(unsigned int sxy0, unsigned int sxy1, unsigned int sxy2) {
+    Psyz_GteLdsxy0(sxy0);
+    Psyz_GteLdsxy1(sxy1);
+    Psyz_GteLdsxy2(sxy2);
+}
+
+void Psyz_GteLdsxy3c(unsigned int* sxy) {
+    Psyz_GteLdsxy3(sxy[0], sxy[1], sxy[2]);
+}
+
+#define LOAD_ROW0(mat, v)                                                      \
+    do {                                                                       \
+        (mat).m[0][0] = (v)->vx;                                               \
+        (mat).m[0][1] = (v)->vy;                                               \
+        (mat).m[0][2] = (v)->vz;                                               \
+        (mat).m[1][0] = (v)->pad;                                              \
+    } while (0)
+
+void Psyz_GteLdsvrtrow0(SVECTOR* v) { LOAD_ROW0(M, v); }
+void Psyz_GteLdsvllrow0(SVECTOR* v) { LOAD_ROW0(L1, v); }
+void Psyz_GteLdsvlcrow0(SVECTOR* v) { LOAD_ROW0(L2, v); }
+
+void Psyz_GteStsv(SVECTOR* out) {
+    out->vx = IR1;
+    out->vy = IR2;
+    out->vz = IR3;
+}
+
+void Psyz_GteStsxy0(unsigned int* out) { *out = SXY(SX0, SY0); }
+void Psyz_GteStsxy1(unsigned int* out) { *out = SXY(SX1, SY1); }
+void Psyz_GteStsxy2(unsigned int* out) { *out = SXY(SX2, SY2); }
+
+void Psyz_GteStsxy01(unsigned int* out0, unsigned int* out1) {
+    *out0 = SXY(SX0, SY0);
+    *out1 = SXY(SX1, SY1);
+}
+
+void Psyz_GteStsxy3c(unsigned int* out) {
+    out[0] = SXY(SX0, SY0);
+    out[1] = SXY(SX1, SY1);
+    out[2] = SXY(SX2, SY2);
+}
+
+void Psyz_GteSttr(VECTOR* out) {
+    out->vx = M.t[0];
+    out->vy = M.t[1];
+    out->vz = M.t[2];
+}
+
+void Psyz_GteNormalColor(SVECTOR* n0, CVECTOR* out) {
+    Psyz_GteLdv0(n0);
+    NCS(0x0C8041E);
+    Psyz_GteStRgb(out);
+}
+
+void Psyz_GteNormalColor3(SVECTOR* n0, SVECTOR* n1, SVECTOR* n2, CVECTOR* out0,
+                          CVECTOR* out1, CVECTOR* out2) {
+    Psyz_GteLdv3(n0, n1, n2);
+    NCT(0x0D80420);
+    Psyz_GteStRgb3(out0, out1, out2);
+}
+
+void Psyz_GteNormalColorDpq(SVECTOR* n0, CVECTOR* rgb, long p, CVECTOR* out) {
+    Psyz_GteLdv0(n0);
+    Psyz_GteLdRgb(rgb);
+    IR0 = (short)p;
+    NCDS(0x0E80413);
+    Psyz_GteStRgb(out);
+}
+
+void Psyz_GteNormalColorDpq3(
+    SVECTOR* n0, SVECTOR* n1, SVECTOR* n2, CVECTOR* rgb, long p, CVECTOR* out0,
+    CVECTOR* out1, CVECTOR* out2) {
+    Psyz_GteLdv3(n0, n1, n2);
+    Psyz_GteLdRgb(rgb);
+    IR0 = (short)p;
+    NCDT(0x0F80416);
+    Psyz_GteStRgb3(out0, out1, out2);
+}
+
+void Psyz_GteNormalColorCol(SVECTOR* n0, CVECTOR* rgb, CVECTOR* out) {
+    Psyz_GteLdv0(n0);
+    Psyz_GteLdRgb(rgb);
+    NCCS(0x108041B);
+    Psyz_GteStRgb(out);
+}
+
+void Psyz_GteNormalColorCol3(
+    SVECTOR* n0, SVECTOR* n1, SVECTOR* n2, CVECTOR* rgb, CVECTOR* out0,
+    CVECTOR* out1, CVECTOR* out2) {
+    Psyz_GteLdv3(n0, n1, n2);
+    Psyz_GteLdRgb(rgb);
+    NCCT(0x118043F);
+    Psyz_GteStRgb3(out0, out1, out2);
+}
+
+void Psyz_GteColorDpq(VECTOR* ir, CVECTOR* rgb, long p, CVECTOR* out) {
+    IR1 = (short)ir->vx;
+    IR2 = (short)ir->vy;
+    IR3 = (short)ir->vz;
+    Psyz_GteLdRgb(rgb);
+    IR0 = (short)p;
+    CDP(0x1280414);
+    Psyz_GteStRgb(out);
+}
+
+void Psyz_GteColorCol(VECTOR* ir, CVECTOR* rgb, CVECTOR* out) {
+    IR1 = (short)ir->vx;
+    IR2 = (short)ir->vy;
+    IR3 = (short)ir->vz;
+    Psyz_GteLdRgb(rgb);
+    CC(0x138041C);
+    Psyz_GteStRgb(out);
+}
+
+void Psyz_GteOuterProduct12(VECTOR* v0, VECTOR* v1, VECTOR* v2) {
+    int m1, m2, m3;
+    Psyz_GteLdopv1(v0);
+    OP_CALC(1, 0, M.m[0][0], M.m[1][1], M.m[2][2], (short)v1->vx, (short)v1->vy,
+            (short)v1->vz, m1, m2, m3);
+    v2->vx = m1;
+    v2->vy = m2;
+    v2->vz = m3;
+}
+
+#define OUTER_PRODUCT_SV(sf, v0, v1, m1, m2, m3)                               \
+    do {                                                                       \
+        short ops_x = (v0)->vx, ops_y = (v0)->vy, ops_z = (v0)->vz;            \
+        M.m[0][0] = ops_x;                                                     \
+        M.m[0][1] = (short)(ops_x >> 15);                                      \
+        M.m[1][1] = ops_y;                                                     \
+        M.m[1][2] = (short)(ops_y >> 15);                                      \
+        M.m[2][2] = ops_z;                                                     \
+        OP_CALC(sf, 0, ops_x, ops_y, ops_z, (v1)->vx, (v1)->vy, (v1)->vz, m1,  \
+                m2, m3);                                                       \
+    } while (0)
+
+void Psyz_GteOuterProduct12SVL(SVECTOR* v0, SVECTOR* v1, VECTOR* v2) {
+    int m1, m2, m3;
+    OUTER_PRODUCT_SV(1, v0, v1, m1, m2, m3);
+    v2->vx = m1;
+    v2->vy = m2;
+    v2->vz = m3;
+}
+
+void Psyz_GteOuterProduct0SVL(SVECTOR* v0, SVECTOR* v1, VECTOR* v2) {
+    int m1, m2, m3;
+    OUTER_PRODUCT_SV(0, v0, v1, m1, m2, m3);
+    v2->vx = m1;
+    v2->vy = m2;
+    v2->vz = m3;
+}
+
+void Psyz_GteOuterProduct12SV(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2) {
+    int m1, m2, m3;
+    OUTER_PRODUCT_SV(1, v0, v1, m1, m2, m3);
+    (void)m1, (void)m2, (void)m3;
+    Psyz_GteStsv(v2);
+}
+
+void Psyz_GteOuterProduct0SV(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2) {
+    int m1, m2, m3;
+    OUTER_PRODUCT_SV(0, v0, v1, m1, m2, m3);
+    (void)m1, (void)m2, (void)m3;
+    Psyz_GteStsv(v2);
+}
+
+void Psyz_GteCompMatrix(MATRIX* m0, MATRIX* m1, MATRIX* m2) {
+    int j;
+    SetRotMatrix(m0);
+    for (j = 0; j < 3; j++) {
+        mat_vec(1, 0, M.m, m1->m[0][j], m1->m[1][j], m1->m[2][j], 0, 0, 0);
+        m2->m[0][j] = IR1;
+        m2->m[1][j] = IR2;
+        m2->m[2][j] = IR3;
+    }
+    SetTransMatrix(m0);
+    V0.vx = (short)m1->t[0];
+    V0.vy = (short)m1->t[1];
+    V0.vz = (short)m1->t[2];
+    Psyz_GteRt();
+    m2->t[0] = MAC1;
+    m2->t[1] = MAC2;
+    m2->t[2] = MAC3;
+}
+
 long NormalClip(long sxy0, long sxy1, long sxy2) {
     // TODO can this be simplified with an union?
     SX0 = (short)sxy0;
@@ -2607,36 +2857,17 @@ long NormalClip(long sxy0, long sxy1, long sxy2) {
 }
 
 void NormalColorCol(SVECTOR* v0, CVECTOR* v1, CVECTOR* v2) {
-    int sf = CMD_SF(0x1B04084B), lm = CMD_LM(0x1B04084B);
-    Psyz_GteLdRgb(v1);
-    FLAG = 0;
-    LIGHT_MATRIX(sf, lm, *v0);
-    COLOR_MATRIX(sf, lm);
-    COLOR_APPLY(sf, lm);
-    COLOR_FIFO_PUSH();
-    FLAG_UPDATE_ERROR();
-    V0 = *v0;
-    Psyz_GteStRgb(v2);
+    Psyz_GteNormalColorCol(v0, v1, v2);
 }
 
 void NormalColorDpq(SVECTOR* v0, CVECTOR* v1, long p, CVECTOR* v2) {
-    int sf = CMD_SF(0x1304E84A), lm = CMD_LM(0x1304E84A);
-    Psyz_GteLdRgb(v1);
-    IR0 = (short)p;
-    FLAG = 0;
-    LIGHT_MATRIX(sf, lm, *v0);
-    COLOR_MATRIX(sf, lm);
-    DEPTH_CUE_COLOR(sf, lm);
-    COLOR_FIFO_PUSH();
-    FLAG_UPDATE_ERROR();
-    V0 = *v0;
-    Psyz_GteStRgb(v2);
+    Psyz_GteNormalColorDpq(v0, v1, p, v2);
 }
 
 void DpqColor(CVECTOR* v0, long p, CVECTOR* v1) {
     Psyz_GteLdRgb(v0);
     IR0 = (short)p;
-    DPCS(0x1000784A);
+    DPCS(0x0780010);
     Psyz_GteStRgb(v1);
 }
 
@@ -2665,6 +2896,34 @@ void ApplyMatrix(MATRIX* m, SVECTOR* v0, VECTOR* v1) {
 }
 
 void ApplyRotMatrix(SVECTOR* v0, VECTOR* v1) { ApplyMatrix(&M, v0, v1); }
+
+VECTOR* ApplyMatrixLV(MATRIX* m, VECTOR* v0, VECTOR* v1) {
+    int in[3] = {v0->vx, v0->vy, v0->vz};
+    int hi[3], lo[3], i;
+    int hi1, hi2, hi3;
+    for (i = 0; i < 3; i++) {
+        unsigned n = in[i] < 0 ? 0u - (unsigned)in[i] : (unsigned)in[i];
+        unsigned h = n >> 15, l = n & 0x7FFF;
+        if (in[i] < 0) {
+            h = 0u - h;
+            l = 0u - l;
+        }
+        hi[i] = (short)h;
+        lo[i] = (int)l;
+    }
+    SetRotMatrix(m);
+    mat_vec(0, 0, M.m, hi[0], hi[1], hi[2], 0, 0, 0);
+    hi1 = MAC1;
+    hi2 = MAC2;
+    hi3 = MAC3;
+    FLAG = 0;
+    mat_vec(1, 0, M.m, lo[0], lo[1], lo[2], 0, 0, 0);
+    FLAG_UPDATE_ERROR();
+    v1->vx = (int)(((unsigned)hi1 << 3) + (unsigned)MAC1);
+    v1->vy = (int)(((unsigned)hi2 << 3) + (unsigned)MAC2);
+    v1->vz = (int)(((unsigned)hi3 << 3) + (unsigned)MAC3);
+    return v1;
+}
 
 // The wrappers finish every GTE step before writing through their pointers:
 // a store through an argument could alias the registers and force reloads.
@@ -2812,6 +3071,131 @@ long RotAverageNclip4(
     }
     *flag = (int)fl1;
     return MAC0;
+}
+
+static inline void rot_nclip3(
+    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, unsigned int* sxy0,
+    unsigned int* sxy1, unsigned int* sxy2, int* p, int* otz, int* flag,
+    int* opz, int average) {
+    unsigned s0, s1, s2, fl;
+    int ir0, z, op;
+    V0 = *v0;
+    V1 = *v1;
+    V2 = *v2;
+    RTPT_BODY(1, 0, s0, s1, s2);
+    fl = FLAG;
+    ir0 = IR0;
+    NCLIP();
+    op = MAC0;
+    if (average) {
+        AVSZ3();
+        z = OTZ;
+    } else {
+        z = SZ3 >> 2;
+    }
+    *flag = (int)fl;
+    *opz = op;
+    *sxy0 = s0;
+    *sxy1 = s1;
+    *sxy2 = s2;
+    *p = ir0;
+    *otz = z;
+}
+
+void Psyz_GteRotNclip3(
+    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, unsigned int* sxy0,
+    unsigned int* sxy1, unsigned int* sxy2, int* p, int* otz, int* flag,
+    int* opz) {
+    rot_nclip3(v0, v1, v2, sxy0, sxy1, sxy2, p, otz, flag, opz, 0);
+}
+
+void Psyz_GteRotAverageNclip3(
+    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, unsigned int* sxy0,
+    unsigned int* sxy1, unsigned int* sxy2, int* p, int* otz, int* flag,
+    int* opz) {
+    rot_nclip3(v0, v1, v2, sxy0, sxy1, sxy2, p, otz, flag, opz, 1);
+}
+
+void Psyz_GteRotColorDpq(SVECTOR* v0, SVECTOR* n0, CVECTOR* rgb,
+                         unsigned int* sxy, CVECTOR* out, int* flag, int* otz) {
+    unsigned s, fl;
+    V0 = *v0;
+    RTPS_BODY(1, 0, s);
+    fl = FLAG;
+    Psyz_GteLdv0(n0);
+    Psyz_GteLdRgb(rgb);
+    NCDS(0x0E80413);
+    *sxy = s;
+    *flag = (int)fl;
+    Psyz_GteStRgb(out);
+    *otz = SZ3 >> 2;
+}
+
+static inline void rot_color3(
+    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* n0, SVECTOR* n1,
+    SVECTOR* n2, CVECTOR* rgb, unsigned int* sxy0, unsigned int* sxy1,
+    unsigned int* sxy2, CVECTOR* out0, CVECTOR* out1, CVECTOR* out2, int* otz,
+    int* flag, int* opz, int nclip_average, int col) {
+    unsigned s0, s1, s2, fl;
+    int z, op = 0;
+    V0 = *v0;
+    V1 = *v1;
+    V2 = *v2;
+    RTPT_BODY(1, 0, s0, s1, s2);
+    fl = FLAG;
+    if (nclip_average) {
+        NCLIP();
+        op = MAC0;
+    }
+    Psyz_GteLdv3(n0, n1, n2);
+    Psyz_GteLdRgb(rgb);
+    if (col) {
+        NCCT(0x118043F);
+    } else {
+        NCDT(0x0F80416);
+    }
+    if (nclip_average) {
+        AVSZ3();
+        z = OTZ;
+    } else {
+        z = SZ3 >> 2;
+    }
+    *sxy0 = s0;
+    *sxy1 = s1;
+    *sxy2 = s2;
+    Psyz_GteStRgb3(out0, out1, out2);
+    *flag = (int)fl;
+    *otz = z;
+    if (nclip_average) {
+        *opz = op;
+    }
+}
+
+void Psyz_GteRotColorDpq3(
+    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* n0, SVECTOR* n1,
+    SVECTOR* n2, CVECTOR* rgb, unsigned int* sxy0, unsigned int* sxy1,
+    unsigned int* sxy2, CVECTOR* out0, CVECTOR* out1, CVECTOR* out2, int* flag,
+    int* otz) {
+    rot_color3(v0, v1, v2, n0, n1, n2, rgb, sxy0, sxy1, sxy2, out0, out1, out2,
+               otz, flag, NULL, 0, 0);
+}
+
+void Psyz_GteRotAverageNclipColorDpq3(
+    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* n0, SVECTOR* n1,
+    SVECTOR* n2, CVECTOR* rgb, unsigned int* sxy0, unsigned int* sxy1,
+    unsigned int* sxy2, CVECTOR* out0, CVECTOR* out1, CVECTOR* out2, int* otz,
+    int* flag, int* opz) {
+    rot_color3(v0, v1, v2, n0, n1, n2, rgb, sxy0, sxy1, sxy2, out0, out1, out2,
+               otz, flag, opz, 1, 0);
+}
+
+void Psyz_GteRotAverageNclipColorCol3(
+    SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* n0, SVECTOR* n1,
+    SVECTOR* n2, CVECTOR* rgb, unsigned int* sxy0, unsigned int* sxy1,
+    unsigned int* sxy2, CVECTOR* out0, CVECTOR* out1, CVECTOR* out2, int* otz,
+    int* flag, int* opz) {
+    rot_color3(v0, v1, v2, n0, n1, n2, rgb, sxy0, sxy1, sxy2, out0, out1, out2,
+               otz, flag, opz, 1, 1);
 }
 
 extern short s_rsqrt_table[];
