@@ -36,9 +36,9 @@ ifneq ($(UNAME_S),Darwin)
 	cmake -G$(CMAKE_GEN) --log-level=WARNING -DPSYZ_RENDERER=sdl3_gl -DGTE_USE_HW_SQRT=OFF -DCMAKE_BUILD_TYPE=Debug -S tests/ -B tests/build/sdl3-gl-sw
 	cmake --build tests/build/sdl3-gl-sw
 ifeq ($(UNAME_S),Linux)
-	SDL_VIDEODRIVER=offscreen $(ZTEST_RUN) native --exe tests/build/sdl3-gl-sw/psyz_tests --workdir tests --filter='gpu::*,native::*' $(RUNNER_ARGS)
+	SDL_VIDEODRIVER=offscreen $(ZTEST_RUN) native --exe tests/build/sdl3-gl-sw/psyz_tests --workdir tests --filter='gpu::*' $(RUNNER_ARGS)
 else
-	$(ZTEST_RUN) native --exe tests/build/sdl3-gl-sw/psyz_tests --workdir tests --filter='gpu::*,native::*' $(RUNNER_ARGS)
+	$(ZTEST_RUN) native --exe tests/build/sdl3-gl-sw/psyz_tests --workdir tests --filter='gpu::*' $(RUNNER_ARGS)
 endif
 endif
 

@@ -2315,7 +2315,7 @@ static void EmitVramFill(int x, int y, int w, int h, u8 r, u8 g, u8 b) {
     FlushBatch();
     GeCmd(GECMD_CLEARMODE,
           ((GU_COLOR_BUFFER_BIT | GU_STENCIL_BUFFER_BIT) << 8) | 1);
-    unsigned short c = PackColor(r, g, b);
+    unsigned short c = PackColor(r, g, b) & 0x7FFF;
     int xe = x + w, ye = y + h;
     for (int ty = y >> 8; ty <= (ye - 1) >> 8; ty++) {
         for (int tx = x >> 6; tx <= (xe - 1) >> 6; tx++) {
