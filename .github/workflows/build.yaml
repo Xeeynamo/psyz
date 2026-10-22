@@ -44,7 +44,7 @@ jobs:
           if-no-files-found: ignore
 
   linux-i686:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       CI: 1
       OS: linux
