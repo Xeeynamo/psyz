@@ -11,13 +11,13 @@ void psyz_heap_init(void* base, unsigned int size);
 extern unsigned long __bss_end[];
 
 // nugget's startup sets up no allocator; everything between .bss and the
-// stack is free, keeping 64KB for the stack to grow into.
+// stack is free, keeping 128KB for the stack to grow into.
 static void ps1_init(void) {
     const unsigned long stack_top = 0x801FFF00;
     unsigned char* heap = (unsigned char*)__bss_end;
     unsigned int status = *(volatile unsigned int*)0x1F801814;
     SetVideoMode(status & (1u << 20) ? MODE_PAL : MODE_NTSC);
-    psyz_heap_init(heap, stack_top - 64 * 1024 - (unsigned long)heap);
+    psyz_heap_init(heap, stack_top - 128 * 1024 - (unsigned long)heap);
 }
 #endif
 

@@ -21,7 +21,7 @@ static void psx_mdec_write(unsigned offset, uint32_t value) {
 static struct Ps1MdecTables {
     uint8_t quant[128], scale[128];
 } mdec_tables, mdec_transfer_tables;
-static uint32_t mdec_input[UINT16_MAX];
+static const uint32_t* mdec_input;
 static size_t mdec_input_words, mdec_sent;
 static uint32_t mdec_command;
 static int mdec_started, mdec_error;
@@ -55,8 +55,7 @@ int Psyz_MdecCommand(uint32_t command, const void* data, size_t words) {
         return 0;
     }
     Psyz_MdecReset();
-    if (words)
-        memcpy(mdec_input, data, words * 4);
+    mdec_input = data;
     mdec_transfer_tables = mdec_tables;
     mdec_input_words = words;
     mdec_command = command;
@@ -172,7 +171,7 @@ int Psyz_MdecDmaIn(const void* data, size_t words) {
     if ((!data && words) || words > UINT16_MAX)
         return -1;
     if (opcode == 1) {
-        memcpy(mdec_input, data, words * 4);
+        mdec_input = data;
         mdec_input_words = words;
         return 0;
     }
