@@ -144,3 +144,9 @@ Contributions are welcome! If you find issues or want to add new features, pleas
 Special thanks to [SoapyMan](https://github.com/SoapyMan) for the inspiration from their [PsyCross](https://github.com/OpenDriver2/PsyCross/) project.
 
 Thanks to [grumpycoders/pcsx-redux](https://github.com/grumpycoders/pcsx-redux/) for their ongoing support to the PS1 development community and help.
+
+## Third-party assets
+
+`psyz/src/psyz/krom_font.h`, the font returned by `Krom2RawAdd`, is the [Shinonome](http://openlab.ring.gr.jp/efont/shinonome/) 16 dot gothic font for JIS X 0208. It was designed by Yasuyuki Furukawa in 2000 and is maintained by /efont/ (Efont Open Laboratory, 2001), who release it into the public domain. Some of its symbols come from the XFree86 `jiskan16` font (JIS X 9051-1984, used by permission).
+
+PsyZ makes two changes to it: the glyphs follow the order `Krom2RawAdd` uses on the PS1 BIOS, and each 16x16 glyph becomes 16x15 by OR-ing its two most similar adjacent rows (the pair nearest the middle wins ties).

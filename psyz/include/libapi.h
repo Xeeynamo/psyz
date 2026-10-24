@@ -949,7 +949,7 @@ void SwExitCriticalSection(void);
  * data corresponding to the specified Kanji character, a value of -1 is
  * returned.
  */
-unsigned long Krom2RawAdd(unsigned short sjiscode);
+u_long Krom2RawAdd(unsigned short sjiscode);
 
 /**
  * @brief Get shift-JIS font pattern addresses
