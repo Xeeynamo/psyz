@@ -1329,6 +1329,7 @@ ZTEST(gpu, marge_prim) {
 }
 
 ZTEST(gpu, screen_copy_after_draw_env_sees_earlier_prims) {
+    zskip_targets("ppsspp"); // subpixel vertex emulation broken
     u_short tpage, clut;
     DR_ENV drEnv;
     POLY_FT4* screenCopy = &cdb->ft4[0];
