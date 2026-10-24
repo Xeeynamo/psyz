@@ -184,8 +184,10 @@ static const char fragment_shader_body[] = {
     // PS1-accurate texture-color modulation: (tex5 * col8) >> 7
     "    vec3 modColor;\n"
     "    if (textureMode == 0u) {\n"
-    // untextured: PS1 uses color directly, no modulation
-    "        modColor = texColor.rgb * vertexColor.rgb;\n"
+    // untextured: PS1 uses color directly, truncated to 15-bit
+    "        vec3 col8 = floor(vertexColor.rgb * 255.0 + 0.5);\n"
+    "        modColor = dither != 0u ? col8 / 255.0\n"
+    "                                : floor(col8 / 8.0) / 31.0;\n"
     "    } else {\n"
     "        vec3 tex5 = floor(texColor.rgb * 31.0 + 0.5);\n"
     "        vec3 col8 = min(floor(vertexColor.rgb * 127.5 + 0.5), "
@@ -841,10 +843,9 @@ static void CanvasUploadImage(
          ScaleRect(dst, (int)canvas_res));
 }
 
-// the open batch area when it draws on a canvas
-static SDL_Rect PendingCanvasRect(void) {
-    if (n_vertices == 0 || res_request.w == 0 ||
-        FindFbContaining(scissor_rect.x, scissor_rect.y) < 0) {
+// the area the open batch draws on; a prim sampling it must see that batch
+static SDL_Rect PendingBatchRect(void) {
+    if (n_vertices == 0) {
         return (SDL_Rect){0, 0, 0, 0};
     }
     return scissor_rect;
@@ -1325,7 +1326,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
     Vertex* v;
 
     if (isTextured && PrimSamplesDirtyFb(packets, max_len, isPoly, isGouraud,
-                                         cur_tpage, PendingCanvasRect())) {
+                                         cur_tpage, PendingBatchRect())) {
         Draw_FlushBuffer();
         SyncDirtyCanvases(NULL);
     }
@@ -1609,6 +1610,9 @@ void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
     if (rect->w == 0 || rect->h == 0) {
         return;
     }
+    r = To15BitChannel(r);
+    g = To15BitChannel(g);
+    b = To15BitChannel(b);
     if (!sdl3_window && !InitPlatform()) {
         return;
     }

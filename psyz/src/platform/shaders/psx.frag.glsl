@@ -73,8 +73,9 @@ void main() {
     // PS1-accurate texture-color modulation: (tex5 * col8) >> 7, clamp to 31
     vec3 modColor;
     if (textureMode == 0u) {
-        // untextured: PS1 uses color directly, no modulation
-        modColor = texColor.rgb * vertexColor.rgb;
+        // untextured: PS1 uses color directly, truncated to 15-bit
+        vec3 col8 = floor(vertexColor.rgb * 255.0 + 0.5);
+        modColor = dither != 0u ? col8 / 255.0 : floor(col8 / 8.0) / 31.0;
     } else {
         vec3 tex5 = floor(texColor.rgb * 31.0 + 0.5);
         vec3 col8 = min(floor(vertexColor.rgb * 127.5 + 0.5), vec3(255.0));

@@ -1328,6 +1328,61 @@ ZTEST(gpu, marge_prim) {
     Present("marge_prim");
 }
 
+ZTEST(gpu, screen_copy_after_draw_env_sees_earlier_prims) {
+    u_short tpage, clut;
+    DR_ENV drEnv;
+    POLY_FT4* screenCopy = &cdb->ft4[0];
+    POLY_FT4* sprite = &cdb->ft4[1];
+    TILE* hud = &cdb->tile[0];
+    TILE* background = &cdb->tile[1];
+    TILE* hole = &cdb->tile[2];
+    if (LoadTim(img_4bpp, &tpage, &clut)) {
+        return;
+    }
+
+    SetTile(background);
+    setXY0(background, 32, 32);
+    setWH(background, 192, 176);
+    setRGB0(background, 40, 90, 160);
+
+    SetTile(hole);
+    setXY0(hole, 112, 96);
+    setWH(hole, 48, 48);
+    setRGB0(hole, 0, 0, 0);
+
+    SetDrawEnv(&drEnv, &cdb->draw);
+
+    SetPolyFT4(sprite);
+    setXYWH(sprite, 80, 72, 64, 64);
+    setRGB0(sprite, 128, 128, 128);
+    setUVWH(sprite, 0, 0, 64, 64);
+    setSemiTrans(sprite, 0);
+    sprite->tpage = tpage;
+    sprite->clut = clut;
+
+    SetTile(hud);
+    setXY0(hud, 24, 184);
+    setWH(hud, 208, 24);
+    setRGB0(hud, 200, 40, 40);
+
+    SetPolyFT4(screenCopy);
+    setXYWH(screenCopy, 16, 16, 224, 208);
+    setRGB0(screenCopy, 128, 128, 128);
+    setUVWH(screenCopy, 16, 16, 224, 208);
+    setSemiTrans(screenCopy, 0);
+    screenCopy->tpage = GetTPage(2, 0, 0, 0);
+    screenCopy->clut = 0;
+
+    ClearOTag(cdb->ot, OTSIZE);
+    AddPrim(cdb->ot, screenCopy);
+    AddPrim(cdb->ot, hud);
+    AddPrim(cdb->ot, sprite);
+    AddPrim(cdb->ot, &drEnv);
+    AddPrim(cdb->ot, hole);
+    AddPrim(cdb->ot, background);
+    Present("screen_copy_after_draw_env_sees_earlier_prims");
+}
+
 enum {
     DR = 47,
     DG = 123,

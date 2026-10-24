@@ -442,6 +442,10 @@ static bool OverlapsDirtyCanvas(SDL_Rect r, SDL_Rect pending) {
     return false;
 }
 
+static inline u_char To15BitChannel(u_char c) {
+    return (u_char)(((c >> 3) * 255 + 15) / 31);
+}
+
 static bool PrimSamplesDirtyFb(
     const u_long* p, int len, bool is_poly, bool is_gouraud, u16 cur_tpage,
     SDL_Rect pending) {

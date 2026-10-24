@@ -896,10 +896,9 @@ static void CanvasUploadImage(
     MarkVramDirty(staging);
 }
 
-// the open batch area when it draws on a canvas
-static SDL_Rect PendingCanvasRect(void) {
-    if (n_vertices == 0 || res_request.w == 0 ||
-        FindFbContaining(scissor_rect.x, scissor_rect.y) < 0) {
+// the area the open batch draws on; a prim sampling it must see that batch
+static SDL_Rect PendingBatchRect(void) {
+    if (n_vertices == 0) {
         return (SDL_Rect){0, 0, 0, 0};
     }
     return scissor_rect;
@@ -1523,7 +1522,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
     Vertex* v;
 
     if (isTextured && PrimSamplesDirtyFb(packets, max_len, isPoly, isGouraud,
-                                         cur_tpage, PendingCanvasRect())) {
+                                         cur_tpage, PendingBatchRect())) {
         Draw_FlushBuffer();
         SyncDirtyCanvases(NULL);
     }
@@ -1804,6 +1803,9 @@ void Draw_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
     if (rect->w == 0 || rect->h == 0) {
         return;
     }
+    r = To15BitChannel(r);
+    g = To15BitChannel(g);
+    b = To15BitChannel(b);
     if (!sdl3_window && !InitPlatform()) {
         return;
     }
