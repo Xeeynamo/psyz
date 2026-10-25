@@ -130,10 +130,21 @@ typedef enum {
     BLEND_ADD,
     BLEND_SUB,
     BLEND_SUB_OPAQUE,
+    BLEND_ADD_UNTEXTURED,
+    BLEND_SUB_UNTEXTURED,
     BLEND_COUNT,
 } BlendMode;
 
 static inline bool is_untextured(const Vertex* v) { return v->t & 0x8000; }
+static int TexturedGroupEnd(int start, int run_end) {
+    bool untextured = is_untextured(&vertex_buf[index_buf[start]]);
+    int end = start + 3;
+    while (end < run_end &&
+           is_untextured(&vertex_buf[index_buf[end]]) == untextured) {
+        end += 3;
+    }
+    return end;
+}
 static int SubtractGroupEnd(int start, int run_end) {
     bool untextured = is_untextured(&vertex_buf[index_buf[start]]);
     int end = start + 3;

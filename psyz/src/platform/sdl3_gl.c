@@ -1881,6 +1881,14 @@ static void SetBlendMode(BlendMode mode) {
         glBlendEquation(GL_FUNC_ADD);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         break;
+    case BLEND_ADD_UNTEXTURED:
+        glBlendEquation(GL_FUNC_ADD);
+        glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ZERO);
+        break;
+    case BLEND_SUB_UNTEXTURED:
+        glBlendEquationSeparate(GL_FUNC_REVERSE_SUBTRACT, GL_FUNC_ADD);
+        glBlendFuncSeparate(GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO, GL_ZERO);
+        break;
     default:
         glBlendEquation(GL_FUNC_ADD);
         glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
@@ -1969,19 +1977,23 @@ void Draw_FlushBuffer(void) {
         }
         while (need_subtract && start < end) {
             int group_end = SubtractGroupEnd(start, end);
-            SetBlendMode(BLEND_SUB);
+            bool untextured = is_untextured(&vertex_buf[index_buf[start]]);
+            SetBlendMode(untextured ? BLEND_SUB_UNTEXTURED : BLEND_SUB);
             DrawIndices(start, group_end);
-            if (!is_untextured(&vertex_buf[index_buf[start]])) {
+            if (!untextured) {
                 SetBlendMode(BLEND_SUB_OPAQUE);
                 DrawIndices(start, group_end);
             }
             start = group_end;
         }
-        SetBlendMode(BLEND_ADD);
-        if (start < end) {
-            DrawIndices(start, end);
-            start = end;
+        while (start < end) {
+            int group_end = TexturedGroupEnd(start, end);
+            bool untextured = is_untextured(&vertex_buf[index_buf[start]]);
+            SetBlendMode(untextured ? BLEND_ADD_UNTEXTURED : BLEND_ADD);
+            DrawIndices(start, group_end);
+            start = group_end;
         }
+        SetBlendMode(BLEND_ADD);
     }
     if (fb_index >= 0) {
         InvalidateCanvas(&layout, fb_index, scissor_rect);
