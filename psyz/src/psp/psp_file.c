@@ -9,6 +9,7 @@
 #include <string.h>
 #include <kernel.h>
 #include <romio.h>
+#include "../internal.h"
 
 typedef struct {
     char name[256];
@@ -217,9 +218,6 @@ int psyz_open(const char* devname, int flag) {
     if (flag & (FRLOCK | FWLOCK)) {
         DEBUGF("file locking ignored for %s", devname);
     }
-    if (flag & FASYNC) {
-        DEBUGF("FASYNC ignored for %s", devname);
-    }
 
     char path[0x100];
     Psyz_AdjustPath(path, devname, sizeof(path));
@@ -245,21 +243,28 @@ int psyz_open(const char* devname, int flag) {
               (unsigned int)fd);
         return -1;
     }
-    return (int)fd;
+    return open_card_fd((int)fd, devname, flag);
 }
 
-int psyz_close(int fd) { return sceIoClose((SceUID)fd); }
+int psyz_close(int fd) {
+    close_card_fd(fd);
+    return sceIoClose((SceUID)fd);
+}
 
 unsigned long psyz_lseek(int fd, unsigned int offset, int flag) {
     return (unsigned long)sceIoLseek((SceUID)fd, (SceOff)offset, flag);
 }
 
 long psyz_read(long fd, void* buf, long n) {
-    return (long)sceIoRead((SceUID)fd, buf, (SceSize)n);
+    long ret = (long)sceIoRead((SceUID)fd, buf, (SceSize)n);
+    raise_card_io_end((int)fd);
+    return ret;
 }
 
 int psyz_write(int fd, char* buf, int n) {
-    return (int)sceIoWrite((SceUID)fd, buf, (SceSize)n);
+    int ret = (int)sceIoWrite((SceUID)fd, buf, (SceSize)n);
+    raise_card_io_end(fd);
+    return ret;
 }
 
 long psyz_ioctl(int fd, int com, int arg) {

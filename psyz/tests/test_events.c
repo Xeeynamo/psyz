@@ -1013,3 +1013,44 @@ ZTEST(events, disabled_card_event_misses_card_info_result) {
     }
     zexpect_s32_eq(-1, card_poll(card_sw, 10));
 }
+
+ZTEST(events, card_async_io_raises_sw_card_ioe) {
+    const int CARD_ONE_BLOCK = (1 << 16);
+    char path[] = "bu00:BASLUS-00000PSYZEV";
+    unsigned char card_sector[128];
+    long fd;
+    int write_status, read_status;
+
+    card_start();
+    if (card_info(CARD_SLOT_1) != CARD_IOE && ztest_is_target("ps1")) {
+        zskip("no memory card in slot 1");
+    }
+    card_poll(card_hw, 0);
+
+    fd = open(path, FCREAT | CARD_ONE_BLOCK);
+    zassert_s32_ge(0, fd);
+    close(fd);
+    while (card_poll(card_sw, 0) != -1 || card_poll(card_hw, 0) != -1) {
+    }
+
+    fd = open(path, FWRITE | FASYNC);
+    zassert_s32_ge(0, fd);
+    memset(card_sector, 0x5A, sizeof(card_sector));
+    write(fd, (char*)card_sector, sizeof(card_sector));
+    write_status = card_poll(card_sw, 180);
+    close(fd);
+    while (card_poll(card_sw, 0) != -1) {
+    }
+
+    fd = open(path, FREAD | FASYNC);
+    zassert_s32_ge(0, fd);
+    read(fd, card_sector, sizeof(card_sector));
+    read_status = card_poll(card_sw, 180);
+    close(fd);
+    while (card_poll(card_sw, 0) != -1) {
+    }
+
+    erase(path);
+    zexpect_s32_eq(CARD_IOE, write_status);
+    zexpect_s32_eq(CARD_IOE, read_status);
+}

@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <share.h>
 #include <romio.h>
+#include "../internal.h"
 
 typedef struct {
     char** filenames;
@@ -222,9 +223,6 @@ int psyz_open(const char* devname, int flag, ...) {
     if (flag & FNBUF) {
         DEBUGF("FNBUF ignored for %s", devname);
     }
-    if (flag & FASYNC) {
-        DEBUGF("FASYNC ignored for %s", devname);
-    }
     if (flag & 0x10000) {
         DEBUGF("0x10000 ignored for %s", devname);
     }
@@ -239,7 +237,7 @@ int psyz_open(const char* devname, int flag, ...) {
         if (err != 0) {
             return -1;
         }
-        return fd;
+        return open_card_fd(fd, devname, flag);
     } else {
         struct _stat st;
         if (_stat(path, &st) != 0) {
@@ -258,20 +256,29 @@ int psyz_open(const char* devname, int flag, ...) {
         if (err != 0) {
             return -1;
         }
-        return fd;
+        return open_card_fd(fd, devname, flag);
     }
 }
 
-int psyz_close(int fd) { return _close(fd); }
+int psyz_close(int fd) {
+    close_card_fd(fd);
+    return _close(fd);
+}
 
 unsigned long psyz_lseek(int fd, unsigned int offset, int flag) {
     return _lseek(fd, offset, flag);
 }
 
-int psyz_read(int fd, void* buf, unsigned int n) { return _read(fd, buf, n); }
+int psyz_read(int fd, void* buf, unsigned int n) {
+    int ret = _read(fd, buf, n);
+    raise_card_io_end(fd);
+    return ret;
+}
 
 int psyz_write(int fd, const void* buf, unsigned int n) {
-    return _write(fd, buf, n);
+    int ret = _write(fd, buf, n);
+    raise_card_io_end(fd);
+    return ret;
 }
 
 long psyz_ioctl(int fd, int com, int arg) {

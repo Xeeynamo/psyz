@@ -51,6 +51,45 @@ static long card_op(unsigned int sw_desc, long chan) {
     return 1;
 }
 
+// the BIOS has 16 file slots, so no more than 16 FASYNC memory card files
+static int card_async_fds[16];
+static int card_async_len;
+
+int open_card_fd(int fd, const char* devname, int flag) {
+    if (fd < 0 || !(flag & FASYNC)) {
+        return fd;
+    }
+    if (devname[0] != 'b' || devname[1] != 'u') {
+        DEBUGF("FASYNC ignored for %s", devname);
+        return fd;
+    }
+    if (card_async_len >= LEN(card_async_fds)) {
+        WARNF(
+            "too many FASYNC file descriptors, %s stays synchronous", devname);
+        return fd;
+    }
+    card_async_fds[card_async_len++] = fd;
+    return fd;
+}
+
+void close_card_fd(int fd) {
+    for (int i = 0; i < card_async_len; i++) {
+        if (card_async_fds[i] == fd) {
+            card_async_fds[i] = card_async_fds[--card_async_len];
+            return;
+        }
+    }
+}
+
+void raise_card_io_end(int fd) {
+    for (int i = 0; i < card_async_len; i++) {
+        if (card_async_fds[i] == fd) {
+            Psyz_KernelRaise(SwCARD, EvSpIOE);
+            return;
+        }
+    }
+}
+
 long _card_info(long chan) { return card_op(SwCARD, chan); }
 
 long _card_load(long chan) { return card_op(SwCARD, chan); }

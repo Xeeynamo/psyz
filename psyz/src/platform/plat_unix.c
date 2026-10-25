@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <kernel.h>
 #include <romio.h>
+#include "../internal.h"
 
 static void populate_entry(
     const char* baseDir, struct DIRENTRY* dst, struct dirent* src) {
@@ -222,9 +223,6 @@ int psyz_open(const char* devname, int flag) {
     if (flag & FNBUF) {
         DEBUGF("FNBUF ignored for %s", devname);
     }
-    if (flag & FASYNC) {
-        DEBUGF("FASYNC ignored for %s", devname);
-    }
     if (flag & 0x10000) {
         DEBUGF("0x10000 ignored for %s", devname);
     }
@@ -232,7 +230,8 @@ int psyz_open(const char* devname, int flag) {
     char path[0x100];
     Psyz_AdjustPath(path, devname, sizeof(path));
     if (oflag & O_CREAT) {
-        return open(path, oflag | O_TRUNC, 0644); // a new file, as creat()
+        return open_card_fd(
+            open(path, oflag | O_TRUNC, 0644), devname, flag); // as creat()
     } else {
         struct stat st;
         if (stat(path, &st) != 0) {
@@ -249,17 +248,24 @@ int psyz_open(const char* devname, int flag) {
             }
             return -1;
         }
-        return open(path, oflag);
+        return open_card_fd(open(path, oflag), devname, flag);
     }
 }
-int psyz_close(int fd) { return (int)close((int)fd); }
+int psyz_close(int fd) {
+    close_card_fd(fd);
+    return (int)close((int)fd);
+}
 unsigned long psyz_lseek(int fd, unsigned int offset, int flag) {
     return lseek(fd, (off_t)offset, flag);
 }
 long psyz_read(long fd, void* buf, long n) {
-    return (long)read((int)fd, buf, (size_t)n);
+    long ret = (long)read((int)fd, buf, (size_t)n);
+    raise_card_io_end((int)fd);
+    return ret;
 }
 int psyz_write(int fd, char* buf, int n) {
-    return (int)write(fd, buf, (size_t)n);
+    int ret = (int)write(fd, buf, (size_t)n);
+    raise_card_io_end(fd);
+    return ret;
 }
 long psyz_ioctl(int fd, int com, int arg) { return ioctl(fd, com, arg); }
