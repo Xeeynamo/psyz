@@ -2,6 +2,7 @@
 // controller behind libetc's callbacks.
 #include <psyz.h>
 #include <psyz/log.h>
+#include <psyz/timers.h>
 #include <kernel.h>
 #include <libapi.h>
 #include <libetc.h>
@@ -123,6 +124,16 @@ static void VSyncDispatch(void);
 static void (*irq_callbacks[IRQ_COUNT])(void) = {VSyncDispatch};
 static void (*dma_callbacks[DMA_CHANNEL_OTC + 1])(void);
 static unsigned dma_pending;
+
+static int clock_source = PSYZ_CLOCK_HOST;
+static uint64_t spu_samples;
+
+static uint32_t NowUs(void) {
+    if (clock_source == PSYZ_CLOCK_SPU) {
+        return (uint32_t)(spu_samples * 1000000 / 44100);
+    }
+    return Psyz_OsNowUs();
+}
 
 static void KernelInit(void) {
     if (kernel_lock) {
@@ -520,7 +531,7 @@ static void CounterRestart(RootCounter* c, uint32_t now_us) {
 static int ServiceTimers(uint32_t* deadline_us) {
     int triggered = 0;
     KernelLock();
-    uint32_t now = Psyz_OsNowUs();
+    uint32_t now = NowUs();
     in_interrupt = 1;
     for (int i = 0; i < LEN(counters); i++) {
         RootCounter* c = &counters[i];
@@ -528,7 +539,8 @@ static int ServiceTimers(uint32_t* deadline_us) {
         if (!c->period_us || !c->irq) {
             continue;
         }
-        if ((int32_t)(now - c->next_us) > MAX_CATCHUP_US) {
+        if (clock_source == PSYZ_CLOCK_HOST &&
+            (int32_t)(now - c->next_us) > MAX_CATCHUP_US) {
             CounterRestart(c, now);
         }
         while (IsDue(c->next_us, now)) {
@@ -555,11 +567,15 @@ static int ServiceTimers(uint32_t* deadline_us) {
 static void IrqThread(void) {
     for (;;) {
         uint32_t deadline;
+        if (clock_source == PSYZ_CLOCK_SPU) {
+            Psyz_OsBellWait(bell_irq, PSYZ_OS_FOREVER);
+            continue;
+        }
         if (!ServiceTimers(&deadline)) {
             Psyz_OsBellWait(bell_irq, PSYZ_OS_FOREVER);
             continue;
         }
-        int32_t left = (int32_t)(deadline - Psyz_OsNowUs());
+        int32_t left = (int32_t)(deadline - NowUs());
         if (left > 0) {
             Psyz_OsBellWait(bell_irq, (uint32_t)left);
         }
@@ -567,7 +583,7 @@ static void IrqThread(void) {
 }
 
 static void StartIrqThread(void) {
-    if (irq_thread_state) {
+    if (irq_thread_state || clock_source == PSYZ_CLOCK_SPU) {
         return;
     }
     KernelInit();
@@ -577,7 +593,7 @@ static void StartIrqThread(void) {
 void Psyz_KernelPoll(void) {
     uint32_t deadline;
     if (!irq_thread_state || OwnsKernel() ||
-        !IsDue((uint32_t)AtomicLoad(&poll_deadline_us), Psyz_OsNowUs())) {
+        !IsDue((uint32_t)AtomicLoad(&poll_deadline_us), NowUs())) {
         return;
     }
     ServiceTimers(&deadline);
@@ -605,7 +621,7 @@ long SetRCnt(long spec, unsigned short target, long mode) {
     }
     c->ticks_per_us_q15 = clock / 15625 * 512 + clock % 15625 * 512 / 15625;
     c->irq = (mode & RCntMdINTR) != 0;
-    CounterRestart(c, Psyz_OsNowUs());
+    CounterRestart(c, NowUs());
     AtomicStore(&poll_deadline_us, (long)c->last_us);
     KernelUnlock();
     Psyz_OsBellRing(bell_irq);
@@ -621,7 +637,7 @@ long GetRCnt(long spec) {
     RootCounter* c = &counters[i];
     long value = 0;
     if (c->period_us) {
-        uint32_t phase = (Psyz_OsNowUs() - c->last_us) % c->period_us;
+        uint32_t phase = (NowUs() - c->last_us) % c->period_us;
         uint32_t ticks = phase * c->ticks_per_us_q15 >> 15;
         value = (long)(ticks < c->target ? ticks : c->target - 1);
     }
@@ -635,7 +651,7 @@ long ResetRCnt(long spec) {
         return 0;
     }
     KernelLock();
-    CounterRestart(&counters[i], Psyz_OsNowUs());
+    CounterRestart(&counters[i], NowUs());
     AtomicStore(&poll_deadline_us, (long)counters[i].last_us);
     KernelUnlock();
     Psyz_OsBellRing(bell_irq);
@@ -779,3 +795,23 @@ int RestartCallback(void) {
 }
 
 int CheckCallback(void) { return OwnsKernel() && in_interrupt; }
+
+void Psyz_KernelSetClock(int source) {
+    KernelLock();
+    clock_source = source;
+    KernelUnlock();
+    if (source == PSYZ_CLOCK_HOST) {
+        Psyz_OsBellRing(bell_irq);
+    }
+}
+
+void Psyz_KernelSpuSamples(int frames) {
+    uint32_t deadline;
+    if (clock_source != PSYZ_CLOCK_SPU) {
+        return;
+    }
+    KernelLock();
+    spu_samples += (uint64_t)frames;
+    KernelUnlock();
+    ServiceTimers(&deadline);
+}
