@@ -3,6 +3,7 @@
 #include <intrin.h>
 #endif
 #include <psyz.h>
+#include <psyz/state.h>
 #include <psyz/log.h>
 #include <libgpu.h>
 #include "../internal.h"
@@ -128,6 +129,49 @@ static struct {
 #define SXY(sx, sy)                                                            \
     (((unsigned int)(unsigned short)(sx)) |                                    \
      (((unsigned int)(unsigned short)(sy)) << 16))
+
+void Psyz_GteStateSync(PsyzState* state) {
+    PSYZ_STATE_VAR(state, V0);
+    PSYZ_STATE_VAR(state, V1);
+    PSYZ_STATE_VAR(state, V2);
+    PSYZ_STATE_VAR(state, RGBC);
+    PSYZ_STATE_VAR(state, OTZ);
+    PSYZ_STATE_VAR(state, IR0);
+    PSYZ_STATE_VAR(state, IR1);
+    PSYZ_STATE_VAR(state, IR2);
+    PSYZ_STATE_VAR(state, IR3);
+    PSYZ_STATE_VAR(state, SX0);
+    PSYZ_STATE_VAR(state, SY0);
+    PSYZ_STATE_VAR(state, SX1);
+    PSYZ_STATE_VAR(state, SY1);
+    PSYZ_STATE_VAR(state, SX2);
+    PSYZ_STATE_VAR(state, SY2);
+    PSYZ_STATE_VAR(state, SXP);
+    PSYZ_STATE_VAR(state, SYP);
+    PSYZ_STATE_VAR(state, SZ0);
+    PSYZ_STATE_VAR(state, SZ1);
+    PSYZ_STATE_VAR(state, SZ2);
+    PSYZ_STATE_VAR(state, SZ3);
+    PSYZ_STATE_VAR(state, MAC0);
+    PSYZ_STATE_VAR(state, MAC1);
+    PSYZ_STATE_VAR(state, MAC2);
+    PSYZ_STATE_VAR(state, MAC3);
+    PSYZ_STATE_VAR(state, RGB0);
+    PSYZ_STATE_VAR(state, RGB1);
+    PSYZ_STATE_VAR(state, RGB2);
+    PSYZ_STATE_VAR(state, RES1);
+    PSYZ_STATE_VAR(state, M);
+    PSYZ_STATE_VAR(state, L1);
+    PSYZ_STATE_VAR(state, L2);
+    PSYZ_STATE_VAR(state, OFX);
+    PSYZ_STATE_VAR(state, OFY);
+    PSYZ_STATE_VAR(state, H);
+    PSYZ_STATE_VAR(state, DQA);
+    PSYZ_STATE_VAR(state, DQB);
+    PSYZ_STATE_VAR(state, ZSF3);
+    PSYZ_STATE_VAR(state, ZSF4);
+    PSYZ_STATE_VAR(state, FLAG);
+}
 
 static unsigned int pack_xy(short x, short y);
 static void MVMVA(unsigned int cmd25);
