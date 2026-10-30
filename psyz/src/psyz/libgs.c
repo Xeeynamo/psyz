@@ -4,24 +4,23 @@
 #include <libgs.h>
 #include <libetc.h>
 #include <psyz/log.h>
+#include "../../../decomp/src/libgs/libgs_private.h"
 
-// GsSortClear's primitives: a block fill, as PSY-Q uses (SetBlockFill), so
-// the clear ignores the drawing offset and clip
 static BLK_FILL tile_bg_clear[2];
 static int HWD0;
 static int VWD0;
-static short GsORGOFSX;
-static short GsORGOFSY;
-static short PSDIDX;
-static short PSDGPU;
-static RECT CLIP2;
-static DVECTOR POSITION;
+short GsORGOFSX;
+short GsORGOFSY;
+short PSDIDX;
+short PSDGPU;
+RECT CLIP2;
+_GsPOSITION POSITION;
 static short PSDCNT;
-static short PSDOFSX[2];
-static short PSDOFSY[2];
+short PSDOFSX[2];
+short PSDOFSY[2];
 static short PSDBASEX[2];
 static short PSDBASEY[2];
-static DRAWENV GsDRAWENV = {0};
+DRAWENV GsDRAWENV = {0};
 static DISPENV GsDISPENV = {0};
 static PACKET* GsOUT_PACKET_P;
 
@@ -91,8 +90,8 @@ void GsInitGraph(unsigned short x, unsigned short y, unsigned short intmode,
     PSDBASEY[0] = 0;
     PSDBASEY[1] = 0;
     // TODO other missing inits
-    POSITION.vx = 0;
-    POSITION.vy = 0;
+    POSITION.offx = 0;
+    POSITION.offy = 0;
     CLIP2.x = 0;
     CLIP2.y = 0;
     CLIP2.w = (short)x;
@@ -128,8 +127,6 @@ void GsDefDispBuff(unsigned short x0, unsigned short y0, unsigned short x1,
     GsSetDrawBuffOffset();
 }
 
-int GsGetActiveBuff(void) { return PSDIDX; }
-
 void GsSetWorkBase(PACKET* outpacketp) { GsOUT_PACKET_P = outpacketp; }
 
 void GsSwapDispBuff(void) {
@@ -161,31 +158,3 @@ void GsSortClear(unsigned char r, unsigned char g, unsigned char b, GsOT* ot) {
 }
 
 void GsDrawOt(GsOT* ot) { DrawOTag((OT_TYPE*)ot->tag); }
-
-void GsSetDrawBuffClip(void) {
-    GsDRAWENV.clip.x = CLIP2.x + PSDOFSX[PSDIDX];
-    GsDRAWENV.clip.y = CLIP2.y + PSDOFSY[PSDIDX];
-    GsDRAWENV.clip.w = CLIP2.w;
-    GsDRAWENV.clip.h = CLIP2.h;
-    PutDrawEnv(&GsDRAWENV);
-}
-
-void GsSetDrawBuffOffset(void) {
-    if (PSDGPU) {
-        // GsOFSGPU: the GPU adds the draw buffer's offset to every vertex
-        GsDRAWENV.ofs[0] = POSITION.vx + PSDOFSX[PSDIDX];
-        GsDRAWENV.ofs[1] = POSITION.vy + PSDOFSY[PSDIDX];
-        GsORGOFSX = 0;
-        GsORGOFSY = 0;
-        PutDrawEnv(&GsDRAWENV);
-    } else {
-        // GsOFSGTE: the GTE adds the offset when packets are sorted, which
-        // happens before GsSwapDispBuff, but they are drawn after it, so this
-        // is the buffer that will be drawn next (as PSY-Q does)
-        short x = POSITION.vx + PSDOFSX[PSDIDX == 0];
-        short y = POSITION.vy + PSDOFSY[PSDIDX == 0];
-        SetGeomOffset(x, y);
-        GsORGOFSX = x;
-        GsORGOFSY = y;
-    }
-}
