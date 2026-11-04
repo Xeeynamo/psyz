@@ -2613,6 +2613,7 @@ void Psyz_GteStszotz(unsigned int* out) {
 }
 void Psyz_GteStotz(unsigned int* out) { *out = OTZ; }
 void Psyz_GteStopz(int* out) { *out = MAC0; }
+void Psyz_GteStdp(int* out) { *out = IR0; }
 void Psyz_GteRtv0(void) { RT_MUL(V0, 0, 0, 0); }
 void Psyz_GteRtv1(void) { RT_MUL(V1, 0, 0, 0); }
 void Psyz_GteRtv2(void) { RT_MUL(V2, 0, 0, 0); }
