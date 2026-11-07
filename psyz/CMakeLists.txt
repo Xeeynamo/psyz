@@ -46,6 +46,8 @@ set(PSYZ_SOURCES
     ../decomp/src/libgte/ratan.c
     src/psyz/libgte.c
     src/psyz/libgs.c
+    ../decomp/src/libgs/gs_002.c
+    ../decomp/src/libgs/gs_003.c
     src/psyz/libcd.c
     ../decomp/src/libcd/c_002.c
     ../decomp/src/libcd/c_003.c

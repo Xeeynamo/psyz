@@ -4,21 +4,23 @@
 #include <libgs.h>
 #include <libetc.h>
 #include <psyz/log.h>
+#include "../../../decomp/src/libgs/libgs_private.h"
 
-static TILE tile_bg_clear[2];
+static BLK_FILL tile_bg_clear[2];
 static int HWD0;
 static int VWD0;
-static short GsORGOFSX;
-static short GsORGOFSY;
-static short PSDIDX;
-static short PSDGPU;
-static short CLIP2;
+short GsORGOFSX;
+short GsORGOFSY;
+short PSDIDX;
+short PSDGPU;
+RECT CLIP2;
+_GsPOSITION POSITION;
 static short PSDCNT;
-static short PSDOFSX[2];
-static short PSDOFSY[2];
+short PSDOFSX[2];
+short PSDOFSY[2];
 static short PSDBASEX[2];
 static short PSDBASEY[2];
-static DRAWENV GsDRAWENV = {0};
+DRAWENV GsDRAWENV = {0};
 static DISPENV GsDISPENV = {0};
 static PACKET* GsOUT_PACKET_P;
 
@@ -88,13 +90,16 @@ void GsInitGraph(unsigned short x, unsigned short y, unsigned short intmode,
     PSDBASEY[0] = 0;
     PSDBASEY[1] = 0;
     // TODO other missing inits
-    CLIP2 = 0;
+    POSITION.offx = 0;
+    POSITION.offy = 0;
+    CLIP2.x = 0;
+    CLIP2.y = 0;
+    CLIP2.w = (short)x;
+    CLIP2.h = (short)y;
     setlen(&tile_bg_clear[0], 3);
-    setTile(&tile_bg_clear[0]);
-    // tile_bg_clear[0].code = 2;
+    setcode(&tile_bg_clear[0], 0x02);
     setlen(&tile_bg_clear[1], 3);
-    setTile(&tile_bg_clear[1]);
-    // tile_bg_clear[1].code = 2;
+    setcode(&tile_bg_clear[1], 0x02);
     PSDCNT = 1;
     // TODO other missing inits
 
@@ -106,7 +111,7 @@ void GsDefDispBuff(unsigned short x0, unsigned short y0, unsigned short x1,
     PSDOFSX[0] = (short)x0;
     PSDOFSX[1] = (short)x1;
     PSDOFSY[0] = (short)y0;
-    PSDOFSY[1] = (short)y0;
+    PSDOFSY[1] = (short)y1;
     if (PSDGPU) {
         PSDBASEX[0] = 0;
         PSDBASEX[1] = 0;
@@ -121,8 +126,6 @@ void GsDefDispBuff(unsigned short x0, unsigned short y0, unsigned short x1,
     GsSetDrawBuffClip();
     GsSetDrawBuffOffset();
 }
-
-int GsGetActiveBuff(void) { return PSDIDX; }
 
 void GsSetWorkBase(PACKET* outpacketp) { GsOUT_PACKET_P = outpacketp; }
 
@@ -155,7 +158,3 @@ void GsSortClear(unsigned char r, unsigned char g, unsigned char b, GsOT* ot) {
 }
 
 void GsDrawOt(GsOT* ot) { DrawOTag((OT_TYPE*)ot->tag); }
-
-void GsSetDrawBuffClip(void) { NOT_IMPLEMENTED; }
-
-void GsSetDrawBuffOffset(void) { NOT_IMPLEMENTED; }
