@@ -1,4 +1,5 @@
 #include <psyz.h>
+#include <psyz/state.h>
 #include <libgpu.h>
 #include "../../../decomp/src/libgpu/libgpu_private.h"
 #include <psyz/log.h>
@@ -36,6 +37,15 @@ typedef struct {
 } UserGpuCommand;
 
 static UserGpuCommand user_gpu_commands[256];
+
+void Psyz_GpuStateSync(PsyzState* state) {
+    PSYZ_STATE_VAR(state, GPU_STATUS);
+    PSYZ_STATE_VAR(state, queue_len);
+    if (queue_len < 0 || queue_len > (int)LEN(queue_buf)) {
+        queue_len = 0;
+    }
+    state->bytes(state, queue_buf, queue_len * sizeof(queue_buf[0]));
+}
 
 int Psyz_GpuRegisterCommandHandler(
     unsigned int opcode, PsyzGpuCommandHandler handler, void* userdata) {

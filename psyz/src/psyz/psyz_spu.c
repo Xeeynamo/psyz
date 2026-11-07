@@ -1,4 +1,5 @@
 #include <psyz.h>
+#include <psyz/state.h>
 #include <psyz/log.h>
 #include <assert.h>
 #include <string.h>
@@ -44,6 +45,11 @@ static struct {
 } spu;
 
 u8* Psyz_SpuGetRam(void) { return spu.ram; }
+
+void Psyz_SpuStateSync(PsyzState* state) {
+    state->bytes(
+        state, (u8*)&spu + sizeof(spu.ram), sizeof(spu) - sizeof(spu.ram));
+}
 
 void Psyz_SpuInit(void) {
     if (spu.initialized)
