@@ -267,6 +267,28 @@ static SDL_GPUGraphicsPipeline* CreatePsxPipeline(
                 .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
                 .enable_blend = true,
             },
+        [BLEND_ADD_UNTEXTURED] =
+            {
+                .src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+                .dst_color_blendfactor =
+                    SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                .color_blend_op = SDL_GPU_BLENDOP_ADD,
+                .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
+                .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
+                .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
+                .enable_blend = true,
+            },
+        [BLEND_SUB_UNTEXTURED] =
+            {
+                .src_color_blendfactor =
+                    SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+                .color_blend_op = SDL_GPU_BLENDOP_REVERSE_SUBTRACT,
+                .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
+                .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
+                .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
+                .enable_blend = true,
+            },
     };
     const SDL_GPUColorTargetDescription target = {
         .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
@@ -2153,20 +2175,25 @@ void Draw_FlushBuffer(void) {
         while (need_subtract && start < end) {
             int group_end = SubtractGroupEnd(start, end);
             Uint32 count = (Uint32)(group_end - start);
-            SDL_BindGPUGraphicsPipeline(pass, pipe_tri[BLEND_SUB]);
+            bool untextured = is_untextured(&vertex_buf[index_buf[start]]);
+            SDL_BindGPUGraphicsPipeline(
+                pass, pipe_tri[untextured ? BLEND_SUB_UNTEXTURED : BLEND_SUB]);
             SDL_DrawGPUIndexedPrimitives(pass, count, 1, (Uint32)start, 0, 0);
-            if (!is_untextured(&vertex_buf[index_buf[start]])) {
+            if (!untextured) {
                 SDL_BindGPUGraphicsPipeline(pass, pipe_tri[BLEND_SUB_OPAQUE]);
                 SDL_DrawGPUIndexedPrimitives(
                     pass, count, 1, (Uint32)start, 0, 0);
             }
             start = group_end;
         }
-        if (start < end) {
-            SDL_BindGPUGraphicsPipeline(pass, pipe_tri[BLEND_ADD]);
+        while (start < end) {
+            int group_end = TexturedGroupEnd(start, end);
+            bool untextured = is_untextured(&vertex_buf[index_buf[start]]);
+            SDL_BindGPUGraphicsPipeline(
+                pass, pipe_tri[untextured ? BLEND_ADD_UNTEXTURED : BLEND_ADD]);
             SDL_DrawGPUIndexedPrimitives(
-                pass, (Uint32)(end - start), 1, (Uint32)start, 0, 0);
-            start = end;
+                pass, (Uint32)(group_end - start), 1, (Uint32)start, 0, 0);
+            start = group_end;
         }
     }
     SDL_EndGPURenderPass(pass);

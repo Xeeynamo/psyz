@@ -652,6 +652,81 @@ ZTEST(gpu, disp_mask_preserves_vram) {
     zexpect_u8array_eq(pattern, readback, sizeof(pattern));
 }
 
+static void FillVram(int x, int y, int w, int h, u_short color) {
+    u_short line[256];
+    RECT rect = {x, y, w, 1};
+    for (int i = 0; i < w; i++) {
+        line[i] = color;
+    }
+    for (int i = 0; i < h; i++) {
+        rect.y = y + i;
+        LoadImage(&rect, (u_long*)line);
+        DrawSync(0);
+    }
+}
+
+ZTEST(gpu, untextured_draw_clears_mask_bit) {
+    zskip_targets("psp");
+    const int textured[8] = {1, 0, 0, 1, 0, 0, 0, 1};
+    const int semi[8] = {0, 0, 1, 0, 1, 1, 1, 0};
+    const int abr[8] = {0, 0, 0, 0, 1, 2, 3, 0};
+    const u_char rgb[8][3] = {
+        {0, 0, 0},   {128, 0, 0}, {128, 0, 0}, {0, 0, 0},
+        {128, 0, 0}, {0, 64, 0},  {128, 0, 0}, {0, 0, 0},
+    };
+    DRAWENV scene;
+    DR_MODE mode[8];
+    TILE tile[8];
+    SPRT sprt[8];
+    DR_MODE view_mode;
+    SPRT view[2];
+
+    FillVram(512, 256, 256, 32, 0x8000 | (16 << 5));
+    FillVram(768, 256, 32, 32, 0x8000 | (16 << 10));
+
+    ClearOTag(cdb->ot, OTSIZE);
+    for (int i = 7; i >= 0; i--) {
+        SetDrawMode(&mode[i], 0, 0, getTPage(2, abr[i], 768, 256), NULL);
+        if (textured[i]) {
+            SetSprt(&sprt[i]);
+            setShadeTex(&sprt[i], 1);
+            setXY0(&sprt[i], i * 32, 0);
+            setWH(&sprt[i], 32, 32);
+            setUV0(&sprt[i], 0, 0);
+            AddPrim(cdb->ot, &sprt[i]);
+        } else {
+            SetTile(&tile[i]);
+            SetSemiTrans(&tile[i], semi[i]);
+            setRGB0(&tile[i], rgb[i][0], rgb[i][1], rgb[i][2]);
+            setXY0(&tile[i], i * 32, 0);
+            setWH(&tile[i], 32, 32);
+            AddPrim(cdb->ot, &tile[i]);
+        }
+        AddPrim(cdb->ot, &mode[i]);
+    }
+    SetDefDrawEnv(&scene, 512, 256, 256, 32);
+    scene.dtd = 0;
+    PutDrawEnv(&scene);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    PutDrawEnv(&cdb->draw);
+
+    ClearOTag(cdb->ot, OTSIZE);
+    SetDrawMode(&view_mode, 0, 0, getTPage(2, 1, 512, 256), NULL);
+    for (int i = 1; i >= 0; i--) {
+        SetSprt(&view[i]);
+        setShadeTex(&view[i], 1);
+        SetSemiTrans(&view[i], i);
+        setXY0(&view[i], 0, 16 + i * 48);
+        setWH(&view[i], 256, 32);
+        setUV0(&view[i], 0, 0);
+        AddPrim(cdb->ot, &view[i]);
+    }
+    AddPrim(cdb->ot, &view_mode);
+    ClearImage(&cdb->draw.clip, 64, 64, 64);
+    Present("untextured_mask_bit");
+}
+
 ZTEST(gpu, blit) {
     TIM_IMAGE tim;
     RECT rect = {16, 16, 64, 64};
