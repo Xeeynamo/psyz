@@ -1303,7 +1303,7 @@ segments:
       - [0xB8A48, data, libgs/2d_bg0]
       - [0xB8A50, data, libgs/2d_bg1]
       - [0xB8A58, data, libgs/global]
-      - [0xB8A60, data, libgs/gs_001]
+      - [0xB8A60, .data, libgs/gs_001]
       - [0xB8A68, data, libgs/objt2]
       - [0xB8B98, data, libgs/preset2]
       - [0xB8CC8, data, libgs/preset4]
