@@ -1118,9 +1118,11 @@ static void PollEvents(void) {
             break;
 #ifndef PLATFORM_IOS
         case SDL_EVENT_KEY_DOWN:
+#ifndef PLATFORM_WEB
             if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
                 SDL_SetAtomicInt(&quit_requested, 1);
             }
+#endif
             if (event.key.scancode == SDL_SCANCODE_F6) {
                 debug_show_vram ^= 1;
             }
