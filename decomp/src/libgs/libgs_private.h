@@ -16,5 +16,8 @@ extern short PSDOFSX[2];
 extern short PSDOFSY[2];
 extern short GsORGOFSX;
 extern short GsORGOFSY;
+extern MATRIX _LC; // light colour matrix
+
+void gte_init(void);
 
 #endif
