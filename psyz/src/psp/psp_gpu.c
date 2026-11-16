@@ -252,6 +252,11 @@ static void UpdateOutputMapping(void) {
         }
     }
 
+    if (use_surface) {
+        // The third framebuffer shares memory with the scaling surfaces.
+        cur_draw_fb %= 2;
+    }
+
     // placement of the presented output on the physical screen
     if (layout.native) {
         pres_x = layout.present.sx;
