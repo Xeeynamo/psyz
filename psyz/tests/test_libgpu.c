@@ -128,6 +128,68 @@ static void SetPolyF4Img(POLY_FT4* poly, int x, int y, int w, int h, int u,
 ZTEST_SETUP(gpu) { gpu_setup(); }
 ZTEST_TEARDOWN(gpu) { gpu_teardown(); }
 
+ZTEST(gpu, drawprim_drawing_offset) {
+    DR_OFFSET offset;
+    u_short xy[2] = {(u_short)-16, 8};
+    TILE first, second;
+    RECT rect = {0, 40, 80, 1};
+    u_long readback[40];
+    u_short* pixels = (u_short*)readback;
+
+    SetDrawOffset(&offset, xy);
+    DrawPrim(&offset);
+    setTile(&first);
+    setXY0(&first, 32, 32);
+    setWH(&first, 16, 8);
+    setRGB0(&first, 0, 255, 0);
+    addPrim(cdb->ot, &first);
+
+    setTile(&second);
+    setXY0(&second, 64, 32);
+    setWH(&second, 16, 8);
+    setRGB0(&second, 255, 0, 0);
+    addPrim(cdb->ot, &second);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    StoreImage(&rect, readback);
+    DrawSync(0);
+
+    for (int x = 0; x < rect.w; x++) {
+        int expected = x >= 16 && x < 32   ? 0x03E0
+                       : x >= 48 && x < 64 ? 0x001F
+                                           : 0;
+        zexpect_u16_eq(expected, pixels[x] & 0x7FFF);
+    }
+}
+
+ZTEST(gpu, drawprim_drawing_area) {
+    DR_AREA area;
+    RECT clip = {32, 32, 16, 8};
+    RECT rect = {24, 24, 32, 24};
+    TILE tile;
+    u_long readback[32 * 24 / 2];
+    u_short* pixels = (u_short*)readback;
+
+    SetDrawArea(&area, &clip);
+    DrawPrim(&area);
+    setTile(&tile);
+    setXY0(&tile, 0, 0);
+    setWH(&tile, 128, 128);
+    setRGB0(&tile, 0, 255, 0);
+    addPrim(cdb->ot, &tile);
+    DrawOTag(cdb->ot);
+    DrawSync(0);
+    StoreImage(&rect, readback);
+    DrawSync(0);
+
+    for (int y = 0; y < rect.h; y++) {
+        for (int x = 0; x < rect.w; x++) {
+            int expected = x >= 8 && x < 24 && y >= 8 && y < 16 ? 0x03E0 : 0;
+            zexpect_u16_eq(expected, pixels[y * rect.w + x] & 0x7FFF);
+        }
+    }
+}
+
 ZTEST(gpu, fnt_print) {
     FntLoad(960, 256);
     SetDumpFnt(FntOpen(4, 4, SCREEN_WIDTH, SCREEN_HEIGHT, 0, 512));
