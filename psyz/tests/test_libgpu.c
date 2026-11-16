@@ -128,13 +128,17 @@ static void SetPolyF4Img(POLY_FT4* poly, int x, int y, int w, int h, int u,
 ZTEST_SETUP(gpu) { gpu_setup(); }
 ZTEST_TEARDOWN(gpu) { gpu_teardown(); }
 
+static u_short FramePixel(const zimage* frame, int x, int y) {
+    unsigned char rgb[3];
+    zimage_get_rgb(frame, x, y, rgb);
+    return (rgb[0] >> 3) | ((rgb[1] >> 3) << 5) | ((rgb[2] >> 3) << 10);
+}
+
 ZTEST(gpu, drawprim_drawing_offset) {
     DR_OFFSET offset;
     u_short xy[2] = {(u_short)-16, 8};
     TILE first, second;
-    RECT rect = {0, 40, 80, 1};
-    u_long readback[40];
-    u_short* pixels = (u_short*)readback;
+    zimage frame;
 
     SetDrawOffset(&offset, xy);
     DrawPrim(&offset);
@@ -151,15 +155,19 @@ ZTEST(gpu, drawprim_drawing_offset) {
     addPrim(cdb->ot, &second);
     DrawOTag(cdb->ot);
     DrawSync(0);
-    StoreImage(&rect, readback);
-    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+    frame = zimage_frontbuffer();
+    zassert_s32_eq(SCREEN_WIDTH, frame.width);
+    zassert_s32_eq(SCREEN_HEIGHT, frame.height);
 
-    for (int x = 0; x < rect.w; x++) {
+    for (int x = 0; x < 80; x++) {
         int expected = x >= 16 && x < 32   ? 0x03E0
                        : x >= 48 && x < 64 ? 0x001F
                                            : 0;
-        zexpect_u16_eq(expected, pixels[x] & 0x7FFF);
+        zexpect_u16_eq(expected, FramePixel(&frame, x, 40));
     }
+    zimage_free(&frame);
 }
 
 ZTEST(gpu, drawprim_drawing_area) {
@@ -167,8 +175,7 @@ ZTEST(gpu, drawprim_drawing_area) {
     RECT clip = {32, 32, 16, 8};
     RECT rect = {24, 24, 32, 24};
     TILE tile;
-    u_long readback[32 * 24 / 2];
-    u_short* pixels = (u_short*)readback;
+    zimage frame;
 
     SetDrawArea(&area, &clip);
     DrawPrim(&area);
@@ -179,15 +186,20 @@ ZTEST(gpu, drawprim_drawing_area) {
     addPrim(cdb->ot, &tile);
     DrawOTag(cdb->ot);
     DrawSync(0);
-    StoreImage(&rect, readback);
-    DrawSync(0);
+    VSync(0);
+    PutDispEnv(&cdb->disp);
+    frame = zimage_frontbuffer();
+    zassert_s32_eq(SCREEN_WIDTH, frame.width);
+    zassert_s32_eq(SCREEN_HEIGHT, frame.height);
 
     for (int y = 0; y < rect.h; y++) {
         for (int x = 0; x < rect.w; x++) {
             int expected = x >= 8 && x < 24 && y >= 8 && y < 16 ? 0x03E0 : 0;
-            zexpect_u16_eq(expected, pixels[y * rect.w + x] & 0x7FFF);
+            zexpect_u16_eq(
+                expected, FramePixel(&frame, rect.x + x, rect.y + y));
         }
     }
+    zimage_free(&frame);
 }
 
 ZTEST(gpu, fnt_print) {
