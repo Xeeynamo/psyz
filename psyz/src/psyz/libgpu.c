@@ -289,7 +289,7 @@ static int GPU_DataRead(RECT* rect, u_long* data) {
 static int psyz_cwb(u32* data, s32 n) {
     gpu_busy = 1;
     if (n > 0) {
-        Draw_PushPrim((u_long*)data, n);
+        DispatchPackets((u_long*)data, n);
     }
     return 0;
 }
