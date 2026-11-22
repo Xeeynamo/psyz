@@ -11,6 +11,13 @@
 #include "sdl3_common.h"
 #include "sdl3_draw.h"
 #include "rgb24.h"
+
+void Draw_SetMask(int bit0, int bit1) {
+    if (bit0 || bit1) {
+        NOT_IMPLEMENTED;
+    }
+}
+
 static bool display_rgb24;
 
 #if defined(_WIN32)

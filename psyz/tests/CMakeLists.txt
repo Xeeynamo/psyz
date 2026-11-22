@@ -22,6 +22,11 @@ set(PSYZ_TEST_SOURCES
     frontbuffer_psyz.c
 )
 
+# Destination mask support currently belongs to the OpenGL/WebGL backend.
+if(EMSCRIPTEN OR PSYZ_RENDERER STREQUAL "sdl3_gl")
+    list(APPEND PSYZ_TEST_SOURCES test_gpu_mask.c)
+endif()
+
 add_executable(${PROJECT_NAME} ${PSYZ_TEST_SOURCES})
 set_target_properties(${PROJECT_NAME} PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
 target_link_libraries(${PROJECT_NAME} PRIVATE ztest psyz)

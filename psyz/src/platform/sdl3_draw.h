@@ -179,10 +179,5 @@ void Draw_SetTextureWindow(unsigned int mask_x, unsigned int mask_y,
         (unsigned char)((off_x & mask_x) * 8),
         (unsigned char)((off_y & mask_y) * 8));
 }
-void Draw_SetMask(int bit0, int bit1) {
-    if (bit0 || bit1) {
-        NOT_IMPLEMENTED;
-    }
-}
 
 #endif
